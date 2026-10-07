@@ -1,0 +1,38 @@
+# A full video to her own YouTube channel (Connect YouTube). Started ONLY by the Worker (repository_dispatch with a
+# signed payload); the job fetches its spec from the Worker, reads the video through the Worker, gets a short-lived
+# access token from the Worker (never the refresh token), uploads with YouTube's resumable protocol, sets the
+# thumbnail and calls back. Logs show step names, counts and pass/fail only.
+name: job-ytupload
+
+on:
+  repository_dispatch:
+    types: [ytupload]
+
+concurrency:
+  group: job-ytupload-${{ github.event.client_payload.job_id }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    # Download + upload of a large video (a few GB at runner speeds takes minutes). 120 min is a fault
+    # detector, never a budget; the Worker treats an upload still running after 3 hours as failed.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run
+        run: python3 jobs/ytupload.py
+        env:
+          JOB_ID: ${{ github.event.client_payload.job_id }}
+          JOB_NONCE: ${{ github.event.client_payload.nonce }}
+          JOB_TS: ${{ github.event.client_payload.ts }}
+          JOB_SIG: ${{ github.event.client_payload.sig }}
+          WORKER_URL: ${{ github.event.client_payload.worker_url }}
+          RUN_ID: ${{ github.run_id }}
+          # Which studio started this job: it picks that studio's shared secret (JOB_SHARED_SECRET_<SLUG>)
+          # and the callback. Storage and the YouTube token go through that Worker; the job holds no keys.
+          JOB_STUDIO: ${{ github.event.client_payload.studio }}
+          JOB_SHARED_SECRET: ${{ secrets[format('JOB_SHARED_SECRET_{0}', github.event.client_payload.studio)] || secrets.JOB_SHARED_SECRET }}

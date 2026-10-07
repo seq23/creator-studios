@@ -1,0 +1,257 @@
+/* Looks: the Look chip on a clip, "Change look" (Review) and the Editing card (Settings).
+   Tokens only (tokens.css). Phone first: every option is a 44 px target. */
+.clip-look {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3xs) var(--space-2xs);
+  align-items: center;
+}
+.look-chip {
+  background: var(--gold-faint);
+  border-color: var(--gold-line);
+  color: var(--gold-ink);
+}
+.look-error {
+  color: var(--warning-ink);
+}
+.look-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2xs);
+}
+.look-option {
+  width: 100%;
+  min-height: var(--touch);
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  text-align: left;
+  padding: var(--space-2xs);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color var(--dur-short) var(--ease-out), background var(--dur-short) var(--ease-out);
+}
+.look-option:hover:not(:disabled) {
+  border-color: var(--gold);
+}
+.look-option.current {
+  border-color: var(--gold);
+  background: var(--gold-faint);
+}
+.look-option:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+.look-option img {
+  flex: 0 0 auto;
+  width: 111px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunk);
+}
+.look-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3xs);
+  min-width: 0;
+}
+.look-name {
+  font-weight: 600;
+  display: flex;
+  gap: var(--space-2xs);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.cell-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 180px) minmax(0, 1fr);
+  gap: var(--space-sm);
+  align-items: start;
+}
+@media (max-width: 520px) {
+  .cell-picker {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mosaic {
+    max-width: 200px;
+    margin: 0 auto;
+  }
+}
+.mosaic {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.mosaic-cell {
+  position: absolute;
+  padding: 0;
+  border: 2px solid transparent;
+  background: var(--surface-sunk);
+  overflow: hidden;
+  cursor: pointer;
+}
+.mosaic-cell.active {
+  border-color: var(--gold);
+  z-index: 1;
+}
+.mosaic-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.mosaic-empty {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.mosaic-voice {
+  position: absolute;
+  left: var(--space-3xs);
+  bottom: var(--space-3xs);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  padding: 0 var(--space-3xs);
+  border-radius: var(--pill);
+  background: var(--espresso);
+  color: var(--on-dark);
+}
+.cell-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  min-width: 0;
+}
+.cell-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3xs);
+}
+.cell-choice-row [aria-pressed="true"],
+.cell-source.on {
+  border-color: var(--gold);
+  background: var(--gold-faint);
+}
+.cell-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3xs);
+  max-height: 220px;
+  overflow-y: auto;
+}
+.cell-source {
+  width: 100%;
+  min-height: var(--touch);
+  display: flex;
+  gap: var(--space-2xs);
+  align-items: center;
+  text-align: left;
+  padding: var(--space-3xs) var(--space-2xs);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.cell-source img {
+  width: 27px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: var(--radius-xs);
+}
+.cell-source .grow {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.editing-looks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2xs);
+}
+.editing-look {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  min-height: var(--touch);
+}
+.editing-look input {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  accent-color: var(--gold-deep);
+}
+.editing-look img {
+  width: 111px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  flex: 0 0 auto;
+}
+.music-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3xs);
+}
+.music-row {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--touch);
+}
+.music-row .grow {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.handoff-apps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3xs);
+}
+.handoff-apps [aria-pressed="true"] {
+  border-color: var(--gold);
+  background: var(--gold-faint);
+}
+.handoff-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-sm);
+}
+.handoff-steps li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+.editor-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs) var(--space-sm);
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--touch);
+}
+.editor-row .select {
+  width: auto;
+  min-width: 190px;
+}

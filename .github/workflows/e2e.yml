@@ -1,0 +1,71 @@
+# The full browser suite, POST-MERGE: Playwright drives the dashboard at phone and desktop sizes
+# against a local Worker with fake services (email-code login, as every studio runs). A second job
+# re-takes every Help picture and proves each step still has its own picture (validator help-pictures).
+#
+# BUILD FIRST, TEST IN BATCHES: this is never a merge gate (check.yml is) and never per merge. It
+# runs nightly on main and on dispatch. A red run is fixed first (bisect between the last green
+# and the red sha); it does not hold the studios' deploy, which follows green main (deploy.yml).
+# timeout-minutes is a fault detector (~4x a normal run: e2e ~19 min, pictures ~9 min), never a budget.
+name: e2e
+
+on:
+  schedule:
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Playwright (fake services, email-code login)
+        run: npm run e2e
+        env:
+          SESSION_SECRET: ci-session-secret
+          SECRETS_KEY: 3Azr0CP6a687IwEqn9ZTM7gF9VgieHdcyXDvKd9Yo24=
+          JOB_SHARED_SECRET: ci-job-secret
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
+
+  help-screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Every guide step, phone and desktop (fake services, demo data)
+        run: npm run help:screenshots
+        env:
+          SESSION_SECRET: ci-session-secret
+          SECRETS_KEY: 3Azr0CP6a687IwEqn9ZTM7gF9VgieHdcyXDvKd9Yo24=
+          JOB_SHARED_SECRET: ci-job-secret
+      - name: Each step has its own picture
+        run: node scripts/validate.mjs help-pictures
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: help-screenshots
+          path: help/screenshots
+          retention-days: 7

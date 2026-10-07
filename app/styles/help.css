@@ -1,0 +1,291 @@
+/* Hallmark · design-system: docs/design/DESIGN.md · designed-as-app
+   Help center + one guide (section 12c). Tokens only. */
+.help-search .input {
+  font-size: var(--text-md);
+  min-height: 52px;
+  max-width: 720px;
+}
+.help-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-md);
+  align-items: start;
+}
+.help-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+@media (max-width: 900px) {
+  .help-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.checklist li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: 52px;
+  border-top: 1px solid var(--line);
+}
+.checklist li:first-child {
+  border-top: 0;
+}
+.checklist-link {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-height: var(--touch);
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+}
+.checklist-link:hover {
+  text-decoration: underline;
+}
+.checklist li.on .checklist-link {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+.checklist .tick {
+  display: grid;
+  place-items: center;
+  width: var(--touch);
+  height: var(--touch);
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--grey);
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background-color var(--dur-short) var(--ease-out), border-color var(--dur-short) var(--ease-out);
+}
+.checklist .tick:hover {
+  border-color: var(--gold-deep);
+}
+.checklist li.on .tick {
+  border-color: var(--success);
+  background: var(--success);
+  color: var(--ivory);
+}
+.help-minutes {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+a.list-row.guide-row {
+  min-height: 52px;
+  text-decoration: none;
+  color: var(--text);
+}
+.guide-row-chev,
+.reconnects-chev {
+  color: var(--text-muted);
+}
+/* "Reconnect one service" is the last row of the Fix-it list; it opens in place */
+.reconnects summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: 52px;
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+.reconnects summary::-webkit-details-marker {
+  display: none;
+}
+.reconnects-chev {
+  transition: transform var(--dur-short) var(--ease-out);
+}
+.reconnects[open] .reconnects-chev {
+  transform: rotate(90deg);
+}
+.reconnects > .list {
+  padding-left: var(--space-sm);
+  border-top: 1px solid var(--line);
+}
+.card.stuck {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  text-align: left;
+}
+.stuck .grow {
+  flex: 1 1 18rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3xs);
+}
+
+/* ---------- one guide ---------- */
+.guide {
+  max-width: 820px;
+}
+.guide-screen-only {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.guide-screen-only > p {
+  max-width: var(--measure);
+  font-size: var(--text-md);
+  line-height: var(--lh-body);
+}
+.guide-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-weight: 600;
+  color: var(--text-soft);
+}
+.guide-progress .meter {
+  flex: 1;
+}
+.guide-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.guide-shot {
+  position: relative;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--gold-soft);
+  background: var(--surface);
+  box-shadow: var(--shadow-tiny);
+}
+.guide-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.guide-shot.placeholder {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 10;
+  text-align: center;
+  padding: var(--space-md);
+  color: var(--text-muted);
+  background: repeating-linear-gradient(135deg, var(--surface), var(--surface) 12px, var(--gold-faint) 12px, var(--gold-faint) 24px);
+}
+@media (max-width: 900px) {
+  .guide-shot.placeholder {
+    aspect-ratio: 390 / 600;
+  }
+}
+.guide-step h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-lg);
+}
+.guide-step p,
+.guide-step li {
+  font-size: var(--text-md);
+  line-height: var(--lh-body);
+  max-width: var(--measure);
+}
+.guide-step ul,
+.guide-step ol {
+  margin: 0;
+  padding-left: var(--space-md);
+}
+.guide-step code {
+  font-family: var(--font-mono);
+  font-size: var(--text-mono);
+  background: var(--gold-faint);
+  padding: 1px var(--space-3xs);
+  border-radius: var(--radius-xs);
+}
+/* Back / Next stay in reach while she reads the step (above the phone tab bar, clear of the ?) */
+.guide-nav {
+  position: sticky;
+  bottom: var(--space-sm);
+  z-index: var(--z-sticky);
+  display: flex;
+  gap: var(--space-xs);
+  justify-content: space-between;
+  padding: var(--space-2xs);
+  border-radius: var(--pill);
+  background: var(--glass);
+  border: 1px solid var(--gold-soft);
+  box-shadow: var(--shadow-soft);
+}
+.guide-nav .btn {
+  min-width: 120px;
+}
+@media (max-width: 900px) {
+  .guide-nav {
+    bottom: calc(var(--tabbar-h) + var(--space-2xs) + env(safe-area-inset-bottom));
+    margin-right: calc(var(--touch) + var(--space-2xs));
+  }
+  .guide-nav .btn {
+    min-width: 0;
+    flex: 1 1 0;
+  }
+}
+@media (min-width: 901px) {
+  .guide-nav {
+    margin-right: calc(var(--space-xl) + var(--space-sm));
+  }
+}
+.guide-done {
+  margin-top: var(--space-2xs);
+}
+.guide-meta {
+  margin-top: var(--space-md);
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.guide-print-only {
+  display: none;
+}
+@media print {
+  .sidebar,
+  .tabbar,
+  .help-btn,
+  .toast-host,
+  .guide-nav,
+  .guide-done,
+  .guide-meta button,
+  .page-head .actions,
+  .guide-progress {
+    display: none !important;
+  }
+  .main {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .guide-screen-only {
+    display: none !important;
+  }
+  .guide-print-only {
+    display: block;
+  }
+  .guide-print-only .guide-step {
+    break-inside: avoid;
+    margin-bottom: var(--space-sm);
+  }
+  .guide-shot {
+    max-width: 520px;
+  }
+}
+.guide .crumb a {
+  min-width: var(--touch);
+}

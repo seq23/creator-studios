@@ -1,0 +1,349 @@
+/* Hallmark · design-system: docs/design/DESIGN.md · designed-as-app
+   Home. Tokens only (tokens.css); shared pieces (.card, .stat, .list) are not restyled here. */
+
+/* "Review now" on the Waiting card: the one rose word on the screen */
+.home-go {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  font-size: var(--text-sm);
+  color: var(--rose);
+}
+
+/* This week: one tidy row per platform, figures in a column */
+.home-plats,
+.home-health {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.home-plats li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2xs);
+  padding: var(--space-3xs) 0;
+  font-size: var(--text-xs);
+  color: var(--text-soft);
+}
+.home-plats li + li,
+.home-health li + li {
+  border-top: 1px solid var(--line);
+}
+.home-plats .nums {
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* Health: a light and its name per row */
+.home-health li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-3xs) 0;
+  font-size: var(--text-sm);
+  min-width: 0;
+}
+
+/* Phones: the four numbers sit two by two in compact cards so "Waiting for you" and the first
+   list are both on the first screen. */
+@media (max-width: 560px) {
+  .home-stats {
+    gap: var(--space-2xs);
+  }
+  .home-stats > .card {
+    padding: var(--space-sm);
+    gap: var(--space-2xs);
+    border-radius: var(--radius);
+  }
+  .home-stats .stat {
+    font-size: var(--text-lg);
+  }
+  .home-stats .card.accent::before {
+    border-radius: calc(var(--radius) - var(--space-3xs));
+  }
+  .home-health li {
+    font-size: var(--text-xs);
+  }
+}
+
+/* Your voice: optional, quiet. One line and a link across the row under the four numbers
+   (desktop and phone alike); red only for a real error. */
+.home-voice {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: var(--space-2xs) var(--space-sm);
+}
+.home-voice .card-label {
+  margin: 0;
+}
+.home-voice-line {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  flex: 1 1 16rem;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--text-soft);
+}
+.home-voice-line.bad {
+  color: var(--danger);
+}
+.home-voice .home-go {
+  min-height: var(--touch);
+}
+
+/* Day 358: every Home card has its × on the right; lists show at most their cap. */
+.home-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2xs);
+  width: 100%;
+}
+.home-card > .grow {
+  flex: 1;
+  min-width: 0;
+}
+.home-row {
+  align-items: center;
+}
+.home-row .meta .pill {
+  margin-right: var(--space-3xs);
+}
+.home-empty {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.home-more {
+  display: inline;
+}
+@media (max-width: 560px) {
+  /* one phone screen: tighter head, a lede only on desktop, compact lists */
+  .home .page-head .lede {
+    display: none;
+  }
+  .home .page-head {
+    gap: var(--space-xs);
+  }
+  .home .notice {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--text-sm);
+  }
+  .home .home-lists .section {
+    margin-top: var(--space-xs);
+  }
+  .home .home-lists .list-row {
+    padding-top: var(--space-2xs);
+    padding-bottom: var(--space-2xs);
+  }
+  .home .home-plats li {
+    padding: 0;
+  }
+  .home .home-voice {
+    padding: var(--space-xs) var(--space-sm);
+  }
+  .home .home-voice .card-label {
+    display: none;
+  }
+}
+@media (max-width: 560px) {
+  /* one phone screen however much piles up (validated by tests/e2e/day-358.spec.ts) */
+  .home .page-head .btn.big {
+    min-height: var(--touch);
+    padding-top: var(--space-2xs);
+    padding-bottom: var(--space-2xs);
+  }
+  .home .home-stats > .card {
+    padding: var(--space-xs);
+    gap: var(--space-3xs);
+  }
+  .home .home-stats .stat {
+    font-size: var(--text-md);
+  }
+  .home .home-plats {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0 var(--space-2xs);
+  }
+  .home .home-plats li + li {
+    border-top: 0;
+  }
+  .home .home-health li {
+    padding: 0;
+  }
+  .home .home-stats .meter {
+    height: var(--space-3xs);
+  }
+  .home .home-voice {
+    flex-wrap: nowrap;
+  }
+  .home .home-voice-line span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .home .home-youtube .btn-row {
+    margin-top: var(--space-3xs);
+  }
+  .home .home-lists .section-head h2 {
+    font-size: var(--text-md);
+  }
+  .home .home-lists .card.flat {
+    padding: 0 var(--space-xs);
+  }
+  .home .home-row .title,
+  .home .home-row .meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .home .home-row .meta .pill {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  .home .section {
+    gap: var(--space-2xs);
+  }
+  .home.page {
+    gap: var(--space-xs);
+  }
+}
+.home-row > .pill {
+  flex: none;
+}
+@media (max-width: 560px) {
+  .home .home-row-extra {
+    display: none;
+  }
+  .home .home-row {
+    min-height: var(--touch);
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  .home .home-stats .hint {
+    font-size: var(--text-xs);
+  }
+  .home .home-plats li {
+    font-size: var(--text-2xs);
+  }
+}
+@media (max-width: 560px) {
+  .home .home-lists {
+    gap: var(--space-xs);
+  }
+  .home .home-lists .section {
+    margin-top: 0;
+  }
+  .home .home-row .pill {
+    letter-spacing: 0;
+    text-transform: none;
+    padding: 0 var(--space-2xs);
+  }
+  .home .home-plats li {
+    line-height: 1.25;
+  }
+  .home .home-stats .card-label {
+    font-size: var(--text-2xs);
+  }
+}
+@media (max-width: 560px) {
+  .home .home-voice {
+    padding-top: var(--space-3xs);
+    padding-bottom: var(--space-3xs);
+    min-height: 0;
+  }
+  .home .page-head .eyebrow {
+    margin-bottom: 0;
+  }
+  .home .notice {
+    padding-top: var(--space-2xs);
+    padding-bottom: var(--space-2xs);
+  }
+}
+.home-voice .home-go {
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .home .home-plats {
+    display: block;
+    font-size: var(--text-2xs);
+    line-height: 1.35;
+    color: var(--text-soft);
+  }
+  .home .home-plats li {
+    display: inline;
+    padding: 0;
+  }
+  .home .home-plats li + li::before {
+    content: " · ";
+  }
+  .home .home-plats li span + span {
+    margin-left: var(--space-3xs);
+  }
+  .home .page-head h1 {
+    font-size: var(--text-xl);
+  }
+}
+@media (max-width: 560px) {
+  .home .home-stats > .home-voice {
+    padding: 0 var(--space-xs);
+  }
+}
+/* YouTube to-dos: their links on one wrapping line, so the card stays short */
+.home-yt-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-sm);
+  margin-top: var(--space-3xs);
+}
+.home-yt-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch);
+  font-weight: 700;
+}
+.home-dismiss {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.home-dismiss .home-more {
+  font-size: var(--text-2xs);
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .home .page-head {
+    gap: var(--space-2xs);
+  }
+  .home .home-lists .section-head {
+    margin: 0;
+    min-height: 0;
+  }
+  .home .home-yt-links a {
+    min-height: var(--touch);
+    line-height: 1;
+  }
+}
+@media (max-width: 560px) {
+  /* Home only: the title and the one action share a row, so a year of notices still fits one
+     screen with room to spare whatever fonts the phone draws (CI's Linux fonts ran 40 px taller). */
+  .home .page-head {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+  .home .page-head .actions {
+    width: auto;
+    flex: none;
+  }
+  .home .page-head .actions > [data-primary] {
+    flex: none;
+    padding-left: var(--space-sm);
+    padding-right: var(--space-sm);
+  }
+}

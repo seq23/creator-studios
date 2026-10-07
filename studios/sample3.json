@@ -1,0 +1,18 @@
+{
+  "slug": "sample3",
+  "worker": "sample3studio",
+  "url": "https://sample3studio.seq-taylor.workers.dev",
+  "appName": "Sample 3 Studio",
+  "ownerName": "",
+  "ownerEmail": "",
+  "theme": "slate",
+  "kind": "client",
+  "audienceTimezone": "America/New_York",
+  "d1": {
+    "name": "creator-studios-sample3-db",
+    "id": "3f6294ec-bba8-4dc6-a75e-7cfc2304be36"
+  },
+  "r2": {
+    "bucket": "creator-studios-sample3-files"
+  }
+}

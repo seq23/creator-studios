@@ -1,0 +1,68 @@
+/* Steering a dump (app/components/Steer.tsx). Tokens only. Phone first: 44 px chips that wrap. */
+.steer {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-sm);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+.steer-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs) var(--space-sm);
+  align-items: center;
+}
+.steer-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3xs);
+}
+.steer-name {
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+.steer-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3xs);
+}
+.steer-chip {
+  min-height: var(--touch);
+  padding: 0 var(--space-sm);
+  border-radius: var(--pill);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.steer-chip.on {
+  border-color: var(--gold-deep);
+  background: var(--gold-faint);
+  font-weight: 700;
+}
+.understood,
+.not-followed {
+  border-left: 3px solid var(--gold);
+  padding: var(--space-2xs) var(--space-sm);
+  background: var(--surface-sunk);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
+.not-followed {
+  border-left-color: var(--warning-ink);
+}
+.understood ul,
+.not-followed ul {
+  margin: var(--space-3xs) 0;
+  padding-left: var(--space-md);
+}
+.understood.compact {
+  margin-top: var(--space-3xs);
+}
+.tried {
+  font-size: var(--text-sm);
+}

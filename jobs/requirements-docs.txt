@@ -1,0 +1,5 @@
+# Reading brand docs and outside reports (extract + research jobs). OCR uses the system
+# tools tesseract-ocr and poppler-utils (pdftoppm), installed by apt in job-extract.yml and
+# job-research.yml, so no Python OCR wheel is needed.
+pypdf>=5.0,<7
+python-docx>=1.1,<2

@@ -1,0 +1,29 @@
+{
+  "slug": "hadiyah",
+  "worker": "hadiyahstudio",
+  "url": "https://hadiyahstudio.seq-taylor.workers.dev",
+  "appName": "Hadiyah Studio",
+  "ownerName": "Hadiyah",
+  "ownerEmail": "sequoia@westpeek.ventures",
+  "theme": "hadiyah",
+  "kind": "host-accounts",
+  "audienceTimezone": "America/New_York",
+  "d1": {
+    "name": "creator-studios-hadiyah-db",
+    "id": "961a728b-2eae-48f0-803b-928302e03da7"
+  },
+  "r2": {
+    "bucket": "creator-studios-hadiyah-files"
+  },
+  "_ownerEmail": "FILL: Hadiyah's own login email. Defaults to the host's address (as Sheila's studio did) until she gives hers; change it here and run `npm run studio:deploy hadiyah`.",
+  "githubRepo": "seq23/creator-studios",
+  "hostSecrets": {
+    "_why": "Exactly the split the host gave Sheila Studio: only what ran on the HOST's own accounts there is the host's here (README 'Hadiyah: whose account runs what'). Everything else is Hadiyah's own, pasted on Setup.",
+    "GITHUB_DISPATCH_TOKEN": "gh-auth-token",
+    "YOUTUBE_API_KEY": "vault:sheila-youtube-api-key",
+    "GOOGLE_CLIENT_ID": "vault?:hadiyah-google-oauth-client-id",
+    "GOOGLE_CLIENT_SECRET": "vault?:hadiyah-google-oauth-client-secret",
+    "_optional": "vault? = set when the vault holds it, otherwise a named stop (README): Google sign-in runs in practice mode until then."
+  },
+  "jobSecretOnHostRepo": true
+}

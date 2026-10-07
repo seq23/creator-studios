@@ -1,0 +1,42 @@
+# Chatterbox narration (section 12). Chatterbox + torch (CPU) are pip-installed inside jobs/voice.py. Started ONLY by the Worker (repository_dispatch with a signed payload); the job
+# fetches its spec from the Worker, works in the runner, writes files back through the Worker, calls back.
+# Logs show step names, counts and pass/fail only (section 13).
+name: job-voice
+
+on:
+  repository_dispatch:
+    types: [voice]
+
+concurrency:
+  group: job-voice-${{ github.event.client_payload.job_id }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    # Chatterbox on CPU: install + model download + a short narration. 90 min is a fault detector,
+    # never a budget (speed on the runner is not yet proven).
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: jobs/requirements.txt
+      - name: System tools
+        run: bash .github/scripts/apt-install.sh ffmpeg
+      - run: pip install -q -r jobs/requirements.txt
+      - name: Run
+        run: python3 jobs/voice.py
+        env:
+          JOB_ID: ${{ github.event.client_payload.job_id }}
+          JOB_NONCE: ${{ github.event.client_payload.nonce }}
+          JOB_TS: ${{ github.event.client_payload.ts }}
+          JOB_SIG: ${{ github.event.client_payload.sig }}
+          WORKER_URL: ${{ github.event.client_payload.worker_url }}
+          RUN_ID: ${{ github.run_id }}
+          # Which studio started this job: it picks that studio's shared secret (JOB_SHARED_SECRET_<SLUG>, or
+          # JOB_SHARED_SECRET in a studio's own job repository). Storage and keys come through that Worker's signed spec.
+          JOB_STUDIO: ${{ github.event.client_payload.studio }}
+          JOB_SHARED_SECRET: ${{ secrets[format('JOB_SHARED_SECRET_{0}', github.event.client_payload.studio)] || secrets.JOB_SHARED_SECRET }}

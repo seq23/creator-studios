@@ -1,0 +1,41 @@
+# On green main, deploy EVERY studio in the registry (studios/*.json), one after another, through
+# the repo's own script: build once → each studio's D1 migrations → wrangler deploy --env <slug> →
+# smoke (/healthz says that studio, real services, code login; /api/me needs a login; the theme
+# and name answer). Never a bare `wrangler deploy`. Secrets are set once per studio by
+# `npm run studio:create` / `studio:secrets` on the host's Mac (vault), never here.
+#
+# "Green main" = check.yml passed on this exact commit (workflow_run), or a dispatch by hand.
+# Repo secrets: CLOUDFLARE_API_TOKEN (vault cloudflare-claude-deploy), CLOUDFLARE_ACCOUNT_ID.
+name: deploy
+
+on:
+  workflow_run:
+    workflows: [check]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-studios
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    # ~1 min per studio; 20 min is a fault detector, never a budget.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Every studio (npm run deploy:all)
+        run: npm run deploy:all
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

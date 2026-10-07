@@ -1,0 +1,400 @@
+/* Hallmark · design-system: docs/design/DESIGN.md · designed-as-app
+   Calendar screen. Tokens only (tokens.css). Phone first: days stack under 900 px. A platform is
+   shown by a small coloured dot before its name (never a side stripe) and always by its name. */
+.cal {
+  --tt: var(--text);
+  --ig: var(--rose);
+  --yt: var(--terracotta);
+}
+.cal-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--tt);
+}
+.cal-dot.instagram {
+  background: var(--ig);
+}
+.cal-dot.youtube {
+  background: var(--yt);
+}
+
+.cal-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+.cal-bar .row {
+  gap: var(--space-2xs);
+}
+.cal-title {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  min-width: 9ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.cal-toggle {
+  display: inline-flex;
+  border: 1px solid var(--gold-soft);
+  border-radius: var(--pill);
+  overflow: hidden;
+}
+.cal-toggle button {
+  min-height: var(--touch);
+  padding: 0 var(--space-sm);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: background-color var(--dur-short) var(--ease-out), color var(--dur-short) var(--ease-out);
+}
+.cal-toggle button.on {
+  background: var(--primary);
+  color: var(--primary-text);
+}
+.cal-caps {
+  display: flex;
+  gap: var(--space-2xs);
+  flex-wrap: wrap;
+  align-items: center;
+}
+.cal-cap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  border-radius: var(--pill);
+  padding: var(--space-3xs) var(--space-xs);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  background: var(--surface);
+  border: 1px solid var(--gold-soft);
+}
+.cal-cap.over {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: transparent;
+}
+
+.cal-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: var(--space-md);
+  align-items: start;
+}
+.cal-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-2xs);
+}
+.cal-day {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-2xs);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  min-height: 140px;
+  min-width: 0;
+}
+.cal-day.today {
+  border-color: var(--gold);
+}
+.cal-day.over {
+  background: var(--gold-faint);
+  border-color: var(--gold);
+}
+.cal-day-skel {
+  min-height: 140px;
+  border-radius: var(--radius);
+}
+.cal-post-skel {
+  min-height: var(--touch);
+}
+.cal-day-name {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 0;
+}
+.cal-none {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.cal-post {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  min-width: 0;
+}
+.cal-post.failed {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+.cal-post.posted {
+  opacity: 0.8;
+}
+.cal-post[draggable="true"] {
+  cursor: grab;
+}
+.cal-post-main {
+  display: flex;
+  gap: var(--space-2xs);
+  align-items: flex-start;
+  width: 100%;
+  min-height: var(--touch);
+  padding: var(--space-2xs);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.cal-post-main:focus-visible {
+  outline: 2px solid var(--focus-color);
+  outline-offset: -2px;
+}
+.cal-post-main img,
+.cal-cover {
+  width: 28px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: var(--radius-xs);
+  background: var(--gold-faint);
+  flex-shrink: 0;
+}
+.cal-post-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cal-post-top {
+  display: flex;
+  gap: var(--space-3xs) var(--space-2xs);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.cal-time {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cal-plat {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--text-soft);
+}
+.cal-hook {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: var(--lh-snug);
+  overflow-wrap: anywhere;
+}
+.cal-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+}
+.cal-status.posted {
+  color: var(--success);
+  font-weight: 700;
+}
+.cal-status.failed {
+  color: var(--danger);
+  font-weight: 700;
+}
+.cal-status.in_buffer {
+  color: var(--warning-ink);
+}
+/* "How to fix" / "See it" under a post: a tap target of its own */
+.cal-fix {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch);
+  padding: 0 var(--space-2xs);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.cal-month {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-3xs);
+}
+.cal-month-head {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  text-align: center;
+  padding: var(--space-3xs) 0;
+}
+.cal-month-day {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-height: 84px;
+  padding: var(--space-2xs);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  transition: border-color var(--dur-short) var(--ease-out);
+}
+.cal-month-day:hover {
+  border-color: var(--gold);
+}
+.cal-month-day.outside {
+  opacity: 0.45;
+}
+.cal-month-day.today {
+  border-color: var(--gold);
+}
+.cal-month-day .num {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.cal-mini {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  font-size: var(--text-2xs);
+  min-width: 0;
+}
+.cal-mini.failed {
+  color: var(--danger);
+}
+.cal-more {
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+}
+
+.cal-pool {
+  gap: var(--space-2xs);
+}
+.cal-pool h2 {
+  font-size: var(--text-md);
+}
+.cal-pool-item {
+  display: flex;
+  gap: var(--space-2xs);
+  align-items: center;
+  padding: var(--space-2xs) 0;
+  border-top: 1px solid var(--line);
+  cursor: grab;
+}
+.cal-pool-item .grow {
+  flex: 1;
+  min-width: 0;
+}
+.cal-pool-item .title {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.cal-pool-item .meta {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* the day and "swap with" pickers in a post's actions */
+.cal-select {
+  flex: 1 1 180px;
+  width: auto;
+  min-width: 0;
+}
+
+/* Desktop week: a day column is ~90 px beside the pool, too narrow for a cover and text side by
+   side (the hook wrapped one letter per line, Phase 0 live test 26 Sep 2026). Stack them and keep
+   the hook to three lines. The phone layout (one day per row) keeps the side-by-side card. */
+@media (min-width: 901px) {
+  .cal-week .cal-post-main {
+    flex-direction: column;
+  }
+  .cal-week .cal-post-main img,
+  .cal-week .cal-cover {
+    width: 100%;
+    height: 48px;
+  }
+  .cal-week .cal-post-text {
+    width: 100%;
+  }
+  .cal-week .cal-hook {
+    overflow-wrap: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* The pool sits beside the week only when the week still gets ~130 px a day; below that it goes
+   under the week (at 1280 px it squeezed each day to ~70 px). */
+@media (max-width: 1400px) {
+  .cal-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 900px) {
+  .cal-week {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cal-day {
+    min-height: 0;
+  }
+  .cal-day-skel {
+    min-height: 88px;
+  }
+  .cal-post-main img,
+  .cal-cover {
+    width: 36px;
+    height: 60px;
+  }
+  .cal-hook {
+    font-size: var(--text-sm);
+  }
+  .cal-month-day {
+    min-height: 56px;
+    padding: var(--space-3xs);
+  }
+  /* phone month cells are narrow: the text truncates, the dot stays */
+  .cal-mini {
+    gap: 2px;
+  }
+}
+
+/* Day 358: History (everything that already happened) */
+.cal-history-cover {
+  width: var(--space-xl);
+  height: var(--space-xl);
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  flex: none;
+}
