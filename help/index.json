@@ -1,0 +1,585 @@
+{
+  "_contract": {
+    "guide_file": "help/guides/<slug>.md, one task, 3-8 steps, each '## ' heading is one step; '## Did this work?' closes it",
+    "frontmatter": {
+      "title": "required, plain words",
+      "group": "required: getting_started | everyday | brand_deals | fix_it (must match this index)",
+      "screen": "required: a key of SCREEN_ROUTES in app/lib/markdown.ts (home, dump, review, calendar, brain, research, stats, voice, settings, connect, deals, mediakit, help, login)",
+      "keywords": "optional: comma-separated words and phrases she might search for (\"how do i post\")",
+      "last_checked": "required: YYYY-MM-DD the steps were last walked",
+      "target": "optional: CSS or Playwright selector (e.g. role=button[name=\"Dump\"]) the screenshot job circles on every step",
+      "fix": "optional: slug of the fix-it guide that 'No, show me a fix' opens; without it, No emails the helper"
+    },
+    "per_step_comments": {
+      "<!-- target: selector -->": "circle this element for this step (overrides frontmatter target); the job fails if it is not on screen",
+      "<!-- route: /path -->": "open this route for this step (default: the guide's screen)",
+      "<!-- click: selector -->": "click this first (e.g. open a card), then take the shot; several run in order",
+      "<!-- fill: selector => text -->": "type this into a field first",
+      "<!-- api: METHOD /api/path {json} -->": "put the app in the state the step describes through its own API (e.g. a refused key)",
+      "<!-- light: Name | red | note -->": "set one health light for this step",
+      "<!-- mock: name -->": "a step on another site or app: a labelled illustration from tests/e2e/help-mocks.ts, never a real account",
+      "<!-- shared -->": "this picture is deliberately identical to another step's (otherwise the job and the validator refuse duplicates)"
+    },
+    "images": "![Step n](/help/screenshots/<slug>-<n>.png); the job writes <slug>-<n>.png (desktop 1280x820) and <slug>-<n>-phone.png (390x844) from tests/e2e/help-screenshots.spec.ts with demo data only"
+  },
+  "groups": [
+    {
+      "key": "getting_started",
+      "title": "Getting started"
+    },
+    {
+      "key": "everyday",
+      "title": "Everyday"
+    },
+    {
+      "key": "brand_deals",
+      "title": "Brand deals"
+    },
+    {
+      "key": "fix_it",
+      "title": "Fix-it"
+    }
+  ],
+  "guides": [
+    {
+      "slug": "getting-started",
+      "title": "How the dashboard works",
+      "group": "getting_started",
+      "screen": "help"
+    },
+    {
+      "slug": "log-in",
+      "title": "Log in (test copy only)",
+      "group": "getting_started",
+      "screen": "login"
+    },
+    {
+      "slug": "connect-buffer",
+      "title": "Connect Buffer (this is how your posts go out)",
+      "group": "getting_started",
+      "screen": "connect"
+    },
+    {
+      "slug": "add-channels-in-buffer",
+      "title": "Add TikTok, Instagram and YouTube in Buffer",
+      "group": "getting_started",
+      "screen": "connect"
+    },
+    {
+      "slug": "connect-stats",
+      "title": "Your numbers: no sign-in needed",
+      "group": "getting_started",
+      "screen": "stats"
+    },
+    {
+      "slug": "connect-openrouter",
+      "title": "Connect the AI writer (OpenRouter, free)",
+      "group": "getting_started",
+      "screen": "connect"
+    },
+    {
+      "slug": "connect-firecrawl",
+      "title": "Connect faster web research (Firecrawl, optional)",
+      "group": "getting_started",
+      "screen": "connect"
+    },
+    {
+      "slug": "connect-hunter",
+      "title": "Connect Hunter for brand emails (optional)",
+      "group": "getting_started",
+      "screen": "connect"
+    },
+    {
+      "slug": "connect-elevenlabs",
+      "title": "Connect ElevenLabs for the premium voice (optional)",
+      "group": "getting_started",
+      "screen": "connect"
+    },
+    {
+      "slug": "connect-an-editor",
+      "title": "Use an editing app you already pay for (optional)",
+      "group": "getting_started",
+      "screen": "connect"
+    },
+    {
+      "slug": "connect-opusclip",
+      "title": "Connect Opus Clip (optional)",
+      "group": "getting_started",
+      "screen": "connect"
+    },
+    {
+      "slug": "connect-vizard",
+      "title": "Connect Vizard (optional)",
+      "group": "getting_started",
+      "screen": "connect"
+    },
+    {
+      "slug": "connect-klap",
+      "title": "Connect Klap (optional)",
+      "group": "getting_started",
+      "screen": "connect"
+    },
+    {
+      "slug": "connect-submagic",
+      "title": "Connect Submagic (optional)",
+      "group": "getting_started",
+      "screen": "connect"
+    },
+    {
+      "slug": "connect-descript",
+      "title": "Connect Descript (optional)",
+      "group": "getting_started",
+      "screen": "connect"
+    },
+    {
+      "slug": "connect-resend",
+      "title": "Set up email (your helper does this)",
+      "group": "getting_started",
+      "screen": "settings"
+    },
+    {
+      "slug": "connect-github",
+      "title": "The job runner (your helper does this)",
+      "group": "getting_started",
+      "screen": "settings"
+    },
+    {
+      "slug": "connect-meta",
+      "title": "Instagram sign-in (optional extra detail)",
+      "group": "getting_started",
+      "screen": "stats"
+    },
+    {
+      "slug": "connect-youtube-full-videos",
+      "title": "Connect YouTube for your full videos",
+      "group": "getting_started",
+      "screen": "connect"
+    },
+    {
+      "slug": "connect-youtube",
+      "title": "Connect YouTube (full videos): the short version",
+      "group": "getting_started",
+      "screen": "connect"
+    },
+    {
+      "slug": "connect-google",
+      "title": "Google sign-in for YouTube (optional extra detail)",
+      "group": "getting_started",
+      "screen": "stats"
+    },
+    {
+      "slug": "connect-tiktok",
+      "title": "TikTok numbers (from your TikTok export)",
+      "group": "getting_started",
+      "screen": "connect"
+    },
+    {
+      "slug": "upload-brand-docs",
+      "title": "Upload your brand docs (Client Brain)",
+      "group": "getting_started",
+      "screen": "brain"
+    },
+    {
+      "slug": "approve-research-brief",
+      "title": "Approve your research brief",
+      "group": "getting_started",
+      "screen": "research"
+    },
+    {
+      "slug": "settings-and-switches",
+      "title": "Settings: your switches (all on to start)",
+      "group": "getting_started",
+      "screen": "settings"
+    },
+    {
+      "slug": "automatic-voice-overs",
+      "title": "Automatic voice overs on quiet clips",
+      "group": "everyday",
+      "screen": "voice"
+    },
+    {
+      "slug": "post-a-full-video",
+      "title": "Post a full video on YouTube",
+      "group": "everyday",
+      "screen": "dump"
+    },
+    {
+      "slug": "finish-in-youtube-studio",
+      "title": "Finish a YouTube video in YouTube Studio",
+      "group": "everyday",
+      "screen": "home"
+    },
+    {
+      "slug": "upload-it-yourself",
+      "title": "Upload a full video yourself",
+      "group": "everyday",
+      "screen": "review"
+    },
+    {
+      "slug": "archive-and-undo",
+      "title": "Clear old things away (and get them back)",
+      "group": "everyday",
+      "screen": "home"
+    },
+    {
+      "slug": "storage-and-tidy",
+      "title": "Storage: what is kept, and for how long",
+      "group": "everyday",
+      "screen": "settings"
+    },
+    {
+      "slug": "dump-new-footage",
+      "title": "Dump new footage",
+      "group": "everyday",
+      "screen": "dump"
+    },
+    {
+      "slug": "steer-a-dump",
+      "title": "Tell the cutter what you want (or Surprise me)",
+      "group": "everyday",
+      "screen": "dump"
+    },
+    {
+      "slug": "recycle-old-videos",
+      "title": "Recycle old videos",
+      "group": "everyday",
+      "screen": "dump"
+    },
+    {
+      "slug": "try-another-version",
+      "title": "Try another version or change the music",
+      "group": "everyday",
+      "screen": "review"
+    },
+    {
+      "slug": "review-and-approve-clips",
+      "title": "Review and approve clips",
+      "group": "everyday",
+      "screen": "review"
+    },
+    {
+      "slug": "edit-a-caption",
+      "title": "Edit a caption or hook",
+      "group": "everyday",
+      "screen": "review"
+    },
+    {
+      "slug": "looks-and-styles",
+      "title": "Looks: change how a clip looks",
+      "group": "everyday",
+      "screen": "review"
+    },
+    {
+      "slug": "grid-looks",
+      "title": "The grid looks, picture by picture",
+      "group": "everyday",
+      "screen": "review"
+    },
+    {
+      "slug": "edit-in-capcut",
+      "title": "Edit a clip in CapCut (or InShot) and put it back",
+      "group": "everyday",
+      "screen": "review"
+    },
+    {
+      "slug": "how-posting-works",
+      "title": "How your clips get posted",
+      "group": "everyday",
+      "screen": "calendar"
+    },
+    {
+      "slug": "move-or-remove-a-post",
+      "title": "Move or remove a post",
+      "group": "everyday",
+      "screen": "calendar"
+    },
+    {
+      "slug": "change-posts-per-week",
+      "title": "Change posts per week",
+      "group": "everyday",
+      "screen": "settings"
+    },
+    {
+      "slug": "what-runway-means",
+      "title": "Your Home screen and what \"runway\" means",
+      "group": "everyday",
+      "screen": "home"
+    },
+    {
+      "slug": "record-your-voice",
+      "title": "Record your voice for voice overs (optional)",
+      "group": "everyday",
+      "screen": "voice"
+    },
+    {
+      "slug": "make-a-voice-over",
+      "title": "Make a voice over",
+      "group": "everyday",
+      "screen": "voice"
+    },
+    {
+      "slug": "read-your-stats",
+      "title": "Read your Stats: what's working",
+      "group": "everyday",
+      "screen": "stats"
+    },
+    {
+      "slug": "update-instagram-numbers",
+      "title": "Update your Instagram numbers",
+      "group": "everyday",
+      "screen": "stats"
+    },
+    {
+      "slug": "upload-your-tiktok-export",
+      "title": "Upload your TikTok export",
+      "group": "everyday",
+      "screen": "stats"
+    },
+    {
+      "slug": "your-youtube-numbers",
+      "title": "Your YouTube numbers",
+      "group": "everyday",
+      "screen": "stats"
+    },
+    {
+      "slug": "media-kit",
+      "title": "Build and publish your media kit",
+      "group": "brand_deals",
+      "screen": "mediakit"
+    },
+    {
+      "slug": "set-your-rates",
+      "title": "Set your rates: how much to charge",
+      "group": "brand_deals",
+      "screen": "mediakit"
+    },
+    {
+      "slug": "find-brands",
+      "title": "Find brands to pitch",
+      "group": "brand_deals",
+      "screen": "deals"
+    },
+    {
+      "slug": "pitch-a-brand",
+      "title": "Pitch a brand",
+      "group": "brand_deals",
+      "screen": "deals"
+    },
+    {
+      "slug": "deal-stages",
+      "title": "Your deals, from pitch to paid",
+      "group": "brand_deals",
+      "screen": "deals"
+    },
+    {
+      "slug": "reply-to-a-brand-offer",
+      "title": "A brand wrote to me: reply to an offer",
+      "group": "brand_deals",
+      "screen": "deals"
+    },
+    {
+      "slug": "negotiate-a-rate",
+      "title": "Negotiate a rate",
+      "group": "brand_deals",
+      "screen": "deals"
+    },
+    {
+      "slug": "deal-memo",
+      "title": "Write down what you agreed (deal memo)",
+      "group": "brand_deals",
+      "screen": "deals"
+    },
+    {
+      "slug": "invoice-a-brand",
+      "title": "Deliver, invoice and get paid",
+      "group": "brand_deals",
+      "screen": "deals"
+    },
+    {
+      "slug": "mark-a-paid-partnership",
+      "title": "Mark a paid partnership (#ad)",
+      "group": "brand_deals",
+      "screen": "review"
+    },
+    {
+      "slug": "get-listed",
+      "title": "Get listed where brands look",
+      "group": "brand_deals",
+      "screen": "deals"
+    },
+    {
+      "slug": "health-lights",
+      "title": "What the coloured lights mean (why is a light red?)",
+      "group": "fix_it",
+      "screen": "settings"
+    },
+    {
+      "slug": "a-post-failed",
+      "title": "A post failed",
+      "group": "fix_it",
+      "screen": "calendar"
+    },
+    {
+      "slug": "reconnect-an-account",
+      "title": "Reconnect an app in Buffer (TikTok, Instagram or YouTube)",
+      "group": "fix_it",
+      "screen": "settings"
+    },
+    {
+      "slug": "reconnect-buffer",
+      "title": "Reconnect Buffer",
+      "group": "fix_it",
+      "screen": "connect"
+    },
+    {
+      "slug": "reconnect-openrouter",
+      "title": "Reconnect the AI writer (OpenRouter)",
+      "group": "fix_it",
+      "screen": "connect"
+    },
+    {
+      "slug": "reconnect-firecrawl",
+      "title": "Reconnect web research (Firecrawl)",
+      "group": "fix_it",
+      "screen": "connect"
+    },
+    {
+      "slug": "reconnect-hunter",
+      "title": "Reconnect Hunter",
+      "group": "fix_it",
+      "screen": "connect"
+    },
+    {
+      "slug": "reconnect-elevenlabs",
+      "title": "Reconnect ElevenLabs",
+      "group": "fix_it",
+      "screen": "connect"
+    },
+    {
+      "slug": "reconnect-opusclip",
+      "title": "Reconnect Opus Clip",
+      "group": "fix_it",
+      "screen": "connect"
+    },
+    {
+      "slug": "reconnect-vizard",
+      "title": "Reconnect Vizard",
+      "group": "fix_it",
+      "screen": "connect"
+    },
+    {
+      "slug": "reconnect-klap",
+      "title": "Reconnect Klap",
+      "group": "fix_it",
+      "screen": "connect"
+    },
+    {
+      "slug": "reconnect-submagic",
+      "title": "Reconnect Submagic",
+      "group": "fix_it",
+      "screen": "connect"
+    },
+    {
+      "slug": "reconnect-descript",
+      "title": "Reconnect Descript",
+      "group": "fix_it",
+      "screen": "connect"
+    },
+    {
+      "slug": "reconnect-resend",
+      "title": "Email isn't sending (Resend)",
+      "group": "fix_it",
+      "screen": "settings"
+    },
+    {
+      "slug": "reconnect-github",
+      "title": "The job runner stopped",
+      "group": "fix_it",
+      "screen": "settings"
+    },
+    {
+      "slug": "reconnect-meta",
+      "title": "Reconnect the Instagram sign-in (optional)",
+      "group": "fix_it",
+      "screen": "connect"
+    },
+    {
+      "slug": "reconnect-youtube",
+      "title": "Reconnect YouTube (full videos)",
+      "group": "fix_it",
+      "screen": "connect"
+    },
+    {
+      "slug": "reconnect-google",
+      "title": "Reconnect the Google sign-in (optional)",
+      "group": "fix_it",
+      "screen": "connect"
+    },
+    {
+      "slug": "reconnect-tiktok",
+      "title": "TikTok numbers are old",
+      "group": "fix_it",
+      "screen": "stats"
+    },
+    {
+      "slug": "storage-almost-full",
+      "title": "Storage almost full",
+      "group": "fix_it",
+      "screen": "settings"
+    },
+    {
+      "slug": "i-didnt-get-an-email",
+      "title": "I didn't get an email",
+      "group": "fix_it",
+      "screen": "settings"
+    },
+    {
+      "slug": "clips-look-wrong",
+      "title": "Clips look wrong",
+      "group": "fix_it",
+      "screen": "review"
+    },
+    {
+      "slug": "someone-elses-video",
+      "title": "Looks like someone else's video",
+      "group": "fix_it",
+      "screen": "dump"
+    },
+    {
+      "slug": "setup",
+      "title": "Set up your studio's own services",
+      "group": "getting_started",
+      "screen": "setup"
+    },
+    {
+      "slug": "setup-email",
+      "title": "Set up Email (your own Resend)",
+      "group": "getting_started",
+      "screen": "setup"
+    },
+    {
+      "slug": "setup-youtube-numbers",
+      "title": "Set up YouTube numbers",
+      "group": "getting_started",
+      "screen": "setup"
+    },
+    {
+      "slug": "setup-google-sign-in",
+      "title": "Set up Google sign-in (YouTube uploads)",
+      "group": "getting_started",
+      "screen": "setup"
+    },
+    {
+      "slug": "setup-instagram-sign-in",
+      "title": "Set up Instagram sign-in (stats)",
+      "group": "getting_started",
+      "screen": "setup"
+    },
+    {
+      "slug": "setup-job-runner",
+      "title": "Set up clip cutting (job runner)",
+      "group": "getting_started",
+      "screen": "setup"
+    }
+  ]
+}

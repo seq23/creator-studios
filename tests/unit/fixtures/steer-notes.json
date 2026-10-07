@@ -1,0 +1,23 @@
+{
+  "_about": "Notes a creator writes on a dump or a video, and what worker/domain/steer.ts parseNotes must read from them. tracks: her songs in My music for every case.",
+  "tracks": [{ "id": "upl_upbeat001", "name": "Upbeat summer.mp3" }, { "id": "upl_chill0002", "name": "Chill piano.m4a" }],
+  "cases": [
+    { "note": "no voice over on this one, fast", "controls": { "voice": "none", "pace": "fast" }, "not_followed": [] },
+    { "note": "voice over the b-roll please", "controls": { "voice": "quiet" }, "not_followed": [] },
+    { "note": "I'll pick the voice overs myself in review", "controls": { "voice": "pick" }, "not_followed": [] },
+    { "note": "don't use voice over", "controls": { "voice": "none" }, "not_followed": [] },
+    { "note": "2x4 grid, no music, fast", "controls": { "looks": ["grid_eight"], "music": "none", "pace": "fast" }, "not_followed": [] },
+    { "note": "Trip weekend, lean funny. The kitchen one is my favorite.", "controls": {}, "not_followed": [] },
+    { "note": "all grids please, use my upbeat song", "controls": { "looks": ["split", "side_by_side", "grid_four", "grid_six", "grid_eight", "hero_strip"], "music": "track:upl_upbeat001" }, "not_followed": [] },
+    { "note": "Just 5 clips, keep them short, TikTok only", "controls": { "count": 5, "length": "short", "platforms": ["tiktok"] }, "not_followed": [] },
+    { "note": "no captions, calm and cinematic", "controls": { "looks": ["cinematic"], "captions": "none", "pace": "calm" }, "not_followed": [] },
+    { "note": "karaoke words, before and after, 30 second clips", "controls": { "looks": ["side_by_side"], "captions": "karaoke", "length": "medium" }, "not_followed": [] },
+    { "note": "make sure you include the cake reveal. don't use the part where I cough", "controls": { "include": ["cake reveal"], "avoid": ["i cough"] }, "not_followed": [] },
+    { "note": "3x3 grid with my jazz track", "controls": {}, "not_followed": ["a 3 by 3 grid", "the song \"jazz\""] },
+    { "note": "40 clips, not for youtube", "controls": { "count": 30, "platforms": ["tiktok", "instagram"] }, "not_followed": ["40 clips"] },
+    { "note": "no grids, bold hook, word-by-word captions", "controls": { "looks": ["bold_hook"], "captions": "karaoke" }, "not_followed": [] },
+    { "note": "no grids", "controls": { "looks": ["clean", "bold_hook", "karaoke", "brand_card", "cinematic", "reaction"] }, "not_followed": [] },
+    { "note": "split screen, song called \"Chill piano\"", "controls": { "looks": ["split"], "music": "track:upl_chill0002" }, "not_followed": [] },
+    { "note": "grid of four, ten clips, longer", "controls": { "looks": ["grid_four"], "count": 10, "length": "long" }, "not_followed": [] }
+  ]
+}

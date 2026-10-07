@@ -1,0 +1,38 @@
+# Merge gate: under 5 minutes. Typecheck, unit tests, validators, build, and the shipped-bundle scan
+# (no host identifier in what every studio serves). The long suites (Playwright e2e) run post-merge
+# (e2e.yml, nightly); a green run of this on main deploys every studio (deploy.yml).
+name: check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch: # by hand, on any branch
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run validate
+      - run: npm run build
+      - name: Shipped bundle carries no host identifier (guard a)
+        run: node scripts/bundle-scan.mjs
+      - name: Python job syntax
+        run: python3 -m py_compile jobs/*.py
+      - name: ffmpeg (the full-video job's tests run it on synthetic footage)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+      - name: Python job tests (web search + page reading, keyless and Firecrawl; the voice batch; the full video kept whole)
+        run: python3 -m unittest discover -s jobs/tests -v

@@ -1,0 +1,126 @@
+{
+  "_contract": {
+    "what": "The Looks Sam can pick for a clip. One source of truth: jobs/cut.py renders these, worker/domain/looks.ts mirrors them (tests/unit/looks.test.ts fails if the two disagree), and the validator `looks` fails on a Look without a description, a thumbnail (public/looks/<id>.webp) or test coverage.",
+    "captions": "clean = white words at the bottom (or centre), no highlight | karaoke = centred, the spoken word lights up in the brand colour | boxed = words on a brand-coloured box | none",
+    "caption_position": "bottom | center",
+    "hook": "top_bold = big bold hook text at the top for the first 2.5 s | none",
+    "layout": "fill = full-frame 9:16, crop follows the face | blur_fill = the whole frame over a blurred copy of itself (landscape sources keep everything) | pip = full frame plus a small inset replaying the strongest line | grid = the cells in `grid`, each its own moment, one of them the voice",
+    "grid": "a key of `grids`: cells are [x, y, w, h] in the 1080x1920 frame, even numbers, 12 px paper-coloured gutters between cells",
+    "punch_in": "a subtle zoom on every other sentence start",
+    "progress_bar": "a thin brand-coloured bar along the bottom that fills as the clip plays",
+    "crossfade": "smooth crossfades between the moments inside a clip, and a short fade in from black",
+    "grade": "none | warm (a gentle warm, filmic colour grade with a soft vignette)",
+    "end_card": "her logo and handle for the last 1.5 s (Settings > Editing can switch every end card off)",
+    "music": "never per Look: the music bed plays only her own uploaded songs (Settings > Editing > My music), under her voice"
+  },
+  "frame": { "w": 1080, "h": 1920, "gutter": 12 },
+  "defaults": {
+    "brand": { "primary": "#d7b56d", "ink": "#211713", "paper": "#f7f1e7", "accent": "#8f4b5b" },
+    "font": "DejaVu Sans"
+  },
+  "grids": {
+    "stack_2": { "label": "Two stacked", "cells": [[0, 0, 1080, 954], [0, 966, 1080, 954]] },
+    "side_2": { "label": "Two side by side", "cells": [[0, 0, 534, 1920], [546, 0, 534, 1920]] },
+    "grid_2x2": { "label": "2 x 2", "cells": [[0, 0, 534, 954], [546, 0, 534, 954], [0, 966, 534, 954], [546, 966, 534, 954]] },
+    "grid_2x3": {
+      "label": "2 x 3",
+      "cells": [[0, 0, 534, 632], [546, 0, 534, 632], [0, 644, 534, 632], [546, 644, 534, 632], [0, 1288, 534, 632], [546, 1288, 534, 632]]
+    },
+    "grid_2x4": {
+      "label": "2 x 4",
+      "cells": [
+        [0, 2, 534, 470], [546, 2, 534, 470],
+        [0, 484, 534, 470], [546, 484, 534, 470],
+        [0, 966, 534, 470], [546, 966, 534, 470],
+        [0, 1448, 534, 470], [546, 1448, 534, 470]
+      ]
+    },
+    "hero_strip": { "label": "One big, three small", "cells": [[0, 0, 1080, 1440], [0, 1452, 352, 468], [364, 1452, 352, 468], [728, 1452, 352, 468]] }
+  },
+  "looks": [
+    {
+      "id": "clean",
+      "name": "Clean",
+      "description": "Full frame that follows your face, simple white captions at the bottom, your end card.",
+      "captions": "clean", "caption_position": "bottom", "hook": "none", "layout": "fill", "grid": null,
+      "punch_in": false, "progress_bar": false, "crossfade": false, "grade": "none", "end_card": true
+    },
+    {
+      "id": "bold_hook",
+      "name": "Bold hook",
+      "description": "Big bold hook across the top for the first seconds, each word lights up as you say it, a little zoom on each new sentence.",
+      "captions": "karaoke", "caption_position": "bottom", "hook": "top_bold", "layout": "fill", "grid": null,
+      "punch_in": true, "progress_bar": false, "crossfade": false, "grade": "none", "end_card": true
+    },
+    {
+      "id": "karaoke",
+      "name": "Karaoke captions",
+      "description": "Captions in the middle of the screen, each word lights up as you say it, with a progress bar.",
+      "captions": "karaoke", "caption_position": "center", "hook": "top_bold", "layout": "fill", "grid": null,
+      "punch_in": true, "progress_bar": true, "crossfade": false, "grade": "none", "end_card": true
+    },
+    {
+      "id": "brand_card",
+      "name": "Brand card",
+      "description": "Captions on a box in your brand colour, a brand-coloured progress bar and your logo card at the end.",
+      "captions": "boxed", "caption_position": "bottom", "hook": "top_bold", "layout": "fill", "grid": null,
+      "punch_in": false, "progress_bar": true, "crossfade": false, "grade": "none", "end_card": true
+    },
+    {
+      "id": "cinematic",
+      "name": "Cinematic",
+      "description": "The whole picture over a soft blurred copy, a warm film look, smooth fades between moments.",
+      "captions": "clean", "caption_position": "bottom", "hook": "none", "layout": "blur_fill", "grid": null,
+      "punch_in": false, "progress_bar": false, "crossfade": true, "grade": "warm", "end_card": true
+    },
+    {
+      "id": "reaction",
+      "name": "Reaction inset",
+      "description": "Full frame with your strongest line replaying in a small window in the corner.",
+      "captions": "clean", "caption_position": "bottom", "hook": "top_bold", "layout": "pip", "grid": null,
+      "punch_in": false, "progress_bar": false, "crossfade": false, "grade": "none", "end_card": true
+    },
+    {
+      "id": "split",
+      "name": "Split moment",
+      "description": "Two moments stacked, top and bottom. You hear the top one; captions sit on the line between.",
+      "captions": "boxed", "caption_position": "center", "hook": "top_bold", "layout": "grid", "grid": "stack_2",
+      "punch_in": false, "progress_bar": false, "crossfade": false, "grade": "none", "end_card": true
+    },
+    {
+      "id": "side_by_side",
+      "name": "Side by side",
+      "description": "Two moments next to each other, left and right, like a before and after.",
+      "captions": "boxed", "caption_position": "center", "hook": "top_bold", "layout": "grid", "grid": "side_2",
+      "punch_in": false, "progress_bar": true, "crossfade": false, "grade": "none", "end_card": true
+    },
+    {
+      "id": "grid_four",
+      "name": "Grid of four",
+      "description": "Four moments in a 2 by 2 grid. One plays its sound; you can change which one in Review.",
+      "captions": "boxed", "caption_position": "center", "hook": "top_bold", "layout": "grid", "grid": "grid_2x2",
+      "punch_in": false, "progress_bar": false, "crossfade": false, "grade": "none", "end_card": true
+    },
+    {
+      "id": "grid_six",
+      "name": "Grid of six",
+      "description": "Six moments in a 2 by 3 grid, great for a recap of your week.",
+      "captions": "boxed", "caption_position": "center", "hook": "top_bold", "layout": "grid", "grid": "grid_2x3",
+      "punch_in": false, "progress_bar": true, "crossfade": false, "grade": "none", "end_card": true
+    },
+    {
+      "id": "grid_eight",
+      "name": "Grid of eight",
+      "description": "Eight moments in a 2 by 4 grid, a busy montage with one voice on top.",
+      "captions": "boxed", "caption_position": "center", "hook": "top_bold", "layout": "grid", "grid": "grid_2x4",
+      "punch_in": false, "progress_bar": false, "crossfade": false, "grade": "none", "end_card": true
+    },
+    {
+      "id": "hero_strip",
+      "name": "Hero and strip",
+      "description": "One big moment on top and three small ones in a strip underneath.",
+      "captions": "clean", "caption_position": "center", "hook": "top_bold", "layout": "grid", "grid": "hero_strip",
+      "punch_in": false, "progress_bar": true, "crossfade": false, "grade": "warm", "end_card": true
+    }
+  ]
+}

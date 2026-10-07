@@ -1,0 +1,136 @@
+/* Hallmark · design-system: docs/design/DESIGN.md · designed-as-app
+   Settings (/settings) and Connect (/settings/connections). Two columns at ≥ 1100 px on
+   Settings; rows keep a label next to its control instead of across a stretched column. */
+
+/* ---------- Settings */
+.settings-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-md);
+  align-items: start;
+}
+@media (min-width: 1100px) {
+  .settings-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.settings-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+/* a label and its control sit together: the text takes what it needs, the control follows */
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2xs) var(--space-sm);
+  min-height: var(--touch);
+  max-width: 34rem;
+}
+.set-text {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+.set-label {
+  font-weight: 600;
+}
+.set-input-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+  max-width: 34rem;
+}
+.set-input-row .input {
+  flex: 1 1 14rem;
+  width: auto;
+  min-width: 0;
+}
+.set-days {
+  width: 6rem;
+}
+.light-word {
+  font-weight: 600;
+}
+.light-word.red {
+  color: var(--danger);
+}
+.light-word.yellow {
+  color: var(--warning-ink);
+}
+.light-word.green {
+  color: var(--success);
+}
+
+/* ---------- Connect */
+.status-pill {
+  gap: var(--space-2xs);
+  font-size: var(--text-sm);
+}
+.key-steps {
+  margin: var(--space-2xs) 0 0;
+  padding-left: var(--space-md);
+}
+/* the key box is a key, not a paragraph: capped so it does not run the width of a 1440 screen */
+.key-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+  max-width: 36rem;
+}
+.key-row .input {
+  flex: 1 1 12rem;
+  width: auto;
+  min-width: 0;
+}
+.stats-row {
+  flex-wrap: wrap;
+}
+.connect-danger {
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--line);
+}
+.connect-danger p {
+  max-width: var(--measure);
+}
+
+/* Day 358: the storage meter and the tidy rules */
+.storage-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+.storage-meter {
+  height: var(--space-xs);
+}
+.storage-kinds,
+.tidy-rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.storage-kinds li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  padding: var(--space-2xs) 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+.storage-kinds .grow {
+  flex: 1;
+  min-width: 0;
+}
+.storage-rule {
+  display: block;
+}
+.tidy-rules li {
+  padding: var(--space-3xs) 0;
+  font-size: var(--text-sm);
+  color: var(--text-soft);
+}

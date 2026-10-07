@@ -1,0 +1,11 @@
+# Copy to .dev.vars for local `wrangler dev`. Never commit .dev.vars.
+# With FAKE_SERVICES=1 (the default in wrangler.jsonc) none of the vendor keys are needed:
+# login codes are returned in the API response and every outside service is a stand-in.
+SESSION_SECRET=dev-session-secret-change-me
+SECRETS_KEY=YcLVEjArFviauClfN6thsYumeyr3wqfUT9D2VnMNTm0=
+JOB_SHARED_SECRET=dev-job-shared-secret
+# GITHUB_DISPATCH_TOKEN=
+# RESEND_API_KEY=
+# PLATFORM_RESEND_API_KEY=   (login codes; with FAKE_SERVICES=1 the code is shown on the login screen)
+# Which deployment this is; /healthz reports it. Every studio is "production" (wrangler.jsonc env.<slug>).
+ENV_NAME=dev

@@ -1,0 +1,82 @@
+# Help screenshots (section 12c): Playwright walks every guide in help/index.json with demo data
+# (tests/e2e/seed-demo.sql + seed-help-extra.sql, never her real content; steps on other sites are
+# labelled illustrations from tests/e2e/help-mocks.ts), draws the numbered callouts, and saves
+# phone + desktop images to help/screenshots/. Runs on every release and on demand; when the
+# pictures changed it opens a pull request, so the next deploy ships guides that match the
+# screens. The images are bundled into the app at build time (app/lib/guides.ts).
+name: job-help_screenshots
+
+on:
+  repository_dispatch:
+    types: [help_screenshots]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+concurrency:
+  group: job-help_screenshots
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write # approve the merge gate run of the PR it opens
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    # ~7 min of shots (339 steps x phone + desktop); 30 min is a fault detector, never a budget.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Capture (fake services, demo data)
+        run: npm run help:screenshots
+        env:
+          SESSION_SECRET: ci-session-secret
+          SECRETS_KEY: 3Azr0CP6a687IwEqn9ZTM7gF9VgieHdcyXDvKd9Yo24=
+          JOB_SHARED_SECRET: ci-job-secret
+      - name: Rule 0 — every step has its own picture (none missing, none shared by accident)
+        run: node scripts/validate.mjs help-pictures
+      - uses: actions/upload-artifact@v4
+        with:
+          name: help-screenshots
+          path: help/screenshots
+          retention-days: 14
+      - name: Open a pull request when the pictures changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git add help/screenshots
+          if git diff --cached --quiet; then
+            echo "Screenshots unchanged."
+            exit 0
+          fi
+          branch="help-screenshots/${{ github.run_id }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git commit -q -m "Help screenshots refreshed (run ${{ github.run_id }})"
+          git push -q origin "$branch"
+          gh pr create --title "Help screenshots refreshed" --body "Made by job-help_screenshots from demo data (tests/e2e/seed-demo.sql). Merging ships the new pictures with the next deploy." --head "$branch" --base "${{ github.event.repository.default_branch }}"
+          # A pull request opened by this workflow gets its merge gate run parked as
+          # "action_required" (Phase 0: PR #21 never showed a check, so `land` could never merge
+          # it; a workflow_dispatch run does not attach to the PR). Approve that run so the PR's
+          # own check goes green. Bounded: 2 minutes for the run to appear, then fail loudly.
+          for i in $(seq 1 24); do
+            rid=$(gh run list --workflow check.yml --branch "$branch" --event pull_request --limit 1 --json databaseId,status -q '.[] | select(.status == "action_required" or .status == "waiting" or .status == "queued" or .status == "completed") | .databaseId' || true)
+            if [ -n "$rid" ]; then
+              gh api -X POST "repos/${{ github.repository }}/actions/runs/$rid/approve" >/dev/null 2>&1 || true
+              echo "merge gate run $rid approved"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::the PR's check run never appeared; approve it under Actions or land will refuse"
+          exit 1

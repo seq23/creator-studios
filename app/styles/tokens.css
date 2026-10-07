@@ -1,0 +1,190 @@
+/* Studio design tokens — the ONLY file in app/ allowed to hold raw colours, font names and raw
+   font sizes (scripts/validators/design-tokens.mjs enforces it). These are the DEFAULTS: the
+   neutral "slate" theme (studios/themes.json). Each studio's own theme overrides them at runtime
+   from /studio-theme.css (worker/routes/studio.ts), so a studio's look is config, never a fork.
+   The palette names are slots (named for their first use, not their colour): --gold is the
+   accent, --espresso the dark surface, --cream the page ground, --rose focus and flourishes. */
+:root {
+  /* ---------- palette slots (slate defaults) */
+  --cream: #f4f4f1;
+  --ivory: #ffffff;
+  --paper: #fbfbfa; /* input wells: warmer than pure white */
+  --parchment: #ebebe6;
+  --champagne: #d6dbe0;
+  --gold: #3b6c8e;
+  --gold-deep: #2c5470;
+  --gold-ink: #2a5574; /* gold as TEXT on cream/ivory: 5.6:1 */
+  --gold-soft: rgba(59, 108, 142, 0.32);
+  --gold-faint: rgba(59, 108, 142, 0.1);
+  --gold-line: rgba(59, 108, 142, 0.32);
+  --gold-glow: rgba(59, 108, 142, 0.24);
+  --espresso: #1e2227;
+  --espresso-2: #2e343b;
+  --ink: #1b1d21;
+  --ink-soft: rgba(27, 29, 33, 0.8);
+  --muted: #5b6068; /* 6.0:1 on cream, 6.4:1 on ivory */
+  --line: rgba(27, 29, 33, 0.12);
+  --line-strong: rgba(27, 29, 33, 0.28);
+  --blush: #a9bccb;
+  --blush-faint: rgba(169, 188, 203, 0.18);
+  --rose: #9a4a2a;
+  --terracotta: #9c4b22;
+  --teal: #0d7c79;
+
+  /* text + fills on the espresso surfaces (sidebar, tab bar, toast, select bar) */
+  --on-dark: #f6f7f8;
+  --on-dark-soft: rgba(246, 247, 248, 0.8);
+  --on-dark-faint: rgba(246, 247, 248, 0.1);
+  --scrim: rgba(27, 29, 33, 0.55);
+  --glass: rgba(255, 255, 255, 0.92);
+
+  /* ---------- semantic */
+  --bg: var(--cream);
+  --surface: var(--ivory);
+  --surface-2: var(--paper);
+  --surface-sunk: var(--parchment);
+  --text: var(--ink);
+  --text-soft: var(--ink-soft);
+  --text-muted: var(--muted);
+  --primary: var(--espresso);
+  --primary-text: var(--ivory);
+  --accent: var(--gold);
+  --accent-ink: #ffffff; /* text on a gold fill: 9.9:1 */
+  --success: #2e6b3f;
+  --success-soft: rgba(46, 107, 63, 0.14);
+  --warning: #b8720f; /* fills and dots only */
+  --warning-ink: #85510a; /* warning as text: 5.2:1 on its soft fill */
+  --warning-soft: rgba(184, 114, 15, 0.14);
+  --danger: #a63a2b;
+  --danger-soft: rgba(166, 58, 43, 0.12);
+  --grey: #b8b3a8;
+  --knob: var(--ivory);
+  --brand-mark-bg: linear-gradient(145deg, #ffffff, #e6e9ec);
+  --empty-bg: linear-gradient(135deg, var(--gold-faint), var(--blush-faint));
+  --login-bg: radial-gradient(circle at 85% 10%, rgba(59, 108, 142, 0.16), transparent 32%), linear-gradient(135deg, #ffffff, #f4f4f1);
+
+  /* focus: a solid ring that passes 3:1 on cream AND on espresso, plus a soft gold halo */
+  --focus-color: #2c5470;
+  --focus-ring: 0 0 0 4px var(--gold-glow);
+
+  --shadow: 0 24px 60px rgba(20, 22, 26, 0.14);
+  --shadow-soft: 0 14px 36px rgba(20, 22, 26, 0.08);
+  --shadow-tiny: 0 2px 8px rgba(20, 22, 26, 0.06);
+  --shadow-btn: 0 8px 18px rgba(59, 108, 142, 0.2);
+  --shadow-btn-dark: 0 8px 18px rgba(20, 22, 26, 0.18);
+
+  --radius-xl: 28px;
+  --radius-lg: 20px;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-xs: 4px;
+  --pill: 999px;
+
+  /* ---------- type: three families (2 + 1 outlier) and one scale */
+  --font-display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-script: "Source Serif 4", Georgia, serif; /* outlier: brand flourish only */
+  --wordmark-tracking: 0;
+  --font-mono: "SF Mono", Menlo, Consolas, monospace; /* times, codes, counts only */
+
+  --text-2xs: 0.75rem; /* 12 · pills, micro labels */
+  --text-xs: 0.8125rem; /* 13 · meta, hints */
+  --text-sm: 0.875rem; /* 14 · labels, small buttons */
+  --text-base: 1rem; /* 16 · body */
+  --text-md: 1.125rem; /* 18 · card titles, hooks */
+  --text-lg: 1.375rem; /* 22 · section heads */
+  --text-xl: 1.75rem; /* 28 · stats, modal titles */
+  --text-2xl: clamp(1.9rem, 1.35rem + 1.6vw, 2.6rem); /* page titles */
+  --text-display: clamp(2.4rem, 1.5rem + 3.2vw, 3.8rem); /* public media kit name */
+  --text-script: 1.35rem; /* the one flourish line (welcome back) */
+  --text-script-lg: 1.8rem;
+  --text-mono: 0.92em; /* mono sits optically small next to the body face */
+
+  --lh-tight: 1.08;
+  --lh-snug: 1.3;
+  --lh-body: 1.55;
+
+  /* ---------- space: 4-pt named scale (Hallmark) */
+  --space-3xs: 4px;
+  --space-2xs: 8px;
+  --space-xs: 12px;
+  --space-sm: 16px;
+  --space-md: 24px;
+  --space-lg: 32px;
+  --space-xl: 48px;
+  --space-2xl: 72px;
+
+  /* ---------- motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-short: 160ms;
+  --dur-med: 240ms;
+
+  /* ---------- layers */
+  --z-sticky: 20;
+  --z-nav: 30;
+  --z-help: 25;
+  --z-toast: 40;
+  --z-modal: 50;
+  --z-tour: 60;
+
+  --sidebar-w: 248px;
+  --tabbar-h: 64px;
+  --gutter: 16px;
+  --touch: 44px;
+  --measure: 68ch;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121417;
+    --surface: #1a1d21;
+    --surface-2: #22262b;
+    --surface-sunk: #0f1114;
+    --text: #eceef0;
+    --text-soft: rgba(236, 238, 240, 0.82);
+    --text-muted: #a7adb5;
+    --line: rgba(236, 238, 240, 0.12);
+    --line-strong: rgba(236, 238, 240, 0.3);
+    --primary: #8fb6d3;
+    --primary-text: #121417;
+    --gold-ink: #8fb6d3;
+    --gold-soft: rgba(143, 182, 211, 0.3);
+    --gold-faint: rgba(143, 182, 211, 0.12);
+    --success-soft: rgba(46, 107, 63, 0.28);
+    --warning-ink: #e3a347;
+    --warning-soft: rgba(184, 114, 15, 0.28);
+    --danger-soft: rgba(166, 58, 43, 0.28);
+    --focus-color: #8fb6d3;
+    --glass: rgba(26, 29, 33, 0.92);
+    --login-bg: radial-gradient(circle at 85% 10%, rgba(143, 182, 211, 0.14), transparent 32%), linear-gradient(135deg, #1a1d21, #121417);
+    --shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+    --shadow-soft: 0 14px 36px rgba(0, 0, 0, 0.35);
+    --shadow-tiny: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121417;
+  --surface: #1a1d21;
+  --surface-2: #22262b;
+  --surface-sunk: #0f1114;
+  --text: #eceef0;
+  --text-soft: rgba(236, 238, 240, 0.82);
+  --text-muted: #a7adb5;
+  --line: rgba(236, 238, 240, 0.12);
+  --line-strong: rgba(236, 238, 240, 0.3);
+  --primary: #8fb6d3;
+  --primary-text: #121417;
+  --gold-ink: #8fb6d3;
+  --gold-soft: rgba(143, 182, 211, 0.3);
+  --gold-faint: rgba(143, 182, 211, 0.12);
+  --success-soft: rgba(46, 107, 63, 0.28);
+  --warning-ink: #e3a347;
+  --warning-soft: rgba(184, 114, 15, 0.28);
+  --danger-soft: rgba(166, 58, 43, 0.28);
+  --focus-color: #8fb6d3;
+  --glass: rgba(26, 29, 33, 0.92);
+  --login-bg: radial-gradient(circle at 85% 10%, rgba(143, 182, 211, 0.14), transparent 32%), linear-gradient(135deg, #1a1d21, #121417);
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  --shadow-soft: 0 14px 36px rgba(0, 0, 0, 0.35);
+  --shadow-tiny: 0 2px 8px rgba(0, 0, 0, 0.3);
+}

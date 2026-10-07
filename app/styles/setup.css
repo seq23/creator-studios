@@ -1,0 +1,119 @@
+/* Setup (app/pages/Setup.tsx). Tokens only (validator design-tokens). */
+.practice-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2xs) var(--space-xs);
+  margin: 0 0 var(--space-md);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.practice-text {
+  flex: 1 1 16rem;
+  color: var(--text-soft);
+  font-size: var(--text-sm);
+}
+.setup-progress {
+  margin: 0 0 var(--space-sm);
+  color: var(--text-muted);
+}
+.setup-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-sm);
+}
+.setup-step-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2xs) var(--space-xs);
+  margin-bottom: var(--space-2xs);
+}
+.setup-step-head .card-title {
+  margin: 0;
+  flex: 1 1 auto;
+}
+.setup-n {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--gold-line);
+  font-family: var(--font-display);
+  color: var(--gold-ink);
+}
+.setup-where {
+  margin: var(--space-2xs) 0 var(--space-xs);
+}
+.setup-where summary {
+  cursor: pointer;
+  font-weight: 700;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.setup-where ol {
+  margin: 0 0 var(--space-xs);
+  padding-left: var(--space-md);
+  color: var(--text-soft);
+}
+.setup-form {
+  display: grid;
+  gap: var(--space-xs);
+}
+.setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+}
+.setup-secret {
+  word-break: break-all;
+}
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  color: inherit;
+}
+.wordmark-mark {
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+.wordmark-text {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: var(--lh-tight);
+}
+.wordmark-name {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  letter-spacing: var(--wordmark-tracking);
+  white-space: nowrap;
+}
+.wordmark-tag {
+  font-family: var(--font-body);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--blush);
+}
+.wordmark-lg .wordmark-name {
+  font-size: var(--text-2xl);
+}
+.wordmark-lg .wordmark-mark {
+  font-size: var(--text-xl);
+}
+.login-card .wordmark-tag {
+  color: var(--rose);
+}
+.login-title .script {
+  margin-top: var(--space-2xs);
+}

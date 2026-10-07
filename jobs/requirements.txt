@@ -1,0 +1,5 @@
+# Shared by every job workflow. Heavy, optional tools (faster-whisper, mediapipe, chatterbox)
+# are installed by the job that needs them, inside jobs/<name>.py, so the light jobs stay fast.
+# Storage goes through the Worker (jobs/common.py download_input / upload_output): jobs hold no
+# storage keys and need no storage SDK.
+requests>=2.32,<3

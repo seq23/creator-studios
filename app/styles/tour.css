@@ -1,0 +1,63 @@
+/* Hallmark · design-system: docs/design/DESIGN.md · designed-as-app
+   First-login tour pop-ups (section 12c). Tokens only; no backdrop, never blocks the page. */
+.tour-ring {
+  position: fixed;
+  z-index: var(--z-tour);
+  border: 3px solid var(--gold);
+  border-radius: var(--radius);
+  box-shadow: 0 0 0 6px var(--gold-faint);
+  pointer-events: none;
+}
+.tour-card {
+  position: fixed;
+  z-index: calc(var(--z-tour) + 1);
+  width: min(320px, calc(100% - var(--space-lg)));
+  padding: var(--space-sm);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--gold-soft);
+  box-shadow: var(--shadow);
+}
+.tour-card h3 {
+  margin: var(--space-3xs) 0 var(--space-2xs);
+  font-family: var(--font-display);
+}
+.tour-card p {
+  margin: 0 0 var(--space-sm);
+  color: var(--text-soft);
+  line-height: var(--lh-body);
+}
+.tour-count {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--rose);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.tour-arrow {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--gold-soft);
+  transform: rotate(45deg);
+}
+.tour-card.right .tour-arrow {
+  left: -8px;
+  top: 32px;
+  border-top: 0;
+  border-right: 0;
+}
+.tour-card.above .tour-arrow {
+  bottom: -8px;
+  margin-left: calc(-1 * var(--space-2xs));
+  border-top: 0;
+  border-left: 0;
+}
+@media print {
+  .tour-card,
+  .tour-ring {
+    display: none;
+  }
+}

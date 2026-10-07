@@ -1,0 +1,186 @@
+/* Hallmark · design-system: docs/design/DESIGN.md · designed-as-app
+   Voice narration (section 12). Tokens only. */
+.voice h2 {
+  margin: 0;
+}
+/* the line she reads aloud: framed by a hairline, not a side stripe */
+.consent-line {
+  margin: 0;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--gold-soft);
+  background: var(--gold-faint);
+  border-radius: var(--radius);
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  max-width: var(--measure);
+}
+.rec-row {
+  gap: var(--space-xs);
+}
+.rec-btn {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--danger);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.rec-btn span {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--ivory);
+}
+.rec-btn.on span {
+  border-radius: var(--radius-xs);
+}
+/* the whole sentence is the tap target, at least 44 px tall */
+.consent {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: var(--touch);
+  padding: var(--space-2xs) 0;
+  cursor: pointer;
+  max-width: var(--measure);
+}
+.consent input {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--espresso);
+  cursor: pointer;
+}
+.voice-audio {
+  width: 100%;
+  max-width: 420px;
+  margin-top: var(--space-2xs);
+}
+.narration {
+  flex-wrap: wrap;
+}
+.attach-row {
+  width: 100%;
+  min-height: var(--touch);
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* ---------- the five setup steps: one card each, a big number, phone first */
+.voice-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-sm);
+}
+.voice-step {
+  display: grid;
+  gap: var(--space-xs);
+}
+.voice-step p {
+  margin: 0;
+  max-width: var(--measure);
+}
+.voice-step h3 {
+  margin: 0;
+  font-size: var(--text-md);
+}
+.voice-step-head {
+  gap: var(--space-xs);
+}
+.voice-step-num {
+  display: grid;
+  place-items: center;
+  width: var(--touch);
+  height: var(--touch);
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--primary-text);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.upload-btn {
+  justify-self: start;
+}
+/* the read-aloud script: large and calm, readable at arm's length on a phone */
+.voice-script-box {
+  display: grid;
+  gap: var(--space-xs);
+}
+.voice-script {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: var(--space-sm);
+  border: 1px solid var(--gold-soft);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: var(--text-md);
+  line-height: var(--lh-body);
+  max-width: var(--measure);
+}
+.voice-script.big {
+  font-size: var(--text-xl);
+  line-height: var(--lh-snug);
+}
+.voice-script p {
+  margin: 0 0 var(--space-sm);
+}
+.voice-script p:last-child {
+  margin-bottom: 0;
+}
+.rec-time {
+  font-weight: 700;
+}
+.level-meter {
+  height: 10px;
+  margin-top: var(--space-3xs);
+  border-radius: var(--pill);
+  background: var(--surface-sunk);
+  overflow: hidden;
+  max-width: 260px;
+}
+.level-meter span {
+  display: block;
+  height: 100%;
+  background: var(--success);
+  transition: width var(--dur-short) linear;
+}
+.warn-text {
+  color: var(--warning-ink);
+}
+
+/* ---------- which voice */
+.engine-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2xs);
+}
+.engine-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  color: var(--text-muted);
+}
+.engine-list li.on {
+  color: var(--text);
+  font-weight: 600;
+}
+.engine-why {
+  margin: 0;
+}
+.narration .meta {
+  gap: var(--space-2xs);
+}

@@ -1,0 +1,167 @@
+/* Hallmark · design-system: docs/design/DESIGN.md · designed-as-app
+   Research Brief (phase 3). Only tokens from tokens.css. */
+.rs-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+.rs-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 84px;
+  padding: var(--space-3xs) var(--space-2xs);
+  border-radius: var(--pill);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.rs-pill.her {
+  background: var(--gold-faint);
+  color: var(--text);
+  border: 1px solid var(--gold);
+}
+.rs-pill.web {
+  background: var(--surface-2);
+  color: var(--text-soft);
+  border: 1px solid var(--line);
+}
+.rs-pill.upload {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.rs-pill.unsure {
+  background: var(--warning-soft);
+  color: var(--warning-ink);
+}
+.rs-layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: var(--space-lg);
+  align-items: start;
+}
+.rs-nav {
+  position: sticky;
+  top: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.rs-nav a {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch);
+  padding: 0 var(--space-xs);
+  border-radius: var(--radius-sm);
+  color: var(--text-soft);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  transition: background-color var(--dur-short) var(--ease-out), color var(--dur-short) var(--ease-out);
+}
+.rs-nav a:hover {
+  background: var(--gold-faint);
+  color: var(--text);
+}
+.rs-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+.rs-block {
+  background: var(--surface);
+  border: 1px solid var(--gold-soft);
+  border-radius: var(--radius-lg);
+  padding: var(--space-sm) var(--space-md);
+  scroll-margin-top: var(--space-sm);
+}
+.rs-block h3 {
+  margin: 0 0 var(--space-2xs);
+}
+.rs-sub h4 {
+  margin: var(--space-xs) 0 2px;
+  font-size: var(--text-base);
+}
+.rs-claim {
+  display: flex;
+  gap: var(--space-xs);
+  padding: var(--space-xs) 0;
+  border-top: 1px solid var(--line);
+}
+.rs-claim .rs-pill {
+  align-self: flex-start;
+}
+.rs-claim-body {
+  flex: 1;
+  min-width: 0;
+}
+.rs-claim-body p {
+  margin: 0;
+  max-width: var(--measure);
+}
+.rs-lead {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.rs-cites {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3xs) var(--space-xs);
+  margin-top: var(--space-3xs);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.rs-cites a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch);
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+.rs-sources {
+  margin: 0;
+  padding-left: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 900px) {
+  .rs-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* phone: the section chips scroll sideways inside their own row; the page never does */
+  .rs-nav {
+    position: static;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: var(--space-2xs);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .rs-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .rs-nav a {
+    flex-shrink: 0;
+    white-space: nowrap;
+    border: 1px solid var(--gold-soft);
+    border-radius: var(--pill);
+    background: var(--surface);
+  }
+  .rs-claim {
+    flex-direction: column;
+    gap: var(--space-2xs);
+  }
+  .rs-block {
+    padding: var(--space-sm);
+  }
+}

@@ -1,0 +1,135 @@
+{
+  "_source": "The error bodies YouTube Data API v3 and Google's OAuth token endpoint send, as documented (developers.google.com/youtube/v3/docs/errors, /docs/videos/insert, /docs/thumbnails/set, developers.google.com/identity/protocols/oauth2). One file for the Worker's fake (worker/services/youtubeDirect.ts), the job's tests (jobs/tests/test_ytupload.py) and the unit tests; classifyError in worker/domain/youtubeDirect.ts must name every one.",
+  "quota_exceeded": {
+    "http": 403,
+    "kind": "quota",
+    "body": {
+      "error": {
+        "code": 403,
+        "message": "The request cannot be completed because you have exceeded your <a href=\"/youtube/v3/getting-started#quota\">quota</a>.",
+        "errors": [
+          {
+            "message": "The request cannot be completed because you have exceeded your <a href=\"/youtube/v3/getting-started#quota\">quota</a>.",
+            "domain": "youtube.quota",
+            "reason": "quotaExceeded"
+          }
+        ]
+      }
+    }
+  },
+  "upload_limit": {
+    "http": 400,
+    "kind": "upload_limit",
+    "body": {
+      "error": {
+        "code": 400,
+        "message": "The user has exceeded the number of videos they may upload.",
+        "errors": [
+          {
+            "message": "The user has exceeded the number of videos they may upload.",
+            "domain": "youtube.video",
+            "reason": "uploadLimitExceeded"
+          }
+        ]
+      }
+    }
+  },
+  "token_revoked": {
+    "http": 400,
+    "kind": "revoked",
+    "body": {
+      "error": "invalid_grant",
+      "error_description": "Token has been expired or revoked."
+    }
+  },
+  "access_token_invalid": {
+    "http": 401,
+    "kind": "revoked",
+    "body": {
+      "error": {
+        "code": 401,
+        "message": "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.",
+        "errors": [
+          {
+            "message": "Invalid Credentials",
+            "domain": "global",
+            "reason": "authError",
+            "location": "Authorization",
+            "locationType": "header"
+          }
+        ],
+        "status": "UNAUTHENTICATED"
+      }
+    }
+  },
+  "publish_at_rejected": {
+    "http": 400,
+    "kind": "publish_at",
+    "body": {
+      "error": {
+        "code": 400,
+        "message": "The request metadata specifies an invalid scheduled publishing time.",
+        "errors": [
+          {
+            "message": "The request metadata specifies an invalid scheduled publishing time.",
+            "domain": "youtube.video",
+            "reason": "invalidPublishAt"
+          }
+        ]
+      }
+    }
+  },
+  "thumbnail_not_verified": {
+    "http": 403,
+    "kind": "thumb_verify",
+    "thumbnail": true,
+    "body": {
+      "error": {
+        "code": 403,
+        "message": "The authenticated user doesn't have permissions for uploading and setting custom video thumbnails.",
+        "errors": [
+          {
+            "message": "The authenticated user doesn't have permissions for uploading and setting custom video thumbnails.",
+            "domain": "youtube.thumbnail",
+            "reason": "forbidden"
+          }
+        ]
+      }
+    }
+  },
+  "backend_error": {
+    "http": 503,
+    "kind": "retry",
+    "body": {
+      "error": {
+        "code": 503,
+        "message": "Backend Error",
+        "errors": [
+          {
+            "message": "Backend Error",
+            "domain": "global",
+            "reason": "backendError"
+          }
+        ]
+      }
+    }
+  },
+  "insufficient_scope": {
+    "http": 403,
+    "kind": "scope",
+    "body": {
+      "error": {
+        "code": 403,
+        "message": "Request had insufficient authentication scopes.",
+        "errors": [
+          {
+            "message": "Insufficient Permission",
+            "domain": "global",
+            "reason": "insufficientPermissions"
+          }
+        ],
+        "status": "PERMISSION_DENIED"
+      }
+    }
+  }
+}

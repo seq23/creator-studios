@@ -1,0 +1,67 @@
+/* Hallmark · design-system: docs/design/DESIGN.md · designed-as-app
+   Client Brain (phase 2). Only tokens from tokens.css; shared classes come from global.css. */
+.brain-split {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: var(--space-lg);
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .brain-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.brain-drop-title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+.brain-drop-copy {
+  max-width: 40ch;
+}
+.brain-sub {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.brain-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.brain-type {
+  min-width: 46px;
+  justify-content: center;
+}
+.brain-doc .pill {
+  flex-shrink: 0;
+}
+.brain-flag {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  margin: 0 0 var(--space-xs);
+  padding: var(--space-xs);
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+.brain-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.brain-sections .textarea:disabled {
+  opacity: 0.85;
+  background: var(--surface);
+}
+@media (max-width: 560px) {
+  .brain-doc .list-row {
+    flex-wrap: wrap;
+  }
+  .brain-doc .list-row .grow {
+    min-width: 55%;
+  }
+}
