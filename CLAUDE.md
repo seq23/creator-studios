@@ -42,9 +42,11 @@ the first cut · public business contacts only for deals, she sends every pitch 
 - **The platform sender is the ONLY shared piece**: login codes go through the host's Resend
   (`PLATFORM_RESEND_API_KEY`, `PLATFORM_EMAIL_FROM`); every other email from a studio uses that
   studio's own Resend. Do not add a second shared piece.
-- **Secrets**: through the vault (`~/repo-tools/agent`, its keychain adapter) piped straight into
-  `wrangler secret put` / `gh secret set` on stdin (`scripts/studio.mjs`). Never the macOS
-  `security` command, never a value on a command line or on screen. Never rotate `SECRETS_KEY`
+- **Never call the vault or the macOS `security` command; Keychain prompts interrupt the owner.**
+  Guard: `tests/unit/no-keychain.test.ts` fails on any file that does.
+- **Secrets**: from an env var or a 0600 file in `~/.config/creator-studios/secrets/` (or
+  `CS_SECRETS_DIR`), piped straight into `wrangler secret put` / `gh secret set` on stdin
+  (`scripts/studio.mjs`, README "Secrets"). Never a value on a command line or on screen. Never rotate `SECRETS_KEY`
   on a live studio (it decrypts every pasted key).
 - **Fakes first.** A vendor call goes behind `worker/services/<vendor>.ts` with a fake that
   returns the failure shapes too.

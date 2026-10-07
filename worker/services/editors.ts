@@ -2,7 +2,7 @@
 // (pasted on Connect, stored encrypted) pays with her own credits. One interface, a real client
 // per vendor and a fake that returns every failure shape, so the whole flow runs without keys.
 //
-// NOT YET PROVEN with a live key (none exists in the owner's vault, 25 Sep 2026): the request
+// NOT YET PROVEN with a live key (none among the owner's stored keys, 25 Sep 2026): the request
 // shapes follow each vendor's published docs (links in docs/EDITORS.md). Every real answer is
 // read defensively: anything unexpected is "failed", and a failed editor job falls back to the
 // built-in editor (worker/lib/editorJobs.ts). Every call goes through `editorFetch`, and every

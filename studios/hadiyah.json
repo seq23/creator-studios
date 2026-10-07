@@ -20,10 +20,10 @@
   "hostSecrets": {
     "_why": "Exactly the split the host gave Sheila Studio: only what ran on the HOST's own accounts there is the host's here (README 'Hadiyah: whose account runs what'). Everything else is Hadiyah's own, pasted on Setup.",
     "GITHUB_DISPATCH_TOKEN": "gh-auth-token",
-    "YOUTUBE_API_KEY": "vault:sheila-youtube-api-key",
-    "GOOGLE_CLIENT_ID": "vault?:hadiyah-google-oauth-client-id",
-    "GOOGLE_CLIENT_SECRET": "vault?:hadiyah-google-oauth-client-secret",
-    "_optional": "vault? = set when the vault holds it, otherwise a named stop (README): Google sign-in runs in practice mode until then."
+    "YOUTUBE_API_KEY": "file:YOUTUBE_API_KEY",
+    "GOOGLE_CLIENT_ID": "file?:HADIYAH_GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET": "file?:HADIYAH_GOOGLE_CLIENT_SECRET",
+    "_optional": "file? = set when the env var or 0600 secret file exists (README Secrets), otherwise a named stop: Google sign-in runs in practice mode until then."
   },
   "jobSecretOnHostRepo": true
 }

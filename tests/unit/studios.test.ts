@@ -82,7 +82,7 @@ describe("guard (a): a client studio carries none of the host's identifiers", ()
     const s2 = bad.studios.find((s: { slug: string }) => s.slug === "sample2");
     s2.appName = "Sheila's other studio";
     const s3 = bad.studios.find((s: { slug: string }) => s.slug === "sample3");
-    s3.hostSecrets = { YOUTUBE_API_KEY: "vault:x" };
+    s3.hostSecrets = { YOUTUBE_API_KEY: "file:YOUTUBE_API_KEY" };
     s3.wordmark = { tag: "UC5vZFZc15DIM6IrFwFgAECg" };
     const r = await checkStudios(bad, envBlock, secretPlan);
     const text = r.problems.join("\n");

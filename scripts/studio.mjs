@@ -11,12 +11,15 @@
 //   node scripts/studio.mjs storage <slug>      create its D1 + R2 only (create does this first)
 //   node scripts/studio.mjs list                the registry
 //
-// Secrets never pass through a command line or the screen: generated values and vault values
-// (Keychain, through the vault's keychain adapter, never the macOS `security` command) are piped
-// straight into `wrangler secret put` / `gh secret put` on stdin.
+// Secrets never pass through a command line or the screen, and nothing here ever touches the macOS
+// Keychain (no `security` command, nothing that reads it: a Keychain prompt interrupts the owner). A value comes
+// from an environment variable of the same name or a 0600 file <secrets dir>/<NAME> (default
+// ~/.config/creator-studios/secrets, override with CS_SECRETS_DIR); generated values are made with
+// crypto randomness and kept in 0600 files <secrets dir>/<slug>/<NAME>. Every value is piped
+// straight into `wrangler secret put` / `gh secret set` on stdin, never printed.
 import { spawnSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,7 +29,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || "8d147e242033699dd37c6f5a451f48d2";
 const HOST_REPO = "seq23/creator-studios";
 /** The platform sender (README "Platform sender"): the host's Resend, login codes only. */
-const PLATFORM_RESEND = "vault:resend-app-18f24eb6";
+const PLATFORM_RESEND = "file:PLATFORM_RESEND_API_KEY";
 const PLATFORM_FROM = "Studio login <login@westpeek.ventures>";
 const CRONS = ["0 * * * *", "30 13 * * *", "0 12 * * 1"];
 const RUN_WORKER_FIRST = ["/api/*", "/media/*", "/healthz", "/kit/*", "/privacy", "/terms", "/studio-theme.css"];
@@ -135,22 +138,67 @@ function run(cmd, args, { input, quiet, allowFail } = {}) {
 }
 const wrangler = (args, opts) => run("npx", ["wrangler", ...args], opts);
 
-/** A vault value, read through the vault's keychain adapter (never `security`), returned in memory only. */
-function vaultValue(id) {
-  const code = 'import sys; from repo_operator.vault import keychain as kc; v=kc.get().get("repo-operator-credential-"+sys.argv[1], kc.owner_account()) or ""; sys.stdout.write(v)';
-  const r = spawnSync("python3", ["-c", code, id], { cwd: path.join(homedir(), "repo-tools", "agent"), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-  return r.status === 0 ? (r.stdout ?? "") : "";
+/** Where secret files live: CS_SECRETS_DIR, else ~/.config/creator-studios/secrets. */
+export function secretsDir(env = process.env) {
+  return env.CS_SECRETS_DIR || path.join(homedir(), ".config", "creator-studios", "secrets");
 }
 
-function sourceValue(src) {
+/** The secret-source forms a registry entry may name. Anything else is refused. */
+export const SOURCE_FORMS = [/^file\??:[A-Z][A-Z0-9_]*$/, /^gh-auth-token$/, /^literal:.+$/, /^generate:(base64|hex)-32$/];
+export const isKnownSource = (src) => typeof src === "string" && SOURCE_FORMS.some((re) => re.test(src));
+
+/**
+ * The value for `file:<NAME>` / `file?:<NAME>`: the environment variable NAME, else the file
+ * <dir>/<NAME>, which must be 0600 (owner-only). Returns { value } or { stop } (a NAMED stop that
+ * says exactly which file to create). The value is returned in memory only, never printed.
+ */
+export function fileSecret(name, { env = process.env, dir = secretsDir(env) } = {}) {
+  const fromEnv = (env[name] ?? "").trim();
+  if (fromEnv) return { value: fromEnv };
+  const file = path.join(dir, name);
+  const make = `create ${file} holding only the value (umask 077; printf '%s' "$VALUE" > ${file}; chmod 600 ${file}), or export ${name}`;
+  if (!existsSync(file)) return { stop: `${name}: no secret file. ${make}` };
+  const mode = statSync(file).mode & 0o777;
+  if (mode & 0o077) return { stop: `${name}: ${file} is readable by others (mode ${mode.toString(8)}). Run: chmod 600 ${file}` };
+  const value = readFileSync(file, "utf8").trim();
+  if (!value) return { stop: `${name}: ${file} is empty. ${make}` };
+  return { value };
+}
+
+/**
+ * A generated secret for one studio: reused from <dir>/<slug>/<NAME> when that file exists (so a
+ * re-run after a failed put sets the same value), else made with crypto randomness and written
+ * there 0600 before it is used. Never printed.
+ */
+export function generatedSecret(slug, name, kind, { env = process.env, dir = secretsDir(env) } = {}) {
+  const sub = path.join(dir, slug);
+  const file = path.join(sub, name);
+  if (existsSync(file)) {
+    const kept = readFileSync(file, "utf8").trim();
+    if (kept) {
+      chmodSync(file, 0o600);
+      return kept;
+    }
+  }
+  const value = kind === "hex-32" ? randomBytes(32).toString("hex") : randomBytes(32).toString("base64");
+  mkdirSync(sub, { recursive: true, mode: 0o700 });
+  writeFileSync(file, value, { mode: 0o600 });
+  chmodSync(file, 0o600);
+  return value;
+}
+
+/** Resolve one source to { value } or { stop }. Never reads the Keychain. */
+export function resolveSource(src, opts = {}) {
+  if (!isKnownSource(src)) throw new Error(`unknown secret source ${src}`);
   if (src === "gh-auth-token") {
     const r = spawnSync("gh", ["auth", "token"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-    return (r.stdout ?? "").trim();
+    const v = (r.stdout ?? "").trim();
+    return v ? { value: v } : { stop: "GITHUB_DISPATCH_TOKEN: `gh auth token` gave nothing. Run: gh auth login" };
   }
-  if (src.startsWith("vault:")) return vaultValue(src.slice(6)).trim();
-  if (src.startsWith("vault?:")) return vaultValue(src.slice(7)).trim();
-  if (src.startsWith("literal:")) return src.slice(8);
-  throw new Error(`unknown secret source ${src}`);
+  if (src.startsWith("file?:")) return fileSecret(src.slice(6), opts);
+  if (src.startsWith("file:")) return fileSecret(src.slice(5), opts);
+  if (src.startsWith("literal:")) return { value: src.slice(8) };
+  throw new Error(`secret source ${src} is resolved by the caller`);
 }
 
 const studioBySlug = (slug) => {
@@ -254,6 +302,7 @@ function secrets(slug) {
   const { s } = studioBySlug(slug);
   const have = secretNames(slug);
   const stops = [];
+  const missing = [];
   let jobSecret = null;
   let freshSession = null;
   for (const [name, src] of Object.entries(secretPlan(s))) {
@@ -262,15 +311,15 @@ function secrets(slug) {
       continue;
     }
     let value;
-    if (src === "generate:base64-32") value = randomBytes(32).toString("base64");
-    else if (src === "generate:hex-32") value = randomBytes(32).toString("hex");
-    else value = sourceValue(src);
-    if (!value) {
-      if (src.startsWith("vault?:")) {
-        stops.push(`${name} (vault ${src.slice(7)} is empty)`);
+    if (src.startsWith("generate:")) value = generatedSecret(slug, name, src.slice(9));
+    else {
+      const r = resolveSource(src);
+      if (r.stop) {
+        // Optional (file?:) → the feature stays in practice mode; required → the run fails, naming the file.
+        (src.startsWith("file?:") ? stops : missing).push(r.stop);
         continue;
       }
-      throw new Error(`secret ${name}: its source (${src.split(":")[0]}) gave no value`);
+      value = r.value;
     }
     wrangler(["secret", "put", name, "--env", slug], { input: value, quiet: true });
     console.log(`secret ${name}: set`);
@@ -285,6 +334,7 @@ function secrets(slug) {
     console.log(`GitHub secret JOB_SHARED_SECRET_${slug.toUpperCase()}: kept (the Worker's job secret was already set)`);
   }
   for (const stop of stops) console.log(`NAMED STOP: ${stop}`);
+  if (missing.length) throw new Error(`NAMED STOP: required secret(s) missing for ${slug}; nothing else waits on them, re-run npm run studio:secrets ${slug} once they exist:\n  ${missing.join("\n  ")}`);
   return { stops, freshSession };
 }
 

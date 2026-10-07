@@ -13,11 +13,12 @@ paste-ready command, and nothing else waits on it (the feature runs in practice 
    connection. In console.cloud.google.com → project `sheilastudio-staging-p0` → APIs & Services →
    Credentials → Create credentials → OAuth client ID → Web application, name "hadiyahstudio",
    authorized redirect URI `https://hadiyahstudio.seq-taylor.workers.dev/api/oauth/google/callback`,
-   then either paste the Client ID and secret on Hadiyah's Setup → Google sign-in, or store them in
-   the vault and set them:
+   then either paste the Client ID and secret on Hadiyah's Setup → Google sign-in, or put them in
+   0600 secret files (README "Secrets") and set them:
    ```bash
-   cd ~/repo-tools/agent && python3 -m repo_operator.cli vault set hadiyah-google-oauth-client-id --class OAUTH_CLIENT_CREDENTIAL --provider google      # hidden prompt
-   cd ~/repo-tools/agent && python3 -m repo_operator.cli vault set hadiyah-google-oauth-client-secret --class OAUTH_CLIENT_CREDENTIAL --provider google  # hidden prompt
+   D=${CS_SECRETS_DIR:-~/.config/creator-studios/secrets}; mkdir -p "$D" && chmod 700 "$D"
+   (umask 077; read -rs -p 'Client ID: ' V && printf '%s' "$V" > "$D/HADIYAH_GOOGLE_CLIENT_ID"); echo
+   (umask 077; read -rs -p 'Client secret: ' V && printf '%s' "$V" > "$D/HADIYAH_GOOGLE_CLIENT_SECRET"); echo
    cd ~/GitHub/creator-studios && npm run studio:secrets hadiyah
    ```
 
@@ -55,8 +56,8 @@ curl -s -X POST https://hadiyahstudio.seq-taylor.workers.dev/api/auth/request \
 # 2. the provider id the Worker recorded for it
 npx wrangler d1 execute creator-studios-hadiyah-db --remote --env hadiyah --json \
   --command "SELECT provider_id, sent_at FROM emails_sent WHERE kind = 'login_code' ORDER BY sent_at DESC LIMIT 1"
-# 3. Resend's own record of it (platform key from the vault through its keychain adapter, piped, never shown)
-cd ~/repo-tools/agent && python3 -c 'import sys; from repo_operator.vault import keychain as kc; sys.stdout.write(kc.get().get("repo-operator-credential-resend-app-18f24eb6", kc.owner_account()) or "")' \
+# 3. Resend's own record of it (platform key from its 0600 secret file, piped, never shown)
+cat "${CS_SECRETS_DIR:-$HOME/.config/creator-studios/secrets}/PLATFORM_RESEND_API_KEY" \
   | (read -r K; curl -s "https://api.resend.com/emails/<provider_id>" -H "Authorization: Bearer $K") | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("last_event"), d.get("created_at"))'
 ```
 
@@ -66,13 +67,13 @@ cd ~/repo-tools/agent && python3 -c 'import sys; from repo_operator.vault import
 | --- | --- | --- |
 | `SESSION_SECRET`, `JOB_SHARED_SECRET` | generated at create | all |
 | `SECRETS_KEY` | generated at create; **never rotate** (it decrypts every key pasted on Setup) | all |
-| `PLATFORM_RESEND_API_KEY` | vault `resend-app-18f24eb6` (host's Resend, verified domains) | all (login codes only) |
+| `PLATFORM_RESEND_API_KEY` | secret file `PLATFORM_RESEND_API_KEY` (host's Resend, verified domains) | all (login codes only) |
 | `PLATFORM_EMAIL_FROM` | `Studio login <login@westpeek.ventures>` | all |
 | `GITHUB_DISPATCH_TOKEN` | `gh auth token` (host's GitHub) | hadiyah |
-| `YOUTUBE_API_KEY` | vault `sheila-youtube-api-key` (host's Google project) | hadiyah |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | vault `hadiyah-google-oauth-client-*` when present (named stop 1) | hadiyah |
+| `YOUTUBE_API_KEY` | secret file `YOUTUBE_API_KEY` (host's Google project, Sheila's key) | hadiyah |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | secret files `HADIYAH_GOOGLE_CLIENT_ID` / `HADIYAH_GOOGLE_CLIENT_SECRET` when present (named stop 1) | hadiyah |
 
-GitHub repo secrets: `CLOUDFLARE_API_TOKEN` (vault `cloudflare-claude-deploy`),
+GitHub repo secrets: `CLOUDFLARE_API_TOKEN` (already set; the deploy token),
 `CLOUDFLARE_ACCOUNT_ID`, `JOB_SHARED_SECRET_HADIYAH` (set by `studio:create`; the job workflows pick
 `JOB_SHARED_SECRET_<STUDIO>` from the dispatch). A client studio's jobs run in the client's own
 repository (Setup → Clip cutting), never here; until then its practice cutter runs in the Worker.

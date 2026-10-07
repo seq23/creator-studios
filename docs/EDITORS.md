@@ -74,7 +74,6 @@ Two kinds of connection, and nothing else:
 - Fakes for every connector (`FAKE_SERVICES=1`): keys starting `good-` work, `good-low-` report
   low credits, anything else is refused; a fake project finishes on the first poll with clips
   the import checks like real ones. e2e: `tests/e2e/editors.spec.ts`.
-- No real key exists for any of these editors in the owner's vault (checked with
-  `python3 -m repo_operator.cli vault list`, 25 Sep 2026), so no real call has been made. The
+- No real key existed for any of these editors among the owner's stored keys (25 Sep 2026), so no real call has been made. The
   request shapes follow each vendor's published docs above; the first real key proves or
   corrects them. Until then each real client is **not yet proven**.
