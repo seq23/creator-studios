@@ -25,7 +25,7 @@ jobs:
           cache: pip
           cache-dependency-path: jobs/requirements.txt
       - name: System tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+        run: bash .github/scripts/apt-install.sh ffmpeg
       - run: pip install -q -r jobs/requirements.txt
       - name: Run
         run: python3 jobs/voice.py

@@ -50,7 +50,7 @@ jobs:
           key: whisper-${{ env.WHISPER_MODEL }}-v1
       - name: System tools
         # tesseract: the watermark check (whose video is this?). libgles2 + libegl1: MediaPipe's Linux wheel loads GLES/EGL even for CPU face detection
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libgles2 libegl1 tesseract-ocr tesseract-ocr-eng > /dev/null
+        run: bash .github/scripts/apt-install.sh ffmpeg libgles2 libegl1 tesseract-ocr tesseract-ocr-eng
       - run: pip install -q -r jobs/requirements.txt
       - name: Run
         run: python3 jobs/cut.py
@@ -85,7 +85,7 @@ jobs:
           path: ~/.cache/huggingface
           key: whisper-${{ env.WHISPER_MODEL }}-v1
       - name: System tools (ffmpeg with libass; GLES/EGL for MediaPipe; espeak-ng for a spoken sample)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libgles2 libegl1 espeak-ng > /dev/null
+        run: bash .github/scripts/apt-install.sh ffmpeg libgles2 libegl1 espeak-ng
       - name: Pipeline self-test (synthetic footage, no secrets; the Looks run in selftest-looks)
         run: python3 jobs/selftest_cut.py --require-heavy --skip-looks
 
@@ -107,6 +107,6 @@ jobs:
         with:
           python-version: "3.12"
       - name: System tools (ffmpeg with libass)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+        run: bash .github/scripts/apt-install.sh ffmpeg
       - name: Every Look (${{ matrix.kind }}), rendered and checked
         run: python3 jobs/selftest_cut.py --looks-only --looks-kind ${{ matrix.kind }} --require-libass
