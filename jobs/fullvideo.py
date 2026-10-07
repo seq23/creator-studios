@@ -72,7 +72,7 @@ def thumb_times(duration: float) -> list[float]:
 def ensure_whisper() -> bool:
     if os.environ.get("JOB_HEAVY") == "1":
         try:
-            sh([sys.executable, "-m", "pip", "install", "-q", "--disable-pip-version-check", "faster-whisper>=1.0,<2"], timeout=900)
+            sh([sys.executable, "-m", "pip", "install", "-q", "--disable-pip-version-check", "faster-whisper>=1.0,<2", "av<16"], timeout=900)  # av<16: see cut.py
         except Exception:  # noqa: BLE001
             log("fullvideo.whisper", ok=False)
     try:

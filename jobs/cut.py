@@ -119,7 +119,9 @@ def ensure_heavy() -> dict[str, bool]:
     if os.environ.get("JOB_HEAVY") == "1":
         pip = [sys.executable, "-m", "pip", "install", "-q", "--disable-pip-version-check"]
         try:
-            sh([*pip, "faster-whisper>=1.0,<2"], timeout=900)
+            # av<16: newer PyAV (19.0.1 measured) refuses open(metadata_errors=...), which faster-whisper 1.2 passes, so
+            # every transcript failed (7 Oct 2026, selftest "whisper_installed_but_no_transcript"; reproduced with av 19.0.1).
+            sh([*pip, "faster-whisper>=1.0,<2", "av<16"], timeout=900)
             log("heavy.whisper", ok=True)
         except Exception:  # noqa: BLE001
             log("heavy.whisper", ok=False)
