@@ -33,6 +33,16 @@ jobs:
       - name: Python job syntax
         run: python3 -m py_compile jobs/*.py
       - name: ffmpeg (the full-video job's tests run it on synthetic footage)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+        # A runner image may already carry ffmpeg; otherwise apt with short network timeouts and one
+        # retry, bounded, so a hung mirror fails in minutes instead of eating the gate (7 Oct 2026: an
+        # apt-get update hung 8 min on PR #1 and the job hit its timeout).
+        timeout-minutes: 4
+        run: |
+          command -v ffmpeg && exit 0
+          for i in 1 2; do
+            timeout 100 sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 update -qq && timeout 100 sudo apt-get install -y -qq ffmpeg > /dev/null && exit 0
+            echo "apt try $i failed, retrying"
+          done
+          exit 1
       - name: Python job tests (web search + page reading, keyless and Firecrawl; the voice batch; the full video kept whole)
         run: python3 -m unittest discover -s jobs/tests -v
