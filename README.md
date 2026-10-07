@@ -44,7 +44,7 @@ Evidence was read from the Sheila repo's docs, the secret NAMES bound on the `sh
 | --- | --- | --- |
 | Hosting: Worker, D1, R2 | Host's Cloudflare account | `sheilastudio` runs on the host's account; studio brief: hosted on the owner's Cloudflare |
 | Job runner: GitHub Actions + `GITHUB_DISPATCH_TOKEN` | Host's | Worker secret on `sheilastudio`; Sheila RUNBOOK: "GITHUB_DISPATCH_TOKEN … is Sequoia's own GitHub token"; jobs run in the host's repo |
-| YouTube numbers key `YOUTUBE_API_KEY` | Host's (vault `sheila-youtube-api-key`, same key) | Worker secret on `sheilastudio`; Sheila `docs/YOUTUBE.md`: the Google project is "registered under the owner's account … the owner chose to keep it there" |
+| YouTube numbers key `YOUTUBE_API_KEY` | Host's (Sheila's key, same key; secret file `YOUTUBE_API_KEY`) | Worker secret on `sheilastudio`; Sheila `docs/YOUTUBE.md`: the Google project is "registered under the owner's account … the owner chose to keep it there" |
 | Google sign-in app `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Host's Google project, a web client of Hadiyah's own Worker | Worker secrets on `sheilastudio`; Sheila RUNBOOK: each Worker has its own web client in the owner's project. Not yet created for Hadiyah: a NAMED STOP (RUNBOOK) |
 | Login codes | Platform sender (host's Resend) | Studio brief §4 (the one shared piece) |
 | Studio email (alerts, recaps) `RESEND_API_KEY` | **Hadiyah's own** (Setup → Email) | Sheila RUNBOOK: "RESEND_API_KEY on production is Sheila's own Resend account key … never a West Peek key" |
@@ -103,9 +103,13 @@ npm run studio:create <slug>
 
 ## Secrets
 
-Never in the repo. `npm run studio:secrets <slug>` sets what a studio is missing, values piped from
-the vault (Keychain, through the vault's keychain adapter) or generated, straight into
-`wrangler secret put` on stdin. Per studio: `SESSION_SECRET`, `SECRETS_KEY`, `JOB_SHARED_SECRET`
+Never in the repo. `npm run studio:secrets <slug>` sets what a studio is missing, values piped
+straight into `wrangler secret put` on stdin, never printed and never from the macOS Keychain.
+A value comes from an environment variable of the same name, else a 0600 file
+`~/.config/creator-studios/secrets/<NAME>` (directory overridable with `CS_SECRETS_DIR`); a missing
+one is a NAMED STOP naming the file to create. Generated secrets are made with crypto randomness and
+kept in 0600 files `<secrets dir>/<slug>/<NAME>`. Files: `PLATFORM_RESEND_API_KEY` (all), and for
+Hadiyah `YOUTUBE_API_KEY`, `HADIYAH_GOOGLE_CLIENT_ID`, `HADIYAH_GOOGLE_CLIENT_SECRET` (optional). Per studio: `SESSION_SECRET`, `SECRETS_KEY`, `JOB_SHARED_SECRET`
 (generated), `PLATFORM_RESEND_API_KEY` + `PLATFORM_EMAIL_FROM` (platform sender), and for
 host-accounts studios the `hostSecrets` in the entry. GitHub: `CLOUDFLARE_API_TOKEN`,
 `CLOUDFLARE_ACCOUNT_ID` (deploy), `JOB_SHARED_SECRET_<SLUG>` (host-run job runner).
