@@ -10,6 +10,7 @@
 // Every decision is a pure function in domain/sync.ts. Logs carry counts only.
 import type { Env } from "../env";
 import { fakeServices } from "../env";
+import { inPracticeOnly } from "../lib/practice";
 import { getSetting, parseJson, recordEvent, setHealth, setSetting } from "../lib/db";
 import { getConnectionSecret, markConnection, type Service } from "../lib/connections";
 import { mediaToken, nowIso } from "../lib/ids";
@@ -290,7 +291,12 @@ async function writeHealth(env: Env, buf: BufferState, waitingSafely: number): P
   const states: Record<string, ConnState> = {};
 
   // Buffer
-  if (!buf.connected) {
+  if (!buf.connected && inPracticeOnly(env, "buffer")) {
+    // No key yet: practice mode, not a fault. Grey, like Email and Job runner: a fresh studio must
+    // not say "Something needs you" (found live on sample1, 7 Oct 2026: yellow on day one).
+    await setHealth(env.DB, "Buffer", "grey", waitingSafely ? `Practice mode · ${waitingSafely} posts waiting safely. Set up Posting on Setup.` : "Practice mode · approved clips wait safely on the Calendar. Set up Posting on Setup.", "connect-buffer");
+    states.Buffer = "off";
+  } else if (!buf.connected) {
     await setHealth(env.DB, "Buffer", "yellow", waitingSafely ? `Not connected yet · ${waitingSafely} posts waiting safely` : "Not connected yet", "connect-buffer");
     states.Buffer = "off";
   } else if (!buf.ok) {

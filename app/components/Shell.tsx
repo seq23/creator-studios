@@ -12,6 +12,7 @@ import { Tour } from "./Tour";
 import { Wordmark } from "./Wordmark";
 import { PracticeBanner } from "./PracticeBanner";
 import { studio } from "../lib/studio";
+import { post } from "../lib/api";
 
 interface NavItem {
   to: string;
@@ -52,6 +53,29 @@ export function LegalLinks() {
       <a href="/privacy">Privacy</a>
       <a href="/terms">Terms</a>
     </footer>
+  );
+}
+
+/**
+ * Log out of this device: ends the session (POST /api/auth/logout) and reloads to the login card.
+ * In the sidebar foot and the phone Menu sheet, so every screen has it (until 7 Oct 2026 the route
+ * existed and nothing in the app called it: found live on sample1).
+ */
+export function LogOutButton() {
+  const [busy, setBusy] = useState(false);
+  async function logOut() {
+    setBusy(true);
+    try {
+      await post("/api/auth/logout");
+    } catch {
+      // The session cookie is cleared server-side when it can be; the reload shows where we stand.
+    }
+    window.location.assign("/");
+  }
+  return (
+    <button type="button" className="log-out" onClick={logOut} disabled={busy}>
+      {busy ? "Logging out…" : "Log out"}
+    </button>
   );
 }
 
@@ -108,6 +132,7 @@ export function Shell() {
           <div className="who" title={me?.email}>
             {me?.email}
           </div>
+          <LogOutButton />
           <LegalLinks />
         </div>
       </aside>
@@ -119,6 +144,7 @@ export function Shell() {
       {menuOpen ? <button type="button" className="more-back" aria-label="Close the menu" onClick={() => setMenuOpen(false)} /> : null}
       <div className="more-sheet" id="more-sheet" hidden={!menuOpen}>
         <nav aria-label="More screens">{menuItems.map(link)}</nav>
+        <LogOutButton />
         <LegalLinks />
       </div>
       <nav className="tabbar" aria-label="Main">

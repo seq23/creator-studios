@@ -254,6 +254,21 @@ p {
 .sidebar-foot a:hover {
   text-decoration: underline;
 }
+.log-out {
+  align-self: flex-start;
+  min-height: var(--touch);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.more-sheet .log-out {
+  margin-top: var(--space-xs);
+  font-size: var(--text-sm);
+}
 .sidebar-foot .who {
   overflow: hidden;
   text-overflow: ellipsis;

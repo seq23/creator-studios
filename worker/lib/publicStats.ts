@@ -150,14 +150,16 @@ export async function refreshYouTubePublic(env: Env): Promise<YouTubePublicSetti
   const google = await connStatus(env, "google");
   const oauthOk = google?.status === "ok";
   const yt = getYouTubePublic(env);
-  const done = async (s: YouTubePublicSetting, light: "green" | "yellow", note: string) => {
+  const done = async (s: YouTubePublicSetting, light: "green" | "yellow" | "grey", note: string) => {
     await setSetting(env.DB, "youtube_public", s);
     // A chosen Google sign-in owns the light while it is connected (it reports its own problems).
     if (!oauthOk) await setHealth(env.DB, YT_HEALTH, light, note, light === "green" ? null : YT_GUIDE);
     log.info("stats.youtube.path", { path: "public", state: s.state, read: s.read ?? 0 });
     return s;
   };
-  if (!yt) return done({ state: "no_key", checked_at: nowIso() }, "yellow", "Practice mode: YouTube numbers start once a YouTube key is added on Setup.");
+  // No key: practice mode, grey like every other practice light (yellow said "Something needs you"
+  // on a fresh studio after Update numbers: sample1, 7 Oct 2026).
+  if (!yt) return done({ state: "no_key", checked_at: nowIso() }, "grey", "Practice mode: YouTube numbers start once a YouTube key is added on Setup.");
   try {
     const ch = await resolveChannel(env, yt);
     if (!ch) {

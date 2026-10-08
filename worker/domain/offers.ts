@@ -39,6 +39,29 @@ function firstMatch(t: string, re: RegExp): { m: RegExpExecArray; line: string }
   return m ? { m, line: around(t, m.index, m[0].length) } : null;
 }
 
+// The kinds of term a sentence can carry. A sentence that carries two or more ("1 video for $500,
+// usage for 12 months, net 60 payment.") is split at its commas so each term quotes only its own
+// clause; found live on sample1, 7 Oct 2026: the reply restated the whole sentence under usage AND
+// payment.
+const TERM_KINDS: RegExp[] = [
+  /\$\s?\d|\b\d+\s?(?:usd|dollars)\b/i,
+  /\b(?:\d+|one|two|three|a|an)\s+(?:x\s+)?(?:tiktok|instagram|ig|youtube|yt)?\s*(?:videos?|reels?|tiktoks?|stor(?:y|ies)|posts?|shorts?)\b/i,
+  /(usage|rights|licen[cs]e|whitelist|spark ads?|in perpetuity|perpetual)/i,
+  /exclusiv/i,
+  /\b(post(?:ing)? by|go live|launch|due|deadline|within \d+ (?:days|weeks))\b/i,
+  /(net[\s-]?\d{2,3}|payment|paid (?:within|after|upon)|invoice)/i,
+];
+
+function ownClause(hit: { m: RegExpExecArray; line: string } | null): { m: RegExpExecArray; line: string } | null {
+  if (!hit) return null;
+  const sentence = hit.line;
+  if (TERM_KINDS.filter((re) => re.test(sentence)).length < 2) return hit;
+  const key = hit.m[0].slice(0, 12).toLowerCase();
+  const clauses = sentence.split(/,\s+|;\s*/).map((c) => c.trim().replace(/^(?:and|but|plus)\s+/i, "").replace(/[.!?]+$/, ""));
+  const own = clauses.find((c) => c.toLowerCase().includes(key));
+  return own ? { m: hit.m, line: own } : hit;
+}
+
 /** Read the terms with rules only (always runs; the model result is merged on top of this). */
 export function extractTerms(text: string): OfferTerms {
   const t = text.replace(/\r/g, "");
@@ -55,11 +78,11 @@ export function extractTerms(text: string): OfferTerms {
     if (!Number.isFinite(n) || n > 20) continue;
     delivs.push(`${n} ${m[2] ? `${m[2]} ` : ""}${m[3]}`.replace(/\s+/g, " "));
   }
-  const usage = firstMatch(t, /(usage|rights|licen[cs]e|whitelist|spark ads?|paid (?:media|ads|social)|in perpetuity|perpetual|repurpose)[^.\n]*/i);
-  const excl = firstMatch(t, /exclusiv[^.\n]*/i);
-  const timeline = firstMatch(t, /(post(?:ing)?|live|go live|launch|due|deadline|by)\s[^.\n]*\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s?\d{1,2}[^.\n]*|within \d+ (?:days|weeks)[^.\n]*|(?:next|this) (?:week|month)[^.\n]*/i);
+  const usage = ownClause(firstMatch(t, /(usage|rights|licen[cs]e|whitelist|spark ads?|paid (?:media|ads|social)|in perpetuity|perpetual|repurpose)[^.\n]*/i));
+  const excl = ownClause(firstMatch(t, /exclusiv[^.\n]*/i));
+  const timeline = ownClause(firstMatch(t, /(post(?:ing)?|live|go live|launch|due|deadline|by)\s[^.\n]*\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s?\d{1,2}[^.\n]*|within \d+ (?:days|weeks)[^.\n]*|(?:next|this) (?:week|month)[^.\n]*/i));
   const net = /net[\s-]?(\d{2,3})/i.exec(t);
-  const payment = firstMatch(t, /(net[\s-]?\d{2,3}|payment[^.\n]*|paid (?:within|after|upon)[^.\n]*|upon (?:completion|posting|approval)[^.\n]*|invoice[^.\n]*)/i);
+  const payment = ownClause(firstMatch(t, /(net[\s-]?\d{2,3}|payment[^.\n]*|paid (?:within|after|upon)[^.\n]*|upon (?:completion|posting|approval)[^.\n]*|invoice[^.\n]*)/i));
 
   let buyer: OfferTerms["buyer"] = "unknown";
   if (/(gift(ed|ing)?|free product|send you (some )?product|in exchange for (a )?post|product seeding|no budget)/i.test(lower) && fee === null) buyer = "gifting";

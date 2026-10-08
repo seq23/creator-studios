@@ -56,6 +56,8 @@ export interface ProspectInput {
   contacts: ContactLike[];
   status: "suggested" | "saved" | "hidden";
   dealStage: string | null;
+  /** "her_list": a brand she added herself ("Add a brand I love"); always above the line. */
+  origin?: "her_list" | "finder" | "program_search";
 }
 
 export interface Ranked<T> {
@@ -77,7 +79,8 @@ export function expectedMoney(p: Pick<ProspectInput, "fit" | "budget" | "contact
 
 /**
  * Brands she can pitch now: not hidden, not already in a deal (pitched, replied, won, declined or
- * lost), ranked by expected money. "Paying" and "likely" sit above the line; "unproven" below it.
+ * lost), ranked by expected money. "Paying" and "likely" sit above the line, and so does every
+ * brand she added herself; "unproven" finder brands sit below it.
  * A "paying" level with no evidence link is treated as unproven (nothing without a source).
  */
 export function rankProspects<T extends ProspectInput>(items: T[]): Ranked<T>[] {
@@ -86,7 +89,9 @@ export function rankProspects<T extends ProspectInput>(items: T[]): Ranked<T>[] 
     .map((p) => {
       const level: BudgetLevel = p.budget.level !== "unproven" && !p.budget.evidence.some((e) => /^https?:\/\//.test(e.url)) ? "unproven" : p.budget.level;
       const { score, math } = expectedMoney({ ...p, budget: { ...p.budget, level } });
-      return { item: p, score, math, aboveLine: level !== "unproven" };
+      // Her own picks sit above the line: she chose them, and the Add form promises they make the
+      // strongest pitches (until 7 Oct 2026 they landed folded under "no sign yet that they pay").
+      return { item: p, score, math, aboveLine: level !== "unproven" || p.origin === "her_list" };
     })
     .sort((a, b) => Number(b.aboveLine) - Number(a.aboveLine) || b.score - a.score);
 }

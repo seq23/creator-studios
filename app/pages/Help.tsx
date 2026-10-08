@@ -12,6 +12,7 @@ import "../styles/help.css";
 
 const MINUTES: Record<string, string> = {
   "log-in": "1 min",
+  setup: "15 min",
   "connect-buffer": "3 min",
   "add-channels-in-buffer": "5 min",
   "connect-stats": "3 min",
@@ -23,7 +24,7 @@ const MINUTES: Record<string, string> = {
 
 // Getting Started: the setup guides she walks once, in order (section 12c guide list). The
 // validator help-pictures checks every slug here is a real guide.
-export const CHECKLIST = ["log-in", "connect-buffer", "add-channels-in-buffer", "connect-stats", "upload-brand-docs", "approve-research-brief", "media-kit", "record-your-voice"];
+export const CHECKLIST = ["log-in", "setup", "connect-buffer", "add-channels-in-buffer", "connect-stats", "upload-brand-docs", "approve-research-brief", "media-kit", "record-your-voice"];
 
 export function Help() {
   const nav = useNavigate();

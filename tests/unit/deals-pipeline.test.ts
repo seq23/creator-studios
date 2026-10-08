@@ -128,6 +128,19 @@ describe("brands to pitch: expected money, arithmetic shown", () => {
       ["claims", false],
     ]);
   });
+  it("a brand she added herself sits above the line even with no money signal yet; a finder brand does not (sample1, 7 Oct 2026)", () => {
+    const r = rankProspects([
+      p({ id: "finder-unproven", origin: "finder", budget: { level: "unproven", evidence: [] }, fit: 1 }),
+      p({ id: "her-pick", origin: "her_list", status: "saved", budget: { level: "unproven", evidence: [] }, contacts: [], fit: 0.9 }),
+      p({ id: "pays", origin: "finder", fit: 0.7 }),
+    ]);
+    expect(r.map((x) => [x.item.id, x.aboveLine])).toEqual([
+      ["pays", true],
+      ["her-pick", true],
+      ["finder-unproven", false],
+    ]);
+    expect(rankProspects([p({ id: "hidden-pick", origin: "her_list", status: "hidden" })])).toEqual([]);
+  });
   it("each brand carries its mark: new, pitched, replied, won, closed", () => {
     expect(["pitch", "follow_up", "negotiating", "delivering", "lost"].map(brandMark)).toEqual(["new", "pitched", "replied", "won", "closed"]);
   });
