@@ -3,7 +3,8 @@
 //     the host's Resend): a new studio has no email service yet, and she must be able to log in.
 //     This is the ONLY piece shared across studios (README "Platform sender").
 //   - every other email goes through the studio's OWN Resend (Setup → Email, stored encrypted;
-//     else the RESEND_API_KEY Worker secret). Without one, Email is in practice mode: the message
+//     else, on a host-accounts studio only, the host's RESEND_API_KEY Worker secret from
+//     STUDIO_EMAIL_FROM with replies to the host: worker/lib/hostKeys.ts). Without one, Email is in practice mode: the message
 //     is recorded in emails_sent, never sent, and the health light says so.
 // With FAKE_SERVICES=1 nothing leaves the Worker; login codes come back to the caller so local
 // development and tests can log in without a mailbox.
@@ -35,9 +36,9 @@ export interface EmailResult {
 const fromDefault = (env: Pick<Env, "APP_NAME">) => `${(env.APP_NAME || "Studio").replace(/[<>"]/g, "")} <onboarding@resend.dev>`;
 
 /** Which sender a message uses. Pure: login codes → the platform sender; everything else → the studio's own. */
-export function senderFor(env: Pick<Env, "APP_NAME" | "RESEND_API_KEY" | "RESEND_FROM" | "PLATFORM_RESEND_API_KEY" | "PLATFORM_EMAIL_FROM">, kind: EmailKind): { key: string | null; from: string; platform: boolean } {
-  if (kind === "login_code") return { key: env.PLATFORM_RESEND_API_KEY ?? null, from: env.PLATFORM_EMAIL_FROM || fromDefault(env), platform: true };
-  return { key: env.RESEND_API_KEY ?? null, from: env.RESEND_FROM || fromDefault(env), platform: false };
+export function senderFor(env: Pick<Env, "APP_NAME" | "RESEND_API_KEY" | "RESEND_FROM" | "RESEND_REPLY_TO" | "PLATFORM_RESEND_API_KEY" | "PLATFORM_EMAIL_FROM">, kind: EmailKind): { key: string | null; from: string; platform: boolean; replyTo: string | null } {
+  if (kind === "login_code") return { key: env.PLATFORM_RESEND_API_KEY ?? null, from: env.PLATFORM_EMAIL_FROM || fromDefault(env), platform: true, replyTo: null };
+  return { key: env.RESEND_API_KEY ?? null, from: env.RESEND_FROM || fromDefault(env), platform: false, replyTo: env.RESEND_REPLY_TO || null };
 }
 
 async function sendReal(env: Env, mail: OutgoingEmail): Promise<EmailResult> {
@@ -46,7 +47,7 @@ async function sendReal(env: Env, mail: OutgoingEmail): Promise<EmailResult> {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${sender.key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: sender.from, to: mail.to, subject: mail.subject, html: mail.html, text: mail.text }),
+    body: JSON.stringify({ from: sender.from, to: mail.to, subject: mail.subject, html: mail.html, text: mail.text, ...(sender.replyTo ? { reply_to: sender.replyTo } : {}) }),
   });
   if (!res.ok) return { ok: false, providerId: null, error: resendRefusal(res.status, await res.text().catch(() => "")) };
   const data = (await res.json()) as { id?: string };

@@ -102,6 +102,8 @@ export function envBlock(s, themes) {
       // OWNER_EMAIL is NOT a var: it is a deploy-time Worker secret from <secrets dir>/<slug>/OWNER_EMAIL
       // (public repo; README "Owner email"), set by `studio:secrets`.
       STUDIO_SLUG: s.slug,
+      // host-accounts | client: the Worker reads the host fallback keys only on host-accounts (worker/lib/hostKeys.ts).
+      STUDIO_KIND: s.kind,
       STUDIO_THEME: JSON.stringify(themeFor(s, themes)),
       FAKE_SERVICES: "0",
       PUBLIC_BASE_URL: s.url,
@@ -133,6 +135,7 @@ export function wranglerConfig({ studios, themes }) {
       APP_NAME: "Sample Studio",
       OWNER_NAME: "Sample Creator",
       STUDIO_SLUG: "dev",
+      STUDIO_KIND: "client",
       STUDIO_THEME: JSON.stringify(slate),
       FAKE_SERVICES: "1",
       PUBLIC_BASE_URL: "http://localhost:8787",
@@ -308,7 +311,14 @@ function secretNames(slug) {
   return parseSecretList(r.out);
 }
 
-/** The secrets a studio carries, by name → where the value comes from. Pure (no values). */
+/**
+ * Worker secrets only a host-accounts studio may carry: the host's personal OpenRouter, Resend,
+ * Firecrawl and Hunter (owner decisions 7 Oct 2026). Same list as worker/lib/hostKeys.ts HOST_FALLBACK_SECRETS
+ * (validator host-keys-host-only checks they agree).
+ */
+export const HOST_FALLBACK_SECRETS = ["OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM", "FIRECRAWL_API_KEY", "HUNTER_API_KEY"];
+
+/** The secrets a studio carries, by name → where the value comes from. Pure (no values). Refuses a client studio a host fallback key. */
 export function secretPlan(s) {
   const plan = {
     SESSION_SECRET: "generate:base64-32",
@@ -324,7 +334,11 @@ export function secretPlan(s) {
     // file, or the studio's own override. Required, so no studio is made without it.
     DEVELOPER_EMAIL: `studio-or-file:${DEVELOPER_EMAIL_FILE}`,
   };
-  for (const [k, v] of Object.entries(s.hostSecrets ?? {})) if (!k.startsWith("_")) plan[k] = v;
+  for (const [k, v] of Object.entries(s.hostSecrets ?? {})) {
+    if (k.startsWith("_")) continue;
+    if (HOST_FALLBACK_SECRETS.includes(k) && s.kind !== "host-accounts") throw new Error(`studios/${s.slug}.json: ${k} is the host's own key, for host-accounts studios only (a ${s.kind} studio pastes its own on Setup)`);
+    plan[k] = v;
+  }
   return plan;
 }
 

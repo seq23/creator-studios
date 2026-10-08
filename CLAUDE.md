@@ -18,7 +18,9 @@ operational reference ("runbook creator-studios" opens it).
 - **Public repo** (free Actions minutes for video cutting). No secrets, no client data, no host
   identifiers in anything a client studio ships (validator `sample-clean`, `scripts/bundle-scan.mjs`).
 - Two kinds of studio: **host-accounts** (Hadiyah: the services the host gave Sheila on the host's
-  own accounts, and nothing more; README "Hadiyah: whose account runs what") and **client**
+  own accounts, plus studio email, OpenRouter, Firecrawl and Hunter on the host's personal accounts
+  by owner decision 7 Oct 2026 (`worker/lib/hostKeys.ts`, validator `host-keys-host-only`); README
+  "Hadiyah: whose account runs what") and **client**
   (Sample 1/2/3: none of the host's software, keys, data, emails or links; every service is the
   client's own, pasted on Setup).
 

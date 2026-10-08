@@ -19,6 +19,7 @@ export const REGISTER = {
   "help-targets-exist": "a guide step pointing at a label the screen no longer has fails the post-merge screenshot job and reds main (#42, 26 Sep 2026); caught before merge instead",
   "help-guides-exist": "every screen's ? button and every fix_guide slug must open a real guide (section 12c)",
   "help-pictures": "every help step must show its own picture of that step: 20 guides shared one identical picture per step number because the screenshot job fell back to the page heading (owner, 26 Sep 2026: \"the help section has the same screenshot\"); also every screen's help link, tour stop and checklist entry must open a real guide",
+  "host-keys-host-only": "the host's personal OpenRouter, Resend, Firecrawl and Hunter run Hadiyah's studio only (owner decision 7 Oct 2026); a client studio carrying or reading them spends the host's money on, and sends as the host for, someone else's studio",
   "home-caps": "Home grew with everything a year of use piles up (3.7 phone screens, five year-old follow-ups, no dismiss): every Home list must be capped by HOME_CAPS and proven on a year of data (owner, 26 Sep 2026, day-358 review)",
   "login-never-open": "studio brief §4/§6c: every studio logs in with the email code; an AUTH_MODE \"open\" anywhere, or an \"open\" branch in the login code, makes anyone with the URL the owner",
   "jobs-no-direct-storage": "a job holding storage keys needs an R2 token the owner cannot mint and a public repo can leak; jobs reach storage only through the Worker",

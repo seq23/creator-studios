@@ -67,7 +67,8 @@ export async function setupView(env: Env, isOwner: boolean): Promise<SetupView> 
   const steps: SetupStatus[] = SETUP_STEPS.map((s) => {
     const row = rows.get(s.id);
     const shown = Object.fromEntries(Object.entries((row?.meta ?? {}) as Record<string, unknown>).filter(([k, v]) => typeof v === "string" && s.fields.some((f) => f.plain && f.name === k)) as [string, string][]);
-    if (row && row.status === "ok") return { id: s.id, state: "live", shown, last_error: null };
+    // meta.host: no key of her own, the host's runs it (worker/lib/connections.ts listConnections) → "provided" below.
+    if (row && row.status === "ok" && !row.meta.host) return { id: s.id, state: "live", shown, last_error: null };
     if (row && row.status === "error") return { id: s.id, state: "error", shown, last_error: row.last_error };
     if (s.secrets.length && hasEnvKey(env, s.id)) return { id: s.id, state: "provided", shown: {}, last_error: null };
     return { id: s.id, state: "practice", shown: {}, last_error: null };
