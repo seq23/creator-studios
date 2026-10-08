@@ -6,6 +6,7 @@
 // silently. Each lane records a health row so Settings shows "last run".
 import type { Env } from "../env";
 import { setHealth } from "../lib/db";
+import { readSettings } from "../routes/settings";
 import { log, safeError } from "../lib/log";
 import { bufferSync } from "./buffer-sync";
 import { dailyMaintenance } from "./daily";
@@ -15,6 +16,20 @@ import { pollEditorJobs } from "../lib/editorJobs";
 import { dailyBrandRefresh } from "./deals";
 import { refreshPublicStats } from "../lib/publicStats";
 import { youtubeDirectSync } from "../lib/youtubeDirect";
+
+/**
+ * The "Last <lane> run" note: "OK · Wed, Oct 7, 1:00 PM" in her audience time zone, the same parts
+ * the app's fmtDateTime shows (7 Oct 2026: it showed a raw "Wed, 07 Oct 2026 17:00:00 GMT"). Pure.
+ */
+export function laneOkNote(at: Date, timeZone: string): string {
+  let when: string;
+  try {
+    when = at.toLocaleString("en-US", { timeZone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  } catch {
+    when = at.toLocaleString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " UTC";
+  }
+  return `OK · ${when}`;
+}
 
 export async function runCron(env: Env, cron: string): Promise<void> {
   const lane = cron === "0 * * * *" ? "buffer-sync" : cron === "30 13 * * *" ? "daily" : cron === "0 12 * * 1" ? "weekly" : "unknown";
@@ -42,7 +57,8 @@ export async function runCron(env: Env, cron: string): Promise<void> {
       log.warn("cron.unknown");
       return;
     }
-    await setHealth(env.DB, `Last ${lane} run`, "green", `OK · ${new Date().toUTCString()}`, null);
+    const tz = (await readSettings(env).catch(() => null))?.audience_timezone || env.AUDIENCE_TIMEZONE || "America/New_York";
+    await setHealth(env.DB, `Last ${lane} run`, "green", laneOkNote(new Date(), tz), null);
     log.info("cron.done", { lane });
   } catch (e) {
     await setHealth(env.DB, `Last ${lane} run`, "red", safeError(e), "i-didnt-get-an-email");

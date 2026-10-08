@@ -164,7 +164,7 @@ export const fullVideoJob: JobHandler = {
     const mp4 = unb64(FAKE_MP4_B64);
     await env.FILES.put(spec.output_key, mp4, { httpMetadata: { contentType: "video/mp4" } });
     for (const [i, k] of spec.thumb_keys.entries()) await env.FILES.put(k, unb64(FAKE_JPG_B64[i % FAKE_JPG_B64.length]), { httpMetadata: { contentType: "image/jpeg" } });
-    const lines = ["Welcome back to the kitchen, today we are setting a brunch table for twelve.", "First the linens, because everything sits on them.", "Now the plates, stacked so guests serve themselves.", "Candles and flowers go last, low enough to talk over.", "That's the whole table. Tell me what you'd add."];
+    const lines = ["Welcome back, today I am showing the whole thing start to finish.", "First the setup, because everything builds on it.", "Now the main step, slowly so you can follow along.", "The finishing touches go last, they make the difference.", "That's the whole thing. Tell me what you'd add."];
     const transcript = Array.from({ length: 20 }, (_, i) => ({ start: i * 30, end: i * 30 + 25, text: lines[i % lines.length] }));
     return { video: { key: spec.output_key, width: 1920, height: 1080, duration_s: 600, size_bytes: mp4.byteLength }, transcript, engine: "fake", thumbnails: spec.thumb_keys.map((key, i) => ({ key, t: [120, 300, 480][i] })) };
   },

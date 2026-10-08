@@ -9,7 +9,7 @@ import path from "node:path";
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { sql } from "./helpers";
 
-const MD = `# Table & Gather — notes\nDinner parties, tablescapes and Sunday brunches for home cooks and new hosts.\nGoal: fill every event and land brand partners that fit.\n`;
+const MD = `# Sample Creator — notes\nShort how-tos, tips and behind the scenes for beginners and returning fans.\nGoal: post every week and land brand partners that fit.\n`;
 
 const TIKTOK_CSV = `Video title,Video link,Post time,Total likes,Total comments,Total shares,Total views,Average watch time
 "Yacht day, white party",https://www.tiktok.com/@samplec11/video/7412345678901234567,2026-08-02 19:05:00,1.2K,48,31,"18,400",11.5
@@ -71,7 +71,7 @@ test("brain → research → the cutting gate opens only after lock + approve", 
   await page.getByRole("button", { name: /Draft my profile|Redraft profile from all docs/ }).click();
   await expect(page.locator(".toast").filter({ hasText: "New draft ready." })).toBeVisible();
   await expect(page.getByText(/· v\d+ · drafted/)).toBeVisible();
-  await expect(page.getByLabel("Who she is")).toHaveValue(/Table & Gather/);
+  await expect(page.getByLabel("Who she is")).toHaveValue(/Sample Creator makes short, practical videos/);
   const ctas = page.getByLabel("Calls to action");
   await ctas.fill(`${await ctas.inputValue()}\n• "Save the date for the fall gala."`);
   await page.getByRole("button", { name: "Save changes" }).click();
@@ -171,7 +171,7 @@ test("stats with no sign-in: YouTube public numbers, Instagram numbers form, Tik
   await expect(page.getByText(/may show a warning page until the app is approved/)).toBeVisible();
 
   // YouTube: public numbers, no sign-in; the channel typed once.
-  await page.getByLabel("Different channel? Paste its @name or link").fill("@tableandgather");
+  await page.getByLabel("Different channel? Paste its @name or link").fill("@samplechannel");
   await page.getByRole("button", { name: "Use this channel" }).click();
   await expect(page.locator(".toast").filter({ hasText: "Channel saved." })).toBeVisible();
   await expect(page.getByText(/1,260 subscribers/)).toBeVisible();

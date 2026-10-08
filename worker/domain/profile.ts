@@ -58,13 +58,13 @@ export function profileUserPrompt(docs: { n: number; text: string }[]): string {
  * made-up facts for a demo creator. Demo data only.
  */
 export const FAKE_PROFILE: BrandProfileSections = {
-  who: "Sample Creator is the host behind Table & Gather, a home hosting brand. It started as a neighborhood supper club and grew into dinner parties, tablescapes and Sunday brunches anyone can make at home, on a real budget.",
-  audience: "• Home cooks and new hosts who want to feed people well\n• Friends who take turns hosting\n• Renters and small-space hosts\n• Mostly 25 to 45, budget-minded, into food, decor and slow weekends",
-  goals: "90 days: post consistently on TikTok, Instagram and YouTube Shorts; grow followers who host along.\n1 year: be the go-to name for easy home hosting; land 3–5 paid brand partnerships that fit (kitchenware, tableware, food, home decor).",
-  voice: "Warm, practical and encouraging, with joy in it. Speaks like a friend welcoming you in: \"Come on in, pull up a chair.\" Confident, never fussy; generous with tips.",
-  themes: "• Tablescapes: from bare cloth to candles lit\n• Dinner parties: arrivals, the first toast, the main dish\n• Make-ahead menus and hosting tips\n• Sunday brunch and seasonal tables",
-  do_dont: "Do: show real guests having a good time (with their OK); show the food up close; lead with the feeling of the room; credit makers and shops.\nDon't: post guests who did not agree to be filmed; use slang that doesn't sound like her; make it look rushed.",
-  off_limits: "Politics, religion debates, gossip about guests, guests' private details, anything that embarrasses a guest.",
-  deal_fit: "Kitchenware and tableware, specialty food and drink, home decor and candles, grocery delivery, local makers. Not a fit: fast food, gambling, anything off-brand for a warm home host.",
-  ctas: "• \"Save this for your next dinner party.\"\n• \"Follow for the next table.\"\n• \"Tag the friend who always hosts.\"\n• \"Tell me what you're celebrating.\"",
+  who: "Sample Creator makes short, practical videos about the thing they know best, filmed at home and on the go. It started as a few how-to clips for friends and grew into a channel people come back to every week.",
+  audience: "• People who want to learn the craft without the jargon\n• Followers who try what they see and share it\n• Beginners and returning fans alike\n• Mostly 25 to 45, budget-minded, short on time",
+  goals: "90 days: post consistently on TikTok, Instagram and YouTube Shorts; grow followers who come back.\n1 year: be the go-to name in the niche; land 3–5 paid brand partnerships that fit.",
+  voice: "Warm, practical and encouraging, with joy in it. Speaks like a friend showing you how: \"Here's the one thing that changed it for me.\" Confident, never fussy; generous with tips.",
+  themes: "• How-tos: one clear result in under a minute\n• Behind the scenes: how a video gets made\n• Tips and quick wins\n• Stories from the week",
+  do_dont: "Do: show real results up close; lead with the payoff; credit the people and brands that helped.\nDon't: film anyone who did not agree to it; use slang that doesn't sound like them; make it look rushed.",
+  off_limits: "Politics, religion debates, gossip, other people's private details, anything that embarrasses a viewer.",
+  deal_fit: "Brands whose products show up in the videos already, tools and services the audience asks about, local makers. Not a fit: gambling, anything off-brand for a warm, practical creator.",
+  ctas: "• \"Save this for later.\"\n• \"Follow for the next one.\"\n• \"Send this to a friend who needs it.\"\n• \"Tell me what you'd try first.\"",
 };

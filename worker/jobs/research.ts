@@ -16,6 +16,7 @@ import { FREE_MODEL } from "../services/openrouter";
 import { readSettings } from "../routes/settings";
 import { loadObservations } from "./metrics";
 import { buildFakeBrief } from "./research_fake";
+import { themeList } from "../routes/mediakit";
 
 export const RESEARCH_SYSTEM = `You write a Research Brief for a short-form video creator. Answer with ONE JSON object only.
 Keys: "audience": Claim[], "themes": [{"title": string, "claims": Claim[]}] (3 to 5 themes), "hooks": Claim[] (hook formulas in her voice),
@@ -105,6 +106,6 @@ export const researchJob: JobHandler = {
     const spec = await buildSpec(env, jobId);
     const stats: Partial<Record<Platform, { videos: number }>> = {};
     for (const p of PLATFORMS) stats[p] = { videos: spec.her_data.summary[p].videos };
-    return buildFakeBrief({ stats, uploads: spec.uploads.map((u) => ({ id: u.id, title: u.title })) });
+    return buildFakeBrief({ stats, uploads: spec.uploads.map((u) => ({ id: u.id, title: u.title })), themes: themeList((spec.profile as { themes?: string } | null)?.themes) });
   },
 };

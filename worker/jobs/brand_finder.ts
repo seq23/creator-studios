@@ -264,19 +264,19 @@ export function fakeBrands(theme: string): FinderBrand[] {
   });
   const ev = (text: string, url: string) => ({ text, url });
   return [
-    b("Maison Lumière Candles", "maisonlumiere.example", 0.92, [`Matches your "${theme}" theme`, "Sponsors creators your size", "Has an open creator program"], "Sponsored 3 creators in your niche this month", [
+    b("Maison Lumière Studio", "maisonlumiere.example", 0.92, [`Matches your "${theme}" theme`, "Sponsors creators your size", "Has an open creator program"], "Sponsored 3 creators in your niche this month", [
       { kind: "form", value: "https://maisonlumiere.example/pages/creators/apply", found_on_url: "https://maisonlumiere.example/pages/creators" },
       { kind: "role_email", value: "partnerships@maisonlumiere.example", found_on_url: "https://maisonlumiere.example/pages/contact" },
     ], {
       program_url: "https://maisonlumiere.example/pages/creators",
       origin: "program_search",
-      budget: { level: "paying", evidence: [ev("Paid creator program: \"we pay creators a flat fee per video\"", "https://maisonlumiere.example/pages/creators"), ev("#ad post with @demo.hostess, 12 Sep", "https://www.tiktok.com/@demo.hostess/video/1")] },
-      why: [ev("Launching a holiday table collection in October", "https://maisonlumiere.example/blogs/news/holiday-collection")],
+      budget: { level: "paying", evidence: [ev("Paid creator program: \"we pay creators a flat fee per video\"", "https://maisonlumiere.example/pages/creators"), ev("#ad post with @demo.creator, 12 Sep", "https://www.tiktok.com/@demo.creator/video/1")] },
+      why: [ev(`Launching a "${theme}" collection in October`, "https://maisonlumiere.example/blogs/news/new-collection")],
     }),
-    b("Golden Hour Tableware", "goldenhourtable.example", 0.87, ["Hosting and entertaining fit", "Audience overlap: women 30–55"], "Ran #ad posts with 2 creators from your research brief", [{ kind: "role_email", value: "collabs@goldenhourtable.example", found_on_url: "https://goldenhourtable.example/contact" }], {
+    b("Golden Hour Goods", "goldenhourtable.example", 0.87, [`Fits your "${theme}" videos`, "Audience overlap: women 30–55"], "Ran #ad posts with 2 creators from your research brief", [{ kind: "role_email", value: "collabs@goldenhourtable.example", found_on_url: "https://goldenhourtable.example/contact" }], {
       source_links: ["https://goldenhourtable.example/contact", "https://www.tiktok.com/@goldenhourtable"],
-      budget: { level: "paying", evidence: [ev("Paid partnership tag on @demo.tablescapes' Reel, 3 Sep", "https://www.instagram.com/p/demo-golden")] },
-      why: [ev("Their new stoneware line is shot on brunch tables like yours", "https://goldenhourtable.example/collections/stoneware")],
+      budget: { level: "paying", evidence: [ev("Paid partnership tag on @demo.creator's Reel, 3 Sep", "https://www.instagram.com/p/demo-golden")] },
+      why: [ev("Their new line is shot in videos like yours", "https://goldenhourtable.example/collections/new")],
     }),
     b("Velvet & Vine Wraps", "velvetandvine.example", 0.84, ["Gifting season fits your content calendar", "Affiliate program open"], "Affiliate program reopened this week", [{ kind: "form", value: "https://velvetandvine.example/affiliates", found_on_url: "https://velvetandvine.example/affiliates" }], {
       program_url: "https://velvetandvine.example/affiliates",
@@ -284,33 +284,33 @@ export function fakeBrands(theme: string): FinderBrand[] {
       budget: { level: "likely", evidence: [ev("Ambassador program page: commission plus seasonal paid campaigns", "https://velvetandvine.example/affiliates")] },
       why: [ev("Gift-wrap guides are their top blog posts before the holidays", "https://velvetandvine.example/blog")],
     }),
-    b("Cedar & Salt Kitchen", "cedarandsalt.example", 0.81, ["Cooking-for-guests videos match your themes"], null, [{ kind: "role_email", value: "pr@cedarandsalt.example", found_on_url: "https://cedarandsalt.example/press" }], {
+    b("Cedar & Salt Kitchen", "cedarandsalt.example", 0.81, ["How-to videos match your themes"], null, [{ kind: "role_email", value: "pr@cedarandsalt.example", found_on_url: "https://cedarandsalt.example/press" }], {
       budget: { level: "likely", evidence: [ev("Press page lists creator collaborations", "https://cedarandsalt.example/press")] },
-      why: [ev("Their serving boards are in their own \"hosting at home\" lookbook", "https://cedarandsalt.example/lookbook")],
+      why: [ev(`Their own lookbook features "${theme}"`, "https://cedarandsalt.example/lookbook")],
     }),
-    b("Aurelia Linen Co.", "aurelialinen.example", 0.78, ["Table styling fit", "Brand tone matches your voice"], "Launched a new collection last week", [{ kind: "agency", value: "talent@brightline-agency.example", found_on_url: "https://aurelialinen.example/press" }], {
-      why: [ev("New table linen collection launched 18 Sep", "https://aurelialinen.example/collections/new")],
+    b("Aurelia & Co.", "aurelia.example", 0.78, ["Visual style fit", "Brand tone matches your voice"], "Launched a new collection last week", [{ kind: "agency", value: "talent@brightline-agency.example", found_on_url: "https://aurelia.example/press" }], {
+      why: [ev("New collection launched 18 Sep", "https://aurelia.example/collections/new")],
     }),
-    b("Petal Post Florals", "petalpost.example", 0.74, ["Floral styling appears in your top clips"], "Paid partnership posts with 4 lifestyle creators in September", [{ kind: "role_email", value: "creators@petalpost.example", found_on_url: "https://petalpost.example/creators" }], {
+    b("Petal Post Florals", "petalpost.example", 0.74, ["Their products appear in your top clips"], "Paid partnership posts with 4 lifestyle creators in September", [{ kind: "role_email", value: "creators@petalpost.example", found_on_url: "https://petalpost.example/creators" }], {
       budget: { level: "paying", evidence: [ev("Paid partnership posts with 4 lifestyle creators in September", "https://www.instagram.com/petalpost/tagged")] },
     }),
-    b("Brightline Creator Agency", "brightline-agency.example", 0.72, ["Books home and lifestyle creators for brand campaigns"], "Open roster call for home creators", [{ kind: "role_email", value: "talent@brightline-agency.example", found_on_url: "https://brightline-agency.example/creators" }], {
+    b("Brightline Creator Agency", "brightline-agency.example", 0.72, ["Books creators like you for brand campaigns"], "Open roster call for creators", [{ kind: "role_email", value: "talent@brightline-agency.example", found_on_url: "https://brightline-agency.example/creators" }], {
       kind: "agency",
       source_links: ["https://brightline-agency.example/creators"],
-      budget: { level: "likely", evidence: [ev("\"We're adding home and hosting creators to our roster\"", "https://brightline-agency.example/creators")] },
-      why: [ev("Runs campaigns for Aurelia Linen Co.", "https://aurelialinen.example/press")],
+      budget: { level: "likely", evidence: [ev(`"We're adding ${theme} creators to our roster"`, "https://brightline-agency.example/creators")] },
+      why: [ev("Runs campaigns for Aurelia & Co.", "https://aurelia.example/press")],
     }),
-    b("Local Event Rentals", "localrentals.example", 0.7, ["Local: rents tables, linens and chairs near you"], null, [{ kind: "role_email", value: "hello@localrentals.example", found_on_url: "https://localrentals.example/contact" }], {
+    b("Local Event Rentals", "localrentals.example", 0.7, ["Local: works with creators near you"], null, [{ kind: "role_email", value: "hello@localrentals.example", found_on_url: "https://localrentals.example/contact" }], {
       kind: "local",
       source_links: ["https://localrentals.example/contact"],
-      why: [ev("Posts styled-table photos from local creators", "https://localrentals.example/gallery")],
+      why: [ev("Posts photos from local creators", "https://localrentals.example/gallery")],
     }),
     // Filtered out when "alcohol" is on her off-limits list: proves the rule in fake mode.
-    b("Midnight Spirits Co.", "midnightspirits.example", 0.7, ["Party hosting fit"], null, [{ kind: "role_email", value: "partners@midnightspirits.example", found_on_url: "https://midnightspirits.example/contact" }], {
+    b("Midnight Spirits Co.", "midnightspirits.example", 0.7, ["Party content fit"], null, [{ kind: "role_email", value: "partners@midnightspirits.example", found_on_url: "https://midnightspirits.example/contact" }], {
       categories: ["alcohol", "spirits"],
       budget: { level: "paying", evidence: [ev("#ad posts", "https://midnightspirits.example/creators")] },
     }),
-    b("Hearth & Honey Bakery", "hearthhoney.example", 0.69, ["Holiday baking fit"], null, [{ kind: "role_email", value: "hello@hearthhoney.example", found_on_url: "https://hearthhoney.example/about" }]),
+    b("Hearth & Honey Bakery", "hearthhoney.example", 0.69, ["Holiday season fit"], null, [{ kind: "role_email", value: "hello@hearthhoney.example", found_on_url: "https://hearthhoney.example/about" }]),
     // No source at all: must never be stored (nothing without a source).
     b("Nowhere Home Goods", "nowhere.example", 0.9, ["Sounds like a fit"], null, [], { source_links: [] }),
   ];

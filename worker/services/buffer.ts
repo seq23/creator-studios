@@ -47,7 +47,7 @@ export interface CreatePostArgs {
  * Per-platform metadata Buffer requires. Found in the Phase 0 live test (26 Sep 2026): without it
  * Buffer refused every Instagram post ("Instagram posts require a type (post, story, or reel).")
  * and every YouTube post ("YouTube posts require a title., YouTube posts require a category.").
- * TikTok needs none. Category 26 = Howto & Style (hosting, tablescapes, events).
+ * TikTok needs none. Category 26 = Howto & Style.
  */
 export const YOUTUBE_CATEGORY_ID = "26";
 //
@@ -115,7 +115,7 @@ export class FakeBuffer implements BufferClient {
     if (this.key.includes("no-channels")) return { ok: true, channels: [], error: null, organizationId: "fake_org" };
     const channels: BufferChannel[] = [
       { id: "ch_tiktok", platform: "tiktok", handle: "@sample.creator", connected: true },
-      { id: "ch_instagram", platform: "instagram", handle: "@tableandgather", connected: !this.key.includes("ig-missing"), service_id: "17841400000000001", link: "https://instagram.com/tableandgather" },
+      { id: "ch_instagram", platform: "instagram", handle: "@samplechannel", connected: !this.key.includes("ig-missing"), service_id: "17841400000000001", link: "https://instagram.com/samplechannel" },
       { id: "ch_youtube", platform: "youtube", handle: "Sample Creator", connected: true, service_id: "UCfakeSampleCreator0001", link: "https://www.youtube.com/channel/UCfakeSampleCreator0001" },
     ];
     return { ok: true, channels, error: null, organizationId: "fake_org" };

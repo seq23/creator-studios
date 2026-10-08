@@ -174,7 +174,7 @@ test.describe("brand deals", () => {
     expect((await page.request.post(`/api/jobs/${jobId}/run-fake`, { data: {} })).ok()).toBe(true);
     await page.reload();
     const list = page.getByRole("region", { name: "Brands to pitch this week" });
-    const maison = list.getByRole("article", { name: "Maison Lumière Candles" });
+    const maison = list.getByRole("article", { name: "Maison Lumière Studio" });
     await expect(maison).toContainText("Pays creators");
     await expect(maison).toContainText("(maisonlumiere.example)");
     await maison.getByText("How it ranked").click();

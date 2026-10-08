@@ -117,7 +117,7 @@ export function envBlock(s, themes) {
 
 /** The whole wrangler.jsonc: a local-dev top level (fakes on, local D1) plus one env per studio. Pure. */
 export function wranglerConfig({ studios, themes }) {
-  const slate = themeFor({ slug: "dev", appName: "Sample Studio", theme: "slate" }, themes);
+  const slate = themeFor({ slug: "dev", appName: "Your Studio", theme: "slate" }, themes);
   const cfg = {
     $schema: "node_modules/wrangler/config-schema.json",
     name: "creator-studios-dev",
@@ -132,7 +132,7 @@ export function wranglerConfig({ studios, themes }) {
     r2_buckets: [{ binding: "FILES", bucket_name: "creator-studios-dev-files" }],
     triggers: { crons: CRONS },
     vars: {
-      APP_NAME: "Sample Studio",
+      APP_NAME: "Your Studio",
       OWNER_NAME: "Sample Creator",
       STUDIO_SLUG: "dev",
       STUDIO_KIND: "client",

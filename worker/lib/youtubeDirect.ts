@@ -56,7 +56,7 @@ export function hasAllScopes(scope: string | null | undefined): boolean {
 }
 export const RECONNECT_GUIDE = "reconnect-youtube";
 export const CONNECT_GUIDE = "connect-youtube-full-videos";
-/** YouTube category 26 = Howto & Style (hosting, tablescapes, events); the same one Buffer's posts use. */
+/** YouTube category 26 = Howto & Style; the same one Buffer's posts use. */
 export const YT_CATEGORY_ID = "26";
 
 export interface StoredToken {

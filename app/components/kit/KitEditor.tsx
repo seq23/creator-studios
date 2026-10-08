@@ -245,7 +245,7 @@ export function KitEditor() {
           </label>
           <label className="field" id="kit-positioning">
             <span className="label">One line under your name</span>
-            <input className="input" maxLength={160} placeholder="Hosting that makes every guest feel celebrated." value={draft.positioning} onChange={(e) => change("positioning", e.target.value)} />
+            <input className="input" maxLength={160} placeholder="Videos that make every viewer feel at home." value={draft.positioning} onChange={(e) => change("positioning", e.target.value)} />
           </label>
           <label className="field">
             <span className="label">Your niche, in a few words</span>

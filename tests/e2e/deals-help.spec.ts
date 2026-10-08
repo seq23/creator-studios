@@ -1,5 +1,6 @@
 // Phase 11 (voice) and 12c (help center + tour), at phone and desktop sizes, with fake services
 // and demo data (tests/e2e/seed-demo.sql). Brand deals and the media kit: mediakit-deals.spec.ts.
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { clearDemo, seedDemo, setVoice, TOUR_OFF } from "./demo";
 import { sql } from "./helpers";
@@ -166,7 +167,11 @@ test.describe("help center", () => {
     await expect(page.getByRole("region", { name: "Search results" }).getByText("Pitch a brand")).toBeVisible();
     await page.getByPlaceholder("What do you need help with?").fill("");
     await page.getByRole("button", { name: "Tick Log in" }).click();
-    await expect(page.getByText(/1 of 8 done/)).toBeVisible();
+    // The count is the checklist's own length (app/pages/Help.tsx CHECKLIST): "1 of 8" went stale
+    // when Setup joined Getting started (#6).
+    const steps = /export const CHECKLIST = \[([^\]]*)\]/.exec(readFileSync("app/pages/Help.tsx", "utf8"))![1].split(",").filter((x) => x.trim()).length;
+    expect(steps).toBe(9);
+    await expect(page.getByText(`1 of ${steps} done`)).toBeVisible();
     await page.reload();
     await expect(page.getByRole("button", { name: "Untick Log in" })).toBeVisible();
     await expect(page.getByRole("link", { name: "A post failed" })).toBeVisible();

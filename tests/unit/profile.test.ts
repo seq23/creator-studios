@@ -8,10 +8,11 @@ describe("brand profile", () => {
   it("the prompt names all nine sections", () => {
     for (const s of BRAND_PROFILE_SECTIONS) expect(PROFILE_SYSTEM).toContain(`"${s.key}"`);
   });
-  it("the fake profile fills every section and is about Table & Gather", () => {
+  it("the fake profile fills every section and is a niche-neutral Sample Creator", () => {
     expect(filledCount(FAKE_PROFILE)).toBe(9);
-    expect(FAKE_PROFILE.who).toContain("Table & Gather");
-    expect(FAKE_PROFILE.audience).toMatch(/Home cooks and new hosts/);
+    expect(FAKE_PROFILE.who).toMatch(/^Sample Creator makes short, practical videos/);
+    expect(FAKE_PROFILE.themes).toMatch(/How-tos/);
+    expect(Object.values(FAKE_PROFILE).join("\n")).not.toMatch(/Table & Gather|host|table|brunch|candle|dinner/i);
   });
   it("keeps only the nine keys, turns lists into bullets and bounds length", () => {
     const s = cleanSections({ who: "  Sam  ", themes: ["Yachts", "Galas"], extra: "dropped", voice: "x".repeat(SECTION_MAX_CHARS + 50) });
