@@ -3,7 +3,7 @@
 // get the key, and has Test key (one live read-only check, nothing saved) and Save (checked again,
 // then stored encrypted). Services the studio's host runs for her show "Provided".
 import { useState } from "react";
-import { SETUP_STEPS, type SetupStatus, type SetupStep, type SetupView } from "@shared/setup";
+import { powersFor, SETUP_STEPS, type SetupStatus, type SetupStep, type SetupView } from "@shared/setup";
 import { post, get } from "../lib/api";
 import { Card, HelpButton, Notice, PageHead, Skeleton, useLoad, useToast } from "../components/ui";
 import { useApp } from "../state";
@@ -112,7 +112,7 @@ function StepCard({ n, step, status, view, onChange }: { n: number; step: SetupS
           {label.text}
         </span>
       </div>
-      <p>{step.powers}</p>
+      <p>{powersFor(step, status.state)}</p>
       {status.state === "practice" ? <Notice tone="info">Practice mode: {step.practice}</Notice> : null}
       {status.state === "error" ? <Notice tone="bad">{status.last_error ?? "The stored key stopped working."} Paste a new one below.</Notice> : null}
       {Object.keys(status.shown).length ? (

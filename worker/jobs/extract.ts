@@ -163,9 +163,8 @@ export const extractJob: JobHandler = {
   },
 };
 
-const FAKE_DOC_TEXT = `Table & Gather — brand notes (demo text)
-A home hosting brand: dinner parties, tablescapes, Sunday brunches, seasonal tables,
-make-ahead menus, hosting tips and cozy weeknight suppers.
-Who gathers: home cooks, new hosts, friends and neighbors.
-Origin: a neighborhood supper club, a circle for friendship, conversation and good food.
-Goals: grow a following that hosts along; partner with kitchen, decor and food brands that fit.`;
+const FAKE_DOC_TEXT = `Sample Creator — brand notes (demo text)
+A creator brand: short how-tos, behind the scenes, tips and quick wins, stories from the week.
+Who watches: beginners, returning fans, friends who share what they learn.
+Origin: a few how-to clips for friends that grew into a weekly channel.
+Goals: grow a following that comes back; partner with brands that fit.`;

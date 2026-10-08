@@ -105,8 +105,8 @@ describe("real facts only", () => {
     expect(e.body).toContain(KIT);
   });
   it("only says she uses the product when it is a brand she listed", () => {
-    expect(starterEmail("cold_pitch", facts()).body).not.toMatch(/already part of how I host/);
-    expect(starterEmail("cold_pitch", facts({ brand: { ...facts().brand, herPick: true } })).body).toMatch(/already part of how I host/);
+    expect(starterEmail("cold_pitch", facts()).body).not.toMatch(/already part of how I work/);
+    expect(starterEmail("cold_pitch", facts({ brand: { ...facts().brand, herPick: true } })).body).toMatch(/already part of how I work/);
   });
   it("her numbers carry their as-of date", () => {
     expect(numbersLine(facts())).toBe("12.4K followers on TikTok (about 3.1K views a video) and 8.2K followers on Instagram (about 1.9K views a video), as of Sep 24");

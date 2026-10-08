@@ -50,7 +50,7 @@ const copyKey = (site: string, url: string, nav: string[], navOn: string, prefix
       k: "dialog",
       title: "Your new key",
       body: [
-        { k: "field", label: "Name", value: "Sample Studio" },
+        { k: "field", label: "Name", value: "Your Studio" },
         { k: "field", label: "Key (shown once)", value: key(prefix) },
         { k: "btn", v: "Copy", hl: true },
       ],
@@ -61,7 +61,7 @@ const outOfCredits = (site: string, url: string, nav: string[], navOn: string, p
     { k: "stat", label: "Credits left this month", value: "0" },
     { k: "p", v: "Your credits renew on the 1st." },
     { k: "row", v: `Plan: ${plan}`, action: "Top up or change plan", hl: true },
-    { k: "row", v: "API key: Sample Studio", meta: "Still active" },
+    { k: "row", v: "API key: Your Studio", meta: "Still active" },
   ]);
 
 const BUFFER_NAV = ["Publish", "Channels", "Settings"];
@@ -126,11 +126,11 @@ export const MOCKS: Record<string, Frame> = {
     { k: "btn", v: "Create Key", hl: true },
   ]),
   "openrouter-create": apiPage("OpenRouter", "openrouter.ai/settings/keys", OR_NAV, "Keys", "API keys", [
-    { k: "dialog", title: "Create a key", body: [{ k: "field", label: "Name", value: "Sample Studio" }, { k: "field", label: "Credit limit (optional)", value: "" }, { k: "btn", v: "Create", hl: true }] },
+    { k: "dialog", title: "Create a key", body: [{ k: "field", label: "Name", value: "Your Studio" }, { k: "field", label: "Credit limit (optional)", value: "" }, { k: "btn", v: "Create", hl: true }] },
   ]),
   "openrouter-copy": copyKey("OpenRouter", "openrouter.ai/settings/keys", OR_NAV, "Keys", "sk-or-v1-"),
   "openrouter-reconnect": apiPage("OpenRouter", "openrouter.ai/settings/keys", OR_NAV, "Keys", "API keys", [
-    { k: "row", v: "Sample Studio", meta: "Disabled", bad: true, action: "Delete" },
+    { k: "row", v: "Your Studio", meta: "Disabled", bad: true, action: "Delete" },
     { k: "btn", v: "Create Key", hl: true },
   ]),
 
@@ -166,7 +166,7 @@ export const MOCKS: Record<string, Frame> = {
     { k: "row", v: "Your profile", meta: "bottom left", action: "API keys", hl: true },
   ]),
   "elevenlabs-create": apiPage("ElevenLabs", "elevenlabs.io/app/settings/api-keys", EL_NAV, "API keys", "API keys", [
-    { k: "dialog", title: "Create API key", body: [{ k: "field", label: "Name", value: "Sample Studio" }, { k: "p", v: "Leave the access as it is." }, { k: "btn", v: "Create", hl: true }] },
+    { k: "dialog", title: "Create API key", body: [{ k: "field", label: "Name", value: "Your Studio" }, { k: "p", v: "Leave the access as it is." }, { k: "btn", v: "Create", hl: true }] },
   ]),
   "elevenlabs-copy": copyKey("ElevenLabs", "elevenlabs.io/app/settings/api-keys", EL_NAV, "API keys", "sk_"),
   "elevenlabs-credits": apiPage("ElevenLabs", "elevenlabs.io/app/subscription", EL_NAV, "Subscription", "Subscription", [
@@ -188,14 +188,14 @@ export const MOCKS: Record<string, Frame> = {
 
   // ---- set up by her helper (server secrets)
   "resend-key": apiPage("Resend", "resend.com/api-keys", ["Emails", "Domains", "API Keys"], "API Keys", "API Keys", [
-    { k: "dialog", title: "Create API key", body: [{ k: "field", label: "Name", value: "Sample Studio" }, { k: "field", label: "Permission", value: "Sending access" }, { k: "btn", v: "Add", hl: true }] },
+    { k: "dialog", title: "Create API key", body: [{ k: "field", label: "Name", value: "Your Studio" }, { k: "field", label: "Permission", value: "Sending access" }, { k: "btn", v: "Add", hl: true }] },
   ]),
   "resend-domains": apiPage("Resend", "resend.com/domains", ["Emails", "Domains", "API Keys"], "Domains", "Domains", [
     { k: "p", v: "Optional: send from your own website's address." },
     { k: "btn", v: "Add domain", hl: true },
   ]),
   "resend-new-key": apiPage("Resend", "resend.com/api-keys", ["Emails", "Domains", "API Keys"], "API Keys", "API Keys", [
-    { k: "row", v: "Sample Studio", meta: "Revoked", bad: true },
+    { k: "row", v: "Your Studio", meta: "Revoked", bad: true },
     { k: "btn", v: "Create API key", hl: true },
   ]),
   "github-token": apiPage("GitHub", "github.com/settings/personal-access-tokens", ["Profile", "Developer settings", "Fine-grained tokens"], "Fine-grained tokens", "Fine-grained tokens", [
@@ -204,7 +204,7 @@ export const MOCKS: Record<string, Frame> = {
     { k: "btn", v: "Generate token", hl: true },
   ]),
   "github-token-expired": apiPage("GitHub", "github.com/settings/personal-access-tokens", ["Profile", "Developer settings", "Fine-grained tokens"], "Fine-grained tokens", "Fine-grained tokens", [
-    { k: "row", v: "Sample Studio jobs", meta: "Expired", bad: true, action: "Regenerate token", hl: true },
+    { k: "row", v: "Your Studio jobs", meta: "Expired", bad: true, action: "Regenerate token", hl: true },
   ]),
 
   // ---- TikTok Studio (numbers)
@@ -240,7 +240,7 @@ export const MOCKS: Record<string, Frame> = {
     { k: "check", v: "Add paid partnership label", on: true, hl: true },
     { k: "p", v: "Pick the brand as your partner." },
   ]),
-  "meta-consent": apiPage("Meta", "instagram.com/oauth/authorize", [], "", "Sample Studio would like to", [
+  "meta-consent": apiPage("Meta", "instagram.com/oauth/authorize", [], "", "Your Studio would like to", [
     { k: "p", v: "Meta may say the app is not reviewed yet. That is expected; this is optional." },
     { k: "check", v: "Read your profile and insights", on: true },
     { k: "btn", v: "Allow", hl: true },
@@ -254,14 +254,14 @@ export const MOCKS: Record<string, Frame> = {
   "google-account": apiPage("Google", "accounts.google.com", [], "", "Choose an account", [
     { k: "row", v: "The account that owns your YouTube channel", action: "Pick", hl: true },
   ]),
-  "google-consent": apiPage("Google", "accounts.google.com/consent", [], "", "Sample Studio wants to", [
+  "google-consent": apiPage("Google", "accounts.google.com/consent", [], "", "Your Studio wants to", [
     { k: "check", v: "View your YouTube account", on: true, hl: true },
     { k: "check", v: "View YouTube Analytics reports", on: true },
     { k: "btn", v: "Continue" },
   ]),
   "google-unverified": apiPage("Google", "accounts.google.com", [], "", "Google hasn't verified this app", [
     { k: "p", v: "Expected: the app is waiting for Google's review. It can only read your numbers." },
-    { k: "row", v: "Advanced", action: "Go to Sample Studio", hl: true },
+    { k: "row", v: "Advanced", action: "Go to Your Studio", hl: true },
   ]),
   // Connect YouTube (full videos): the same Google pages, with the upload permission she allows.
   "youtube-account": apiPage("Google", "accounts.google.com", [], "", "Choose an account to continue to workers.dev", [
@@ -316,10 +316,10 @@ export const MOCKS: Record<string, Frame> = {
 
   // ---- email
   "email-login-code": apiPage("Your email", "Inbox", ["Inbox", "Spam"], "Inbox", "Inbox", [
-    { k: "email", from: "Sample Studio", subject: "Your login code", body: "Your login code is 482 913. It works for 10 minutes.", hl: "482 913" },
+    { k: "email", from: "Your Studio", subject: "Your login code", body: "Your login code is 482 913. It works for 10 minutes.", hl: "482 913" },
   ]),
   "email-spam": apiPage("Your email", "Spam folder", ["Inbox", "Spam"], "Spam", "Spam", [
-    { k: "row", v: "Sample Studio · Your clips are ready", action: "Not spam", hl: true },
+    { k: "row", v: "Your Studio · Your clips are ready", action: "Not spam", hl: true },
   ]),
   "gmail-send": apiPage("Gmail", "mail.google.com · New message", ["Inbox", "Sent", "Drafts"], "Inbox", "New message", [
     { k: "field", label: "To", value: "partnerships@brand.example" },

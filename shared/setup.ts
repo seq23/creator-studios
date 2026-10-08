@@ -22,8 +22,14 @@ export interface SetupField {
 export interface SetupStep {
   id: SetupServiceId;
   title: string;
-  /** What it powers, in plain words. */
+  /** What it powers, in plain words: her own key (or practice). */
   powers: string;
+  /**
+   * The same line when the studio host's account runs it ("Provided by your studio host"), for a
+   * step whose own wording names her account. 7 Oct 2026: Hadiyah's Email card said "sent from your
+   * own Resend account" while the host's key sent it. Read through powersFor(), never directly.
+   */
+  provided?: string;
   /** What practice mode does until the key is set. */
   practice: string;
   /** Where to get the key: short numbered steps. */
@@ -41,11 +47,15 @@ export interface SetupStep {
 
 const KEY: SetupField = { name: "key", label: "API key", placeholder: "Paste the key" };
 
+/** The line a Setup card shows under its title: the host's wording while the host's account runs it. */
+export const powersFor = (step: Pick<SetupStep, "powers" | "provided">, state: string): string => (state === "provided" && step.provided ? step.provided : step.powers);
+
 export const SETUP_STEPS: SetupStep[] = [
   {
     id: "resend",
     title: "Email",
     powers: "Your alerts, weekly recap and “clips are ready” emails, sent from your own Resend account.",
+    provided: "Your alerts, weekly recap and “clips are ready” emails, sent from an email account provided by your studio host.",
     practice: "Emails are written and listed on the health board, but not sent.",
     where: ["Make a free account at resend.com.", "Open API Keys and tap Create API key (Full access lets the check read your domains).", "Copy the key and paste it here. Add a From address on a domain you verified in Resend, or leave it empty to use Resend's test sender."],
     link: { label: "Open Resend API keys", url: "https://resend.com/api-keys" },
@@ -70,6 +80,7 @@ export const SETUP_STEPS: SetupStep[] = [
     id: "openrouter",
     title: "AI writing (OpenRouter)",
     powers: "Writes captions, the research brief, pitch drafts and voice-over scripts with free AI models.",
+    provided: "Writes captions, the research brief, pitch drafts and voice-over scripts with free AI models, on an AI account provided by your studio host.",
     practice: "Starter text is used instead of AI drafts, marked as a practice draft.",
     where: ["Make a free account at openrouter.ai.", "Open Keys and tap Create Key; leave the credit limit empty.", "Copy the key and paste it here."],
     link: { label: "Open OpenRouter keys", url: "https://openrouter.ai/settings/keys" },
@@ -83,6 +94,7 @@ export const SETUP_STEPS: SetupStep[] = [
     id: "firecrawl",
     title: "Web research (Firecrawl)",
     powers: "Reads brand and niche websites for the research brief and the brand finder.",
+    provided: "Reads brand and niche websites for the research brief and the brand finder, on a research account provided by your studio host.",
     practice: "Research uses the free keyless search instead.",
     where: ["Make a free account at firecrawl.dev.", "Open the dashboard and copy your API key.", "Paste it here."],
     link: { label: "Open Firecrawl", url: "https://www.firecrawl.dev/app/api-keys" },
@@ -96,6 +108,7 @@ export const SETUP_STEPS: SetupStep[] = [
     id: "hunter",
     title: "Brand contacts (Hunter)",
     powers: "Finds public partnership emails on a brand's website for Deals.",
+    provided: "Finds public partnership emails on a brand's website for Deals, on a contacts account provided by your studio host.",
     practice: "Deals shows where to look by hand; no contact search runs.",
     where: ["Make a free account at hunter.io.", "Open API and copy your key.", "Paste it here."],
     link: { label: "Open Hunter API", url: "https://hunter.io/api-keys" },

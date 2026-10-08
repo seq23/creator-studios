@@ -15,7 +15,7 @@ test.describe("login", () => {
 
   test("the login page shows the brand and asks for an email", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Sample Studio" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your Studio" })).toBeVisible();
     await expect(page.getByLabel("Your email")).toBeVisible();
   });
 

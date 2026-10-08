@@ -150,9 +150,9 @@ describe("YouTube public numbers (no sign-in)", () => {
   });
   it("a channel she types wins; one that does not exist says so with the guide", async () => {
     await connectBuffer([YT_CH]);
-    const ok = await call("POST", "/api/stats/youtube-channel", { channel: "https://www.youtube.com/@TableAndGather" });
+    const ok = await call("POST", "/api/stats/youtube-channel", { channel: "https://www.youtube.com/@SampleChannel" });
     expect(ok.status).toBe(200);
-    expect(ok.json.channel).toMatchObject({ source: "typed", handle: "@tableandgather" });
+    expect(ok.json.channel).toMatchObject({ source: "typed", handle: "@samplechannel" });
     const missing = await call("POST", "/api/stats/youtube-channel", { channel: "@missingchannel" });
     expect(missing).toMatchObject({ status: 422, json: { fix_guide: "your-youtube-numbers" } });
     expect(light("YouTube stats")).toMatchObject({ light: "yellow", fix_guide: "your-youtube-numbers" });
@@ -190,14 +190,14 @@ describe("YouTube public numbers (no sign-in)", () => {
 
 describe("Instagram numbers (no sign-in)", () => {
   it("login-walled (what staging measured): the form path, a yellow light with the guide, logged", async () => {
-    await connectBuffer([IG_CH("tableandgather")]);
+    await connectBuffer([IG_CH("samplechannel")]);
     const r = await refreshInstagramPublic(env, { force: true });
-    expect(r).toMatchObject({ path: "manual", handle: "tableandgather", why: "login_wall", status: 302, api_status: 401 });
+    expect(r).toMatchObject({ path: "manual", handle: "samplechannel", why: "login_wall", status: 302, api_status: 401 });
     expect(light("Instagram stats")).toMatchObject({ light: "yellow", fix_guide: "update-instagram-numbers" });
     expect(db.raw.prepare("SELECT COUNT(*) AS n FROM events WHERE kind = 'stats.instagram.path'").get()).toEqual({ n: 1 });
   });
   it("her typed numbers show at once and turn the light green", async () => {
-    await connectBuffer([IG_CH("tableandgather")]);
+    await connectBuffer([IG_CH("samplechannel")]);
     const bad = await call("POST", "/api/stats/instagram-numbers", { followers: "lots", avg_reach: 10 });
     expect(bad).toMatchObject({ status: 422, json: { fix_guide: "update-instagram-numbers" } });
     const ok = await call("POST", "/api/stats/instagram-numbers", { followers: "4,820", avg_reach: "1500" });
@@ -249,7 +249,7 @@ describe("Instagram numbers (no sign-in)", () => {
 
 describe("Update numbers", () => {
   it("works with no sign-in at all: YouTube read, Instagram path named, no job needed", async () => {
-    await connectBuffer([YT_CH, IG_CH("tableandgather")]);
+    await connectBuffer([YT_CH, IG_CH("samplechannel")]);
     const r = await call("POST", "/api/stats/sync");
     expect(r.status).toBe(200);
     expect(r.json).toMatchObject({ ok: true, youtube: { state: "ok" }, instagram: { path: "manual" }, jobId: null });
@@ -268,7 +268,7 @@ describe("Update numbers", () => {
 describe("Monday lane", () => {
   it("reads the no-login numbers, starts no sign-in job without a sign-in, and carries the monthly reminder", async () => {
     const { weekly } = await import("@worker/crons/weekly");
-    await connectBuffer([YT_CH, IG_CH("tableandgather")]);
+    await connectBuffer([YT_CH, IG_CH("samplechannel")]);
     db.raw.prepare("INSERT INTO brand_profile (version, sections, locked, source) VALUES (1, '{}', 1, 'draft')").run();
     await setSetting(env.DB, "features", { voice: true, deeper_research: true, weekly_recap: true, help_ask: true });
     await setSetting(env.DB, "notify_emails", ["owner@studio.example"]);

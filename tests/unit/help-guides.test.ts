@@ -11,6 +11,8 @@ import index from "../../help/index.json";
 import { parseGuide, SCREEN_ROUTES } from "../../app/lib/markdown";
 import { STUDIO_TOKEN, fillStudio, searchGuides, visibleGuides } from "../../app/lib/guides";
 import { FakeLlm } from "@worker/services/openrouter";
+// @ts-expect-error plain .mjs validator, no types
+import { parseJsonc } from "../../scripts/validators/studio-isolation.mjs";
 
 const guides = (index.guides as { slug: string; screen: string; title: string; group: string }[]).map((g) => ({ ...g, parsed: parseGuide(readFileSync(path.resolve("help/guides", `${g.slug}.md`), "utf8")) }));
 
@@ -70,6 +72,15 @@ describe("the guides describe the product as it is", () => {
       expect(filled, slug).not.toContain("{{");
       expect(filled, slug).toContain("Hadiyah Studio");
     }
+  });
+  it("help pictures name no studio: the local server they are taken on is \"Your Studio\"", () => {
+    // 7 Oct 2026: every studio's Help showed a "Sample Studio" login card and wordmark, because the
+    // pictures are taken on the local-dev top level of wrangler.jsonc (scripts/studio.mjs).
+    const dev = parseJsonc(readFileSync("wrangler.jsonc", "utf8")) as { vars: { APP_NAME: string; STUDIO_THEME: string } };
+    expect(dev.vars.APP_NAME).toBe("Your Studio");
+    expect((JSON.parse(dev.vars.STUDIO_THEME) as { wordmark: { name: string } }).wordmark.name).toBe("Your Studio");
+    const shots = [readFileSync("tests/e2e/help-mocks.ts", "utf8"), readFileSync("tests/e2e/help-screenshots.spec.ts", "utf8"), readFileSync("tests/e2e/seed-demo.sql", "utf8"), readFileSync("tests/e2e/seed-help-extra.sql", "utf8")].join("\n");
+    expect(shots).not.toMatch(/Sample Studio|Sample \d|Sheila|Hadiyah|Mercedes/);
   });
   it("every feature the dashboard has today has a guide", () => {
     const slugs = new Set(guides.map((g) => g.slug));

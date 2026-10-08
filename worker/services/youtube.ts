@@ -130,8 +130,9 @@ class RealYouTube implements YouTubePublicClient {
 
 // ---- fake: one channel with six weeks of uploads, plus the failure shapes.
 // Realistic titles (the fake stands in on the public sample too, so no "fake" or "test" on a screen).
-const FAKE_TITLES = ["Set a Sunday brunch table in 60 seconds", "The one napkin fold everyone asks about", "Candles, but make it fall", "Thanksgiving table on a budget", "Three pieces that make a holiday table", "How I reset after guests leave", "The easiest centerpiece ever", "Stop buying placemats: do this", "My go-to trick for a garden party", "Thrifted plates, luxury table", "The layering rule for a summer table", "Florals from the grocery store"];
-const FAKE_CHANNEL: YouTubeChannel = { id: "UCfakeSampleCreator0001", title: "Sample Creator", handle: "@tableandgather", subscribers: 1260, views: 48_300, videos: 12, uploads: "UUfakeSampleCreator0001" };
+// Niche-neutral (7 Oct 2026): every studio's practice mode shows these, whatever her niche.
+const FAKE_TITLES = ["The one-minute version", "The tip everyone asks about", "What I would do differently", "Doing it on a budget", "Three things that make the biggest difference", "How I reset after a long week", "The easiest win ever", "Stop doing this: try this instead", "My go-to trick for the weekend", "Thrifted, but make it look new", "The rule I always follow", "Behind the scenes of this week"];
+const FAKE_CHANNEL: YouTubeChannel = { id: "UCfakeSampleCreator0001", title: "Sample Creator", handle: "@samplechannel", subscribers: 1260, views: 48_300, videos: 12, uploads: "UUfakeSampleCreator0001" };
 
 class FakeYouTube implements YouTubePublicClient {
   constructor(private key: string) {}
