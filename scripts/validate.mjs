@@ -31,6 +31,7 @@ export const REGISTER = {
   "no-content-in-logs": "public repo: a console.* outside worker/lib/log.ts can leak her content into Actions logs (section 13)",
   "no-host-brand": "public repo: the host's former business name anywhere (config, code, docs, tests) names a business the studios no longer belong to (owner, 7 Oct 2026: her own domain and sender)",
   "nothing-hidden": "the owner's rule: nothing hidden, nothing switched off; a screen behind a flag, or a feature defaulting off, is a thing she cannot find",
+  "no-personal-emails": "public repo: a real person's email address in code, tests or docs is published to everyone; the owner's and the host developer's login emails are deploy-time secrets from 0600 files (owner, 7 Oct 2026: developer login on every studio)",
   "no-secrets": "a key in the repo is public the moment it is pushed",
   "registry-no-emails": "public repo: an owner's email committed in studios/*.json is published to everyone; it is a deploy-time secret from a 0600 file (owner, 7 Oct 2026)",
   "routes-mounted": "a route file nothing mounts is code that exists but nothing invokes",

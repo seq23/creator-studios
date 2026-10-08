@@ -14,6 +14,9 @@ export function Login() {
   // A first-login invite link (#invite=<token>, printed by `npm run studio:invite`): the hash never
   // reaches a server log; the token is traded once for the studio's owner email.
   const invite = new URLSearchParams(window.location.hash.slice(1)).get("invite");
+  // Captured once: the hash is cleared after the claim, but she is still a first-time claimer
+  // on the code screen, never "welcome back".
+  const [firstLogin] = useState(() => !!invite);
   const [stage, setStage] = useState<"email" | "code">("email");
   const [busy, setBusy] = useState(false);
   const [devCode, setDevCode] = useState<string | null>(null);
@@ -55,7 +58,7 @@ export function Login() {
           <h1 aria-label={studio().appName}>
             <Wordmark size="lg" />
           </h1>
-          <span className="script">welcome back</span>
+          <span className="script">{firstLogin ? "welcome" : "welcome back"}</span>
         </div>
         {stage === "email" ? (
           <form onSubmit={request} className="section">

@@ -87,6 +87,7 @@ cat "${CS_SECRETS_DIR:-$HOME/.config/creator-studios/secrets}/PLATFORM_RESEND_AP
 | `PLATFORM_RESEND_API_KEY` | secret file `PLATFORM_RESEND_API_KEY` (host's own Resend, sending-only, domain `mail.spryexecutiveos.com`) | all (login codes only) |
 | `PLATFORM_EMAIL_FROM` | `Studio sign-in <login@mail.spryexecutiveos.com>` (`PLATFORM_FROM`, `scripts/studio.mjs`) | all |
 | `OWNER_EMAIL` | secret file `<slug>/OWNER_EMAIL` (never committed; README "Owner email") | hadiyah (required); a client only if set |
+| `DEVELOPER_EMAIL` | shared secret file `DEVELOPER_EMAIL` (`<slug>/DEVELOPER_EMAIL` overrides; never committed; README "Login"): the host developer's email-code login, full access, never claims a studio | all (required) |
 | `GITHUB_DISPATCH_TOKEN` | `gh auth token` (host's GitHub) | hadiyah |
 | `YOUTUBE_API_KEY` | secret file `YOUTUBE_API_KEY` (host's Google project, Sheila's key) | hadiyah |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | secret files `HADIYAH_GOOGLE_CLIENT_ID` / `HADIYAH_GOOGLE_CLIENT_SECRET` when present (named stop 1) | hadiyah |
