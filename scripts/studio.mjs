@@ -126,7 +126,6 @@ export function wranglerConfig({ studios, themes }) {
     vars: {
       APP_NAME: "Sample Studio",
       OWNER_NAME: "Sample Creator",
-      OWNER_EMAIL: "owner@studio.example",
       STUDIO_SLUG: "dev",
       STUDIO_THEME: JSON.stringify(slate),
       FAKE_SERVICES: "1",
@@ -272,14 +271,27 @@ function provisionStorage(s) {
   console.log(`storage: D1 ${s.d1.name} (${db.uuid}), R2 ${s.r2.bucket}`);
 }
 
+/**
+ * The secret NAMES a studio's Worker holds. A Worker that does not exist yet has none; output that
+ * cannot be read is an error, never "none" (an empty answer makes `secrets` think SECRETS_KEY is
+ * unset and put a new one, which would orphan every key pasted on Setup).
+ */
+export function parseSecretList(out) {
+  // wrangler may print warnings first, and their ANSI colour codes contain "[": start at the JSON line.
+  const at = out.search(/^\[/m);
+  if (at < 0) throw new Error("wrangler secret list printed no JSON list; refusing to guess which secrets are set");
+  const list = JSON.parse(out.slice(at, out.lastIndexOf("]") + 1));
+  if (!Array.isArray(list)) throw new Error("wrangler secret list did not print a list");
+  return new Set(list.map((x) => x.name));
+}
+
 function secretNames(slug) {
   const r = wrangler(["secret", "list", "--env", slug], { quiet: true, allowFail: true });
-  if (!r.ok) return new Set();
-  try {
-    return new Set(JSON.parse(r.out.slice(r.out.indexOf("["))).map((x) => x.name));
-  } catch {
-    return new Set();
+  if (!r.ok) {
+    if (/not found|does not exist|10007/i.test(r.out)) return new Set();
+    throw new Error(`wrangler secret list --env ${slug} failed; refusing to guess which secrets are set`);
   }
+  return parseSecretList(r.out);
 }
 
 /** The secrets a studio carries, by name → where the value comes from. Pure (no values). */

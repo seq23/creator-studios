@@ -8,7 +8,7 @@ import path from "node:path";
 import { dispatchBody } from "@worker/services/github";
 import { envName, studioSlug } from "@worker/env";
 // @ts-expect-error plain .mjs, no types
-import { envBlock, loadRegistry, PLATFORM_FROM, resolveSource, secretPlan, themeFor, withUrls, wranglerConfig } from "../../scripts/studio.mjs";
+import { envBlock, loadRegistry, parseSecretList, PLATFORM_FROM, resolveSource, secretPlan, themeFor, withUrls, wranglerConfig } from "../../scripts/studio.mjs";
 // @ts-expect-error plain .mjs validator, no types
 import registryNoEmails, { checkRegistryText } from "../../scripts/validators/registry-no-emails.mjs";
 // @ts-expect-error plain .mjs validator, no types
@@ -167,6 +167,14 @@ describe("the owner email and the platform sender are never committed config", (
     expect(resolveSource("studio-file:OWNER_EMAIL", { slug: "hadiyah", dir, env: { OWNER_EMAIL_HADIYAH: "c@d.example" } })).toEqual({ value: "c@d.example" });
     // Another studio's file is never read.
     expect(resolveSource("studio-file:OWNER_EMAIL", { slug: "sample1", dir, env: { OWNER_EMAIL: "x@y.example" } }).stop).toMatch(/no secret file\. create .*\/sample1\/OWNER_EMAIL /);
+  });
+
+  it("reads secret names through wrangler's coloured warnings, and refuses to guess on output it cannot read", () => {
+    const warn = "\u001b[33m▲ \u001b[43;33m[\u001b[43;30mWARNING\u001b[43;33m]\u001b[0m something\n";
+    expect([...parseSecretList(`${warn}[\n  { "name": "SECRETS_KEY", "type": "secret_text" }\n]\n`)]).toEqual(["SECRETS_KEY"]);
+    expect([...parseSecretList("[]")]).toEqual([]);
+    // An unreadable answer is never "no secrets" (that would put a new SECRETS_KEY over the live one).
+    expect(() => parseSecretList(`${warn}✘ [ERROR] something went wrong`)).toThrow(/refusing to guess/);
   });
 
   it("validator registry-no-emails passes on the repo and fails on a committed address or an ownerEmail field (negative proof)", async () => {
