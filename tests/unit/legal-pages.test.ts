@@ -9,7 +9,9 @@ import type { Env } from "@worker/env";
 import { GOOGLE_PERMISSIONS_URL } from "@worker/routes/legal";
 import { sqliteD1 } from "./helpers/sqlite-d1";
 // @ts-expect-error plain .mjs validator, no types
-import legalPages, { checkLegal } from "../../scripts/validators/legal-pages.mjs";
+import legalPages, { checkLegal, routesToWorker } from "../../scripts/validators/legal-pages.mjs";
+// @ts-expect-error plain .mjs validator, no types
+import { parseJsonc } from "../../scripts/validators/studio-isolation.mjs";
 
 const root = path.resolve(__dirname, "../..");
 const read = (p: string) => readFileSync(path.join(root, p), "utf8");
@@ -51,7 +53,14 @@ describe("public legal pages", () => {
     const cfg = read("wrangler.jsonc");
     const studios = (cfg.match(/"STUDIO_SLUG"/g) ?? []).length;
     expect(studios).toBeGreaterThanOrEqual(5);
-    expect(cfg.match(/"run_worker_first": \[[^\]]*"\/privacy",\s*"\/terms"/g)).toHaveLength(studios);
+    const parsed = parseJsonc(cfg);
+    const all = [parsed.assets, ...Object.values(parsed.env as Record<string, { assets: { run_worker_first: unknown } }>).map((e) => e.assets)];
+    expect(all).toHaveLength(studios);
+    for (const a of all) for (const p of ["/privacy", "/terms", "/healthz", "/api/me", "/media/x", "/kit/x", "/studio-theme.css", "/", "/dump"]) expect(routesToWorker(a.run_worker_first, p), p).toBe(true);
+    // The hashed build files stay static; a negative pattern really excludes.
+    for (const a of all) expect(routesToWorker(a.run_worker_first, "/assets/index-abc.js")).toBe(false);
+    expect(routesToWorker(["/api/*"], "/privacy")).toBe(false);
+    expect(routesToWorker(["/*", "!/privacy"], "/privacy")).toBe(false);
   });
 });
 
@@ -68,7 +77,8 @@ describe("validator legal-pages", () => {
     const cases: [string, (g: ReturnType<typeof good>) => void, RegExp][] = [
       ["route", (g) => (g.legal = g.legal.replace('legal.get("/terms"', 'legal.get("/tos"')), /does not serve GET \/terms/],
       ["mount", (g) => (g.index = g.index.replace('app.route("/", legal);', "")), /does not mount/],
-      ["studio worker-first", (g) => (g.wrangler = g.wrangler.replace(/("sample1": \{[\s\S]*?)"\/privacy",/, "$1")), /env\.sample1: run_worker_first is missing "\/privacy"/],
+      ["studio worker-first", (g) => (g.wrangler = g.wrangler.replace(/("sample1": \{[\s\S]*?"run_worker_first": \[)/, '$1"!/privacy", ')), /env\.sample1: run_worker_first is missing "\/privacy"/],
+      ["local worker-first", (g) => (g.wrangler = g.wrangler.replace(/"run_worker_first": \[\s*"\/\*",/, '"run_worker_first": [')), /local dev: run_worker_first is missing "\/privacy"/],
       ["revoke", (g) => (g.legal = g.legal.replaceAll("https://myaccount.google.com/permissions", "https://example.com")), /revoke link/],
       ["sidebar", (g) => (g.shell = g.shell.replace("<LegalLinks />", "")), /1 time\(s\)/],
       ["login", (g) => (g.login = g.login.replace("<LegalLinks />", "")), /Login\.tsx does not show/],

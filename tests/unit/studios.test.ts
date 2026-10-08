@@ -2,19 +2,23 @@
 // R2 (studio brief §1). Guards (a) sample studios carry no host identifier and (b) studio
 // isolation, each proven negatively here: break the input, watch the check fail, keep the repo green.
 import { describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { dispatchBody } from "@worker/services/github";
 import { envName, studioSlug } from "@worker/env";
 // @ts-expect-error plain .mjs, no types
-import { envBlock, loadRegistry, secretPlan, themeFor, wranglerConfig } from "../../scripts/studio.mjs";
+import { envBlock, loadRegistry, PLATFORM_FROM, resolveSource, secretPlan, themeFor, withUrls, wranglerConfig } from "../../scripts/studio.mjs";
+// @ts-expect-error plain .mjs validator, no types
+import registryNoEmails, { checkRegistryText } from "../../scripts/validators/registry-no-emails.mjs";
+// @ts-expect-error plain .mjs validator, no types
+import noHostBrand, { findBrand } from "../../scripts/validators/no-host-brand.mjs";
 // @ts-expect-error plain .mjs validator, no types
 import sampleClean, { checkStudios } from "../../scripts/validators/sample-clean.mjs";
 // @ts-expect-error plain .mjs validator, no types
 import studioIsolation, { checkIsolation, parseJsonc } from "../../scripts/validators/studio-isolation.mjs";
 // @ts-expect-error plain .mjs validator, no types
-import studiosGenerated from "../../scripts/validators/studios-generated.mjs";
+import studiosGenerated, { checkEntries } from "../../scripts/validators/studios-generated.mjs";
 // @ts-expect-error plain .mjs, no types
 import { findIdentifiers, OWNER_KEY_NAMES } from "../../scripts/lib/owner-identifiers.mjs";
 // @ts-expect-error plain .mjs, no types
@@ -28,8 +32,9 @@ describe("the registry", () => {
   it("has Hadiyah (host accounts) and three sample studios (clients) at the agreed URLs", () => {
     const by = Object.fromEntries(reg.studios.map((s: { slug: string }) => [s.slug, s]));
     expect(Object.keys(by).sort()).toEqual(["hadiyah", "sample1", "sample2", "sample3"]);
-    expect(by.hadiyah).toMatchObject({ kind: "host-accounts", appName: "Hadiyah Studio", ownerName: "Hadiyah", ownerEmail: "sequoia@westpeek.ventures", theme: "hadiyah", url: "https://hadiyahstudio.seq-taylor.workers.dev" });
-    for (const n of [1, 2, 3]) expect(by[`sample${n}`]).toMatchObject({ kind: "client", appName: `Sample ${n} Studio`, ownerEmail: "", theme: "slate", url: `https://sample${n}studio.seq-taylor.workers.dev` });
+    expect(by.hadiyah).toMatchObject({ kind: "host-accounts", appName: "Hadiyah Studio", ownerName: "Hadiyah", theme: "hadiyah", hostname: "hadiyah-studio.spryexecutiveos.com", url: "https://hadiyah-studio.spryexecutiveos.com", workersDevUrl: "https://hadiyahstudio.seq-taylor.workers.dev" });
+    for (const n of [1, 2, 3]) expect(by[`sample${n}`]).toMatchObject({ kind: "client", appName: `Sample ${n} Studio`, theme: "slate", hostname: `sample${n}-studio.spryexecutiveos.com`, url: `https://sample${n}-studio.spryexecutiveos.com`, workersDevUrl: `https://sample${n}studio.seq-taylor.workers.dev` });
+    for (const s of reg.studios) expect(s, s.slug).not.toHaveProperty("ownerEmail");
   });
 
   it("wrangler.jsonc is exactly what the registry generates (validator studios-generated)", async () => {
@@ -41,6 +46,10 @@ describe("the registry", () => {
     for (const s of reg.studios) {
       const e = envBlock(s, reg.themes);
       expect(e.vars).toMatchObject({ APP_NAME: s.appName, STUDIO_SLUG: s.slug, PUBLIC_BASE_URL: s.url, FAKE_SERVICES: "0", AUTH_MODE: "code", ENV_NAME: "production" });
+      // Its own hostname as a Workers Custom Domain; workers.dev kept on (it 301s); no owner email var.
+      expect(e.routes).toEqual([{ pattern: s.hostname, custom_domain: true }]);
+      expect(e.workers_dev).toBe(true);
+      expect(e.vars).not.toHaveProperty("OWNER_EMAIL");
       expect(JSON.parse(e.vars.STUDIO_THEME).wordmark.name).toBe(s.slug === "hadiyah" ? "hadiyah" : s.appName);
     }
     expect(themeFor(reg.studios.find((s: { slug: string }) => s.slug === "hadiyah"), reg.themes).light["--font-display"]).toMatch(/Young Serif/);
@@ -70,15 +79,17 @@ describe("guard (a): a client studio carries none of the host's identifiers", ()
   it("a sample's secret plan holds only its own generated secrets and the platform sender", () => {
     for (const s of reg.studios.filter((x: { kind: string }) => x.kind === "client")) {
       const names = Object.keys(secretPlan(s));
-      expect(names.sort()).toEqual(["JOB_SHARED_SECRET", "PLATFORM_EMAIL_FROM", "PLATFORM_RESEND_API_KEY", "SECRETS_KEY", "SESSION_SECRET"]);
+      expect(names.sort()).toEqual(["JOB_SHARED_SECRET", "OWNER_EMAIL", "PLATFORM_EMAIL_FROM", "PLATFORM_RESEND_API_KEY", "SECRETS_KEY", "SESSION_SECRET"]);
       for (const n of names) expect(OWNER_KEY_NAMES).not.toContain(n);
+      // A client's owner email is optional (claimed through the invite link); its own file, never the host's.
+      expect(secretPlan(s).OWNER_EMAIL).toBe("studio-file?:OWNER_EMAIL");
     }
   });
 
-  it("negative proof: the host's email, West Peek, Sheila, a host channel id or a host key bound as a secret each fail", async () => {
+  it("negative proof: the host's email, her former business name, Sheila, a host channel id or a host key bound as a secret each fail", async () => {
     const bad = clone(reg);
     const s1 = bad.studios.find((s: { slug: string }) => s.slug === "sample1");
-    s1.ownerEmail = "sequoia@westpeek.ventures";
+    s1.ownerEmail = `sequoia@${["we", "st", "pe", "ek"].join("")}.ventures`;
     const s2 = bad.studios.find((s: { slug: string }) => s.slug === "sample2");
     s2.appName = "Sheila's other studio";
     const s3 = bad.studios.find((s: { slug: string }) => s.slug === "sample3");
@@ -86,7 +97,7 @@ describe("guard (a): a client studio carries none of the host's identifiers", ()
     s3.wordmark = { tag: "UC5vZFZc15DIM6IrFwFgAECg" };
     const r = await checkStudios(bad, envBlock, secretPlan);
     const text = r.problems.join("\n");
-    expect(text).toMatch(/studios\/sample1\.json: a West Peek name or address/);
+    expect(text).toMatch(/studios\/sample1\.json: the host's former business name or address/);
     expect(text).toMatch(/studios\/sample1\.json: the host's email/);
     expect(text).toMatch(/studios\/sample2\.json: another client's studio \(Sheila\)/);
     expect(text).toMatch(/env\.sample3 would bind the host's key YOUTUBE_API_KEY as a secret/);
@@ -133,6 +144,72 @@ describe("guard (b): studio A's D1 and R2 are never studio B's", () => {
     const w = clone(reg.studios);
     w[1].worker = w[0].worker;
     expect(checkIsolation(w, cfg()).problems.join("\n")).toMatch(/Worker hadiyahstudio is shared by hadiyah and sample1/);
+  });
+});
+
+describe("the owner email and the platform sender are never committed config", () => {
+  it("hadiyah's owner email is required from its own 0600 file; the sender is the neutral mail.spryexecutiveos.com address", () => {
+    const h = reg.studios.find((s: { slug: string }) => s.slug === "hadiyah");
+    expect(secretPlan(h).OWNER_EMAIL).toBe("studio-file:OWNER_EMAIL");
+    expect(PLATFORM_FROM).toBe("Studio sign-in <login@mail.spryexecutiveos.com>");
+    expect(secretPlan(h).PLATFORM_EMAIL_FROM).toBe(`literal:${PLATFORM_FROM}`);
+  });
+
+  it("studio-file reads <dir>/<slug>/<NAME> (0600 only) or OWNER_EMAIL_<SLUG>, and names the file when missing", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "secrets-"));
+    expect(resolveSource("studio-file:OWNER_EMAIL", { slug: "hadiyah", dir, env: {} }).stop).toMatch(new RegExp(`^OWNER_EMAIL: no secret file\\. create ${dir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/hadiyah/OWNER_EMAIL .*export OWNER_EMAIL_HADIYAH$`));
+    mkdirSync(path.join(dir, "hadiyah"));
+    writeFileSync(path.join(dir, "hadiyah", "OWNER_EMAIL"), "a@b.example\n", { mode: 0o644 });
+    chmodSync(path.join(dir, "hadiyah", "OWNER_EMAIL"), 0o644);
+    expect(resolveSource("studio-file:OWNER_EMAIL", { slug: "hadiyah", dir, env: {} }).stop).toMatch(/readable by others/);
+    chmodSync(path.join(dir, "hadiyah", "OWNER_EMAIL"), 0o600);
+    expect(resolveSource("studio-file:OWNER_EMAIL", { slug: "hadiyah", dir, env: {} })).toEqual({ value: "a@b.example" });
+    expect(resolveSource("studio-file:OWNER_EMAIL", { slug: "hadiyah", dir, env: { OWNER_EMAIL_HADIYAH: "c@d.example" } })).toEqual({ value: "c@d.example" });
+    // Another studio's file is never read.
+    expect(resolveSource("studio-file:OWNER_EMAIL", { slug: "sample1", dir, env: { OWNER_EMAIL: "x@y.example" } }).stop).toMatch(/no secret file\. create .*\/sample1\/OWNER_EMAIL /);
+  });
+
+  it("validator registry-no-emails passes on the repo and fails on a committed address or an ownerEmail field (negative proof)", async () => {
+    const r = await registryNoEmails({ root });
+    expect(r.problems).toEqual([]);
+    expect(r.items).toBe(5);
+    expect(checkRegistryText("x.json", '{"note":"local dev uses owner@studio.example"}')).toEqual([]);
+    expect(checkRegistryText("hadiyah.json", '{"note":"someone@gmail.com"}').join("\n")).toMatch(/hadiyah\.json: an email address \(s…@gmail\.com\) is committed/);
+    expect(checkRegistryText("hadiyah.json", '{"ownerEmail":""}').join("\n")).toMatch(/an ownerEmail field/);
+    expect(checkEntries([{ ...clone(reg.studios[0]), ownerEmail: "" }], reg.themes).join("\n")).toMatch(/ownerEmail is never in the public registry/);
+  });
+
+  it("a registry hostname must be a bare domain of its own, not a URL, not workers.dev, not shared", () => {
+    for (const bad of ["https://a.example", "x.seq-taylor.workers.dev", "nodot", ""]) expect(checkEntries([{ ...clone(reg.studios[0]), hostname: bad }], reg.themes).join("\n"), bad).toMatch(/hostname must be/);
+    expect(() => withUrls({ slug: "x", worker: "xstudio", hostname: "x.example", url: "https://x.example" })).toThrow(/derived from "hostname"/);
+  });
+});
+
+describe("guard: the host's former business name is nowhere in the repo", () => {
+  const brand = ["We", "st ", "Pe", "ek"].join("");
+  it("passes on every tracked file", async () => {
+    const r = await noHostBrand({ root });
+    expect(r.problems).toEqual([]);
+    expect(r.items).toBeGreaterThanOrEqual(300);
+  });
+
+  it("negative proof: each spelling, in a file or a file name, fails", () => {
+    for (const v of [brand, brand.replace(" ", ""), brand.replace(" ", "-").toLowerCase(), brand.replace(" ", "_").toUpperCase()]) {
+      expect(findBrand([["README.md", `line one\nfrom ${v} ventures`]]), v).toEqual(["README.md:2: the host's former business name"]);
+    }
+    expect(findBrand([[`docs/${brand.replace(" ", "").toLowerCase()}.md`, "clean"]]).join("\n")).toMatch(/the file name carries/);
+    expect(findBrand([["a.md", "the western peak, Spry Executive OS"]])).toEqual([]);
+  });
+
+  it("negative proof on disk: an untracked file carrying it reds the validator", async () => {
+    const f = path.join(root, "docs", `brand-probe-${process.pid}.md`);
+    writeFileSync(f, `contact login@${brand.replace(" ", "").toLowerCase()}.ventures\n`);
+    try {
+      expect((await noHostBrand({ root })).problems.join("\n")).toMatch(new RegExp(`docs/brand-probe-${process.pid}\.md:1`));
+    } finally {
+      unlinkSync(f);
+    }
+    expect((await noHostBrand({ root })).problems).toEqual([]);
   });
 });
 

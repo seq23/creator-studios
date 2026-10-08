@@ -21,13 +21,8 @@
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     "run_worker_first": [
-      "/api/*",
-      "/media/*",
-      "/healthz",
-      "/kit/*",
-      "/privacy",
-      "/terms",
-      "/studio-theme.css"
+      "/*",
+      "!/assets/*"
     ]
   },
   "d1_databases": [
@@ -68,18 +63,19 @@
     "hadiyah": {
       "name": "hadiyahstudio",
       "workers_dev": true,
+      "routes": [
+        {
+          "pattern": "hadiyah-studio.spryexecutiveos.com",
+          "custom_domain": true
+        }
+      ],
       "assets": {
         "directory": "./dist/client",
         "binding": "ASSETS",
         "not_found_handling": "single-page-application",
         "run_worker_first": [
-          "/api/*",
-          "/media/*",
-          "/healthz",
-          "/kit/*",
-          "/privacy",
-          "/terms",
-          "/studio-theme.css"
+          "/*",
+          "!/assets/*"
         ]
       },
       "d1_databases": [
@@ -106,11 +102,10 @@
       "vars": {
         "APP_NAME": "Hadiyah Studio",
         "OWNER_NAME": "Hadiyah",
-        "OWNER_EMAIL": "sequoia@westpeek.ventures",
         "STUDIO_SLUG": "hadiyah",
         "STUDIO_THEME": "{\"fonts\":\"https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Young+Serif&display=swap\",\"chrome\":\"#12302a\",\"light\":{\"--cream\":\"#f2eee6\",\"--ivory\":\"#fbf9f4\",\"--paper\":\"#fffefb\",\"--parchment\":\"#e7e1d5\",\"--champagne\":\"#dccdb0\",\"--gold\":\"#d4952a\",\"--gold-deep\":\"#ad7414\",\"--gold-ink\":\"#7a4f0a\",\"--gold-soft\":\"rgba(212, 149, 42, 0.34)\",\"--gold-faint\":\"rgba(212, 149, 42, 0.14)\",\"--gold-line\":\"rgba(212, 149, 42, 0.4)\",\"--gold-glow\":\"rgba(212, 149, 42, 0.26)\",\"--espresso\":\"#12302a\",\"--espresso-2\":\"#1c463d\",\"--ink\":\"#17211e\",\"--ink-soft\":\"rgba(23, 33, 30, 0.8)\",\"--muted\":\"#57615d\",\"--line\":\"rgba(23, 33, 30, 0.12)\",\"--line-strong\":\"rgba(23, 33, 30, 0.28)\",\"--blush\":\"#e8b597\",\"--blush-faint\":\"rgba(232, 181, 151, 0.18)\",\"--rose\":\"#a3442a\",\"--terracotta\":\"#8c3a20\",\"--teal\":\"#1f6f5c\",\"--on-dark\":\"#f6f1e7\",\"--on-dark-soft\":\"rgba(246, 241, 231, 0.8)\",\"--on-dark-faint\":\"rgba(246, 241, 231, 0.1)\",\"--scrim\":\"rgba(18, 48, 42, 0.55)\",\"--glass\":\"rgba(251, 249, 244, 0.92)\",\"--accent-ink\":\"#12302a\",\"--focus-color\":\"#a3442a\",\"--brand-mark-bg\":\"linear-gradient(145deg, #fbf9f4, #e7e1d5)\",\"--login-bg\":\"radial-gradient(circle at 12% 0%, rgba(212, 149, 42, 0.22), transparent 34%), radial-gradient(circle at 100% 100%, rgba(31, 111, 92, 0.16), transparent 40%), linear-gradient(160deg, #fbf9f4, #f2eee6)\",\"--shadow-btn\":\"0 8px 18px rgba(212, 149, 42, 0.24)\",\"--font-display\":\"\\\"Young Serif\\\", Georgia, \\\"Times New Roman\\\", serif\",\"--font-body\":\"\\\"Hanken Grotesk\\\", system-ui, -apple-system, \\\"Segoe UI\\\", sans-serif\",\"--font-script\":\"\\\"Young Serif\\\", Georgia, serif\",\"--wordmark-tracking\":\"-0.01em\"},\"dark\":{\"--bg\":\"#0e1714\",\"--surface\":\"#15211d\",\"--surface-2\":\"#1b2a25\",\"--surface-sunk\":\"#0b1210\",\"--text\":\"#efe9dd\",\"--text-soft\":\"rgba(239, 233, 221, 0.82)\",\"--text-muted\":\"#a9b2ad\",\"--line\":\"rgba(239, 233, 221, 0.12)\",\"--line-strong\":\"rgba(239, 233, 221, 0.3)\",\"--primary\":\"#e0a640\",\"--primary-text\":\"#0e1714\",\"--gold-ink\":\"#e0a640\",\"--gold-soft\":\"rgba(224, 166, 64, 0.3)\",\"--gold-faint\":\"rgba(224, 166, 64, 0.12)\",\"--focus-color\":\"#e0a640\",\"--glass\":\"rgba(21, 33, 29, 0.92)\",\"--login-bg\":\"radial-gradient(circle at 12% 0%, rgba(224, 166, 64, 0.18), transparent 34%), linear-gradient(160deg, #15211d, #0e1714)\"},\"wordmark\":{\"name\":\"hadiyah\",\"tag\":\"studio\",\"mark\":\"◆\"}}",
         "FAKE_SERVICES": "0",
-        "PUBLIC_BASE_URL": "https://hadiyahstudio.seq-taylor.workers.dev",
+        "PUBLIC_BASE_URL": "https://hadiyah-studio.spryexecutiveos.com",
         "GITHUB_REPO": "seq23/creator-studios",
         "AUDIENCE_TIMEZONE": "America/New_York",
         "ENV_NAME": "production",
@@ -120,18 +115,19 @@
     "sample1": {
       "name": "sample1studio",
       "workers_dev": true,
+      "routes": [
+        {
+          "pattern": "sample1-studio.spryexecutiveos.com",
+          "custom_domain": true
+        }
+      ],
       "assets": {
         "directory": "./dist/client",
         "binding": "ASSETS",
         "not_found_handling": "single-page-application",
         "run_worker_first": [
-          "/api/*",
-          "/media/*",
-          "/healthz",
-          "/kit/*",
-          "/privacy",
-          "/terms",
-          "/studio-theme.css"
+          "/*",
+          "!/assets/*"
         ]
       },
       "d1_databases": [
@@ -158,11 +154,10 @@
       "vars": {
         "APP_NAME": "Sample 1 Studio",
         "OWNER_NAME": "",
-        "OWNER_EMAIL": "",
         "STUDIO_SLUG": "sample1",
         "STUDIO_THEME": "{\"fonts\":\"https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap\",\"chrome\":\"#1e2227\",\"light\":{\"--cream\":\"#f4f4f1\",\"--ivory\":\"#ffffff\",\"--paper\":\"#fbfbfa\",\"--parchment\":\"#ebebe6\",\"--champagne\":\"#d6dbe0\",\"--gold\":\"#3b6c8e\",\"--gold-deep\":\"#2c5470\",\"--gold-ink\":\"#2a5574\",\"--gold-soft\":\"rgba(59, 108, 142, 0.32)\",\"--gold-faint\":\"rgba(59, 108, 142, 0.1)\",\"--gold-line\":\"rgba(59, 108, 142, 0.32)\",\"--gold-glow\":\"rgba(59, 108, 142, 0.24)\",\"--espresso\":\"#1e2227\",\"--espresso-2\":\"#2e343b\",\"--ink\":\"#1b1d21\",\"--ink-soft\":\"rgba(27, 29, 33, 0.8)\",\"--muted\":\"#5b6068\",\"--line\":\"rgba(27, 29, 33, 0.12)\",\"--line-strong\":\"rgba(27, 29, 33, 0.28)\",\"--blush\":\"#a9bccb\",\"--blush-faint\":\"rgba(169, 188, 203, 0.18)\",\"--rose\":\"#9a4a2a\",\"--terracotta\":\"#9c4b22\",\"--teal\":\"#0d7c79\",\"--on-dark\":\"#f6f7f8\",\"--on-dark-soft\":\"rgba(246, 247, 248, 0.8)\",\"--on-dark-faint\":\"rgba(246, 247, 248, 0.1)\",\"--scrim\":\"rgba(27, 29, 33, 0.55)\",\"--glass\":\"rgba(255, 255, 255, 0.92)\",\"--accent-ink\":\"#ffffff\",\"--focus-color\":\"#2c5470\",\"--brand-mark-bg\":\"linear-gradient(145deg, #ffffff, #e6e9ec)\",\"--login-bg\":\"radial-gradient(circle at 85% 10%, rgba(59, 108, 142, 0.16), transparent 32%), linear-gradient(135deg, #ffffff, #f4f4f1)\",\"--shadow-btn\":\"0 8px 18px rgba(59, 108, 142, 0.2)\",\"--font-display\":\"\\\"Source Serif 4\\\", Georgia, \\\"Times New Roman\\\", serif\",\"--font-body\":\"\\\"Public Sans\\\", system-ui, -apple-system, \\\"Segoe UI\\\", sans-serif\",\"--font-script\":\"\\\"Source Serif 4\\\", Georgia, serif\",\"--wordmark-tracking\":\"0\"},\"dark\":{\"--bg\":\"#121417\",\"--surface\":\"#1a1d21\",\"--surface-2\":\"#22262b\",\"--surface-sunk\":\"#0f1114\",\"--text\":\"#eceef0\",\"--text-soft\":\"rgba(236, 238, 240, 0.82)\",\"--text-muted\":\"#a7adb5\",\"--line\":\"rgba(236, 238, 240, 0.12)\",\"--line-strong\":\"rgba(236, 238, 240, 0.3)\",\"--primary\":\"#8fb6d3\",\"--primary-text\":\"#121417\",\"--gold-ink\":\"#8fb6d3\",\"--gold-soft\":\"rgba(143, 182, 211, 0.3)\",\"--gold-faint\":\"rgba(143, 182, 211, 0.12)\",\"--focus-color\":\"#8fb6d3\",\"--glass\":\"rgba(26, 29, 33, 0.92)\",\"--login-bg\":\"radial-gradient(circle at 85% 10%, rgba(143, 182, 211, 0.14), transparent 32%), linear-gradient(135deg, #1a1d21, #121417)\"},\"wordmark\":{\"name\":\"Sample 1 Studio\",\"mark\":\"▪\"}}",
         "FAKE_SERVICES": "0",
-        "PUBLIC_BASE_URL": "https://sample1studio.seq-taylor.workers.dev",
+        "PUBLIC_BASE_URL": "https://sample1-studio.spryexecutiveos.com",
         "GITHUB_REPO": "",
         "AUDIENCE_TIMEZONE": "America/New_York",
         "ENV_NAME": "production",
@@ -172,18 +167,19 @@
     "sample2": {
       "name": "sample2studio",
       "workers_dev": true,
+      "routes": [
+        {
+          "pattern": "sample2-studio.spryexecutiveos.com",
+          "custom_domain": true
+        }
+      ],
       "assets": {
         "directory": "./dist/client",
         "binding": "ASSETS",
         "not_found_handling": "single-page-application",
         "run_worker_first": [
-          "/api/*",
-          "/media/*",
-          "/healthz",
-          "/kit/*",
-          "/privacy",
-          "/terms",
-          "/studio-theme.css"
+          "/*",
+          "!/assets/*"
         ]
       },
       "d1_databases": [
@@ -210,11 +206,10 @@
       "vars": {
         "APP_NAME": "Sample 2 Studio",
         "OWNER_NAME": "",
-        "OWNER_EMAIL": "",
         "STUDIO_SLUG": "sample2",
         "STUDIO_THEME": "{\"fonts\":\"https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap\",\"chrome\":\"#1e2227\",\"light\":{\"--cream\":\"#f4f4f1\",\"--ivory\":\"#ffffff\",\"--paper\":\"#fbfbfa\",\"--parchment\":\"#ebebe6\",\"--champagne\":\"#d6dbe0\",\"--gold\":\"#3b6c8e\",\"--gold-deep\":\"#2c5470\",\"--gold-ink\":\"#2a5574\",\"--gold-soft\":\"rgba(59, 108, 142, 0.32)\",\"--gold-faint\":\"rgba(59, 108, 142, 0.1)\",\"--gold-line\":\"rgba(59, 108, 142, 0.32)\",\"--gold-glow\":\"rgba(59, 108, 142, 0.24)\",\"--espresso\":\"#1e2227\",\"--espresso-2\":\"#2e343b\",\"--ink\":\"#1b1d21\",\"--ink-soft\":\"rgba(27, 29, 33, 0.8)\",\"--muted\":\"#5b6068\",\"--line\":\"rgba(27, 29, 33, 0.12)\",\"--line-strong\":\"rgba(27, 29, 33, 0.28)\",\"--blush\":\"#a9bccb\",\"--blush-faint\":\"rgba(169, 188, 203, 0.18)\",\"--rose\":\"#9a4a2a\",\"--terracotta\":\"#9c4b22\",\"--teal\":\"#0d7c79\",\"--on-dark\":\"#f6f7f8\",\"--on-dark-soft\":\"rgba(246, 247, 248, 0.8)\",\"--on-dark-faint\":\"rgba(246, 247, 248, 0.1)\",\"--scrim\":\"rgba(27, 29, 33, 0.55)\",\"--glass\":\"rgba(255, 255, 255, 0.92)\",\"--accent-ink\":\"#ffffff\",\"--focus-color\":\"#2c5470\",\"--brand-mark-bg\":\"linear-gradient(145deg, #ffffff, #e6e9ec)\",\"--login-bg\":\"radial-gradient(circle at 85% 10%, rgba(59, 108, 142, 0.16), transparent 32%), linear-gradient(135deg, #ffffff, #f4f4f1)\",\"--shadow-btn\":\"0 8px 18px rgba(59, 108, 142, 0.2)\",\"--font-display\":\"\\\"Source Serif 4\\\", Georgia, \\\"Times New Roman\\\", serif\",\"--font-body\":\"\\\"Public Sans\\\", system-ui, -apple-system, \\\"Segoe UI\\\", sans-serif\",\"--font-script\":\"\\\"Source Serif 4\\\", Georgia, serif\",\"--wordmark-tracking\":\"0\"},\"dark\":{\"--bg\":\"#121417\",\"--surface\":\"#1a1d21\",\"--surface-2\":\"#22262b\",\"--surface-sunk\":\"#0f1114\",\"--text\":\"#eceef0\",\"--text-soft\":\"rgba(236, 238, 240, 0.82)\",\"--text-muted\":\"#a7adb5\",\"--line\":\"rgba(236, 238, 240, 0.12)\",\"--line-strong\":\"rgba(236, 238, 240, 0.3)\",\"--primary\":\"#8fb6d3\",\"--primary-text\":\"#121417\",\"--gold-ink\":\"#8fb6d3\",\"--gold-soft\":\"rgba(143, 182, 211, 0.3)\",\"--gold-faint\":\"rgba(143, 182, 211, 0.12)\",\"--focus-color\":\"#8fb6d3\",\"--glass\":\"rgba(26, 29, 33, 0.92)\",\"--login-bg\":\"radial-gradient(circle at 85% 10%, rgba(143, 182, 211, 0.14), transparent 32%), linear-gradient(135deg, #1a1d21, #121417)\"},\"wordmark\":{\"name\":\"Sample 2 Studio\",\"mark\":\"▪\"}}",
         "FAKE_SERVICES": "0",
-        "PUBLIC_BASE_URL": "https://sample2studio.seq-taylor.workers.dev",
+        "PUBLIC_BASE_URL": "https://sample2-studio.spryexecutiveos.com",
         "GITHUB_REPO": "",
         "AUDIENCE_TIMEZONE": "America/New_York",
         "ENV_NAME": "production",
@@ -224,18 +219,19 @@
     "sample3": {
       "name": "sample3studio",
       "workers_dev": true,
+      "routes": [
+        {
+          "pattern": "sample3-studio.spryexecutiveos.com",
+          "custom_domain": true
+        }
+      ],
       "assets": {
         "directory": "./dist/client",
         "binding": "ASSETS",
         "not_found_handling": "single-page-application",
         "run_worker_first": [
-          "/api/*",
-          "/media/*",
-          "/healthz",
-          "/kit/*",
-          "/privacy",
-          "/terms",
-          "/studio-theme.css"
+          "/*",
+          "!/assets/*"
         ]
       },
       "d1_databases": [
@@ -262,11 +258,10 @@
       "vars": {
         "APP_NAME": "Sample 3 Studio",
         "OWNER_NAME": "",
-        "OWNER_EMAIL": "",
         "STUDIO_SLUG": "sample3",
         "STUDIO_THEME": "{\"fonts\":\"https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap\",\"chrome\":\"#1e2227\",\"light\":{\"--cream\":\"#f4f4f1\",\"--ivory\":\"#ffffff\",\"--paper\":\"#fbfbfa\",\"--parchment\":\"#ebebe6\",\"--champagne\":\"#d6dbe0\",\"--gold\":\"#3b6c8e\",\"--gold-deep\":\"#2c5470\",\"--gold-ink\":\"#2a5574\",\"--gold-soft\":\"rgba(59, 108, 142, 0.32)\",\"--gold-faint\":\"rgba(59, 108, 142, 0.1)\",\"--gold-line\":\"rgba(59, 108, 142, 0.32)\",\"--gold-glow\":\"rgba(59, 108, 142, 0.24)\",\"--espresso\":\"#1e2227\",\"--espresso-2\":\"#2e343b\",\"--ink\":\"#1b1d21\",\"--ink-soft\":\"rgba(27, 29, 33, 0.8)\",\"--muted\":\"#5b6068\",\"--line\":\"rgba(27, 29, 33, 0.12)\",\"--line-strong\":\"rgba(27, 29, 33, 0.28)\",\"--blush\":\"#a9bccb\",\"--blush-faint\":\"rgba(169, 188, 203, 0.18)\",\"--rose\":\"#9a4a2a\",\"--terracotta\":\"#9c4b22\",\"--teal\":\"#0d7c79\",\"--on-dark\":\"#f6f7f8\",\"--on-dark-soft\":\"rgba(246, 247, 248, 0.8)\",\"--on-dark-faint\":\"rgba(246, 247, 248, 0.1)\",\"--scrim\":\"rgba(27, 29, 33, 0.55)\",\"--glass\":\"rgba(255, 255, 255, 0.92)\",\"--accent-ink\":\"#ffffff\",\"--focus-color\":\"#2c5470\",\"--brand-mark-bg\":\"linear-gradient(145deg, #ffffff, #e6e9ec)\",\"--login-bg\":\"radial-gradient(circle at 85% 10%, rgba(59, 108, 142, 0.16), transparent 32%), linear-gradient(135deg, #ffffff, #f4f4f1)\",\"--shadow-btn\":\"0 8px 18px rgba(59, 108, 142, 0.2)\",\"--font-display\":\"\\\"Source Serif 4\\\", Georgia, \\\"Times New Roman\\\", serif\",\"--font-body\":\"\\\"Public Sans\\\", system-ui, -apple-system, \\\"Segoe UI\\\", sans-serif\",\"--font-script\":\"\\\"Source Serif 4\\\", Georgia, serif\",\"--wordmark-tracking\":\"0\"},\"dark\":{\"--bg\":\"#121417\",\"--surface\":\"#1a1d21\",\"--surface-2\":\"#22262b\",\"--surface-sunk\":\"#0f1114\",\"--text\":\"#eceef0\",\"--text-soft\":\"rgba(236, 238, 240, 0.82)\",\"--text-muted\":\"#a7adb5\",\"--line\":\"rgba(236, 238, 240, 0.12)\",\"--line-strong\":\"rgba(236, 238, 240, 0.3)\",\"--primary\":\"#8fb6d3\",\"--primary-text\":\"#121417\",\"--gold-ink\":\"#8fb6d3\",\"--gold-soft\":\"rgba(143, 182, 211, 0.3)\",\"--gold-faint\":\"rgba(143, 182, 211, 0.12)\",\"--focus-color\":\"#8fb6d3\",\"--glass\":\"rgba(26, 29, 33, 0.92)\",\"--login-bg\":\"radial-gradient(circle at 85% 10%, rgba(143, 182, 211, 0.14), transparent 32%), linear-gradient(135deg, #1a1d21, #121417)\"},\"wordmark\":{\"name\":\"Sample 3 Studio\",\"mark\":\"▪\"}}",
         "FAKE_SERVICES": "0",
-        "PUBLIC_BASE_URL": "https://sample3studio.seq-taylor.workers.dev",
+        "PUBLIC_BASE_URL": "https://sample3-studio.spryexecutiveos.com",
         "GITHUB_REPO": "",
         "AUDIENCE_TIMEZONE": "America/New_York",
         "ENV_NAME": "production",

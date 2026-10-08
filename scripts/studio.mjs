@@ -6,7 +6,8 @@
 //   node scripts/studio.mjs check               fail if wrangler.jsonc is not what `gen` writes (validator studios-generated)
 //   npm run studio:create <slug>                create its D1 + R2, migrate, deploy, set secrets, print URL + first-login link
 //   npm run studio:deploy <slug>|--all          build once, migrate, deploy, smoke (the ONLY deploy path; never a bare `wrangler deploy`)
-//   npm run studio:secrets <slug>               (re)set the secrets it is missing (never rotates SECRETS_KEY)
+//   npm run studio:secrets <slug>|--all [--refresh] [--only=NAME,…]  set the missing secrets; --refresh re-puts every sourced one
+//                                               (platform sender, owner email, host keys; never rotates SECRETS_KEY)
 //   npm run studio:invite <slug>                mint a new first-login link (14 days, single use)
 //   node scripts/studio.mjs storage <slug>      create its D1 + R2 only (create does this first)
 //   node scripts/studio.mjs list                the registry
@@ -28,11 +29,23 @@ import { OWNER_KEY_NAMES } from "./lib/owner-identifiers.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || "8d147e242033699dd37c6f5a451f48d2";
 const HOST_REPO = "seq23/creator-studios";
-/** The platform sender (README "Platform sender"): the host's Resend, login codes only. */
+/**
+ * The platform sender (README "Platform sender"): the host's Resend, login codes only. The address
+ * is on the verified Resend domain mail.spryexecutiveos.com; the display name is neutral on purpose
+ * (every studio, the host's and every client's, sends its login codes through it).
+ */
 const PLATFORM_RESEND = "file:PLATFORM_RESEND_API_KEY";
-const PLATFORM_FROM = "Studio login <login@westpeek.ventures>";
+export const PLATFORM_FROM = "Studio sign-in <login@mail.spryexecutiveos.com>";
+/** The account's workers.dev subdomain: every studio's old address, which now 301s to its own hostname. */
+const WORKERS_DEV = "seq-taylor.workers.dev";
+/** The file (in <secrets dir>/<slug>/) holding a studio's owner login email: never in the public registry. */
+export const OWNER_EMAIL_FILE = "OWNER_EMAIL";
 const CRONS = ["0 * * * *", "30 13 * * *", "0 12 * * 1"];
-const RUN_WORKER_FIRST = ["/api/*", "/media/*", "/healthz", "/kit/*", "/privacy", "/terms", "/studio-theme.css"];
+// The Worker runs first for every path but the hashed build files, so a page request on a studio's
+// old workers.dev address can 301 to its hostname (worker/lib/canonical-host.ts); a path the Worker
+// has no route for goes on to the assets (worker/index.ts notFound). /privacy and /terms are among
+// "/*" (validator legal-pages matches the patterns, it does not read them as text).
+const RUN_WORKER_FIRST = ["/*", "!/assets/*"];
 
 // ------------------------------------------------------------------ registry
 
@@ -42,8 +55,19 @@ export function loadRegistry(root = ROOT) {
   const studios = readdirSync(dir)
     .filter((f) => f.endsWith(".json") && f !== "themes.json")
     .sort()
-    .map((f) => JSON.parse(readFileSync(path.join(dir, f), "utf8")));
+    .map((f) => withUrls(JSON.parse(readFileSync(path.join(dir, f), "utf8"))));
   return { studios, themes };
+}
+
+/**
+ * A registry entry names its `hostname` (its own custom domain, attached as a Workers Custom
+ * Domain on deploy); the URLs are derived from it, so renaming a studio is one field. `url` is the
+ * studio's one public address (PUBLIC_BASE_URL: links, cookies, OAuth redirects); `workersDevUrl`
+ * is its old workers.dev address, kept answering with a 301 to `url`.
+ */
+export function withUrls(s) {
+  if ("url" in s) throw new Error(`studios/${s.slug}.json: "url" is derived from "hostname"; remove it`);
+  return { ...s, url: `https://${s.hostname}`, workersDevUrl: `https://${s.worker}.${WORKERS_DEV}` };
 }
 
 /** The theme a studio's Worker serves: the named theme, with the studio's wordmark name filled in. */
@@ -58,7 +82,10 @@ export function themeFor(studio, themes) {
 export function envBlock(s, themes) {
   return {
     name: s.worker,
+    // workers.dev stays on so old links and in-flight jobs still reach the studio (GET/HEAD 301 to
+    // the hostname: worker/lib/canonical-host.ts); the hostname is the studio's own address.
     workers_dev: true,
+    routes: [{ pattern: s.hostname, custom_domain: true }],
     assets: { directory: "./dist/client", binding: "ASSETS", not_found_handling: "single-page-application", run_worker_first: RUN_WORKER_FIRST },
     d1_databases: [{ binding: "DB", database_name: s.d1.name, database_id: s.d1.id ?? "00000000-0000-0000-0000-000000000000", migrations_dir: "migrations" }],
     r2_buckets: [{ binding: "FILES", bucket_name: s.r2.bucket }],
@@ -66,7 +93,8 @@ export function envBlock(s, themes) {
     vars: {
       APP_NAME: s.appName,
       OWNER_NAME: s.ownerName ?? "",
-      OWNER_EMAIL: s.ownerEmail ?? "",
+      // OWNER_EMAIL is NOT a var: it is a deploy-time Worker secret from <secrets dir>/<slug>/OWNER_EMAIL
+      // (public repo; README "Owner email"), set by `studio:secrets`.
       STUDIO_SLUG: s.slug,
       STUDIO_THEME: JSON.stringify(themeFor(s, themes)),
       FAKE_SERVICES: "0",
@@ -144,7 +172,7 @@ export function secretsDir(env = process.env) {
 }
 
 /** The secret-source forms a registry entry may name. Anything else is refused. */
-export const SOURCE_FORMS = [/^file\??:[A-Z][A-Z0-9_]*$/, /^gh-auth-token$/, /^literal:.+$/, /^generate:(base64|hex)-32$/];
+export const SOURCE_FORMS = [/^file\??:[A-Z][A-Z0-9_]*$/, /^studio-file\??:[A-Z][A-Z0-9_]*$/, /^gh-auth-token$/, /^literal:.+$/, /^generate:(base64|hex)-32$/];
 export const isKnownSource = (src) => typeof src === "string" && SOURCE_FORMS.some((re) => re.test(src));
 
 /**
@@ -194,6 +222,16 @@ export function resolveSource(src, opts = {}) {
     const r = spawnSync("gh", ["auth", "token"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
     const v = (r.stdout ?? "").trim();
     return v ? { value: v } : { stop: "GITHUB_DISPATCH_TOKEN: `gh auth token` gave nothing. Run: gh auth login" };
+  }
+  // studio-file: the studio's own 0600 file <dir>/<slug>/<NAME> (or env <NAME>_<SLUG>), e.g. its owner email.
+  if (src.startsWith("studio-file")) {
+    const name = src.replace(/^studio-file\??:/, "");
+    const slug = opts.slug;
+    if (!slug) throw new Error(`${src} needs the studio slug`);
+    const env = opts.env ?? process.env;
+    const dir = opts.dir ?? secretsDir(env);
+    const r = fileSecret(name, { env: { [name]: env[`${name}_${slug.toUpperCase()}`] ?? "" }, dir: path.join(dir, slug) });
+    return r.stop ? { stop: r.stop.replace(`export ${name}`, `export ${name}_${slug.toUpperCase()}`) } : r;
   }
   if (src.startsWith("file?:")) return fileSecret(src.slice(6), opts);
   if (src.startsWith("file:")) return fileSecret(src.slice(5), opts);
@@ -253,6 +291,9 @@ export function secretPlan(s) {
     // The platform sender: the ONE shared piece (login codes only).
     PLATFORM_RESEND_API_KEY: PLATFORM_RESEND,
     PLATFORM_EMAIL_FROM: `literal:${PLATFORM_FROM}`,
+    // The owner's login email, from the studio's own 0600 file, never the public registry. A
+    // host-run studio needs it; a client studio's owner claims hers through the invite link.
+    OWNER_EMAIL: `${s.kind === "host-accounts" ? "studio-file" : "studio-file?"}:${OWNER_EMAIL_FILE}`,
   };
   for (const [k, v] of Object.entries(s.hostSecrets ?? {})) if (!k.startsWith("_")) plan[k] = v;
   return plan;
@@ -298,7 +339,14 @@ async function verifyInside(s, sessionSecret) {
   return out;
 }
 
-function secrets(slug) {
+/**
+ * Set the secrets a studio is missing. With `refresh`, every secret that comes from a source (a
+ * file, a literal, `gh auth token`) is put again from that source, so changing the platform sender
+ * or an owner email is one command; generated ones (SESSION_SECRET, SECRETS_KEY, JOB_SHARED_SECRET)
+ * are never rotated. A client studio's optional OWNER_EMAIL whose file is gone is deleted on
+ * refresh (the owner then comes from the invite claim only).
+ */
+function secrets(slug, { refresh = false, only = null } = {}) {
   const { s } = studioBySlug(slug);
   const have = secretNames(slug);
   const stops = [];
@@ -306,23 +354,38 @@ function secrets(slug) {
   let jobSecret = null;
   let freshSession = null;
   for (const [name, src] of Object.entries(secretPlan(s))) {
-    if (have.has(name)) {
+    if (only && !only.includes(name)) continue;
+    const generated = src.startsWith("generate:");
+    if (have.has(name) && (generated || !refresh)) {
       console.log(`secret ${name}: already set`);
       continue;
     }
     let value;
-    if (src.startsWith("generate:")) value = generatedSecret(slug, name, src.slice(9));
+    if (generated) value = generatedSecret(slug, name, src.slice(9));
     else {
-      const r = resolveSource(src);
+      const r = resolveSource(src, { slug });
       if (r.stop) {
+        const optional = /^(studio-)?file\?:/.test(src);
+        if (optional && name === "OWNER_EMAIL") {
+          if (refresh && have.has(name)) {
+            wrangler(["secret", "delete", name, "--env", slug], { input: "y\n", quiet: true });
+            console.log(`secret ${name}: deleted (no file; the owner comes from the invite claim)`);
+          } else console.log(`secret ${name}: not set (the owner claims the studio with the invite link)`);
+          continue;
+        }
+        if (refresh && have.has(name)) {
+          // Already set and nothing here to refresh it from: keep what the Worker has.
+          console.log(`secret ${name}: kept (no source on this machine to refresh it from)`);
+          continue;
+        }
         // Optional (file?:) → the feature stays in practice mode; required → the run fails, naming the file.
-        (src.startsWith("file?:") ? stops : missing).push(r.stop);
+        (optional ? stops : missing).push(r.stop);
         continue;
       }
       value = r.value;
     }
     wrangler(["secret", "put", name, "--env", slug], { input: value, quiet: true });
-    console.log(`secret ${name}: set`);
+    console.log(`secret ${name}: ${have.has(name) ? "replaced" : "set"}`);
     if (name === "JOB_SHARED_SECRET") jobSecret = value;
     if (name === "SESSION_SECRET") freshSession = value;
   }
@@ -373,6 +436,9 @@ async function smoke(s) {
   if (!css.includes(":root")) problems.push("/studio-theme.css has no theme");
   const st = (await (await fetch(`${s.url}/api/studio`)).json().catch(() => ({})));
   if (st.appName !== s.appName) problems.push(`/api/studio names "${st.appName}", want "${s.appName}"`);
+  // The old workers.dev address answers with a 301 to the studio's own hostname, path kept.
+  const old = await fetch(`${s.workersDevUrl}/dump?x=1`, { redirect: "manual" }).catch(() => null);
+  if (old?.status !== 301 || old.headers.get("location") !== `${s.url}/dump?x=1`) problems.push(`${s.workersDevUrl} answered ${old?.status} → ${old?.headers.get("location")} (want 301 → ${s.url}/dump?x=1)`);
   if (problems.length) throw new Error(`smoke ${s.slug}:\n  ${problems.join("\n  ")}`);
   console.log(`smoke ${s.slug}: ok (${s.url})`);
 }
@@ -414,7 +480,7 @@ async function create(slug) {
   const link = s.kind === "client" ? invite(slug) : null;
   console.log(`\n${s.appName}: ${s.url}`);
   if (link) console.log(`first-login link: ${link}`);
-  else console.log(`log in at ${s.url} with ${s.ownerEmail || "the owner email in studios/" + slug + ".json"} (an email code)`);
+  else console.log(`log in at ${s.url} with the owner email from <secrets dir>/${slug}/OWNER_EMAIL (an email code)`);
   if (stops.length) console.log(`named stops: ${stops.join("; ")}`);
 }
 
@@ -431,10 +497,18 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       }
       console.log("wrangler.jsonc matches the registry");
     },
-    list: () => loadRegistry().studios.forEach((s) => console.log(`${s.slug.padEnd(10)} ${s.kind.padEnd(14)} ${s.url}`)),
+    list: () => loadRegistry().studios.forEach((s) => console.log(`${s.slug.padEnd(10)} ${s.kind.padEnd(14)} ${s.url}  (old: ${s.workersDevUrl} → 301)`)),
     create: () => create(arg),
     deploy: () => deploy(arg),
-    secrets: () => void secrets(arg),
+    secrets: () => {
+      const refresh = process.argv.includes("--refresh");
+      // --only=NAME,NAME limits a run to those secrets (e.g. the platform sender on every studio).
+      const only = process.argv.find((x) => x.startsWith("--only="))?.slice(7).split(",").filter(Boolean) ?? null;
+      for (const slug of arg === "--all" ? loadRegistry().studios.map((x) => x.slug) : [arg]) {
+        console.log(`==> ${slug}: secrets${refresh ? " (refresh)" : ""}`);
+        secrets(slug, { refresh, only });
+      }
+    },
     invite: () => invite(arg),
     storage: () => {
       provisionStorage(studioBySlug(arg).s);
@@ -443,7 +517,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   };
   const fn = commands[cmd];
   if (!fn || (["create", "deploy", "secrets", "invite", "storage"].includes(cmd) && !arg)) {
-    console.log("usage: node scripts/studio.mjs gen|check|list | create <slug> | deploy <slug>|--all | secrets <slug> | invite <slug>");
+    console.log("usage: node scripts/studio.mjs gen|check|list | create <slug> | deploy <slug>|--all | secrets <slug>|--all [--refresh] [--only=NAME,…] | invite <slug>");
     process.exit(2);
   }
   Promise.resolve(fn()).catch((e) => {
