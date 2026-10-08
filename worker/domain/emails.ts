@@ -285,7 +285,9 @@ export const SCENARIOS: Record<ScenarioKey, Scenario> = {
       if (!t?.timeline) missing.push("the posting dates");
       if (!t?.payment) missing.push("payment terms");
       if (!t?.fee) missing.push("the budget");
-      const read = [t?.deliverables && `deliverables: ${t.deliverables}`, t?.fee != null && `fee: ${usd(t.fee)}`, t?.usage && `usage: ${t.usage}`, t?.timeline && `timing: ${t.timeline}`, t?.payment && `payment: ${t.payment}`].filter(Boolean);
+      // Quoted terms lose their own end stop: the sentence below supplies one (never "..").
+      const bare = (x: string) => x.trim().replace(/[.!?;,]+$/, "");
+      const read = [t?.deliverables && `deliverables: ${bare(t.deliverables)}`, t?.fee != null && `fee: ${usd(t.fee)}`, t?.usage && `usage: ${bare(t.usage)}`, t?.timeline && `timing: ${bare(t.timeline)}`, t?.payment && `payment: ${bare(t.payment)}`].filter(Boolean);
       return [
         { text: hello(f, tone), keep: "brief" },
         { text: tone === "short" ? `Thanks for thinking of me.` : `Thank you for reaching out, I'd love to work with ${f.brand.name}.`, keep: "brief" },

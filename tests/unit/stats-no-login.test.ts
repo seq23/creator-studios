@@ -159,11 +159,12 @@ describe("YouTube public numbers (no sign-in)", () => {
     const junk = await call("POST", "/api/stats/youtube-channel", { channel: "not a channel!!" });
     expect(junk.status).toBe(422);
   });
-  it("no key, no channel, a refused key and quota each name their state and a yellow light, never a blank", async () => {
+  it("no key is a grey practice light; no channel, a refused key and quota each name their state and a yellow light, never a blank", async () => {
     const noKey = await refreshYouTubePublic({ ...env, FAKE_SERVICES: "0", YOUTUBE_API_KEY: undefined } as Env);
     expect(noKey.state).toBe("no_key");
-    expect(light("YouTube stats")).toMatchObject({ light: "yellow", fix_guide: "your-youtube-numbers" });
+    expect(light("YouTube stats")).toMatchObject({ light: "grey", fix_guide: "your-youtube-numbers" });
     expect((await refreshYouTubePublic(env)).state).toBe("no_channel"); // no Buffer, nothing typed
+    expect(light("YouTube stats")).toMatchObject({ light: "yellow", fix_guide: "your-youtube-numbers" });
     await setSetting(env.DB, "youtube_channel_typed", "@quotaland");
     expect((await refreshYouTubePublic(env)).state).toBe("quota");
     expect((await refreshYouTubePublic({ ...env, YOUTUBE_API_KEY: "badkey" } as Env)).state).toBe("key_refused");

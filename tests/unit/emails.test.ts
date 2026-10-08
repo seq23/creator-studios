@@ -117,6 +117,12 @@ describe("real facts only", () => {
     expect(body).toMatch(/whether you need exclusivity/);
     expect(body).not.toMatch(/Could you share[^?]*the budget/);
   });
+  it("terms quoted from their email never end the restatement on a double stop (sample1, 7 Oct 2026)", () => {
+    const body = starterEmail("inbound_reply", facts({ theirs: { fee: 500, deliverables: "1 TikTok video", usage: "Usage for 12 months.", exclusivity: null, payment: "Payment is net-60 after posting.", timeline: null } })).body;
+    expect(body).toContain("usage: Usage for 12 months; payment: Payment is net-60 after posting.");
+    expect(body).not.toMatch(/\.\./);
+    expect(body).not.toMatch(/\.;/);
+  });
   it("tone and length change the draft: short is shorter than detailed", () => {
     const short = starterEmail("cold_pitch", facts(), "short", "brief").body;
     const long = starterEmail("cold_pitch", facts(), "warm", "detailed").body;

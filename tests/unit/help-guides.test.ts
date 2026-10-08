@@ -12,7 +12,7 @@ import { parseGuide, SCREEN_ROUTES } from "../../app/lib/markdown";
 import { STUDIO_TOKEN, fillStudio, searchGuides, visibleGuides } from "../../app/lib/guides";
 import { FakeLlm } from "@worker/services/openrouter";
 
-const guides = (index.guides as { slug: string; screen: string }[]).map((g) => ({ ...g, parsed: parseGuide(readFileSync(path.resolve("help/guides", `${g.slug}.md`), "utf8")) }));
+const guides = (index.guides as { slug: string; screen: string; title: string; group: string }[]).map((g) => ({ ...g, parsed: parseGuide(readFileSync(path.resolve("help/guides", `${g.slug}.md`), "utf8")) }));
 
 describe("every help guide", () => {
   it("exists (Rule 0)", () => expect(guides.length).toBeGreaterThanOrEqual(60));
@@ -54,6 +54,11 @@ describe("the guides describe the product as it is", () => {
     expect(guides.find((g) => g.slug === "log-in")!.parsed.meta.title).toBe(entry.title);
     expect(visibleGuides("code").map((g) => g.slug)).toContain("log-in");
     expect(visibleGuides("open").map((g) => g.slug)).not.toContain("log-in");
+  });
+  it("Getting started walks Setup right after logging in: a client studio runs on its own keys", () => {
+    const list = /export const CHECKLIST = \[([^\]]*)\]/.exec(readFileSync("app/pages/Help.tsx", "utf8"))![1];
+    expect(list.split(",").map((x) => x.trim().replace(/"/g, "")).slice(0, 2)).toEqual(["log-in", "setup"]);
+    expect(guides.find((g) => g.slug === "setup")!.group).toBe("getting_started");
   });
   it("no guide names a studio: {{studio}} becomes this studio's own name", () => {
     const raw = (index.guides as { slug: string }[]).map((g) => [g.slug, readFileSync(path.resolve("help/guides", `${g.slug}.md`), "utf8")] as const);

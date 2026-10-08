@@ -14,7 +14,7 @@ import { log } from "../lib/log";
 import { parseJson, recordEvent, setHealth } from "../lib/db";
 import { newId, nowIso } from "../lib/ids";
 import { getConnectionSecret, listConnections, markConnection } from "../lib/connections";
-import { brandKey, clampFit, contactProblem, offLimitsTerms, violatesOffLimits, type ContactCandidate } from "../domain/brandfit";
+import { brandKey, clampFit, contactProblem, nicheWords, offLimitsTerms, violatesOffLimits, type ContactCandidate } from "../domain/brandfit";
 import { lockedProfile, readDraft, themeList } from "../routes/mediakit";
 import { cleanBudget, type BudgetSignal, type Evidence } from "../domain/prospects";
 import type { BriefBody } from "@shared/types";
@@ -189,7 +189,8 @@ export const brandFinderJob: JobHandler = {
       search_budget: mode === "daily" ? 8 : 30,
       day_of_year: Math.floor((Date.now() - Date.UTC(new Date().getUTCFullYear(), 0, 0)) / 86400_000),
       location: kit.location,
-      niche_words: ["hosting", "tablescape", "home", "entertaining", "lifestyle"],
+      // Her niche, from her own locked profile (never a hardcoded one: brandfit nicheWords).
+      niche_words: nicheWords(themeList(profile?.themes)),
       // Never suggest again: brands she declined, lost, or hid.
       never_again: closed.map((k) => brandKey(k)),
       themes: themeList(profile?.themes),

@@ -34,7 +34,7 @@ import { dispatchJob } from "../services/github";
 import { listConnections } from "../lib/connections";
 // Pitches link only her own clips: someone else's video (watermark check) is never sent to a brand.
 import { POSTABLE_CLIP_SQL } from "../domain/sourceCheck";
-import { brandKey, contactProblem, offLimitsTerms, sortContacts, validSentAt, violatesOffLimits, type ContactKind } from "../domain/brandfit";
+import { brandKey, contactProblem, offLimitsTerms, sortContacts, themeHit, validSentAt, violatesOffLimits, type ContactKind } from "../domain/brandfit";
 import { byUrgency, CLOSED_STAGES, DECLINE_REASONS, FOLLOWUP_DAYS, LOST_REASONS, canMove, moneyStrip, needsReason, nextAction, nextFollowup, type DealContext, type NextAction } from "../domain/deals";
 import { afterFollowupSent, followupsDone } from "../domain/brandfit";
 import { SCENARIOS, SCENARIO_KEYS, emailPrompt, parseEmail, starterEmail, suggestedScenario, type EmailFacts, type Length, type ScenarioKey, type Tone } from "../domain/emails";
@@ -748,10 +748,9 @@ async function readOffer(c: C, text: string, d: DealDb, b: BrandDb) {
   const kit = await readDraft(c.env);
   const t = termsOf(d);
   const pkg = kit.packages.find((p) => p.id === t.packageId) ?? kit.packages.find((p) => p.floor != null && p.target != null) ?? null;
-  const themes = themeList(profile?.themes).map((x) => x.toLowerCase());
-  const themeHit = themes.some((th) => text.toLowerCase().includes(th.split(" ")[0])) || /(home|host|table|decor|kitchen|candle|floral|gift|entertain)/i.test(text + b.name);
+  const onTheme = themeHit(`${text} ${b.name}`, themeList(profile?.themes));
   const offLimitsHit = violatesOffLimits({ name: b.name, website: b.website, categories: [text.slice(0, 2000)] }, offLimitsTerms(profile?.off_limits));
-  const verdict = qualify(terms, flags, { offLimitsHit, themeHit, floor: pkg?.floor ?? null, target: pkg?.target ?? null });
+  const verdict = qualify(terms, flags, { offLimitsHit, themeHit: onTheme, floor: pkg?.floor ?? null, target: pkg?.target ?? null });
   const id = newId("off");
   await c.env.DB.prepare("INSERT INTO deal_offers (id, deal_id, pasted, terms, flags, verdict, source) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(id, d.id, text, JSON.stringify(terms), JSON.stringify(flags), JSON.stringify(verdict), source).run();
   // Pre-fill what's blank on the deal from their email (she confirms on the memo; the offer stays labelled as theirs).

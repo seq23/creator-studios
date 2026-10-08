@@ -8,6 +8,9 @@ import { getElevenLabs } from "./elevenlabs";
 import { planMeta } from "../lib/premiumVoice";
 import { editorClient } from "./editors";
 import { editorDef, type ApiEditorId } from "../domain/editors";
+import { vendorStatusError } from "../lib/vendorStatus";
+
+export { vendorStatusError };
 
 export interface KeyCheck {
   ok: boolean;
@@ -18,8 +21,7 @@ export interface KeyCheck {
 export async function checkFirecrawl(env: Env, key: string): Promise<KeyCheck> {
   if (fakeServices(env)) return key.startsWith("bad") ? { ok: false, error: "Firecrawl says this key is not valid.", meta: {} } : { ok: true, error: null, meta: { credits_left: 980 } };
   const res = await fetch("https://api.firecrawl.dev/v1/team/credit-usage", { headers: { Authorization: `Bearer ${key}` } });
-  if (res.status === 401) return { ok: false, error: "Firecrawl says this key is not valid.", meta: {} };
-  if (!res.ok) return { ok: false, error: `Firecrawl answered ${res.status}`, meta: {} };
+  if (!res.ok) return { ok: false, error: vendorStatusError("Firecrawl", res.status), meta: {} };
   const data = (await res.json()) as { data?: { remaining_credits?: number } };
   return { ok: true, error: null, meta: { credits_left: data.data?.remaining_credits ?? null } };
 }
@@ -27,8 +29,7 @@ export async function checkFirecrawl(env: Env, key: string): Promise<KeyCheck> {
 export async function checkHunter(env: Env, key: string): Promise<KeyCheck> {
   if (fakeServices(env)) return key.startsWith("bad") ? { ok: false, error: "Hunter says this key is not valid.", meta: {} } : { ok: true, error: null, meta: { credits_left: 38, credits_total: 50 } };
   const res = await fetch(`https://api.hunter.io/v2/account?api_key=${encodeURIComponent(key)}`);
-  if (res.status === 401) return { ok: false, error: "Hunter says this key is not valid.", meta: {} };
-  if (!res.ok) return { ok: false, error: `Hunter answered ${res.status}`, meta: {} };
+  if (!res.ok) return { ok: false, error: vendorStatusError("Hunter", res.status), meta: {} };
   const data = (await res.json()) as { data?: { requests?: { searches?: { used?: number; available?: number } } } };
   const used = data.data?.requests?.searches?.used ?? 0;
   const total = data.data?.requests?.searches?.available ?? 50;
@@ -102,8 +103,7 @@ export async function checkResend(env: Env, key: string): Promise<KeyCheck> {
   }
   const body = await res.text().catch(() => "");
   if (res.status === 401 && /restricted_api_key/.test(body)) return { ok: true, error: null, meta: { domains: null, sending_only: true } };
-  if (res.status === 401 || res.status === 403) return { ok: false, error: "Resend says this key is not valid.", meta: {} };
-  return { ok: false, error: `Resend answered ${res.status}. Try again in a minute.`, meta: {} };
+  return { ok: false, error: vendorStatusError("Resend", res.status), meta: {} };
 }
 
 /** YouTube Data API key: the video categories list (1 quota unit, public data, read-only). */
@@ -115,7 +115,7 @@ export async function checkYouTubeKey(env: Env, key: string): Promise<KeyCheck> 
   if (/API_KEY_INVALID|keyInvalid|API key not valid/i.test(body)) return { ok: false, error: "Google says this key is not valid.", meta: {} };
   if (/accessNotConfigured|SERVICE_DISABLED|has not been used/i.test(body)) return { ok: false, error: "The key works, but the YouTube Data API v3 is not turned on in that Google Cloud project. Enable it, then test again.", meta: {} };
   if (/API_KEY_SERVICE_BLOCKED|blocked/i.test(body)) return { ok: false, error: "This key is restricted to other APIs. Allow the YouTube Data API v3 on it, then test again.", meta: {} };
-  return { ok: false, error: `Google answered ${res.status}. Try again in a minute.`, meta: {} };
+  return { ok: false, error: vendorStatusError("Google", res.status), meta: {} };
 }
 
 /**
@@ -144,7 +144,7 @@ export async function checkMetaApp(env: Env, appId: string, appSecret: string): 
   const res = await fetch(u.toString());
   if (res.ok) return { ok: true, error: null, meta: { app_id: appId } };
   if (res.status === 400 || res.status === 401) return { ok: false, error: "Meta says this App ID or App secret is wrong.", meta: {} };
-  return { ok: false, error: `Meta answered ${res.status}. Try again in a minute.`, meta: {} };
+  return { ok: false, error: vendorStatusError("Meta", res.status), meta: {} };
 }
 
 /** GitHub job runner: read the repository with the token (read-only) and confirm it can start jobs. */
@@ -156,7 +156,7 @@ export async function checkGithubRunner(env: Env, token: string, repo: string): 
   });
   if (res.status === 401) return { ok: false, error: "GitHub says this token is not valid.", meta: {} };
   if (res.status === 404) return { ok: false, error: "GitHub cannot see that repository with this token. Check the name and give the token access to it.", meta: {} };
-  if (!res.ok) return { ok: false, error: `GitHub answered ${res.status}. Try again in a minute.`, meta: {} };
+  if (!res.ok) return { ok: false, error: res.status === 403 ? "GitHub refused this token for that repository. Give it Contents: Read and write on it." : vendorStatusError("GitHub", res.status), meta: {} };
   const data = (await res.json().catch(() => ({}))) as { permissions?: { push?: boolean } };
   if (data.permissions && data.permissions.push === false) return { ok: false, error: "The token can read that repository but not start jobs in it. Give it Contents: Read and write.", meta: {} };
   return { ok: true, error: null, meta: { repo } };

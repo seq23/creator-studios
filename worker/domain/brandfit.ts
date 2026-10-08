@@ -186,3 +186,30 @@ export function validSentAt(input: string | null | undefined, now: Date): string
   if (d.getTime() < now.getTime() - 60 * 86400_000) return null;
   return d.toISOString();
 }
+
+// ---------------------------------------------------------------- the creator's own niche
+// Every studio's niche comes from ITS locked Brand Profile themes, never a hardcoded one. Until
+// 7 Oct 2026 the brand finder searched "hosting / tablescape / home decor" and the offer reader
+// counted any "home|table|gift" email as on-theme, for every studio (found live on sample1).
+
+const NICHE_STOP = new Set(["from", "with", "your", "that", "this", "into", "about", "what", "when", "where", "every", "their", "them", "they", "more", "less", "very", "just", "only", "most", "best", "easy", "tips", "ideas", "things", "stuff", "life", "daily", "weekly", "make", "made", "making", "anyone", "people"]);
+
+/** Up to `max` searchable niche words from the profile themes: the words before each theme's ":" (4+ letters, no filler). */
+export function nicheWords(themes: string[], max = 6): string[] {
+  const out: string[] = [];
+  for (const th of themes) {
+    const head = th.split(":")[0].toLowerCase();
+    for (const w of head.split(/[^a-z]+/)) {
+      if (w.length < 4 || NICHE_STOP.has(w) || out.includes(w)) continue;
+      out.push(w);
+      if (out.length >= max) return out;
+    }
+  }
+  return out;
+}
+
+/** True when the text names one of the creator's own niche words (stems, so "tablescapes" hits "tablescape"). */
+export function themeHit(text: string, themes: string[]): boolean {
+  const t = text.toLowerCase();
+  return nicheWords(themes, 12).some((w) => t.includes(w.length > 5 ? w.slice(0, -1) : w));
+}

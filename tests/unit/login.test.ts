@@ -61,6 +61,23 @@ describe("never open", () => {
     expect(await m.json()).toMatchObject({ email: "o@example.com", role: "owner", authMode: "code", appName: "Hadiyah Studio", ownerName: "Hadiyah" });
   });
 
+  it("Log out ends the session on the server, and every screen has the button (sample1, 7 Oct 2026: the route existed, nothing called it)", async () => {
+    const env = envFor({ OWNER_EMAIL: "o@example.com" });
+    const { dev_code } = (await (await post(env, "/api/auth/request", { email: "o@example.com" })).json()) as { dev_code: string };
+    const cookie = (await post(env, "/api/auth/verify", { email: "o@example.com", code: dev_code })).headers.get("set-cookie")!.split(";")[0];
+    expect((await app.request(`${BASE}/api/me`, { headers: { cookie } }, env)).status).toBe(200);
+    const out = await app.request(`${BASE}/api/auth/logout`, { method: "POST", headers: { cookie } }, env);
+    expect(out.status).toBe(200);
+    expect(out.headers.get("set-cookie") ?? "").toMatch(/Max-Age=0|expires=Thu, 01 Jan 1970/i);
+    // the old cookie is dead even if the browser kept it
+    expect((await app.request(`${BASE}/api/me`, { headers: { cookie } }, env)).status).toBe(401);
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM sessions").get()).toEqual({ n: 0 });
+    const shell = readFileSync(path.resolve(__dirname, "../../app/components/Shell.tsx"), "utf8");
+    expect(shell).toContain('post("/api/auth/logout")');
+    // the sidebar foot (desktop) and the Menu sheet (phone)
+    expect(shell.match(/<LogOutButton \/>/g)?.length).toBe(2);
+  });
+
   it("validator login-never-open passes on the repo and fails on an open config or an open branch (negative proof)", async () => {
     const root = path.resolve(__dirname, "../..");
     const r = await loginNeverOpen({ root });

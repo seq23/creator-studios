@@ -42,6 +42,20 @@ describe("each term quotes only its own sentence", () => {
     expect(t.payment).toBe("Payment is net-90 after posting.");
     expect(t.fee).toBe(600);
   });
+  it("one sentence carrying several terms is split: each term quotes only its own clause (sample1, 7 Oct 2026)", () => {
+    const t = extractTerms("Hi! We'd love 1 TikTok video for $500, usage rights for 12 months, net 60 payment. Exclusivity 6 months.");
+    expect(t.usage).toBe("usage rights for 12 months");
+    expect(t.payment).toBe("net 60 payment");
+    expect(t.exclusivity).toBe("Exclusivity 6 months.");
+    expect(t.fee).toBe(500);
+    expect(t.netDays).toBe(60);
+    const bad = extractTerms(BAD);
+    expect(bad.usage).toBe("We'll need usage rights in perpetuity across all media");
+    expect(bad.exclusivity).toBe("exclusivity with no other home brands for 6 months");
+  });
+  it("a sentence with one term is still quoted whole, commas and all", () => {
+    expect(extractTerms("Usage rights for 30 days, paid social only.").usage).toBe("Usage rights for 30 days, paid social only.");
+  });
 });
 
 describe("red flags, in plain English", () => {

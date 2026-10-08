@@ -89,7 +89,8 @@ describe("an empty real studio runs entirely in practice mode", () => {
     const { refreshYouTubePublic } = await import("@worker/lib/publicStats");
     expect((await refreshYouTubePublic(h)).state).toBe("no_key");
     const light = await h.DB.prepare("SELECT light, note FROM health WHERE name = 'YouTube stats'").first<{ light: string; note: string }>();
-    expect(light).toMatchObject({ light: "yellow" });
+    // Practice is grey like every practice light (never "Something needs you" on a fresh studio).
+    expect(light).toMatchObject({ light: "grey" });
     expect(light?.note).toMatch(/^Practice mode: .*Setup/);
     expect(typeof getYouTubeDirect(h).listVideos).toBe("function");
     expect(vendorCalls).toEqual([]);
@@ -115,6 +116,32 @@ describe("an empty real studio runs entirely in practice mode", () => {
       { name: "Email (Resend)", light: "grey", fix_guide: "setup-email" },
       { name: "Job runner (GitHub)", light: "grey", fix_guide: "setup-job-runner" },
     ]);
+  });
+});
+
+describe("a fresh studio's health board is calm: practice is grey, never 'Something needs you'", () => {
+  it("Check everything now with no Buffer key paints Buffer grey (Practice mode, Setup guide) and every light green or grey (sample1, 7 Oct 2026)", async () => {
+    const h = await hydrate(env);
+    const { recheckEverything } = await import("@worker/crons/buffer-sync");
+    await recheckEverything(h);
+    const buffer = await h.DB.prepare("SELECT light, note, fix_guide FROM health WHERE name = 'Buffer'").first<{ light: string; note: string; fix_guide: string }>();
+    expect(buffer).toMatchObject({ light: "grey", fix_guide: "connect-buffer" });
+    expect(buffer?.note).toMatch(/^Practice mode · /);
+    const lights = (await h.DB.prepare("SELECT name, light FROM health").all<{ name: string; light: string }>()).results;
+    expect(lights.length).toBeGreaterThanOrEqual(5);
+    // app/components/Shell.tsx: allOk = every light green or grey
+    expect(lights.filter((l) => l.light !== "green" && l.light !== "grey")).toEqual([]);
+    expect(vendorCalls).toEqual([]);
+  });
+  it("a studio WITH a Buffer key that stops answering is still yellow/red, never hidden as practice", async () => {
+    await saveConnection(env, "buffer", "studio-own-buffer-key", "ok", {});
+    const h = await hydrate(env);
+    expect(h.PRACTICE).not.toContain("buffer");
+    const { recheckEverything } = await import("@worker/crons/buffer-sync");
+    await recheckEverything(h).catch(() => undefined);
+    const buffer = await h.DB.prepare("SELECT light, note FROM health WHERE name = 'Buffer'").first<{ light: string; note: string }>();
+    expect(["red", "yellow"]).toContain(buffer?.light);
+    expect(buffer?.note).not.toMatch(/Practice mode/);
   });
 });
 

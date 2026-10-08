@@ -3,6 +3,7 @@
 import type { Env } from "../env";
 import { fakeServices } from "../env";
 import { getConnectionSecret } from "../lib/connections";
+import { vendorStatusError } from "../lib/vendorStatus";
 
 export const FREE_MODEL = "openrouter/free";
 
@@ -93,8 +94,7 @@ class RealLlm implements LlmClient {
   }
   async checkKey() {
     const res = await fetch("https://openrouter.ai/api/v1/auth/key", { headers: { Authorization: `Bearer ${this.key}` } });
-    if (res.status === 401) return { ok: false, error: "OpenRouter says this key is not valid." };
-    if (!res.ok) return { ok: false, error: `OpenRouter answered ${res.status}` };
+    if (!res.ok) return { ok: false, error: vendorStatusError("OpenRouter", res.status) };
     return { ok: true, error: null };
   }
 }

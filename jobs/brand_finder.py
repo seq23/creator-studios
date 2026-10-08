@@ -5,11 +5,11 @@ Sources, all read from PUBLIC pages and search results (never a logged-in Instag
 page; social links are used only as the search engine lists them):
   1. brands she listed herself (find their contact route);
   2. brands already paying creators in her niche: sponsored / #ad / paid-partnership posts by
-     creators near her size in hosting, tablescape, home, entertaining and lifestyle, and by the
+     creators near her size in her own niche words (from her profile themes), and by the
      comparable creators in her Research Brief;
   3. brands with creator / ambassador / affiliate programs ("work with us", "creator program");
-  4. local money: event venues, rental companies, florists and party vendors near her that hire
-     creators (only when her kit has a location);
+  4. local money: businesses in her niche near her that hire creators (only when her kit has a
+     location);
   5. agencies that book creators (open rosters, brand-side agencies in her niche): kind "agency".
 
 Every brand carries: kind, a budget signal (paying / likely / unproven) with evidence lines,
@@ -100,9 +100,15 @@ def llm(key: str | None, system: str, user: str) -> dict[str, Any] | None:
 
 
 def queries(spec: dict[str, Any]) -> list[tuple[str, str]]:
-    """(group, query) pairs, money-first. Groups: paying, program, local, agency."""
-    themes: list[str] = [str(t) for t in (spec.get("themes") or [])][:4] or ["hosting"]
-    niche = spec.get("niche_words") or ["hosting", "tablescape", "home", "entertaining", "lifestyle"]
+    """(group, query) pairs, money-first. Groups: paying, program, local, agency.
+
+    Every query is built from HER niche (spec niche_words, from her locked profile themes), never a
+    hardcoded one: until 7 Oct 2026 every studio searched hosting / tablescape / home decor."""
+    themes: list[str] = [str(t) for t in (spec.get("themes") or [])][:4]
+    niche: list[str] = [str(w) for w in (spec.get("niche_words") or []) if str(w).strip()]
+    if not niche:
+        niche = [t.split(":")[0].strip().lower() for t in themes if t.strip()] or ["lifestyle"]
+    lead = niche[0]
     out: list[tuple[str, str]] = []
     for c in (spec.get("comparable_creators") or [])[:4]:
         h = str(c.get("handle", "")).lstrip("@")
@@ -112,13 +118,14 @@ def queries(spec: dict[str, Any]) -> list[tuple[str, str]]:
         out.append(("paying", f'{w} creator "#ad" "paid partnership" brand'))
     for t in themes:
         out.append(("program", f"{t} brand creator program OR ambassador program OR \"work with us\" influencer"))
-    out.append(("program", "home decor tableware brand influencer program apply"))
+    out.append(("program", f"{lead} brand influencer program apply"))
     loc = (spec.get("location") or "").strip()
     if loc:
-        for v in ("event rentals", "florist", "wedding venue", "party rentals"):
-            out.append(("local", f"{v} {loc} content creator collaboration"))
-    out.append(("agency", "influencer agency home lifestyle creators roster apply"))
-    out.append(("agency", "talent agency lifestyle creators accepting submissions home decor"))
+        for w in niche[:2]:
+            out.append(("local", f"{w} business {loc} content creator collaboration"))
+        out.append(("local", f"local brands {loc} content creator collaboration"))
+    out.append(("agency", f"influencer agency {lead} creators roster apply"))
+    out.append(("agency", f"talent agency {lead} creators accepting submissions"))
     return out
 
 
@@ -186,7 +193,7 @@ def hunter_role_emails(key: str, domain: str) -> list[dict[str, str]]:
 
 
 SYSTEM = (
-    "You pick brands that pay creators, for a home / hosting / tablescape / lifestyle creator. From the search results "
+    "You pick brands that pay creators, for the creator whose themes, deal fit and audience are given. From the search results "
     "(each has an id, url, title, description, group), list real companies: brands, local vendors (group local), or "
     "agencies that book creators (group agency). Not creators, not marketplaces, not news sites. Never include anything "
     "matching the off-limits list. For each: name, website (the company's own site), kind (brand|agency|local), "
