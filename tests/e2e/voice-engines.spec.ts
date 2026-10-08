@@ -99,7 +99,7 @@ test.describe("voice engines: built-in and ElevenLabs premium", () => {
     await expect(engine.getByText("ElevenLabs is connected and your premium voice is ready.")).toBeVisible();
 
     // Narrate → Premium, ready at once, and it plays
-    await generate(page, "Welcome back to the table, friends. Today is all about spring.");
+    await generate(page, "Welcome back, friends. Today is all about spring.");
     await expect(page.locator(".toast").last()).toContainText("Your premium voice over is ready below");
     await expect(newest(page).locator(".engine-tag")).toHaveText("Premium");
     const player = newest(page).getByLabel("Play voice over");

@@ -102,7 +102,7 @@ test.describe("voice", () => {
     await page.locator(`[data-narration="${id}"]`).getByRole("button", { name: "Attach to clip" }).click();
     const [att] = await Promise.all([
       page.waitForResponse((r) => r.url().endsWith(`/api/voice/narrations/${id}`) && r.request().method() === "PATCH"),
-      page.getByRole("dialog").getByRole("button", { name: "Set a brunch table in 60 seconds" }).click(),
+      page.getByRole("dialog").getByRole("button", { name: "My morning routine in 60 seconds" }).click(),
     ]);
     const attached = (await att.json()) as { mixing: boolean; jobId: string };
     expect(attached.mixing).toBe(true);

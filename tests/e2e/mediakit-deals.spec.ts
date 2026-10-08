@@ -55,7 +55,7 @@ test.describe("media kit", () => {
     await expect(page.locator(".rc-help").first()).toContainText("Later's 2026 range");
 
     // typed inputs autosave
-    await page.getByLabel("One line under your name").fill("Hosting that makes every guest feel celebrated.");
+    await page.getByLabel("One line under your name").fill("Small habits that make every day feel easier.");
     await page.getByLabel("TikTok handle").fill("samplecreator");
     await expect(page.locator(".kit-bar")).toContainText(/Draft saved/, { timeout: 10_000 });
     await shot(page, "kit-02-filled");
@@ -63,7 +63,7 @@ test.describe("media kit", () => {
     // preview is exactly what brands see, and still not public
     await page.getByRole("button", { name: "Preview" }).click();
     const preview = page.getByRole("dialog", { name: "Preview: what brands see" });
-    await expect(preview).toContainText("Hosting that makes every guest feel celebrated.");
+    await expect(preview).toContainText("Small habits that make every day feel easier.");
     await expect(preview).toContainText("Preview: not published.");
     await pub.reload();
     await expect(pub.getByRole("heading", { name: "No media kit here" })).toBeVisible();
@@ -145,7 +145,7 @@ test.describe("media kit", () => {
     // the page's share preview names her
     const html = await (await pub.request.get("/kit/studio")).text();
     expect(html).toContain("<title>Sample Creator · media kit</title>");
-    expect(html).toMatch(/og:description" content="Hosting that makes every guest feel celebrated\./);
+    expect(html).toMatch(/og:description" content="Everyday routines that make busy days feel easy\./);
     await shot(pub, "kit-04-public-phone-or-desktop");
 
     await pub.goto("/kit/studio/print");
@@ -206,19 +206,19 @@ test.describe("brand deals", () => {
   test("a deal from cold pitch to paid: every step names its email, every scenario drafts", async ({ page }) => {
     test.setTimeout(180_000);
     await page.goto("/deals");
-    await page.locator(".deal-card", { hasText: "Golden Hour Tableware" }).click();
-    await expect(page.getByRole("heading", { name: "Golden Hour Tableware", level: 2 })).toBeVisible();
+    await page.locator(".deal-card", { hasText: "Brightside Bottle Co." }).click();
+    await expect(page.getByRole("heading", { name: "Brightside Bottle Co.", level: 2 })).toBeVisible();
     await expect(page.locator(".next-card")).toContainText("Send your pitch");
     const subject = page.getByLabel("Subject", { exact: true });
     const gmail = () => page.getByRole("link", { name: "Open in Gmail" }).getAttribute("href");
     const url = new URL((await gmail())!);
     expect(url.origin + url.pathname).toBe("https://mail.google.com/mail/");
-    expect(url.searchParams.get("to")).toBe("partnerships@goldenhourtable.example");
+    expect(url.searchParams.get("to")).toBe("partnerships@brightsidebottle.example");
     expect(url.searchParams.get("su")).toBe(await subject.inputValue());
     expect(await gmail()).not.toContain("+");
-    await subject.fill("Brunch tables × Golden Hour");
+    await subject.fill("Morning routines × Brightside");
     await subject.blur();
-    await expect.poll(async () => new URL((await gmail())!).searchParams.get("su")).toBe("Brunch tables × Golden Hour");
+    await expect.poll(async () => new URL((await gmail())!).searchParams.get("su")).toBe("Morning routines × Brightside");
     await shot(page, "deals-02-pitch");
 
     await page.getByRole("button", { name: "Mark sent" }).click();
@@ -231,9 +231,9 @@ test.describe("brand deals", () => {
     // Home and the Monday recap carry the same due email
     await page.goto("/");
     const followups = page.locator("section", { has: page.getByRole("heading", { name: "Follow-ups" }) });
-    await expect(followups).toContainText("Golden Hour Tableware");
+    await expect(followups).toContainText("Brightside Bottle Co.");
     // The row names the step (not a generic "Follow up") and opens that deal, not the Deals list.
-    const row = followups.locator("a.list-row", { hasText: "Golden Hour Tableware" });
+    const row = followups.locator("a.list-row", { hasText: "Brightside Bottle Co." });
     await expect(row.locator(".title")).toContainText("follow-up 1", { ignoreCase: true });
     await expect(row.locator(".pill")).toContainText(/^(Due|Overdue) /);
     await expect(row).toHaveAttribute("href", /\/deals\?deal=/);
@@ -248,7 +248,7 @@ test.describe("brand deals", () => {
     }
 
     await page.goto("/deals");
-    await page.locator(".deal-card", { hasText: "Golden Hour Tableware" }).click();
+    await page.locator(".deal-card", { hasText: "Brightside Bottle Co." }).click();
     const dealId = new URL(page.url()).searchParams.get("deal")!;
     // a move the pipeline does not allow is refused, with a fix guide
     const bad = await page.request.post(`/api/deals/deals/${dealId}/stage`, { data: { stage: "paid" } });
@@ -292,7 +292,7 @@ test.describe("brand deals", () => {
 
     // delivery: a deliverable starts it; the checklist runs it; the day-7 report is next
     await page.getByLabel("Due date", { exact: true }).fill(new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10));
-    await page.getByLabel("Note", { exact: true }).fill("Brunch table video");
+    await page.getByLabel("Note", { exact: true }).fill("Morning routine video");
     await page.getByRole("button", { name: "Add", exact: true }).click();
     await expect(page.locator(".next-card")).toContainText("Send your draft for approval");
     for (const step of ["Draft sent for approval", /Approved \(/, "Posted with #ad and the paid-partnership label"]) {
@@ -308,13 +308,13 @@ test.describe("brand deals", () => {
     const inv = await page.request.get(`/api/deals/deals/${dealId}/invoice`);
     expect(inv.status()).toBe(200);
     const invHtml = await inv.text();
-    expect(invHtml).toContain("Golden Hour Tableware");
+    expect(invHtml).toContain("Brightside Bottle Co.");
     expect(invHtml).toContain("$900.00");
     expect(invHtml).toMatch(/Net-30/);
     await page.locator(".delivery-card").getByRole("button", { name: "Mark paid" }).click();
     await expect(page.locator(".next-card")).toContainText("Say thank you, then close it");
     const kit = (await (await page.request.get("/api/mediakit")).json()) as { draft: { collabs: { brand: string }[] } };
-    expect(kit.draft.collabs.map((c) => c.brand)).toContain("Golden Hour Tableware");
+    expect(kit.draft.collabs.map((c) => c.brand)).toContain("Brightside Bottle Co.");
 
     await page.goto("/deals");
     const money = page.getByRole("region", { name: "Money" });
@@ -326,13 +326,13 @@ test.describe("brand deals", () => {
     await page.goto("/deals");
     await page.getByRole("button", { name: "A brand wrote to me" }).click();
     const dialog = page.getByRole("dialog", { name: "A brand wrote to me" });
-    await dialog.getByLabel("Brand name").fill("Linen & Lark");
+    await dialog.getByLabel("Brand name").fill("Bright Lane Goods");
     await dialog.getByLabel("Their website (optional)").fill("linenlark.example");
     await dialog
       .getByLabel("Paste what the brand sent")
-      .fill("Hi Sam! We'd love 2 TikTok videos for our napkin launch. Our budget is $600. We need usage rights in perpetuity across all media and exclusivity with no other home brands for 6 months. Payment is net-90 after posting.");
+      .fill("Hi Sam! We'd love 2 TikTok videos for our tumbler launch. Our budget is $600. We need usage rights in perpetuity across all media and exclusivity with no other home brands for 6 months. Payment is net-90 after posting.");
     await dialog.getByRole("button", { name: "Read it" }).click();
-    await expect(page.getByRole("heading", { name: "Linen & Lark", level: 2 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Bright Lane Goods", level: 2 })).toBeVisible();
     const offer = page.locator(".offer-read");
     await expect(offer.locator(".from").first()).toHaveText("from their email");
     await expect(offer).toContainText("$600");

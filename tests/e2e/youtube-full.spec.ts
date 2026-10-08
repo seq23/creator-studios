@@ -86,10 +86,10 @@ test("Dump: the third card, one video, size and free space, then Review: thumbna
 
   await item.getByRole("button", { name: "Edit title, description, chapters & tags" }).click();
   const dialog = page.getByRole("dialog", { name: "Edit your YouTube video" });
-  await dialog.getByLabel("Title").fill("A brunch table for twelve");
-  await dialog.getByLabel("Tags").fill("brunch, tablescape, hosting");
+  await dialog.getByLabel("Title").fill("A morning routine for busy weeks");
+  await dialog.getByLabel("Tags").fill("morning, routine, tips");
   await dialog.getByRole("button", { name: "Save" }).click();
-  await expect(item.locator(".fv-title")).toHaveText("A brunch table for twelve");
+  await expect(item.locator(".fv-title")).toHaveText("A morning routine for busy weeks");
 
   await item.getByRole("button", { name: "Approve" }).click();
   await expect(page.locator(".toast").first()).toContainText("Approved");
@@ -97,5 +97,5 @@ test("Dump: the third card, one video, size and free space, then Review: thumbna
   const g = body.groups.find((x) => x.dump.id === dumpId)!;
   expect(g.dump.door).toBe("youtube");
   expect(g.clips[0].platforms).toEqual(["youtube"]);
-  expect(g.clips[0].full_video).toMatchObject({ privacy: "unlisted", thumb_pick: 1, tags: ["brunch", "tablescape", "hosting"] });
+  expect(g.clips[0].full_video).toMatchObject({ privacy: "unlisted", thumb_pick: 1, tags: ["morning", "routine", "tips"] });
 });

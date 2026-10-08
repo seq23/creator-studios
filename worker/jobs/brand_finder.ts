@@ -291,8 +291,8 @@ export function fakeBrands(theme: string): FinderBrand[] {
     b("Aurelia & Co.", "aurelia.example", 0.78, ["Visual style fit", "Brand tone matches your voice"], "Launched a new collection last week", [{ kind: "agency", value: "talent@brightline-agency.example", found_on_url: "https://aurelia.example/press" }], {
       why: [ev("New collection launched 18 Sep", "https://aurelia.example/collections/new")],
     }),
-    b("Petal Post Florals", "petalpost.example", 0.74, ["Their products appear in your top clips"], "Paid partnership posts with 4 lifestyle creators in September", [{ kind: "role_email", value: "creators@petalpost.example", found_on_url: "https://petalpost.example/creators" }], {
-      budget: { level: "paying", evidence: [ev("Paid partnership posts with 4 lifestyle creators in September", "https://www.instagram.com/petalpost/tagged")] },
+    b("Fieldnote Paper Co.", "fieldnotepaper.example", 0.74, ["Their products appear in your top clips"], "Paid partnership posts with 4 lifestyle creators in September", [{ kind: "role_email", value: "creators@fieldnotepaper.example", found_on_url: "https://fieldnotepaper.example/creators" }], {
+      budget: { level: "paying", evidence: [ev("Paid partnership posts with 4 lifestyle creators in September", "https://www.instagram.com/fieldnotepaper/tagged")] },
     }),
     b("Brightline Creator Agency", "brightline-agency.example", 0.72, ["Books creators like you for brand campaigns"], "Open roster call for creators", [{ kind: "role_email", value: "talent@brightline-agency.example", found_on_url: "https://brightline-agency.example/creators" }], {
       kind: "agency",

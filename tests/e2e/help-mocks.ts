@@ -289,9 +289,9 @@ export const MOCKS: Record<string, Frame> = {
 
   // YouTube Studio: the two things Buffer can't send (a custom thumbnail, tags), and her own upload
   "youtube-studio-details": apiPage("YouTube Studio", "studio.youtube.com/video/…/edit", ["Dashboard", "Content", "Analytics"], "Content", "Video details", [
-    { k: "field", label: "Title", value: "Sunday brunch table, start to finish" },
+    { k: "field", label: "Title", value: "Sunday morning routine, start to finish" },
     { k: "file", v: "Thumbnail", meta: "Upload file: the one you downloaded", hl: true },
-    { k: "field", label: "Tags", value: "tablescape, brunch, hosting" },
+    { k: "field", label: "Tags", value: "morning routine, daily tips, sunday reset" },
     { k: "btn", v: "Save" },
   ]),
   "youtube-upload": apiPage("YouTube Studio", "youtube.com/upload", ["Dashboard", "Content", "Analytics"], "Content", "Upload videos", [
@@ -323,8 +323,8 @@ export const MOCKS: Record<string, Frame> = {
   ]),
   "gmail-send": apiPage("Gmail", "mail.google.com · New message", ["Inbox", "Sent", "Drafts"], "Inbox", "New message", [
     { k: "field", label: "To", value: "partnerships@brand.example" },
-    { k: "field", label: "Subject", value: "An idea for your brand: table styling content" },
-    { k: "p", v: "Hi team, I'm Sam, a table styling and easy entertaining creator…" },
+    { k: "field", label: "Subject", value: "An idea for your brand: morning routine content" },
+    { k: "p", v: "Hi team, I'm Sam, an everyday lifestyle and quick-tips creator…" },
     { k: "btn", v: "Send", hl: true },
   ]),
 };

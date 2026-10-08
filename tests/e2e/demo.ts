@@ -120,7 +120,7 @@ export async function seedHelpBaseline(request: APIRequestContext) {
   d1(["--command", helpPostsSql(new Date())]);
   const offer = await request.post("/api/deals/deals/demo_deal_4/offer", {
     data: {
-      text: "Hi Sam! We love your table styling videos. We'd like 2 TikTok videos and 1 Instagram Reel featuring our new linen napkins for our holiday launch. Our budget is $600 total. We'd need usage rights in perpetuity across all our channels including paid ads, and exclusivity in home textiles for 6 months. Payment is net 90 after posting. Can you post by Oct 20? Best, Priya, Linen & Laurel",
+      text: "Hi Sam! We love your morning routine videos. We'd like 2 TikTok videos and 1 Instagram Reel featuring our new travel tumbler for our holiday launch. Our budget is $600 total. We'd need usage rights in perpetuity across all our channels including paid ads, and exclusivity in drinkware for 6 months. Payment is net 90 after posting. Can you post by Oct 20? Best, Priya, Lark & Laurel",
     },
   });
   if (!offer.ok()) throw new Error(`demo: offer reader refused: ${offer.status()}`);
