@@ -132,12 +132,12 @@ function StepCard({ n, step, status, view, onChange }: { n: number; step: SetupS
           </ol>
           {step.id === "google_app" ? (
             <p className="hint">
-              Redirect address: <code className="mono">{view.redirects.google}</code>
+              Redirect address: <code className="mono setup-url">{view.redirects.google}</code>
             </p>
           ) : null}
           {step.id === "meta_app" ? (
             <p className="hint">
-              Redirect address: <code className="mono">{view.redirects.meta}</code>
+              Redirect address: <code className="mono setup-url">{view.redirects.meta}</code>
             </p>
           ) : null}
           {step.id === "github" && view.job_secret ? (

@@ -249,7 +249,7 @@ export function KitEditor() {
           </label>
           <label className="field">
             <span className="label">Your niche, in a few words</span>
-            <input className="input" maxLength={90} placeholder="Hosting · tablescapes · everyday luxury" value={draft.niche} onChange={(e) => change("niche", e.target.value)} />
+            <input className="input" maxLength={90} placeholder="What you make, in a few words" value={draft.niche} onChange={(e) => change("niche", e.target.value)} />
           </label>
           <label className="field">
             <span className="label">Where you are</span>

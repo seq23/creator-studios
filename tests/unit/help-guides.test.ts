@@ -9,7 +9,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import index from "../../help/index.json";
 import { parseGuide, SCREEN_ROUTES } from "../../app/lib/markdown";
-import { searchGuides, visibleGuides } from "../../app/lib/guides";
+import { STUDIO_TOKEN, fillStudio, searchGuides, visibleGuides } from "../../app/lib/guides";
 import { FakeLlm } from "@worker/services/openrouter";
 
 const guides = (index.guides as { slug: string; screen: string }[]).map((g) => ({ ...g, parsed: parseGuide(readFileSync(path.resolve("help/guides", `${g.slug}.md`), "utf8")) }));
@@ -41,10 +41,30 @@ describe("the guides describe the product as it is", () => {
     for (const slug of ["connect-meta", "connect-google", "reconnect-meta", "reconnect-google"]) expect(text(slug), slug).toMatch(/optional|never need|keep working without/);
     expect(text("connect-stats")).toContain("never need a google or instagram sign-in");
   });
-  it("the login guide is for the test copy only, and production hides it", () => {
-    expect(text("log-in")).toContain("does not ask you to log in");
-    expect(visibleGuides("open").map((g) => g.slug)).not.toContain("log-in");
+  it("the login guide describes the email code every studio uses (CLAUDE.md: never \"open\"), and shows in code mode", () => {
+    // 7 Oct 2026 click-through of Hadiyah's live studio: the guide still said "your own dashboard
+    // does not ask you to log in ... only the test copy" (Sheila's open-mode production). Every
+    // studio here logs in with the code, so the guide says exactly that and nothing about a copy.
+    const t = text("log-in");
+    expect(t).toContain("6-digit code");
+    expect(t).toContain("has no password");
+    expect(t).not.toMatch(/test copy|does not ask you to log in|opens straight to home/);
+    const entry = (index.guides as { slug: string; title: string }[]).find((g) => g.slug === "log-in")!;
+    expect(entry.title).toBe("Log in with an email code");
+    expect(guides.find((g) => g.slug === "log-in")!.parsed.meta.title).toBe(entry.title);
     expect(visibleGuides("code").map((g) => g.slug)).toContain("log-in");
+    expect(visibleGuides("open").map((g) => g.slug)).not.toContain("log-in");
+  });
+  it("no guide names a studio: {{studio}} becomes this studio's own name", () => {
+    const raw = (index.guides as { slug: string }[]).map((g) => [g.slug, readFileSync(path.resolve("help/guides", `${g.slug}.md`), "utf8")] as const);
+    for (const [slug, r] of raw) expect(r, slug).not.toMatch(/Sample Studio|Sample \d|Sheila|Hadiyah|Mercedes/);
+    const tokened = raw.filter(([, r]) => r.includes(STUDIO_TOKEN));
+    expect(tokened.length).toBeGreaterThanOrEqual(9); // the connect-* key-naming steps and log-in
+    for (const [slug, r] of tokened) {
+      const filled = fillStudio(r, "Hadiyah Studio");
+      expect(filled, slug).not.toContain("{{");
+      expect(filled, slug).toContain("Hadiyah Studio");
+    }
   });
   it("every feature the dashboard has today has a guide", () => {
     const slugs = new Set(guides.map((g) => g.slug));

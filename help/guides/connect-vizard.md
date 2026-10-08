@@ -14,7 +14,7 @@ Vizard cuts your dumps into clips using your Vizard credits, instead of the buil
 ![Step 1](/help/screenshots/connect-vizard-1.png)
 <!-- mock: vizard-api -->
 
-Log in at **vizard.ai** and open its API page (paid plans). Create a key named Sample Studio and copy it.
+Log in at **vizard.ai** and open its API page (paid plans). Create a key named {{studio}} and copy it.
 
 ## Paste it and tap Check key
 

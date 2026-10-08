@@ -5,6 +5,7 @@
 // same way; a step whose picture has not been made yet shows a placeholder frame instead.
 import index from "../../help/index.json";
 import { parseGuide, type ParsedGuide } from "./markdown";
+import { studio } from "./studio-current";
 
 const RAW = import.meta.glob("/help/guides/*.md", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
 const SHOTS = import.meta.glob("/help/screenshots/*.png", { query: "?url", import: "default", eager: true }) as Record<string, string>;
@@ -32,12 +33,21 @@ export function visibleGuides(mode: "open" | "code" | undefined): IndexGuide[] {
 
 const cache = new Map<string, ParsedGuide>();
 
+/**
+ * The guides are shared by every studio, so they never name one: `{{studio}}` stands for this
+ * studio's own name (GET /api/studio), filled in here. A guide that said "Sample Studio" on
+ * Hadiyah's studio told her to name keys after someone else's (7 Oct 2026 click-through).
+ */
+export const STUDIO_TOKEN = "{{studio}}";
+export const fillStudio = (raw: string, appName: string = studio().appName): string => raw.split(STUDIO_TOKEN).join(appName);
+
 export function guide(slug: string): ParsedGuide | null {
-  if (cache.has(slug)) return cache.get(slug)!;
+  const key = `${studio().appName}\u0000${slug}`;
+  if (cache.has(key)) return cache.get(key)!;
   const raw = RAW[`/help/guides/${slug}.md`];
   if (raw === undefined) return null;
-  const g = parseGuide(raw);
-  cache.set(slug, g);
+  const g = parseGuide(fillStudio(raw));
+  cache.set(key, g);
   return g;
 }
 

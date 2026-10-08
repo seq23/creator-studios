@@ -504,7 +504,7 @@ function MemoPanel({ d, onChanged }: { d: DealDetail; onChanged: () => void }) {
           </label>
           <label className="field">
             <span className="label">Your idea for them (goes in the pitch)</span>
-            <input className="input" defaultValue={t.idea ?? ""} key={`idea-${t.idea}`} onBlur={(e) => save({ idea: e.target.value })} placeholder="a 30-second Sunday brunch reset with your stoneware" />
+            <input className="input" defaultValue={t.idea ?? ""} key={`idea-${t.idea}`} onBlur={(e) => save({ idea: e.target.value })} placeholder="a 30-second video using their product in your routine" />
           </label>
           <label className="field">
             <span className="label">Usage on their channels (days)</span>
@@ -520,7 +520,7 @@ function MemoPanel({ d, onChanged }: { d: DealDetail; onChanged: () => void }) {
           </label>
           <label className="field">
             <span className="label">Exclusivity category</span>
-            <input className="input" defaultValue={t.exclusivityCategory ?? ""} key={`exc-${t.exclusivityCategory}`} onBlur={(e) => save({ exclusivityCategory: e.target.value })} placeholder="candles" />
+            <input className="input" defaultValue={t.exclusivityCategory ?? ""} key={`exc-${t.exclusivityCategory}`} onBlur={(e) => save({ exclusivityCategory: e.target.value })} placeholder="their product category" />
           </label>
           <label className="field">
             <span className="label">Draft to them by</span>

@@ -14,7 +14,7 @@ Submagic adds animated captions to your clips using your Submagic credits, inste
 ![Step 1](/help/screenshots/connect-submagic-1.png)
 <!-- mock: submagic-api -->
 
-Log in at **submagic.co** and open its API page (the Business + API plan). Create a key named Sample Studio and copy it.
+Log in at **submagic.co** and open its API page (the Business + API plan). Create a key named {{studio}} and copy it.
 
 ## Paste it and tap Check key
 
