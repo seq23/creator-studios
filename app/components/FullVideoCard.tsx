@@ -287,7 +287,7 @@ function EditFull({ clip, v, onClose, onSaved }: { clip: Clip; v: FullVideo; onC
       </fieldset>
       <div className="field">
         <label htmlFor="fv-tags">Tags</label>
-        <input id="fv-tags" className="input" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="brunch, tablescape, hosting" />
+        <input id="fv-tags" className="input" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="three or four words people search for" />
         <span className="hint">Separated by commas. {v.direct.mode === "on" ? "They go up to YouTube with the video." : "You paste these in YouTube Studio after it posts."}</span>
       </div>
       <div className="btn-row">

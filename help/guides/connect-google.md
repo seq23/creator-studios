@@ -22,7 +22,7 @@ On **Stats**, under **Extra detail (optional)**, tap **Connect with Google (opti
 ![Step 2](/help/screenshots/connect-google-2.png)
 <!-- mock: google-unverified -->
 
-Google may say it hasn't verified the app yet. That is expected: tap **Advanced**, then **Go to Sample Studio**.
+Google may say it hasn't verified the app yet. That is expected: tap **Advanced**, then **Go to {{studio}}**.
 
 ## Pick your account
 

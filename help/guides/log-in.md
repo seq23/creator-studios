@@ -1,19 +1,19 @@
 ---
-title: "Log in (test copy only)"
+title: "Log in with an email code"
 group: getting_started
 screen: login
 last_checked: 2026-09-26
 keywords: login, sign in, code, password
 ---
 
-Your own dashboard does not ask you to log in: it opens straight to Home. Only the test copy asks for an email code, and this guide is for that copy.
+{{studio}} has no password. Every time you log in on a new phone or computer, it emails you a 6-digit code.
 
-## Open the test copy
+## Open your studio
 
 ![Step 1](/help/screenshots/log-in-1.png)
 <!-- target: .login-card -->
 
-Open the test copy's link on your phone or computer.
+Open your studio's link on your phone or computer.
 
 ## Type your email
 
@@ -27,7 +27,7 @@ Type your email and tap **Email me a code**.
 ![Step 3](/help/screenshots/log-in-3.png)
 <!-- mock: email-login-code -->
 
-Open the email from Sample Studio and find the 6-digit code.
+Open the email from {{studio}} and find the 6-digit code.
 
 ## Type the code
 

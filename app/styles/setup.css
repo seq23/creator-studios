@@ -24,7 +24,13 @@
   margin: 0;
   padding: 0;
   display: grid;
+  /* minmax(0, 1fr), not the implicit auto track: an auto track grows to its longest unbroken
+     line (a studio's redirect address), pushing every card past a 390 px phone screen. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-sm);
+}
+.setup-url {
+  overflow-wrap: anywhere;
 }
 .setup-step-head {
   display: flex;

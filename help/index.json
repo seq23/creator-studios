@@ -49,7 +49,7 @@
     },
     {
       "slug": "log-in",
-      "title": "Log in (test copy only)",
+      "title": "Log in with an email code",
       "group": "getting_started",
       "screen": "login"
     },

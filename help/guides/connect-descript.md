@@ -14,7 +14,7 @@ Descript polishes each clip (clean sound, filler words out) using your Descript 
 ![Step 1](/help/screenshots/connect-descript-1.png)
 <!-- mock: descript-api -->
 
-Log in at **descript.com** and open its API page (paid plans). Create a key named Sample Studio and copy it.
+Log in at **descript.com** and open its API page (paid plans). Create a key named {{studio}} and copy it.
 
 ## Paste it and tap Check key
 

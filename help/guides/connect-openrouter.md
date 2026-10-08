@@ -21,7 +21,7 @@ Open **openrouter.ai**, sign in (a free account is enough), then open **Keys**.
 ![Step 2](/help/screenshots/connect-openrouter-2.png)
 <!-- mock: openrouter-create -->
 
-Tap **Create Key**, name it Sample Studio, leave the credit limit empty and tap **Create**.
+Tap **Create Key**, name it {{studio}}, leave the credit limit empty and tap **Create**.
 
 ## Copy the key
 
