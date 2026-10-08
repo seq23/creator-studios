@@ -119,6 +119,77 @@ describe("first-login invite (sample studios)", () => {
   });
 });
 
+describe("the host developer login (DEVELOPER_EMAIL): every studio, never the owner", () => {
+  const DEV = "dev@host.example";
+  const code = async (r: Response) => ((await r.json()) as { dev_code: string }).dev_code;
+  const ownerSetting = () => db.raw.prepare("SELECT value FROM settings WHERE key = 'owner_email'").get();
+  const inviteRow = (token: string) =>
+    db.raw.prepare("SELECT used_at, used_by FROM invites WHERE token_hash = ?").get(createHash("sha256").update(`invite:${token}`).digest("hex"));
+  const login = async (env: Env, email: string) => {
+    const v = await post(env, "/api/auth/verify", { email, code: await code(await post(env, "/api/auth/request", { email })) });
+    expect(v.status).toBe(200);
+    return v.headers.get("set-cookie")!.split(";")[0];
+  };
+
+  it("the owner still logs in as the owner with a developer set", async () => {
+    const env = envFor({ OWNER_EMAIL: "o@example.com", DEVELOPER_EMAIL: DEV });
+    const cookie = await login(env, "o@example.com");
+    expect(await (await app.request(`${BASE}/api/me`, { headers: { cookie } }, env)).json()).toMatchObject({ email: "o@example.com", role: "owner" });
+  });
+
+  it("on a claimed studio the developer logs in (case and spaces ignored) with full access, and the owner is unchanged", async () => {
+    const env = envFor({ OWNER_EMAIL: "o@example.com", DEVELOPER_EMAIL: " Dev@Host.Example " });
+    const r = await post(env, "/api/auth/request", { email: "  DEV@host.EXAMPLE " });
+    const v = await post(env, "/api/auth/verify", { email: "Dev@Host.example", code: await code(r) });
+    expect(v.status).toBe(200);
+    const cookie = v.headers.get("set-cookie")!.split(";")[0];
+    expect(await (await app.request(`${BASE}/api/me`, { headers: { cookie } }, env)).json()).toMatchObject({ email: DEV, role: "owner" });
+    expect((await app.request(`${BASE}/api/owner-only`, { method: "POST", headers: { cookie } }, env)).status).toBe(200);
+    expect(ownerSetting()).toBeUndefined();
+    // The owner's own login is untouched.
+    await login(env, "o@example.com");
+  });
+
+  it("on an UNCLAIMED sample the developer logs in, the studio stays unclaimed, and the invite still claims it for the owner", async () => {
+    const env = envFor({ DEVELOPER_EMAIL: DEV });
+    mint("tok-unclaimedxxxxxxxxxxxxxxx");
+    const cookie = await login(env, DEV);
+    expect(await (await app.request(`${BASE}/api/me`, { headers: { cookie } }, env)).json()).toMatchObject({ email: DEV, role: "owner" });
+    expect(await (await app.request(`${BASE}/api/auth/status`, {}, env)).json()).toMatchObject({ hasOwner: false });
+    expect(ownerSetting()).toBeUndefined();
+    expect(inviteRow("tok-unclaimedxxxxxxxxxxxxxxx")).toEqual({ used_at: null, used_by: null });
+    // Even typed into the invite link itself, the developer only gets a code: nothing claimed, link unused.
+    const viaInvite = await post(env, "/api/auth/invite", { token: "tok-unclaimedxxxxxxxxxxxxxxx", email: "Dev@Host.example" });
+    expect(viaInvite.status).toBe(200);
+    expect(inviteRow("tok-unclaimedxxxxxxxxxxxxxxx")).toEqual({ used_at: null, used_by: null });
+    expect(ownerSetting()).toBeUndefined();
+    // The owner's single-use link works exactly as before.
+    const claim = await post(env, "/api/auth/invite", { token: "tok-unclaimedxxxxxxxxxxxxxxx", email: "new@client.example" });
+    expect(claim.status).toBe(200);
+    expect((await post(env, "/api/auth/verify", { email: "new@client.example", code: await code(claim) })).status).toBe(200);
+    expect(await (await app.request(`${BASE}/api/auth/status`, {}, env)).json()).toMatchObject({ hasOwner: true });
+    expect(inviteRow("tok-unclaimedxxxxxxxxxxxxxxx")).toMatchObject({ used_by: "new@client.example" });
+    // And the developer can still log in after the claim.
+    await login(env, DEV);
+  });
+
+  it("a stranger gets the byte-identical answer the developer gets, and no code; verify refuses them", async () => {
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ id: "em_1" }), { status: 200 }));
+    const env = envFor({ FAKE_SERVICES: "0", OWNER_EMAIL: "o@example.com", DEVELOPER_EMAIL: DEV, PLATFORM_RESEND_API_KEY: "re_platform", PLATFORM_EMAIL_FROM: "Studio login <login@platform.example>" });
+    const dev = await post(env, "/api/auth/request", { email: DEV });
+    const stranger = await post(env, "/api/auth/request", { email: "stranger@else.example" });
+    expect([stranger.status, await stranger.text()]).toEqual([dev.status, await dev.text()]);
+    expect(stranger.status).toBe(200);
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM login_codes WHERE email = 'stranger@else.example'").get()).toEqual({ n: 0 });
+    expect((await post(env, "/api/auth/verify", { email: "stranger@else.example", code: "123456" })).status).toBe(401);
+    // With no DEVELOPER_EMAIL set, that same address is just a stranger.
+    const unset = envFor({ FAKE_SERVICES: "0", OWNER_EMAIL: "o@example.com", PLATFORM_RESEND_API_KEY: "re_platform", PLATFORM_EMAIL_FROM: "Studio login <login@platform.example>" });
+    const before = (db.raw.prepare("SELECT COUNT(*) AS n FROM login_codes").get() as { n: number }).n;
+    expect(await (await post(unset, "/api/auth/request", { email: DEV })).json()).toEqual({ ok: true });
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM login_codes").get()).toEqual({ n: before });
+  });
+});
+
 describe("two senders: the platform for login codes only, the studio's own for everything else", () => {
   const keys = { APP_NAME: "Sample 1 Studio", PLATFORM_RESEND_API_KEY: "re_platform", PLATFORM_EMAIL_FROM: "Studio login <login@platform.example>", RESEND_API_KEY: "re_studio", RESEND_FROM: "Me <me@mine.example>" };
   it("senderFor picks the platform only for login_code", () => {

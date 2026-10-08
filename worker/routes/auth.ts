@@ -1,11 +1,11 @@
 // Email one-time code login (section 13: "no passwords"), in EVERY studio (never open). Only the
-// owner email and the optional helper can request a code. Codes: 6 digits, 10 minutes, 5 attempts,
+// owner email, the host developer (DEVELOPER_EMAIL) and the optional helper can request a code. Codes: 6 digits, 10 minutes, 5 attempts,
 // sent through the platform sender (services/email.ts senderFor). A sample studio's owner email is
 // claimed once through its first-login invite link (POST /invite).
 import { Hono, type Context } from "hono";
 import type { Env, Vars } from "../env";
 import { fakeServices } from "../env";
-import { allowedRole, createSession, ownerEmail, destroySession, ensureUser, meFor, userFromRequest } from "../lib/auth";
+import { allowedRole, createSession, developerEmail, ownerEmail, destroySession, ensureUser, meFor, userFromRequest } from "../lib/auth";
 import { sha256Hex } from "../lib/crypto";
 import { fail, isEmail, readJson } from "../lib/http";
 import { newId, nowIso } from "../lib/ids";
@@ -58,6 +58,9 @@ auth.post("/invite", async (c) => {
   const token = body?.token?.trim() ?? "";
   if (!isEmail(email)) return fail(c, 400, "Type the email address you want to log in with.");
   if (token.length < 20 || token.length > 200) return fail(c, 400, "This invite link is not complete. Open the whole link from your invite.", "log-in");
+  // The host developer never claims a studio: she just gets a code, and the link stays unused for the owner.
+  const dev = developerEmail(c.env);
+  if (dev && email === dev) return sendCode(c, email);
   const hash = await sha256Hex(`invite:${token}`);
   const row = await c.env.DB.prepare("SELECT token_hash, expires_at, used_at, used_by FROM invites WHERE token_hash = ?").bind(hash).first<{ expires_at: string; used_at: string | null; used_by: string | null }>();
   if (!row) return fail(c, 404, "This invite link is not valid. Ask for a new one.", "log-in");

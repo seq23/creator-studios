@@ -12,6 +12,13 @@ export interface Env {
    * claimed address lives in D1 (settings.owner_email), which wins over this var.
    */
   OWNER_EMAIL: string;
+  /**
+   * The host developer's login email (README "Login"): a deploy-time Worker secret from the 0600
+   * file <secrets dir>/DEVELOPER_EMAIL (or <slug>/DEVELOPER_EMAIL), never committed. She can always
+   * log in with the email code, with full access, on a claimed or unclaimed studio; it never claims
+   * a studio or changes its owner.
+   */
+  DEVELOPER_EMAIL?: string;
   /** Which studio this Worker is (studios/<slug>.json). Jobs carry it so Actions picks its secret. */
   STUDIO_SLUG?: string;
   /** The studio's theme (JSON from studios/<slug>.json: palette tokens, fonts, wordmark). */

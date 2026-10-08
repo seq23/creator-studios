@@ -22,11 +22,22 @@ export async function ownerEmail(env: Env): Promise<string> {
   return (claimed || env.OWNER_EMAIL || "").trim().toLowerCase();
 }
 
-/** Who may log in: the owner (claimed address, else the registry var) plus the optional helper set in Settings. */
+/** The host developer's login email (Worker secret DEVELOPER_EMAIL), normalised; empty when unset. */
+export function developerEmail(env: Pick<Env, "DEVELOPER_EMAIL">): string {
+  return (env.DEVELOPER_EMAIL ?? "").trim().toLowerCase();
+}
+
+/**
+ * Who may log in: the owner (claimed address, else the registry var), the host developer
+ * (DEVELOPER_EMAIL, full access like the owner, but never the owner: settings.owner_email is
+ * untouched), plus the optional helper set in Settings.
+ */
 export async function allowedRole(env: Env, email: string): Promise<"owner" | "helper" | null> {
   const e = email.trim().toLowerCase();
   const owner = await ownerEmail(env);
   if (owner && e === owner) return "owner";
+  const dev = developerEmail(env);
+  if (dev && e === dev) return "owner";
   const helper = await getSetting<string | null>(env.DB, "helper_email", null);
   if (helper && e === helper.trim().toLowerCase()) return "helper";
   return null;

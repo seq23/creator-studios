@@ -8,9 +8,11 @@ import path from "node:path";
 import { dispatchBody } from "@worker/services/github";
 import { envName, studioSlug } from "@worker/env";
 // @ts-expect-error plain .mjs, no types
-import { envBlock, loadRegistry, parseSecretList, PLATFORM_FROM, resolveSource, secretPlan, themeFor, withUrls, wranglerConfig } from "../../scripts/studio.mjs";
+import { DEVELOPER_EMAIL_FILE, envBlock, loadRegistry, parseSecretList, PLATFORM_FROM, resolveSource, secretPlan, themeFor, withUrls, wranglerConfig } from "../../scripts/studio.mjs";
 // @ts-expect-error plain .mjs validator, no types
 import registryNoEmails, { checkRegistryText } from "../../scripts/validators/registry-no-emails.mjs";
+// @ts-expect-error plain .mjs validator, no types
+import noPersonalEmails, { checkText as checkPersonalText, localSecretEmails } from "../../scripts/validators/no-personal-emails.mjs";
 // @ts-expect-error plain .mjs validator, no types
 import noHostBrand, { findBrand } from "../../scripts/validators/no-host-brand.mjs";
 // @ts-expect-error plain .mjs validator, no types
@@ -79,7 +81,7 @@ describe("guard (a): a client studio carries none of the host's identifiers", ()
   it("a sample's secret plan holds only its own generated secrets and the platform sender", () => {
     for (const s of reg.studios.filter((x: { kind: string }) => x.kind === "client")) {
       const names = Object.keys(secretPlan(s));
-      expect(names.sort()).toEqual(["JOB_SHARED_SECRET", "OWNER_EMAIL", "PLATFORM_EMAIL_FROM", "PLATFORM_RESEND_API_KEY", "SECRETS_KEY", "SESSION_SECRET"]);
+      expect(names.sort()).toEqual(["DEVELOPER_EMAIL", "JOB_SHARED_SECRET", "OWNER_EMAIL", "PLATFORM_EMAIL_FROM", "PLATFORM_RESEND_API_KEY", "SECRETS_KEY", "SESSION_SECRET"]);
       for (const n of names) expect(OWNER_KEY_NAMES).not.toContain(n);
       // A client's owner email is optional (claimed through the invite link); its own file, never the host's.
       expect(secretPlan(s).OWNER_EMAIL).toBe("studio-file?:OWNER_EMAIL");
@@ -109,7 +111,7 @@ describe("guard (a): a client studio carries none of the host's identifiers", ()
     mkdirSync(path.join(dir, "assets"));
     writeFileSync(path.join(dir, "assets", "ok.js"), 'const a="Sample 1 Studio";');
     expect((await scan([dir])).problems).toEqual([]);
-    writeFileSync(path.join(dir, "assets", "bad.js"), 'const c="seq.taylor@gmail.com";const id="6ab6d55c95ac053d3fefb3dc";');
+    writeFileSync(path.join(dir, "assets", "bad.js"), 'const c="seq.taylor@host.example";const id="6ab6d55c95ac053d3fefb3dc";');
     const r = await scan([dir]);
     expect(r.problems.join("\n")).toMatch(/bad\.js: the host's email/);
     expect(r.problems.join("\n")).toMatch(/bad\.js: a host channel or account id/);
@@ -169,6 +171,49 @@ describe("the owner email and the platform sender are never committed config", (
     expect(resolveSource("studio-file:OWNER_EMAIL", { slug: "sample1", dir, env: { OWNER_EMAIL: "x@y.example" } }).stop).toMatch(/no secret file\. create .*\/sample1\/OWNER_EMAIL /);
   });
 
+  it("every studio carries DEVELOPER_EMAIL from the shared 0600 file, a studio's own file overriding it", () => {
+    for (const s of reg.studios) expect(secretPlan(s).DEVELOPER_EMAIL, s.slug).toBe(`studio-or-file:${DEVELOPER_EMAIL_FILE}`);
+    expect(DEVELOPER_EMAIL_FILE).toBe("DEVELOPER_EMAIL");
+    const dir = mkdtempSync(path.join(tmpdir(), "secrets-"));
+    const src = "studio-or-file:DEVELOPER_EMAIL";
+    // Neither file: a named stop naming the SHARED file.
+    expect(resolveSource(src, { slug: "sample1", dir, env: {} }).stop).toMatch(new RegExp(`^DEVELOPER_EMAIL: no secret file\\. create ${dir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/DEVELOPER_EMAIL `));
+    writeFileSync(path.join(dir, "DEVELOPER_EMAIL"), "dev@host.example\n", { mode: 0o600 });
+    chmodSync(path.join(dir, "DEVELOPER_EMAIL"), 0o600);
+    for (const slug of ["hadiyah", "sample1", "sample2", "sample3"]) expect(resolveSource(src, { slug, dir, env: {} })).toEqual({ value: "dev@host.example" });
+    // A studio's own file wins; a loose one is a stop, never a silent fall-back to the shared file.
+    mkdirSync(path.join(dir, "sample2"));
+    writeFileSync(path.join(dir, "sample2", "DEVELOPER_EMAIL"), "other@host.example", { mode: 0o600 });
+    chmodSync(path.join(dir, "sample2", "DEVELOPER_EMAIL"), 0o600);
+    expect(resolveSource(src, { slug: "sample2", dir, env: {} })).toEqual({ value: "other@host.example" });
+    expect(resolveSource(src, { slug: "sample1", dir, env: {} })).toEqual({ value: "dev@host.example" });
+    chmodSync(path.join(dir, "sample2", "DEVELOPER_EMAIL"), 0o644);
+    expect(resolveSource(src, { slug: "sample2", dir, env: {} }).stop).toMatch(/readable by others/);
+    // A loose shared file is refused too.
+    chmodSync(path.join(dir, "DEVELOPER_EMAIL"), 0o644);
+    expect(resolveSource(src, { slug: "sample1", dir, env: {} }).stop).toMatch(/readable by others/);
+  });
+
+  it("validator no-personal-emails passes on the repo and fails on a real address or a local secret's value (negative proof)", async () => {
+    const r = await noPersonalEmails({ root });
+    expect(r.problems).toEqual([]);
+    expect(r.items).toBeGreaterThanOrEqual(400);
+    expect(checkPersonalText("a.ts", 'to: "owner@studio.example", from: "login@mail.spryexecutiveos.com", x: "a@b.test", pkg@0.16.2')).toEqual([]);
+    // Built at runtime, so this file itself never carries a real-looking address for the scan to find.
+    const at = (local: string, domain: string) => [local, domain].join("@");
+    expect(checkPersonalText("worker/lib/auth.ts", `const DEV = "${at("someone.real", "gmail.com")}";`).join("\n")).toMatch(/worker\/lib\/auth\.ts: a real email address \(s…@gmail\.com\) is committed/);
+    expect(checkPersonalText("README.md", `mail me at ${at("boss", "realclient.com")}`).join("\n")).toMatch(/README\.md: a real email address/);
+    // A secret file's value is caught even in an allowed shape, and never printed.
+    const hit = checkPersonalText("t.ts", 'x = "Owner@Studio.Example"', ["owner@studio.example"]);
+    expect(hit).toEqual(["t.ts: contains the value of a local secret email file"]);
+    const dir = mkdtempSync(path.join(tmpdir(), "secrets-"));
+    mkdirSync(path.join(dir, "sample1"));
+    writeFileSync(path.join(dir, "DEVELOPER_EMAIL"), "Dev@Host.example\n", { mode: 0o600 });
+    writeFileSync(path.join(dir, "sample1", "OWNER_EMAIL"), "o@client.example", { mode: 0o600 });
+    writeFileSync(path.join(dir, "PLATFORM_RESEND_API_KEY"), "re_notanemail", { mode: 0o600 });
+    expect((await localSecretEmails(dir)).sort()).toEqual(["dev@host.example", "o@client.example"]);
+  });
+
   it("reads secret names through wrangler's coloured warnings, and refuses to guess on output it cannot read", () => {
     const warn = "\u001b[33m▲ \u001b[43;33m[\u001b[43;30mWARNING\u001b[43;33m]\u001b[0m something\n";
     expect([...parseSecretList(`${warn}[\n  { "name": "SECRETS_KEY", "type": "secret_text" }\n]\n`)]).toEqual(["SECRETS_KEY"]);
@@ -182,7 +227,7 @@ describe("the owner email and the platform sender are never committed config", (
     expect(r.problems).toEqual([]);
     expect(r.items).toBe(5);
     expect(checkRegistryText("x.json", '{"note":"local dev uses owner@studio.example"}')).toEqual([]);
-    expect(checkRegistryText("hadiyah.json", '{"note":"someone@gmail.com"}').join("\n")).toMatch(/hadiyah\.json: an email address \(s…@gmail\.com\) is committed/);
+    expect(checkRegistryText("hadiyah.json", '{"note":"someone@client.example"}').join("\n")).toMatch(/hadiyah\.json: an email address \(s…@client\.example\) is committed/);
     expect(checkRegistryText("hadiyah.json", '{"ownerEmail":""}').join("\n")).toMatch(/an ownerEmail field/);
     expect(checkEntries([{ ...clone(reg.studios[0]), ownerEmail: "" }], reg.themes).join("\n")).toMatch(/ownerEmail is never in the public registry/);
   });

@@ -91,7 +91,10 @@ claimed address, in its D1, wins over `OWNER_EMAIL`). To change an owner email: 
 `node scripts/studio.mjs secrets <slug> --refresh`; deleting a client's file and refreshing removes
 the secret. Guard: validator `registry-no-emails` fails on any email address in `studios/*.json`
 other than the placeholder `owner@studio.example` (used only by local dev), and on an `ownerEmail`
-field; `tests/unit/studios.test.ts` proves it negatively.
+field; `tests/unit/studios.test.ts` proves it negatively. Validator `no-personal-emails` fails on a
+real person's email address anywhere in the tracked files (only reserved example domains and a short
+list of sender/placeholder addresses pass) and, on this machine, on the value of any local
+`*EMAIL` secret file (`DEVELOPER_EMAIL`, `<slug>/OWNER_EMAIL`).
 
 ## Login
 
@@ -99,6 +102,16 @@ Every studio: email one-time code (6 digits, 10 minutes), never "open" (validato
 `login-never-open`). A sample studio has no owner until its **first-login link** is used:
 `npm run studio:invite <slug>` mints one (single use, 14 days; only its SHA-256 is stored), and the
 address typed there becomes the owner login.
+
+**Developer login.** Every studio (claimed or not) also lets the host developer in with the same
+email code, full access: the Worker secret `DEVELOPER_EMAIL`, set by `npm run studio:secrets <slug>`
+from the shared 0600 file `~/.config/creator-studios/secrets/DEVELOPER_EMAIL` (a per-studio
+`<slug>/DEVELOPER_EMAIL` overrides it; env `DEVELOPER_EMAIL_<SLUG>` or `DEVELOPER_EMAIL` also work),
+never committed. It never claims a studio or changes its owner: on an unclaimed sample she logs in
+and the first-login link stays valid for the owner (typed into the link itself, it only sends her a
+code). Any other address gets the same answer as before and no code. Changed address: rewrite the
+file, then `node scripts/studio.mjs secrets --all --refresh --only=DEVELOPER_EMAIL`. Guards:
+`tests/unit/login.test.ts`, `tests/unit/studios.test.ts`.
 
 ## Setup and practice mode
 

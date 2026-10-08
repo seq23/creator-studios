@@ -40,6 +40,12 @@ export const PLATFORM_FROM = "Studio sign-in <login@mail.spryexecutiveos.com>";
 const WORKERS_DEV = "seq-taylor.workers.dev";
 /** The file (in <secrets dir>/<slug>/) holding a studio's owner login email: never in the public registry. */
 export const OWNER_EMAIL_FILE = "OWNER_EMAIL";
+/**
+ * The file holding the host developer's login email (README "Login"): shared by every studio at
+ * <secrets dir>/DEVELOPER_EMAIL, with an optional per-studio <secrets dir>/<slug>/DEVELOPER_EMAIL
+ * override. Never in the public registry; the Worker secret DEVELOPER_EMAIL.
+ */
+export const DEVELOPER_EMAIL_FILE = "DEVELOPER_EMAIL";
 const CRONS = ["0 * * * *", "30 13 * * *", "0 12 * * 1"];
 // The Worker runs first for every path but the hashed build files, so a page request on a studio's
 // old workers.dev address can 301 to its hostname (worker/lib/canonical-host.ts); a path the Worker
@@ -171,7 +177,7 @@ export function secretsDir(env = process.env) {
 }
 
 /** The secret-source forms a registry entry may name. Anything else is refused. */
-export const SOURCE_FORMS = [/^file\??:[A-Z][A-Z0-9_]*$/, /^studio-file\??:[A-Z][A-Z0-9_]*$/, /^gh-auth-token$/, /^literal:.+$/, /^generate:(base64|hex)-32$/];
+export const SOURCE_FORMS = [/^file\??:[A-Z][A-Z0-9_]*$/, /^studio-file\??:[A-Z][A-Z0-9_]*$/, /^studio-or-file:[A-Z][A-Z0-9_]*$/, /^gh-auth-token$/, /^literal:.+$/, /^generate:(base64|hex)-32$/];
 export const isKnownSource = (src) => typeof src === "string" && SOURCE_FORMS.some((re) => re.test(src));
 
 /**
@@ -231,6 +237,14 @@ export function resolveSource(src, opts = {}) {
     const dir = opts.dir ?? secretsDir(env);
     const r = fileSecret(name, { env: { [name]: env[`${name}_${slug.toUpperCase()}`] ?? "" }, dir: path.join(dir, slug) });
     return r.stop ? { stop: r.stop.replace(`export ${name}`, `export ${name}_${slug.toUpperCase()}`) } : r;
+  }
+  // studio-or-file: the studio's own file (or env <NAME>_<SLUG>) when present, else the shared
+  // <dir>/<NAME> (or env <NAME>), e.g. the developer email every studio carries.
+  if (src.startsWith("studio-or-file:")) {
+    const name = src.slice("studio-or-file:".length);
+    const own = resolveSource(`studio-file:${name}`, opts);
+    if (own.value || !/: no secret file\./.test(own.stop)) return own;
+    return fileSecret(name, opts);
   }
   if (src.startsWith("file?:")) return fileSecret(src.slice(6), opts);
   if (src.startsWith("file:")) return fileSecret(src.slice(5), opts);
@@ -306,6 +320,9 @@ export function secretPlan(s) {
     // The owner's login email, from the studio's own 0600 file, never the public registry. A
     // host-run studio needs it; a client studio's owner claims hers through the invite link.
     OWNER_EMAIL: `${s.kind === "host-accounts" ? "studio-file" : "studio-file?"}:${OWNER_EMAIL_FILE}`,
+    // The host developer's login (every studio, full access, never the owner): the shared 0600
+    // file, or the studio's own override. Required, so no studio is made without it.
+    DEVELOPER_EMAIL: `studio-or-file:${DEVELOPER_EMAIL_FILE}`,
   };
   for (const [k, v] of Object.entries(s.hostSecrets ?? {})) if (!k.startsWith("_")) plan[k] = v;
   return plan;
