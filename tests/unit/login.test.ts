@@ -193,9 +193,9 @@ describe("the host developer login (DEVELOPER_EMAIL): every studio, never the ow
 describe("two senders: the platform for login codes only, the studio's own for everything else", () => {
   const keys = { APP_NAME: "Sample 1 Studio", PLATFORM_RESEND_API_KEY: "re_platform", PLATFORM_EMAIL_FROM: "Studio login <login@platform.example>", RESEND_API_KEY: "re_studio", RESEND_FROM: "Me <me@mine.example>" };
   it("senderFor picks the platform only for login_code", () => {
-    expect(senderFor(keys, "login_code")).toEqual({ key: "re_platform", from: "Studio login <login@platform.example>", platform: true });
-    for (const kind of ["clips_ready", "weekly_recap", "posting_problem", "connection_needs_you", "time_to_dump", "brief_ready"] as const) expect(senderFor(keys, kind)).toEqual({ key: "re_studio", from: "Me <me@mine.example>", platform: false });
-    expect(senderFor({ APP_NAME: "Sample 1 Studio" }, "weekly_recap")).toEqual({ key: null, from: "Sample 1 Studio <onboarding@resend.dev>", platform: false });
+    expect(senderFor(keys, "login_code")).toEqual({ key: "re_platform", from: "Studio login <login@platform.example>", platform: true, replyTo: null });
+    for (const kind of ["clips_ready", "weekly_recap", "posting_problem", "connection_needs_you", "time_to_dump", "brief_ready"] as const) expect(senderFor(keys, kind)).toEqual({ key: "re_studio", from: "Me <me@mine.example>", platform: false, replyTo: null });
+    expect(senderFor({ APP_NAME: "Sample 1 Studio" }, "weekly_recap")).toEqual({ key: null, from: "Sample 1 Studio <onboarding@resend.dev>", platform: false, replyTo: null });
   });
 
   it("a real studio with no Resend of its own: the login code still goes out (platform), other mail is practice (recorded, never sent)", async () => {

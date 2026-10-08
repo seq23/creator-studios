@@ -17,11 +17,17 @@
   },
   "githubRepo": "seq23/creator-studios",
   "hostSecrets": {
-    "_why": "Exactly the split the host gave Sheila Studio: only what ran on the HOST's own accounts there is the host's here (README 'Hadiyah: whose account runs what'). Everything else is Hadiyah's own, pasted on Setup.",
+    "_why": "The split the host gave Sheila Studio, plus the owner's 7 Oct 2026 decision that AI writing, studio email, web research and brand contacts run on the host's personal accounts (README 'Hadiyah: whose account runs what'). Everything else is Hadiyah's own, pasted on Setup.",
     "GITHUB_DISPATCH_TOKEN": "gh-auth-token",
     "YOUTUBE_API_KEY": "file:YOUTUBE_API_KEY",
     "GOOGLE_CLIENT_ID": "file?:HADIYAH_GOOGLE_CLIENT_ID",
     "GOOGLE_CLIENT_SECRET": "file?:HADIYAH_GOOGLE_CLIENT_SECRET",
+    "OPENROUTER_API_KEY": "studio-file:OPENROUTER_API_KEY",
+    "RESEND_API_KEY": "studio-file:RESEND_API_KEY",
+    "STUDIO_EMAIL_FROM": "studio-file:STUDIO_EMAIL_FROM",
+    "FIRECRAWL_API_KEY": "studio-file:FIRECRAWL_API_KEY",
+    "HUNTER_API_KEY": "studio-file:HUNTER_API_KEY",
+    "_hostKeys": "Owner decisions 7 Oct 2026: AI writing (OpenRouter), studio email (Resend), web research (Firecrawl) and brand contacts (Hunter) run on the host's personal accounts, from the 0600 files <secrets dir>/hadiyah/<NAME>; used only when Hadiyah has not saved her own on Setup (worker/lib/hostKeys.ts).",
     "_optional": "file? = set when the env var or 0600 secret file exists (README Secrets), otherwise a named stop: Google sign-in runs in practice mode until then."
   },
   "jobSecretOnHostRepo": true

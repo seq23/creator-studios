@@ -2,14 +2,19 @@ import type { Env } from "../env";
 import { decryptSecret, encryptSecret } from "./crypto";
 import { nowIso } from "./ids";
 import { parseJson } from "./db";
+import { HOST_KEY_SERVICES, hostKeyFor } from "./hostKeys";
 import type { ConnectionView } from "@shared/types";
 
 export type Service = ConnectionView["service"];
 
-/** Read a stored vendor key. Returns null when not connected. Never logged. */
+/**
+ * Read a stored vendor key. Returns null when not connected. Never logged. A host-accounts studio
+ * with no OpenRouter / Firecrawl / Hunter key saved gets the host's (worker/lib/hostKeys.ts), so
+ * every job's signed spec and every vendor call carries it; a client studio never does.
+ */
 export async function getConnectionSecret(env: Env, service: Service): Promise<string | null> {
   const row = await env.DB.prepare("SELECT secret_enc, status FROM connections WHERE service = ?").bind(service).first<{ secret_enc: string | null; status: string }>();
-  if (!row?.secret_enc || row.status === "disconnected") return null;
+  if (!row?.secret_enc || row.status === "disconnected") return hostKeyFor(env, service);
   return decryptSecret(env.SECRETS_KEY, row.secret_enc);
 }
 
@@ -49,13 +54,27 @@ export async function disconnect(env: Env, service: Service) {
   await env.DB.prepare("UPDATE connections SET status = 'disconnected', secret_enc = NULL, updated_at = ? WHERE service = ?").bind(nowIso(), service).run();
 }
 
+/**
+ * Every connection row. On a host-accounts studio, a service the host's key runs (no key of her
+ * own stored) reads as connected with meta.host true, so Connect, Deals and the brand finder treat
+ * it as live; a row a check marked "error" keeps its error.
+ */
 export async function listConnections(env: Env): Promise<ConnectionView[]> {
-  const { results } = await env.DB.prepare("SELECT service, status, meta, last_ok_at, last_error FROM connections").all<{
+  const { results } = await env.DB.prepare("SELECT service, status, meta, last_ok_at, last_error, secret_enc IS NOT NULL AS has_key FROM connections").all<{
     service: Service;
     status: ConnectionView["status"];
     meta: string;
     last_ok_at: string | null;
     last_error: string | null;
+    has_key: number;
   }>();
-  return results.map((r) => ({ ...r, meta: parseJson<Record<string, unknown>>(r.meta, {}) }));
+  const out: ConnectionView[] = results.map(({ has_key, ...r }) => {
+    const v = { ...r, meta: parseJson<Record<string, unknown>>(r.meta, {}) };
+    if (!has_key && r.status !== "error" && hostKeyFor(env, r.service)) return { ...v, status: "ok", meta: { ...v.meta, host: true } };
+    return v;
+  });
+  for (const service of Object.keys(HOST_KEY_SERVICES) as Service[]) {
+    if (!out.some((r) => r.service === service) && hostKeyFor(env, service)) out.push({ service, status: "ok", meta: { host: true }, last_ok_at: null, last_error: null });
+  }
+  return out;
 }

@@ -5,11 +5,12 @@
 //
 // hydrate() runs once per request and per cron tick (worker/index.ts): it overlays the stored keys
 // onto the env names the rest of the Worker already reads (RESEND_API_KEY, YOUTUBE_API_KEY,
-// GOOGLE_CLIENT_*, META_APP_*, GITHUB_DISPATCH_TOKEN + GITHUB_REPO) and lists the services still in
+// GOOGLE_CLIENT_*, META_APP_*, GITHUB_DISPATCH_TOKEN + GITHUB_REPO, OPENROUTER_ / FIRECRAWL_ / HUNTER_API_KEY) and lists the services still in
 // practice in env.PRACTICE. Nothing here logs a key.
 import type { Env } from "../env";
 import { fakeServices } from "../env";
 import { decryptSecret } from "./crypto";
+import { hostBase } from "./hostKeys";
 import { parseJson } from "./db";
 import { log } from "./log";
 import { SETUP_STEPS, type SetupServiceId } from "@shared/setup";
@@ -28,7 +29,14 @@ export function overlayFor(service: SetupServiceId, raw: string): Partial<Env> {
   const f = fieldsOf(raw);
   switch (service) {
     case "resend":
-      return { RESEND_API_KEY: f.key, ...(f.from ? { RESEND_FROM: f.from } : {}) };
+      // Her own Resend replaces the host's whole sender: her From (or Resend's test sender), no host reply-to.
+      return { RESEND_API_KEY: f.key, RESEND_FROM: f.from || undefined, RESEND_REPLY_TO: undefined };
+    case "openrouter":
+      return { OPENROUTER_API_KEY: f.key };
+    case "firecrawl":
+      return { FIRECRAWL_API_KEY: f.key };
+    case "hunter":
+      return { HUNTER_API_KEY: f.key };
     case "youtube_api":
       return { YOUTUBE_API_KEY: f.key };
     case "google_app":
@@ -47,6 +55,12 @@ export function hasEnvKey(env: Partial<Env>, service: SetupServiceId): boolean {
   switch (service) {
     case "resend":
       return !!env.RESEND_API_KEY;
+    case "openrouter":
+      return !!env.OPENROUTER_API_KEY;
+    case "firecrawl":
+      return !!env.FIRECRAWL_API_KEY;
+    case "hunter":
+      return !!env.HUNTER_API_KEY;
     case "youtube_api":
       return !!env.YOUTUBE_API_KEY;
     case "google_app":
@@ -68,7 +82,8 @@ const ENV_BACKED = new Set<SetupServiceId>(SETUP_STEPS.filter((s) => s.secrets.l
  * missing table (a fresh local D1) or an unreadable row leaves that service on its secret.
  */
 export async function hydrate(env: Env): Promise<Env> {
-  const out: Env = { ...env };
+  // A client studio loses the host fallback secrets here, before anything else reads the env.
+  const out: Env = hostBase(env);
   let rows: Row[] = [];
   try {
     rows = (await env.DB.prepare("SELECT service, status, secret_enc, meta FROM connections").all<Row>()).results ?? [];

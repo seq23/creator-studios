@@ -40,8 +40,11 @@ smoke proves the 301. Nothing else on the zone is touched (the apex site and the
 
 ## Hadiyah: whose account runs what
 
-Set up exactly like Sheila Studio: **only** the services where the host gave Sheila the HOST's own
-account are the host's here. Everything Sheila connected or holds in her own name is Hadiyah's own,
+Set up like Sheila Studio: **only** the services where the host gave Sheila the HOST's own
+account are the host's here, plus the four the owner moved to the host's personal accounts on
+7 Oct 2026 (studio email, OpenRouter, Firecrawl, Hunter: Worker secrets read by
+`worker/lib/hostKeys.ts` on a host-accounts studio only; a client studio never reads them, validator
+`host-keys-host-only`). Setup shows those four as "Provided by your studio host". Everything Sheila connected or holds in her own name is Hadiyah's own,
 through the same Setup screen the samples use (stored encrypted, practice mode until connected).
 Evidence was read from the Sheila repo's docs, the secret NAMES bound on the `sheilastudio` Worker
 (`wrangler secret list`, names only) and the services connected in Sheila's app (her D1
@@ -54,11 +57,11 @@ Evidence was read from the Sheila repo's docs, the secret NAMES bound on the `sh
 | YouTube numbers key `YOUTUBE_API_KEY` | Host's (Sheila's key, same key; secret file `YOUTUBE_API_KEY`) | Worker secret on `sheilastudio`; Sheila `docs/YOUTUBE.md`: the Google project is "registered under the owner's account … the owner chose to keep it there" |
 | Google sign-in app `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Host's Google project, a web client of Hadiyah's own Worker | Worker secrets on `sheilastudio`; Sheila RUNBOOK: each Worker has its own web client in the owner's project. Not yet created for Hadiyah: a NAMED STOP (RUNBOOK) |
 | Login codes | Platform sender (host's Resend) | Studio brief §4 (the one shared piece) |
-| Studio email (alerts, recaps) `RESEND_API_KEY` | **Hadiyah's own** (Setup → Email) | Sheila RUNBOOK: "RESEND_API_KEY on production is Sheila's own Resend account key", never a host key |
+| Studio email (alerts, recaps) `RESEND_API_KEY` + `STUDIO_EMAIL_FROM` | **Host's (owner decision 7 Oct 2026)**: the host's personal Resend, sending-only key restricted to `mail.spryexecutiveos.com`, from the studio sender `Hadiyah Studio` on `mail.spryexecutiveos.com` (the address lives in the 0600 file, not here), replies to the host developer; a key she saves on Setup → Email replaces it | Owner decision 7 Oct 2026 (supersedes Sheila's split: there it was Sheila's own Resend) |
 | Buffer (posting) | **Hadiyah's own** | Connected in Sheila's app (`connections.buffer` ok); Sheila BUILD_PLAN 4b: "She connects everything herself"; named by the host |
-| OpenRouter (AI writing) | **Hadiyah's own** | Connected in Sheila's app (`connections.openrouter` ok). Sheila's repo also had a host `OPENROUTER_API_KEY` GitHub secret as a job fallback; not carried: jobs get the studio's own key in their signed spec |
-| Firecrawl (web research) | **Hadiyah's own** | Connected in Sheila's app (`connections.firecrawl` ok) |
-| Hunter (brand contacts) | **Hadiyah's own** | Connected in Sheila's app (`connections.hunter` ok) |
+| OpenRouter (AI writing) `OPENROUTER_API_KEY` | **Host's (owner decision 7 Oct 2026)**: the host's personal OpenRouter, key `creator-studios-hadiyah` with a $10 credit limit; a key she saves on Setup replaces it | Owner decision 7 Oct 2026. Jobs get it in their signed spec (`getConnectionSecret` falls back to it on a host-accounts studio only) |
+| Firecrawl (web research) `FIRECRAWL_API_KEY` | **Host's (owner decision 7 Oct 2026)**: the host's personal Firecrawl; a key she saves on Setup replaces it | Owner decision 7 Oct 2026 |
+| Hunter (brand contacts) `HUNTER_API_KEY` | **Host's (owner decision 7 Oct 2026)**: the host's personal Hunter; a key she saves on Setup replaces it | Owner decision 7 Oct 2026 |
 | YouTube channel (Connect YouTube, full videos) | **Hadiyah's own** | Sheila signs in with her own Google account in the app; named by the host |
 | ElevenLabs, connected editors | **Hadiyah's own** | Pasted in Sheila's app (Settings → Connect accounts) |
 | Instagram sign-in app (`META_APP_*`) | Not set (as Sheila); Setup if she wants it | No `META_APP_*` secret on `sheilastudio` |
@@ -163,7 +166,10 @@ A value comes from an environment variable of the same name, else a 0600 file
 one is a NAMED STOP naming the file to create. Generated secrets are made with crypto randomness and
 kept in 0600 files `<secrets dir>/<slug>/<NAME>`. Files: `PLATFORM_RESEND_API_KEY` (all),
 `<slug>/OWNER_EMAIL` (host-run studios; optional for a client), and for
-Hadiyah `YOUTUBE_API_KEY`, `HADIYAH_GOOGLE_CLIENT_ID`, `HADIYAH_GOOGLE_CLIENT_SECRET` (optional). Per studio: `SESSION_SECRET`, `SECRETS_KEY`, `JOB_SHARED_SECRET`
+Hadiyah `YOUTUBE_API_KEY`, `HADIYAH_GOOGLE_CLIENT_ID`, `HADIYAH_GOOGLE_CLIENT_SECRET` (optional) and
+`hadiyah/OPENROUTER_API_KEY`, `hadiyah/RESEND_API_KEY`, `hadiyah/STUDIO_EMAIL_FROM`,
+`hadiyah/FIRECRAWL_API_KEY`, `hadiyah/HUNTER_API_KEY` (the host's personal keys; `secretPlan`
+refuses them for a client studio). Per studio: `SESSION_SECRET`, `SECRETS_KEY`, `JOB_SHARED_SECRET`
 (generated), `PLATFORM_RESEND_API_KEY` + `PLATFORM_EMAIL_FROM` (platform sender), `OWNER_EMAIL`, and for
 host-accounts studios the `hostSecrets` in the entry. GitHub: `CLOUDFLARE_API_TOKEN`,
 `CLOUDFLARE_ACCOUNT_ID` (deploy), `JOB_SHARED_SECRET_<SLUG>` (host-run job runner).
@@ -177,6 +183,7 @@ host-accounts studios the `hostSecrets` in the entry. GitHub: `CLOUDFLARE_API_TO
 | (c) login is never "open" | validator `login-never-open` | `tests/unit/login.test.ts` |
 | (d) every feature without a key shows practice mode | `tests/unit/practice.test.ts` (an empty real studio through the real Worker: no 5xx, no vendor call) | `tests/unit/practice.test.ts` |
 | nothing hidden, nothing switched off | validator `nothing-hidden` | (inherited) |
+| the host's personal OpenRouter / Resend / Firecrawl / Hunter reach host-accounts studios only | `worker/lib/hostKeys.ts` (hydrate strips them on a client), `secretPlan` refusal, validator `host-keys-host-only` | `tests/unit/host-keys.test.ts` |
 | no owner email committed in the registry | validator `registry-no-emails` | `tests/unit/studios.test.ts` |
 | the host's former business name nowhere in the repo (every tracked file) | validator `no-host-brand` | `tests/unit/studios.test.ts` |
 | an old workers.dev page 301s to the studio's hostname; the API is never redirected | `worker/lib/canonical-host.ts`, smoke in `studio:deploy` | `tests/unit/canonical-host.test.ts` |

@@ -214,7 +214,7 @@ function Section({ n, title, children }: { n: number; title: string; children: R
 function StatusPill({ conn }: { conn: ConnectionView | null }) {
   const status = conn?.status ?? "missing";
   const light = status === "ok" ? "green" : status === "error" ? "red" : "grey";
-  const text = status === "ok" ? `Connected${conn?.last_ok_at ? ` · checked ${ago(conn.last_ok_at)}` : ""}` : status === "error" ? (conn?.last_error ?? "Needs you") : status === "disconnected" ? "Disconnected" : "Not connected";
+  const text = status === "ok" ? `${conn?.meta.host ? "Connected by your studio host" : "Connected"}${conn?.last_ok_at ? ` · checked ${ago(conn.last_ok_at)}` : ""}` : status === "error" ? (conn?.last_error ?? "Needs you") : status === "disconnected" ? "Disconnected" : "Not connected";
   return (
     <span className="row status-pill">
       <Dot light={light} />

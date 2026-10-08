@@ -90,7 +90,17 @@ cat "${CS_SECRETS_DIR:-$HOME/.config/creator-studios/secrets}/PLATFORM_RESEND_AP
 | `DEVELOPER_EMAIL` | shared secret file `DEVELOPER_EMAIL` (`<slug>/DEVELOPER_EMAIL` overrides; never committed; README "Login"): the host developer's email-code login, full access, never claims a studio | all (required) |
 | `GITHUB_DISPATCH_TOKEN` | `gh auth token` (host's GitHub) | hadiyah |
 | `YOUTUBE_API_KEY` | secret file `YOUTUBE_API_KEY` (host's Google project, Sheila's key) | hadiyah |
+| `OPENROUTER_API_KEY` | secret file `hadiyah/OPENROUTER_API_KEY` (host's personal OpenRouter, key `creator-studios-hadiyah`, $10 credit limit) | hadiyah only |
+| `RESEND_API_KEY` | secret file `hadiyah/RESEND_API_KEY` (host's personal Resend, sending-only key `creator-studios-hadiyah-email`, domain `mail.spryexecutiveos.com`) | hadiyah only |
+| `STUDIO_EMAIL_FROM` | secret file `hadiyah/STUDIO_EMAIL_FROM` (the studio sender `Hadiyah Studio` on `mail.spryexecutiveos.com`; replies go to `DEVELOPER_EMAIL`) | hadiyah only |
+| `FIRECRAWL_API_KEY` | secret file `hadiyah/FIRECRAWL_API_KEY` (host's personal Firecrawl) | hadiyah only |
+| `HUNTER_API_KEY` | secret file `hadiyah/HUNTER_API_KEY` (host's personal Hunter) | hadiyah only |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | secret files `HADIYAH_GOOGLE_CLIENT_ID` / `HADIYAH_GOOGLE_CLIENT_SECRET` when present (named stop 1) | hadiyah |
+
+The five host-key files live in `~/.config/creator-studios/secrets/hadiyah/` (0600). A client studio
+never carries them: `secretPlan` refuses them and the Worker strips them on a client even if set
+(`worker/lib/hostKeys.ts`, owner decision 7 Oct 2026). To rotate one: write the new value to its file,
+then `node scripts/studio.mjs secrets hadiyah --refresh --only=<NAME>`.
 
 GitHub repo secrets: `CLOUDFLARE_API_TOKEN` (already set; the deploy token),
 `CLOUDFLARE_ACCOUNT_ID`, `JOB_SHARED_SECRET_HADIYAH` (set by `studio:create`; the job workflows pick

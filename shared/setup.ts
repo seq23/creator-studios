@@ -74,7 +74,8 @@ export const SETUP_STEPS: SetupStep[] = [
     where: ["Make a free account at openrouter.ai.", "Open Keys and tap Create Key; leave the credit limit empty.", "Copy the key and paste it here."],
     link: { label: "Open OpenRouter keys", url: "https://openrouter.ai/settings/keys" },
     fields: [KEY],
-    secrets: [],
+    // Read only on a host-accounts studio (worker/lib/hostKeys.ts); a client studio never has it.
+    secrets: ["OPENROUTER_API_KEY"],
     guide: "connect-openrouter",
     free: true,
   },
@@ -86,7 +87,8 @@ export const SETUP_STEPS: SetupStep[] = [
     where: ["Make a free account at firecrawl.dev.", "Open the dashboard and copy your API key.", "Paste it here."],
     link: { label: "Open Firecrawl", url: "https://www.firecrawl.dev/app/api-keys" },
     fields: [KEY],
-    secrets: [],
+    // Read only on a host-accounts studio (worker/lib/hostKeys.ts); a client studio never has it.
+    secrets: ["FIRECRAWL_API_KEY"],
     guide: "connect-firecrawl",
     free: true,
   },
@@ -98,7 +100,8 @@ export const SETUP_STEPS: SetupStep[] = [
     where: ["Make a free account at hunter.io.", "Open API and copy your key.", "Paste it here."],
     link: { label: "Open Hunter API", url: "https://hunter.io/api-keys" },
     fields: [KEY],
-    secrets: [],
+    // Read only on a host-accounts studio (worker/lib/hostKeys.ts); a client studio never has it.
+    secrets: ["HUNTER_API_KEY"],
     guide: "connect-hunter",
     free: true,
   },

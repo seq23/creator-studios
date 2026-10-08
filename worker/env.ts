@@ -21,6 +21,11 @@ export interface Env {
   DEVELOPER_EMAIL?: string;
   /** Which studio this Worker is (studios/<slug>.json). Jobs carry it so Actions picks its secret. */
   STUDIO_SLUG?: string;
+  /**
+   * The studio's kind from its registry entry: "host-accounts" (Hadiyah: some services run on the
+   * host's own accounts) or "client" (every service is the client's own). Missing reads as client.
+   */
+  STUDIO_KIND?: string;
   /** The studio's theme (JSON from studios/<slug>.json: palette tokens, fonts, wordmark). */
   STUDIO_THEME?: string;
   FAKE_SERVICES: string;
@@ -57,6 +62,17 @@ export interface Env {
   RESEND_API_KEY?: string;
   /** The studio's own From line (Setup → Email); Resend's test sender when empty. */
   RESEND_FROM?: string;
+  /** Filled by worker/lib/hostKeys.ts hostBase: where replies go when the host's Resend sends (host-accounts only). */
+  RESEND_REPLY_TO?: string;
+  /**
+   * Host-accounts studios only (worker/lib/hostKeys.ts, the one reader): the host's OpenRouter,
+   * Firecrawl and Hunter keys and the From line for the host's Resend (RESEND_API_KEY), used when
+   * no key is saved on Setup. A client studio never reads them, even if set (hostBase removes them).
+   */
+  OPENROUTER_API_KEY?: string;
+  FIRECRAWL_API_KEY?: string;
+  HUNTER_API_KEY?: string;
+  STUDIO_EMAIL_FROM?: string;
   // Stats OAuth (phase 3). Optional: without them the Connect row says the stats app is not
   // set up yet and links the guide. Each is the vendor's own app credential, set once by the
   // builder with `wrangler secret put`; her tokens are stored encrypted in D1, not here.
