@@ -13,7 +13,7 @@ test.describe.configure({ mode: "serial" });
 
 test.beforeAll(() => {
   d1(
-    `INSERT INTO brand_profile (sections, locked, locked_at, source) VALUES ('{"who":"${SEED}","themes":"Tablescapes","ctas":"Follow for more"}', 1, '2026-09-26T00:00:00Z', 'edited');` +
+    `INSERT INTO brand_profile (sections, locked, locked_at, source) VALUES ('{"who":"${SEED}","themes":"Morning routines","ctas":"Follow for more"}', 1, '2026-09-26T00:00:00Z', 'edited');` +
       `INSERT INTO research_briefs (body, status, approved_at) VALUES ('{"seed":"${SEED}","hooks":[],"shot_list":[]}', 'approved', '2026-09-26T00:00:00Z');`,
   );
 });
@@ -106,7 +106,7 @@ test("on, voice saved: clips with no talking come back voiced; Review offers Rem
   await box.fill("word ".repeat(80).trim());
   await dialog.getByRole("button", { name: "Re-voice and re-mix" }).click();
   await expect(page.locator(".toast.bad").first()).toContainText("Shorten it a little");
-  const mine = "Three candles and a runner. That is the whole trick.";
+  const mine = "Three lists and a timer. That is the whole trick.";
   await box.fill(mine);
   await expect(dialog.locator("[data-word-count]")).toContainText("10 of about");
   await dialog.getByRole("button", { name: "Re-voice and re-mix" }).click();

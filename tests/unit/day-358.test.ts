@@ -256,8 +256,8 @@ describe("long lists page, search and filter; counts stay true", () => {
     const p2 = (await call<{ groups: { clips: { id: string }[] }[] }>("GET", "/api/clips?tab=approved&offset=12")).json;
     const ids2 = p2.groups.flatMap((g) => g.clips.map((c) => c.id));
     expect(ids2.some((x) => ids1.includes(x))).toBe(false);
-    const q = (await call<{ total: number }>("GET", "/api/clips?tab=approved&q=napkin")).json;
-    expect(q.total).toBe(n("SELECT COUNT(*) AS n FROM clips WHERE status = 'approved' AND (hook_text LIKE '%napkin%' OR caption LIKE '%napkin%' OR hashtags LIKE '%napkin%')"));
+    const q = (await call<{ total: number }>("GET", "/api/clips?tab=approved&q=checklist")).json;
+    expect(q.total).toBe(n("SELECT COUNT(*) AS n FROM clips WHERE status = 'approved' AND (hook_text LIKE '%checklist%' OR caption LIKE '%checklist%' OR hashtags LIKE '%checklist%')"));
     expect(q.total).toBeGreaterThan(0);
   });
   it("Dump: 20 at a time of 50, the filter and search count true", async () => {

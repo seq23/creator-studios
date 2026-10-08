@@ -43,25 +43,25 @@ const row = (table, obj) => `INSERT INTO ${table} (${Object.keys(obj).join(", ")
 const LOOKS = ["clean", "bold_hook", "karaoke", "brand_card", "cinematic", "reaction", "split", "side_by_side", "grid_four", "grid_six", "grid_eight", "hero_strip"];
 const RECIPES = ["talking_head", "hook_first", "story", "montage"];
 const TOPICS = [
-  "Sunday brunch table", "Fall porch styling", "Thanksgiving tablescape", "Christmas dinner table", "New Year's Eve champagne bar",
-  "Galentine's brunch", "Valentine's table for two", "Easter pastel table", "Mother's Day tea party", "Garden party florals",
-  "Fourth of July picnic", "Summer patio dinner", "Back-to-school breakfast bar", "Harvest moon supper", "Halloween dinner party",
-  "Candlelit weeknight table", "Book club charcuterie", "Baby shower dessert table", "Bridal shower luncheon", "Cozy soup night",
+  "Sunday morning routine", "Fall weekend reset", "Thanksgiving week plan", "Christmas gift list", "New Year's goal setting",
+  "Galentine's day out", "Valentine's day plan", "Spring clean checklist", "Mother's Day gift guide", "Garden day off",
+  "Fourth of July road trip", "Summer travel packing", "Back-to-school week", "Harvest weekend plan", "Halloween week",
+  "Weeknight wind-down", "Book club catch-up", "Baby shower gift list", "Bridal shower prep", "Cozy night in",
 ];
 const HOOKS = [
-  "Set a {t} in 60 seconds", "The one napkin fold everyone asks about", "Candles, but make it {t}", "{t} on a budget",
-  "Three pieces that make a {t}", "How I reset after guests leave", "The easiest centerpiece ever", "Stop buying placemats: do this",
-  "My go-to trick for a {t}", "Thrifted plates, luxury table", "The layering rule for a {t}", "Florals from the grocery store",
+  "My {t} in 60 seconds", "The one checklist everyone asks about", "Slow mornings, but make it {t}", "{t} on a budget",
+  "Three steps that make a {t}", "How I reset after a long week", "The easiest habit ever", "Stop buying planners: do this",
+  "My go-to trick for a {t}", "Thrifted finds, big results", "The five-minute rule for a {t}", "Small wins from the grocery store",
 ];
 const BRANDS = [
-  "Linen & Laurel", "Hearth & Honey Kitchen", "Glow Taper Co.", "Petal Post Florals", "Gilded Fork Flatware", "Maison Crystal", "Oak & Olive Boards",
-  "Hostess Hub", "Bloom Box Market", "Sterling Table Co.", "Velvet Napkin Studio", "Porch & Pine", "Copper Kettle Goods", "Sunday Supper Club",
-  "Tidewater Ceramics", "Magnolia Wick", "Blue Willow Home", "Feast Fine Paper", "Charm City Chargers", "Harvest Loom", "Crème Pâtisserie",
-  "Lark & Lantern", "Plume Party Goods", "Rosewater Glassware", "Wren Tabletop", "Salt Cellar Co.", "The Butter Dish", "Gather Goods",
-  "Pearl & Pine Linens", "Golden Hour Candles", "Twine & Table", "Silver Spoon Rentals", "Heirloom Hosting", "Velvet Vase", "Bellwether Bakeware",
-  "Parlor Plates", "Honeycomb Home", "Cedar Sprig", "Brass Bell Barware", "Chateau Chalk", "Garland & Gold", "Sweet Tea Supply", "Hollow Oak",
-  "Marigold Mercantile", "Ivy Lane Home", "Juniper Table", "Saffron Kitchen", "Dove Grey Linens", "Painted Bird Pottery", "Seaside Setting", "Fig & Frond",
-  "Morning Glory Mugs", "Evergreen Entertaining", "Opal Oven", "Lavender Loft",
+  "Lark & Laurel", "Hearth & Honey Tea", "Glow Journal Co.", "Fieldnote Paper Co.", "Gilded Pen Supply", "Maison Crystal", "Oak & Olive Goods",
+  "Daily Hub", "Bloom Box Market", "Sterling Travel Co.", "Velvet Notebook Studio", "Pine & Path", "Copper Kettle Goods", "Sunday Club",
+  "Tidewater Wellness", "Magnolia Mornings", "Blue Willow Studio", "Feast Fine Paper", "Charm City Bags", "Harvest Loom", "Crème Skin Co.",
+  "Lark & Lantern", "Plume Goods", "Rosewater Bottles", "Wren Supply", "Salt & Stone Co.", "The Butter Bar", "Gather Goods",
+  "Pearl & Pine Studio", "Sunrise Tea", "Twine & Thread", "Silver Spoon Wellness", "Heirloom Habits", "Velvet Desk", "Bellwether Bags",
+  "Parlor Paper", "Honeycomb Health", "Cedar Sprig", "Brass Bell Bottles", "Chateau Chalk", "Garland & Gold", "Sweet Tea Supply", "Hollow Oak",
+  "Marigold Mercantile", "Ivy Lane Studio", "Juniper Journal", "Saffron Skin", "Dove Grey Goods", "Painted Bird Paper", "Seaside Supply", "Fig & Frond",
+  "Morning Glory Mugs", "Evergreen Everyday", "Opal Outdoors", "Lavender Loft",
 ];
 const DEAL_PLAN = [
   // [stage, count]
@@ -74,25 +74,25 @@ const LOST = ["No reply after three follow-ups", "They went with another creator
 const briefBody = (v) =>
   JSON.stringify({
     audience: [{ text: `Most engaged viewers are women 30-55 (month ${v}).`, source_ids: ["s1"], basis: "her_data", confidence: "solid" }],
-    themes: [{ title: "Table styling", claims: [{ text: "Tablescape videos get the most saves.", source_ids: ["s1"], basis: "web", confidence: "solid" }] }],
-    hooks: [{ text: "Open on the finished table, then rewind.", source_ids: ["s1"], basis: "web", confidence: "solid" }],
+    themes: [{ title: "Morning routines", claims: [{ text: "Routine videos get the most saves.", source_ids: ["s1"], basis: "web", confidence: "solid" }] }],
+    hooks: [{ text: "Open on the finished result, then rewind.", source_ids: ["s1"], basis: "web", confidence: "solid" }],
     cut_styles: [{ text: "Hook-first cuts under 30 seconds hold best.", source_ids: ["s1"], basis: "web", confidence: "solid" }],
     best_times: { tiktok: [], instagram: [], youtube: [] },
-    comparable_creators: [{ handle: "@demo.hostess", platform: "tiktok", why: { text: "Same niche, similar size.", source_ids: ["s1"], basis: "web", confidence: "solid" } }],
-    shot_list: [{ text: "A 20-second table reset before guests arrive.", source_ids: ["s1"], basis: "web", confidence: "solid" }],
+    comparable_creators: [{ handle: "@demo.routines", platform: "tiktok", why: { text: "Same niche, similar size.", source_ids: ["s1"], basis: "web", confidence: "solid" } }],
+    shot_list: [{ text: "A 20-second desk reset before the day starts.", source_ids: ["s1"], basis: "web", confidence: "solid" }],
   });
 
 function kitContent(showcase, version, photoKey = null) {
   return JSON.stringify({
     name: "Sample Creator",
     handles: { tiktok: "@demo.sample", instagram: "@demo.sample" },
-    niche: "Hosting · tablescapes · everyday luxury",
+    niche: "Routines · quick tips · everyday wins",
     location: "Mobile, Alabama",
-    positioning: "Hosting that makes every guest feel celebrated.",
-    bio: `Hosting, table styling and everyday luxury for women who love to gather. (kit v${version})`,
+    positioning: "Everyday routines that make busy days feel easy.",
+    bio: `Morning routines, quick tips and everyday wins for women who love a plan. (kit v${version})`,
     photoKey,
-    pillars: [{ title: "Table styling", text: "Tablescapes for every season" }, { title: "Easy entertaining", text: "Gatherings without the stress" }],
-    series: [{ title: "Sunday Table", text: "A weekly 60-second table reset" }],
+    pillars: [{ title: "Morning routines", text: "Routines for every season" }, { title: "Quick tips", text: "Small changes without the stress" }],
+    series: [{ title: "Sunday Reset", text: "A weekly 60-second reset" }],
     showcase,
     collabs: [],
     packages: [{ id: "pkg_tiktok", name: "1 TikTok video", items: [{ key: "tiktok_video", qty: 1 }], startingAt: 800, onRequest: false, floor: 650, target: 1000, note: "Concept, filming and editing.", showOnKit: true }],
@@ -188,7 +188,7 @@ export function yearSql(now = new Date(), { before = false, sample = false } = {
   const email = (kind, subject, at, ref = null) => out.push(row("emails_sent", { id: `yr_em_${++em}`, kind, to_email: "owner@demo-creator.example", subject, ref_id: ref, provider_id: `demo-${em}`, sent_at: iso(at) }));
 
   // The locked profile and the approved brief behind it (no "first things first" on day 358).
-  out.push(row("brand_profile", { version: 9101, sections: JSON.stringify({ who: "Demo creator: a hostess and tablescape creator.", audience: "Women 30-55 who love hosting.", goals: "10 clips a week, 2 paid partnerships a quarter.", voice: "Warm, gracious, a little playful.", themes: "Table styling\nEasy entertaining\nHoliday hosting", do_dont: "Do: real homes. Don't: hard selling.", off_limits: "Alcohol brands, diet pills", deal_fit: "Tableware, candles, florals, linens.", ctas: "Save this for your next gathering." }), locked: 1, locked_at: iso(day0 + 2 * DAY), source: "edited", created_at: iso(day0 + 2 * DAY) }));
+  out.push(row("brand_profile", { version: 9101, sections: JSON.stringify({ who: "Demo creator: an everyday lifestyle creator.", audience: "Women 30-55 who love practical routines.", goals: "10 clips a week, 2 paid partnerships a quarter.", voice: "Warm, gracious, a little playful.", themes: "Morning routines\nQuick tips\nWeekly resets", do_dont: "Do: real days. Don't: hard selling.", off_limits: "Alcohol brands, diet pills", deal_fit: "Everyday essentials, wellness, stationery.", ctas: "Save this for your next reset." }), locked: 1, locked_at: iso(day0 + 2 * DAY), source: "edited", created_at: iso(day0 + 2 * DAY) }));
 
   // 12 research briefs, one a month; the newest is this month's draft, the one before is live.
   for (let m = 0; m < 12; m++) {
@@ -249,8 +249,8 @@ export function yearSql(now = new Date(), { before = false, sample = false } = {
       const posted = !unapproved;
       const postedAt = ready + 5 * DAY;
       const fileGone = posted && T - postedAt > 7 * DAY;
-      const details = { title, description: `Everything for a ${topic.toLowerCase()}.`, chapters: [{ t: 0, title: "Intro" }, { t: 60, title: "The table" }, { t: 240, title: "Finishing touches" }], tags: ["tablescape", "hosting"], thumbnails: [{ key: file(`full/${id}/t1.jpg`, "thumb", LOOKS[i % LOOKS.length]), t: 20 }, { key: file(`full/${id}/t2.jpg`, "thumb", LOOKS[(i + 1) % LOOKS.length]), t: 50 }, { key: file(`full/${id}/t3.jpg`, "thumb", LOOKS[(i + 2) % LOOKS.length]), t: 80 }], thumb_pick: 0, privacy: "public", width: 1920, height: 1080, duration_s: 900, size_bytes: size, studio_done_at: posted && i !== 46 ? iso(postedAt + DAY) : null, handoff: false };
-      out.push(row("clips", { id: cid, asset_id: assets[0], dump_id: id, start_s: 0, end_s: 900, recipe: "story", hook_text: title, caption: details.description, hashtags: "#tablescape", platforms: '["youtube"]', score: 0.9, r2_key: fileGone ? `full/${id}/video.mp4` : file(`full/${id}/video.mp4`, "full", LOOKS[i % LOOKS.length]), cover_r2_key: null, media_token: fileGone ? null : token(), status: unapproved ? "draft" : "approved", reviewed_at: unapproved ? null : iso(ready + DAY), created_at: iso(ready), full_video: 1, youtube: JSON.stringify(details), file_deleted_at: fileGone ? iso(postedAt + 7 * DAY) : null, ...(before ? {} : { file_bytes: fileGone ? 0 : size }) }));
+      const details = { title, description: `Everything for a ${topic.toLowerCase()}.`, chapters: [{ t: 0, title: "Intro" }, { t: 60, title: "The plan" }, { t: 240, title: "Finishing touches" }], tags: ["routine", "dailytips"], thumbnails: [{ key: file(`full/${id}/t1.jpg`, "thumb", LOOKS[i % LOOKS.length]), t: 20 }, { key: file(`full/${id}/t2.jpg`, "thumb", LOOKS[(i + 1) % LOOKS.length]), t: 50 }, { key: file(`full/${id}/t3.jpg`, "thumb", LOOKS[(i + 2) % LOOKS.length]), t: 80 }], thumb_pick: 0, privacy: "public", width: 1920, height: 1080, duration_s: 900, size_bytes: size, studio_done_at: posted && i !== 46 ? iso(postedAt + DAY) : null, handoff: false };
+      out.push(row("clips", { id: cid, asset_id: assets[0], dump_id: id, start_s: 0, end_s: 900, recipe: "story", hook_text: title, caption: details.description, hashtags: "#routine", platforms: '["youtube"]', score: 0.9, r2_key: fileGone ? `full/${id}/video.mp4` : file(`full/${id}/video.mp4`, "full", LOOKS[i % LOOKS.length]), cover_r2_key: null, media_token: fileGone ? null : token(), status: unapproved ? "draft" : "approved", reviewed_at: unapproved ? null : iso(ready + DAY), created_at: iso(ready), full_video: 1, youtube: JSON.stringify(details), file_deleted_at: fileGone ? iso(postedAt + 7 * DAY) : null, ...(before ? {} : { file_bytes: fileGone ? 0 : size }) }));
       stats.clips++;
       if (!fileGone) stats.bytes += size;
       if (posted) {
@@ -287,7 +287,7 @@ export function yearSql(now = new Date(), { before = false, sample = false } = {
       const bytes = st === "deleted" ? 0 : between(9, 16) * MBs + between(150, 400) * 1024;
       const c = {
         id: cid, asset_id: assets[k % assets.length], dump_id: id, start_s: k * 30, end_s: k * 30 + between(15, 45), recipe: door === "recycle" ? "recycle" : pick(RECIPES),
-        hook_text: hook, caption: `${hook}. Save this for your next gathering.`, hashtags: "#tablescape #hosting", platforms: '["tiktok","instagram","youtube"]', score,
+        hook_text: hook, caption: `${hook}. Save this for your next reset.`, hashtags: "#routine #dailytips", platforms: '["tiktok","instagram","youtube"]', score,
         r2_key: st === "deleted" ? `clips/${id}/${cid}.mp4` : file(`clips/${id}/${cid}.mp4`, "clip", look), cover_r2_key: st === "deleted" ? `clips/${id}/${cid}.jpg` : file(`clips/${id}/${cid}.jpg`, "cover", look), media_token: st === "deleted" ? null : token(), status: st,
         reject_reason: st === "rejected" || (st === "deleted" && x < 0.82) ? pick(["Boring start", "Bad framing", "Off-brand", "Too long", null]) : null,
         hidden, reviewed_at: reviewedAt ? iso(reviewedAt) : null, created_at: iso(created), look, parts: `[[${k * 30},${k * 30 + 25}]]`,
@@ -342,7 +342,7 @@ export function yearSql(now = new Date(), { before = false, sample = false } = {
     const failed = j % 13 === 12;
     const nid = `yr_narr_${++nv}`;
     const bytes = failed ? 0 : between(120, 400) * 1024 + (auto || j % 2 ? between(14, 26) * MBs : 0);
-    out.push(row("narrations", { id: nid, script: `Three things make a table feel special, part ${nv}.`, r2_key: failed ? null : file(`narrations/${nid}.mp3`, "narration"), clip_id: failed ? null : c.id, status: failed ? "failed" : "ready", engine: j % 5 === 0 ? "elevenlabs" : "built-in", duration_s: failed ? null : 8 + (j % 9), mixed_r2_key: failed ? null : file(`narrations/${nid}-mix.mp4`, "mix", clipLook.get(c.id) ?? LOOKS[0]), mix_status: failed ? "failed" : "ready", auto, ai_generated: 1, batch: auto ? `auto/b${Math.floor(j / 3)}` : null, created_at: iso(c.at + DAY), ...(before ? {} : { file_bytes: bytes }) }));
+    out.push(row("narrations", { id: nid, script: `Three things make a morning feel special, part ${nv}.`, r2_key: failed ? null : file(`narrations/${nid}.mp3`, "narration"), clip_id: failed ? null : c.id, status: failed ? "failed" : "ready", engine: j % 5 === 0 ? "elevenlabs" : "built-in", duration_s: failed ? null : 8 + (j % 9), mixed_r2_key: failed ? null : file(`narrations/${nid}-mix.mp4`, "mix", clipLook.get(c.id) ?? LOOKS[0]), mix_status: failed ? "failed" : "ready", auto, ai_generated: 1, batch: auto ? `auto/b${Math.floor(j / 3)}` : null, created_at: iso(c.at + DAY), ...(before ? {} : { file_bytes: bytes }) }));
     stats.narrations++;
     stats.bytes += bytes;
   }
@@ -361,7 +361,7 @@ export function yearSql(now = new Date(), { before = false, sample = false } = {
       const name = BRANDS[b++ % BRANDS.length];
       const bid = `yr_brand_${b}`;
       const created = day0 + between(10, 340) * DAY;
-      out.push(row("brands", { id: bid, name, website: `https://${name.toLowerCase().replace(/[^a-z]+/g, "")}.example/`, fit_score: 0.6 + r() * 0.35, fit_reasons: JSON.stringify(["Fits your Table styling theme"]), source_links: JSON.stringify([`https://${name.toLowerCase().replace(/[^a-z]+/g, "")}.example/creators`]), origin: k % 3 ? "finder" : "her_list", status: "saved", kind: "brand", budget_signal: JSON.stringify({ level: "paying", evidence: [{ text: "Runs a creator program", url: "https://example.org/program" }] }), created_at: iso(created) }));
+      out.push(row("brands", { id: bid, name, website: `https://${name.toLowerCase().replace(/[^a-z]+/g, "")}.example/`, fit_score: 0.6 + r() * 0.35, fit_reasons: JSON.stringify(["Fits your Morning routines theme"]), source_links: JSON.stringify([`https://${name.toLowerCase().replace(/[^a-z]+/g, "")}.example/creators`]), origin: k % 3 ? "finder" : "her_list", status: "saved", kind: "brand", budget_signal: JSON.stringify({ level: "paying", evidence: [{ text: "Runs a creator program", url: "https://example.org/program" }] }), created_at: iso(created) }));
       if (stage !== "find_contact") out.push(row("brand_contacts", { id: `yr_ct_${b}`, brand_id: bid, kind: "role_email", value: `creators@${name.toLowerCase().replace(/[^a-z]+/g, "")}.example`, found_on_url: "https://example.org/contact" }));
       const did = `yr_deal_${++dn}`;
       const pitched = ["find_contact", "pitch"].includes(stage) ? null : created + DAY;
@@ -371,7 +371,7 @@ export function yearSql(now = new Date(), { before = false, sample = false } = {
       out.push(row("deals", { id: did, brand_id: bid, stage, terms: JSON.stringify(fee ? { fee, deliverables: "1 TikTok video" } : {}), outcome_reason: stage === "declined" ? DECLINED[k % DECLINED.length] : stage === "lost" ? LOST[k % LOST.length] : null, pitched_at: pitched ? iso(pitched) : null, replied_at: ["negotiating", "agreed", "delivering", "invoiced", "paid", "done", "declined"].includes(stage) ? iso(created + 6 * DAY) : null, agreed_at: ["agreed", "delivering", "invoiced", "paid", "done"].includes(stage) ? iso(created + 12 * DAY) : null, delivered_at: ["invoiced", "paid", "done"].includes(stage) ? iso(created + 25 * DAY) : null, invoiced_at: ["invoiced", "paid", "done"].includes(stage) ? iso(created + 26 * DAY) : null, invoice_due_at: ["invoiced", "paid", "done"].includes(stage) ? iso(created + 56 * DAY) : null, paid_at: ["paid", "done"].includes(stage) ? iso(closedAt) : null, closed_at: closedAt ? iso(closedAt) : null, created_at: iso(created), updated_at: iso(closedAt ?? created + 2 * DAY) }));
       stats.deals++;
       if (pitched) {
-        out.push(row("pitches", { id: `yr_pitch_${dn}`, brand_id: bid, contact_id: `yr_ct_${b}`, subject: `An idea for ${name}`, body: `Hi ${name} team, an idea for a table...`, status: stage === "follow_up" ? "sent" : "replied", sent_at: iso(pitched), next_followup_at: stage === "follow_up" ? iso(pitched + 5 * DAY) : null, created_at: iso(created) }));
+        out.push(row("pitches", { id: `yr_pitch_${dn}`, brand_id: bid, contact_id: `yr_ct_${b}`, subject: `An idea for ${name}`, body: `Hi ${name} team, an idea for a video...`, status: stage === "follow_up" ? "sent" : "replied", sent_at: iso(pitched), next_followup_at: stage === "follow_up" ? iso(pitched + 5 * DAY) : null, created_at: iso(created) }));
       }
       event(`deal.${stage}`, did, closedAt ?? created, {});
     }
