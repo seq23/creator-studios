@@ -6,8 +6,15 @@
 // (so this file does not itself publish them), and every token shaped like one is hashed and compared.
 import { createHash } from "node:crypto";
 
+/**
+ * The host's former business name, in every spelling (joined, spaced, hyphenated, underscored). It
+ * appears nowhere in this repo, so the pattern is assembled from parts (validator no-host-brand
+ * scans every tracked file, this one included).
+ */
+export const HOST_BRAND = new RegExp(`${["w", "e", "s", "t"].join("")}[\\s_-]?${["p", "e", "e", "k"].join("")}`, "i");
+
 export const PATTERNS = [
-  [/westpeek|west[\s-]?peek/i, "a West Peek name or address"],
+  [HOST_BRAND, "the host's former business name or address"],
   [/sequoia\s*taylor|sequoiataylor/i, "the host's name"],
   [/sequoia@|seq\.taylor@/i, "the host's email"],
   [/sheila|asheilabruce/i, "another client's studio (Sheila)"],

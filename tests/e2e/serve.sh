@@ -15,6 +15,8 @@ fi
 # Local is "dev", never production: /healthz must say env "dev" (tests/unit/staging-env.test.ts).
 # .dev.vars overrides wrangler.jsonc's vars locally; whatever ENV_NAME it had becomes dev.
 { grep -v '^ENV_NAME=' .dev.vars || true; echo "ENV_NAME=dev"; } > .dev.vars.tmp && mv .dev.vars.tmp .dev.vars
+# The owner login is a secret in every studio (README "Owner email"), so locally it is here too: the placeholder.
+grep -q '^OWNER_EMAIL=' .dev.vars || echo "OWNER_EMAIL=owner@studio.example" >> .dev.vars
 rm -rf .wrangler/state/v3/d1 .wrangler/state/v3/r2
 npx wrangler d1 migrations apply creator-studios-dev-db --local >/dev/null
 PORT="${E2E_PORT:-8787}"

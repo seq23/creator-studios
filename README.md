@@ -15,19 +15,26 @@ entry in the registry, `studios/<slug>.json`. `wrangler.jsonc` is generated from
 
 | Studio | Slug | URL | Kind | Owner login |
 | --- | --- | --- | --- | --- |
-| Hadiyah Studio | `hadiyah` | https://hadiyahstudio.seq-taylor.workers.dev | host-accounts | `ownerEmail` in `studios/hadiyah.json` (see below) |
-| Sample 1 Studio | `sample1` | https://sample1studio.seq-taylor.workers.dev | client | claimed with its first-login link |
-| Sample 2 Studio | `sample2` | https://sample2studio.seq-taylor.workers.dev | client | claimed with its first-login link |
-| Sample 3 Studio | `sample3` | https://sample3studio.seq-taylor.workers.dev | client | claimed with its first-login link |
+| Hadiyah Studio | `hadiyah` | https://hadiyah-studio.spryexecutiveos.com | host-accounts | deploy-time `OWNER_EMAIL` (see "Owner email") |
+| Sample 1 Studio | `sample1` | https://sample1-studio.spryexecutiveos.com | client | claimed with its first-login link |
+| Sample 2 Studio | `sample2` | https://sample2-studio.spryexecutiveos.com | client | claimed with its first-login link |
+| Sample 3 Studio | `sample3` | https://sample3-studio.spryexecutiveos.com | client | claimed with its first-login link |
 
-Custom domains come later: change `url` in the entry, add the domain to the Worker, deploy.
+**Domains.** Each studio answers on its own `hostname` (a field in its registry entry), attached to
+its Worker as a **Workers Custom Domain** on the host's Cloudflare zone `spryexecutiveos.com`
+(generated `routes: [{ pattern, custom_domain: true }]`; Cloudflare makes the DNS record and the
+certificate). `PUBLIC_BASE_URL` (links in emails, the session cookie's host, every OAuth redirect URI)
+is `https://<hostname>`, derived, never typed. The old `https://<worker>.seq-taylor.workers.dev`
+addresses stay on and **301 to the hostname** for every page (`worker/lib/canonical-host.ts`; one
+address means one login cookie and one OAuth redirect URI); `/api/*` on the old address is still
+answered, never redirected, so a job dispatched before a move still calls back. `studio:deploy`'s
+smoke proves the 301. Nothing else on the zone is touched (the apex site and the
+`mail.spryexecutiveos.com` email records belong to other things).
 
 - **Hadiyah Studio** has exactly Sheila Studio's features, on exactly Sheila's split of accounts
   (next section), with her own theme ("hadiyah" in `studios/themes.json`: malachite green and
   saffron on bone, Young Serif headings and wordmark, Hanken Grotesk text).
-  **Owner email:** `ownerEmail` in `studios/hadiyah.json` is set to the host's
-  `sequoia@westpeek.ventures`, as Sheila's was, until Hadiyah gives hers. To change it, edit the
-  value and run `npm run studio:deploy hadiyah` (or merge it: main deploys every studio).
+  **Owner email:** never in this public repo; see "Owner email" below.
 - **Sample 1/2/3** carry **none of the host's software**: no host API keys, data, emails or links.
   Neutral "slate" theme. Every service is the client's own, pasted on **Setup** (below).
 
@@ -47,7 +54,7 @@ Evidence was read from the Sheila repo's docs, the secret NAMES bound on the `sh
 | YouTube numbers key `YOUTUBE_API_KEY` | Host's (Sheila's key, same key; secret file `YOUTUBE_API_KEY`) | Worker secret on `sheilastudio`; Sheila `docs/YOUTUBE.md`: the Google project is "registered under the owner's account … the owner chose to keep it there" |
 | Google sign-in app `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Host's Google project, a web client of Hadiyah's own Worker | Worker secrets on `sheilastudio`; Sheila RUNBOOK: each Worker has its own web client in the owner's project. Not yet created for Hadiyah: a NAMED STOP (RUNBOOK) |
 | Login codes | Platform sender (host's Resend) | Studio brief §4 (the one shared piece) |
-| Studio email (alerts, recaps) `RESEND_API_KEY` | **Hadiyah's own** (Setup → Email) | Sheila RUNBOOK: "RESEND_API_KEY on production is Sheila's own Resend account key … never a West Peek key" |
+| Studio email (alerts, recaps) `RESEND_API_KEY` | **Hadiyah's own** (Setup → Email) | Sheila RUNBOOK: "RESEND_API_KEY on production is Sheila's own Resend account key", never a host key |
 | Buffer (posting) | **Hadiyah's own** | Connected in Sheila's app (`connections.buffer` ok); Sheila BUILD_PLAN 4b: "She connects everything herself"; named by the host |
 | OpenRouter (AI writing) | **Hadiyah's own** | Connected in Sheila's app (`connections.openrouter` ok). Sheila's repo also had a host `OPENROUTER_API_KEY` GitHub secret as a job fallback; not carried: jobs get the studio's own key in their signed spec |
 | Firecrawl (web research) | **Hadiyah's own** | Connected in Sheila's app (`connections.firecrawl` ok) |
@@ -59,11 +66,32 @@ Evidence was read from the Sheila repo's docs, the secret NAMES bound on the `sh
 ## Platform sender (the only shared piece)
 
 A new studio has no email service, yet its owner must get her login code. So **login codes, and only
-login codes**, go through the PLATFORM sender: the host's Resend, Worker secrets
+login codes**, go through the PLATFORM sender: the host's own Resend account, sending from
+**`Studio sign-in <login@mail.spryexecutiveos.com>`** (domain `mail.spryexecutiveos.com`, verified in
+that Resend account; the name is neutral because every studio, client or not, sends through it;
+`PLATFORM_FROM` in `scripts/studio.mjs`, the one place it is written). Worker secrets
 `PLATFORM_RESEND_API_KEY` + `PLATFORM_EMAIL_FROM` on every studio (`worker/services/email.ts`
 `senderFor`). Every other email a studio sends uses **that studio's own Resend** (Setup → Email);
 until it has one, those emails are listed on its health board, never sent (practice mode). Nothing
 else is shared between studios. Guard: `tests/unit/login.test.ts`.
+
+To change the sender (a new key in the 0600 file `PLATFORM_RESEND_API_KEY`, or a new address in
+`PLATFORM_FROM`): `node scripts/studio.mjs secrets --all --refresh --only=PLATFORM_RESEND_API_KEY,PLATFORM_EMAIL_FROM` re-puts both on every studio
+(without `--only`, every secret with a source on this machine; generated ones such as `SECRETS_KEY`
+are never rotated, and one with no source here is kept as the Worker has it).
+
+## Owner email
+
+The owner's login email is **never committed** (this repo is public): it is a deploy-time Worker
+secret `OWNER_EMAIL`, set by `npm run studio:secrets <slug>` from the 0600 file
+`~/.config/creator-studios/secrets/<slug>/OWNER_EMAIL` (or the env var `OWNER_EMAIL_<SLUG>`). A
+host-run studio (Hadiyah) needs it: without the file, `studio:secrets`/`studio:create` stop, naming
+the file. A client studio normally has none: its owner claims it with the first-login link (the
+claimed address, in its D1, wins over `OWNER_EMAIL`). To change an owner email: write the file, then
+`node scripts/studio.mjs secrets <slug> --refresh`; deleting a client's file and refreshing removes
+the secret. Guard: validator `registry-no-emails` fails on any email address in `studios/*.json`
+other than the placeholder `owner@studio.example` (used only by local dev), and on an `ownerEmail`
+field; `tests/unit/studios.test.ts` proves it negatively.
 
 ## Login
 
@@ -87,11 +115,23 @@ listed not sent, sign-ins are practice connections, YouTube numbers wait with a 
 
 ```bash
 # 1. one registry entry (copy studios/sample1.json; kind "client" for a client)
-cp studios/sample1.json studios/<slug>.json   # edit slug, worker, url, appName, theme
-# 2. one command: creates its D1 + R2, migrates, deploys, sets its secrets, smokes it,
-#    and prints its URL and (for a client) its first-login link
+cp studios/sample1.json studios/<slug>.json   # edit slug, worker, hostname, appName, theme; drop d1.id
+# 2. one command: creates its D1 + R2, migrates, deploys (attaching its hostname), sets its
+#    secrets, smokes it, and prints its URL and (for a client) its first-login link
 npm run studio:create <slug>
 ```
+
+A host-run studio also needs its owner email file first (see "Owner email").
+
+## Rename a studio (a sample taken by a client)
+
+One registry change, one command. Edit `hostname` (and `appName`, `theme`, `ownerName` as wanted) in
+`studios/<slug>.json`, then `npm run studio:deploy <slug>` (or merge it: green main deploys every
+studio). The new hostname is attached on deploy and `PUBLIC_BASE_URL` follows it. Then: the old
+hostname, if Cloudflare still lists it (Workers → the Worker → Settings → Domains), is removed there;
+the studio's own Google/Meta sign-in clients need the new redirect URIs
+`https://<hostname>/api/oauth/google/callback` and `/api/oauth/meta/callback` (Setup shows them).
+The slug, Worker, D1 and R2 names never change (renaming them would orphan the data).
 
 ## Deploy
 
@@ -108,9 +148,10 @@ straight into `wrangler secret put` on stdin, never printed and never from the m
 A value comes from an environment variable of the same name, else a 0600 file
 `~/.config/creator-studios/secrets/<NAME>` (directory overridable with `CS_SECRETS_DIR`); a missing
 one is a NAMED STOP naming the file to create. Generated secrets are made with crypto randomness and
-kept in 0600 files `<secrets dir>/<slug>/<NAME>`. Files: `PLATFORM_RESEND_API_KEY` (all), and for
+kept in 0600 files `<secrets dir>/<slug>/<NAME>`. Files: `PLATFORM_RESEND_API_KEY` (all),
+`<slug>/OWNER_EMAIL` (host-run studios; optional for a client), and for
 Hadiyah `YOUTUBE_API_KEY`, `HADIYAH_GOOGLE_CLIENT_ID`, `HADIYAH_GOOGLE_CLIENT_SECRET` (optional). Per studio: `SESSION_SECRET`, `SECRETS_KEY`, `JOB_SHARED_SECRET`
-(generated), `PLATFORM_RESEND_API_KEY` + `PLATFORM_EMAIL_FROM` (platform sender), and for
+(generated), `PLATFORM_RESEND_API_KEY` + `PLATFORM_EMAIL_FROM` (platform sender), `OWNER_EMAIL`, and for
 host-accounts studios the `hostSecrets` in the entry. GitHub: `CLOUDFLARE_API_TOKEN`,
 `CLOUDFLARE_ACCOUNT_ID` (deploy), `JOB_SHARED_SECRET_<SLUG>` (host-run job runner).
 
@@ -118,11 +159,14 @@ host-accounts studios the `hostSecrets` in the entry. GitHub: `CLOUDFLARE_API_TO
 
 | Guard | Where | Negative proof |
 | --- | --- | --- |
-| (a) a client studio carries no host identifier (emails, names, West Peek, Sheila, the host's channel/account ids, host keys as secrets) | validator `sample-clean`, `scripts/bundle-scan.mjs` (built client + Worker bundle), live secret check in `studio:deploy` | `tests/unit/studios.test.ts` |
+| (a) a client studio carries no host identifier (emails, names, the host's former business name, Sheila, the host's channel/account ids, host keys as secrets) | validator `sample-clean`, `scripts/bundle-scan.mjs` (built client + Worker bundle), live secret check in `studio:deploy` | `tests/unit/studios.test.ts` |
 | (b) studio A's D1/R2 are never studio B's | validator `studio-isolation` | `tests/unit/studios.test.ts` |
 | (c) login is never "open" | validator `login-never-open` | `tests/unit/login.test.ts` |
 | (d) every feature without a key shows practice mode | `tests/unit/practice.test.ts` (an empty real studio through the real Worker: no 5xx, no vendor call) | `tests/unit/practice.test.ts` |
 | nothing hidden, nothing switched off | validator `nothing-hidden` | (inherited) |
+| no owner email committed in the registry | validator `registry-no-emails` | `tests/unit/studios.test.ts` |
+| the host's former business name nowhere in the repo (every tracked file) | validator `no-host-brand` | `tests/unit/studios.test.ts` |
+| an old workers.dev page 301s to the studio's hostname; the API is never redirected | `worker/lib/canonical-host.ts`, smoke in `studio:deploy` | `tests/unit/canonical-host.test.ts` |
 
 ## Run it locally
 

@@ -1,10 +1,10 @@
 {
   "slug": "sample3",
   "worker": "sample3studio",
-  "url": "https://sample3studio.seq-taylor.workers.dev",
+  "hostname": "sample3-studio.spryexecutiveos.com",
   "appName": "Sample 3 Studio",
   "ownerName": "",
-  "ownerEmail": "",
+  "_ownerEmail": "Claimed through the first-login invite link; a deploy-time OWNER_EMAIL from <secrets dir>/sample3/OWNER_EMAIL is optional (README \"Owner email\").",
   "theme": "slate",
   "kind": "client",
   "audienceTimezone": "America/New_York",

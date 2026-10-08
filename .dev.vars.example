@@ -1,6 +1,8 @@
 # Copy to .dev.vars for local `wrangler dev`. Never commit .dev.vars.
 # With FAKE_SERVICES=1 (the default in wrangler.jsonc) none of the vendor keys are needed:
 # login codes are returned in the API response and every outside service is a stand-in.
+# The owner login (a deploy-time secret in every studio; the placeholder here, README "Owner email").
+OWNER_EMAIL=owner@studio.example
 SESSION_SECRET=dev-session-secret-change-me
 SECRETS_KEY=YcLVEjArFviauClfN6thsYumeyr3wqfUT9D2VnMNTm0=
 JOB_SHARED_SECRET=dev-job-shared-secret

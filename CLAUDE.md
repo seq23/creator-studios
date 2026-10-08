@@ -7,7 +7,11 @@ operational reference ("runbook creator-studios" opens it).
 
 - **One codebase, deployed as separate studios.** Each studio is one registry entry,
   `studios/<slug>.json`: its own Worker, its own D1, its own R2 (full data isolation), its own
-  owner email, its own theme. `wrangler.jsonc` is GENERATED from the registry
+  owner, its own theme, its own `hostname` (a Workers Custom Domain on `spryexecutiveos.com`; the
+  old workers.dev address 301s to it). The owner's email is NEVER committed: a deploy-time secret
+  from `<secrets dir>/<slug>/OWNER_EMAIL` (validator `registry-no-emails`; README "Owner email").
+  The host's former business name appears nowhere (validator `no-host-brand`).
+  `wrangler.jsonc` is GENERATED from the registry
   (`npm run studio:gen`; validator `studios-generated`). Never hand-edit it.
 - Copied from `seq23/sheila-creator-dashboard` (no history, see README). That repo and its
   deployments are never touched from here.

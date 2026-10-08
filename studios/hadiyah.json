@@ -1,10 +1,10 @@
 {
   "slug": "hadiyah",
   "worker": "hadiyahstudio",
-  "url": "https://hadiyahstudio.seq-taylor.workers.dev",
+  "hostname": "hadiyah-studio.spryexecutiveos.com",
   "appName": "Hadiyah Studio",
   "ownerName": "Hadiyah",
-  "ownerEmail": "sequoia@westpeek.ventures",
+  "_ownerEmail": "Never in this file (public repo). Set at deploy time from the 0600 file <secrets dir>/hadiyah/OWNER_EMAIL by `npm run studio:secrets hadiyah` (README \"Owner email\").",
   "theme": "hadiyah",
   "kind": "host-accounts",
   "audienceTimezone": "America/New_York",
@@ -15,7 +15,6 @@
   "r2": {
     "bucket": "creator-studios-hadiyah-files"
   },
-  "_ownerEmail": "FILL: Hadiyah's own login email. Defaults to the host's address (as Sheila's studio did) until she gives hers; change it here and run `npm run studio:deploy hadiyah`.",
   "githubRepo": "seq23/creator-studios",
   "hostSecrets": {
     "_why": "Exactly the split the host gave Sheila Studio: only what ran on the HOST's own accounts there is the host's here (README 'Hadiyah: whose account runs what'). Everything else is Hadiyah's own, pasted on Setup.",

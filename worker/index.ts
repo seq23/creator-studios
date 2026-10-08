@@ -8,6 +8,7 @@ import { envName, fakeServices, studioSlug } from "./env";
 import { hydrate, practice } from "./lib/practice";
 import { drainPracticeJobs } from "./services/github";
 import { log, safeError } from "./lib/log";
+import { canonicalRedirect } from "./lib/canonical-host";
 import { auth } from "./routes/auth";
 import { studio, themeCss } from "./routes/studio";
 import { setup } from "./routes/setup";
@@ -91,6 +92,8 @@ app.onError((err, c) => {
 
 export default {
   fetch: async (req: Request, env: Env, ctx: ExecutionContext) => {
+    const moved = canonicalRedirect(req, env.PUBLIC_BASE_URL);
+    if (moved) return moved;
     const e = await hydrate(env);
     const res = await app.fetch(req, e, ctx);
     if (e.PRACTICE_JOBS?.length) ctx.waitUntil(drainPracticeJobs(e));
