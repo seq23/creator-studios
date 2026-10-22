@@ -216,6 +216,7 @@ export function blockText(b: Block): string {
 export const SCREEN_ROUTES: Record<string, string> = {
   home: "/",
   dump: "/dump",
+  photos: "/photos",
   review: "/review",
   calendar: "/calendar",
   brain: "/brain",

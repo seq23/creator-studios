@@ -13,6 +13,7 @@ import { PLATFORMS, PLATFORM_LABEL } from "@shared/constants";
 import { Icon } from "../components/Icon";
 import { NotFollowedList, SteerPanel, UnderstoodNote, type SteerLook, type SteerTrack } from "../components/Steer";
 import type { SteerControls, Understood } from "@shared/steer";
+import { isPhoto, PACK_MAX_PHOTOS } from "@shared/photoPosts";
 import "../styles/dump.css";
 
 type Door = "new" | "recycle" | "youtube";
@@ -69,6 +70,7 @@ export function Dump() {
   const [dumpId, setDumpId] = useState<string | null>(routeId ?? null);
   const [notes, setNotes] = useState("");
   const [local, setLocal] = useState<Local[]>([]);
+  const [photoNote, setPhotoNote] = useState<string | null>(null);
   const [over, setOver] = useState(false);
   const [sending, setSending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -111,10 +113,25 @@ export function Dump() {
     return r.id;
   }, [dumpId, door, notes, nav]);
 
+  async function sendPhotos(photos: File[]) {
+    try {
+      const pack = await post<{ id: string }>("/api/photos/packs", { note: "" });
+      setPhotoNote(`Uploading ${plural(photos.length, "photo")} to Photos…`);
+      for (const f of photos.slice(0, PACK_MAX_PHOTOS)) await uploadFile(f, "photo", pack.id, () => undefined);
+      setPhotoNote(`${plural(photos.length, "photo")} saved in Photos. Open Photos and tap “Make my posts from these photos”.`);
+    } catch (e) {
+      setPhotoNote(null);
+      toast.bad(e, "The photos did not upload. Try again on Photos.");
+    }
+  }
+
   async function addFiles(files: FileList | File[]) {
+    // Photos picked here go to a new photo set on Photos (one photo becomes a few posts there).
+    const photos = Array.from(files).filter((f) => isPhoto(f.type, f.name));
+    if (photos.length) void sendPhotos(photos);
     const list = Array.from(files).filter((f) => f.type.startsWith("video/") || /\.(mov|mp4|m4v|webm|3gp)$/i.test(f.name));
     if (!list.length) {
-      toast.bad(new Error("Pick video files (MOV, MP4, WebM)."));
+      if (!photos.length) toast.bad(new Error("Pick videos (MOV, MP4, WebM) or photos (JPG, PNG, iPhone)."));
       return;
     }
     let id: string;
@@ -308,7 +325,12 @@ export function Dump() {
                     Choose videos
                   </span>
                 )}
-                <input ref={inputRef} type="file" accept="video/*" multiple={door !== "youtube"} hidden onChange={(e) => e.target.files && addFiles(e.target.files)} />
+                {photoNote && (
+                  <Notice tone="ok">
+                    {photoNote} <Link to="/photos">Open Photos →</Link>
+                  </Notice>
+                )}
+                <input ref={inputRef} type="file" accept="video/*,image/jpeg,image/png,image/heic,image/heif,.heic,.heif" multiple={door !== "youtube"} hidden onChange={(e) => e.target.files && addFiles(e.target.files)} />
               </div>
             </>
           ) : (

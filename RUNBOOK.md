@@ -23,6 +23,21 @@ paste-ready command, and nothing else waits on it (the feature runs in practice 
    cd ~/GitHub/creator-studios && npm run studio:secrets hadiyah
    ```
 
+2. **Photo posts: the platform tokens** (Porch & Party `sample1` and Hadiyah; shared/photoPosts.ts).
+   Posts are planned, get their heads-up and Skip, then WAIT ("Connect Facebook" on Photos, a grey
+   "Photo posts (<platform>)" light) until each token exists. None is in the vault or the secrets
+   folder yet (checked by name 22 Oct 2026). Each is the account owner's own:
+   - **Facebook** `FACEBOOK_PAGE_ID` + `FACEBOOK_PAGE_TOKEN`: a long-lived Page token with
+     `pages_manage_posts`, pasted on that studio's Setup → Facebook Page (checked live, stored
+     encrypted; the Worker secrets of the same names are read second).
+   - **Pinterest** `PINTEREST_ACCESS_TOKEN` + `PINTEREST_BOARD_ID` (Setup → Pinterest). Porch &
+     Party has no Pinterest business account yet; creating one is the owner's.
+   - **Instagram / TikTok** go through the studio's own **Buffer** key (Setup → Posting).
+   - **The photo maker** (videos and the face / house-number check) runs on the studio's job
+     runner (Setup → Clip cutting). Until then the photo set posts as the uploads are (JPG/PNG), the
+     videos wait, and a studio with face/address rules (Porch & Party) holds every post until the
+     check has run.
+
 ## The studios
 
 `node scripts/studio.mjs list`. One registry entry each in `studios/`; `wrangler.jsonc` is

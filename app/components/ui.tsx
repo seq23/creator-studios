@@ -216,8 +216,9 @@ export function Modal({ title, children, onClose }: { title: string; children: R
       <div className="modal" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>{title}</h2>
-          <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
-            <Icon name="close" />
+          {/* make-it-calm: the way out is written, not a bare icon ("✕ Close" on every overlay). */}
+          <button type="button" className="btn small quiet" aria-label="Close" onClick={onClose}>
+            ✕ Close
           </button>
         </div>
         {children}

@@ -3,7 +3,9 @@
   "worker": "sample1studio",
   "hostname": "pnpstudio.spryexecutiveos.com",
   "_renamed": "Sample 1 became Porch & Party Studio on 22 Oct 2026 (owner's word). The slug, Worker, D1 and R2 keep their sample1 names: renaming them would orphan the data (README \"Rename a studio\").",
-  "previousHostnames": ["sample1-studio.spryexecutiveos.com"],
+  "previousHostnames": [
+    "sample1-studio.spryexecutiveos.com"
+  ],
   "appName": "Porch & Party Studio",
   "ownerName": "",
   "_ownerEmail": "Never in this file (public repo). Set at deploy time from the 0600 file <secrets dir>/sample1/OWNER_EMAIL by `npm run studio:secrets sample1` (README \"Owner email\"). No first-login link is needed.",
@@ -16,5 +18,41 @@
   },
   "r2": {
     "bucket": "creator-studios-sample1-files"
+  },
+  "photoPosts": {
+    "_why": "Photo posts (shared/photoPosts.ts): one photo becomes a pack of posts that go out on their own with a heads-up and a Skip. On by the host's word, 22 Oct 2026.",
+    "on": true,
+    "platforms": [
+      "facebook",
+      "instagram",
+      "tiktok",
+      "pinterest"
+    ],
+    "headsUpHours": 24,
+    "postHour": 11
+  },
+  "contentRules": {
+    "_why": "Porch & Party's rules, enforced in code (shared/contentRules.ts): never the word insured, no customer address, house number or face, prices only from this one list. Host's word, 22 Oct 2026.",
+    "banWords": [
+      "insured"
+    ],
+    "blockAddresses": true,
+    "blockFaces": true,
+    "prices": [
+      {
+        "name": "Grand Holiday Porch",
+        "usd": 1050
+      }
+    ]
+  },
+  "whatsNew": {
+    "id": "2026-10-photo-posts",
+    "title": "New in your studio",
+    "lines": [
+      "Add a photo and the studio makes a few posts from it.",
+      "Posts go to Facebook, Instagram, TikTok and Pinterest on their own.",
+      "You get an email the day before. Tap Skip to stop one.",
+      "Faces and house numbers are blurred before anything posts."
+    ]
   }
 }

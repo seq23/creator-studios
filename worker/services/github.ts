@@ -7,7 +7,7 @@ import { newId, nowIso } from "../lib/ids";
 import { log, safeError } from "../lib/log";
 import { signJobMessage } from "../lib/crypto";
 
-export type JobType = "cut" | "extract" | "research" | "brand_finder" | "voice" | "help_screenshots" | "metrics" | "fullvideo" | "ytupload";
+export type JobType = "cut" | "extract" | "research" | "brand_finder" | "voice" | "help_screenshots" | "metrics" | "fullvideo" | "ytupload" | "photopack";
 
 export interface DispatchResult {
   jobId: string;

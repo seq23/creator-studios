@@ -4,7 +4,7 @@
     "frontmatter": {
       "title": "required, plain words",
       "group": "required: getting_started | everyday | brand_deals | fix_it (must match this index)",
-      "screen": "required: a key of SCREEN_ROUTES in app/lib/markdown.ts (home, dump, review, calendar, brain, research, stats, voice, settings, connect, deals, mediakit, help, login)",
+      "screen": "required: a key of SCREEN_ROUTES in app/lib/markdown.ts (home, dump, photos, review, calendar, brain, research, stats, voice, settings, connect, deals, mediakit, help, login)",
       "keywords": "optional: comma-separated words and phrases she might search for (\"how do i post\")",
       "last_checked": "required: YYYY-MM-DD the steps were last walked",
       "target": "optional: CSS or Playwright selector (e.g. role=button[name=\"Dump\"]) the screenshot job circles on every step",
@@ -58,6 +58,18 @@
       "title": "Connect Buffer (this is how your posts go out)",
       "group": "getting_started",
       "screen": "connect"
+    },
+    {
+      "slug": "connect-facebook",
+      "title": "Connect your Facebook Page",
+      "group": "getting_started",
+      "screen": "setup"
+    },
+    {
+      "slug": "connect-pinterest",
+      "title": "Connect Pinterest",
+      "group": "getting_started",
+      "screen": "setup"
     },
     {
       "slug": "add-channels-in-buffer",
@@ -294,6 +306,12 @@
       "screen": "calendar"
     },
     {
+      "slug": "photo-posts",
+      "title": "Turn a photo into posts",
+      "group": "everyday",
+      "screen": "photos"
+    },
+    {
       "slug": "change-posts-per-week",
       "title": "Change posts per week",
       "group": "everyday",
@@ -430,6 +448,18 @@
       "title": "Reconnect Buffer",
       "group": "fix_it",
       "screen": "connect"
+    },
+    {
+      "slug": "reconnect-facebook",
+      "title": "Facebook stopped posting: connect it again",
+      "group": "fix_it",
+      "screen": "setup"
+    },
+    {
+      "slug": "reconnect-pinterest",
+      "title": "Pinterest stopped pinning: connect it again",
+      "group": "fix_it",
+      "screen": "setup"
     },
     {
       "slug": "reconnect-openrouter",

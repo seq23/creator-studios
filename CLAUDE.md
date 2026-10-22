@@ -26,7 +26,7 @@ operational reference ("runbook creator-studios" opens it).
 
 ## Locked decisions you do not reopen
 
-Real footage only (no AI video) · two-door Dump · nothing posts without approval · hard cap 10
+Real footage only (no AI video) · two-door Dump · nothing posts without approval (one exception, owner's word 22 Oct 2026: **photo posts** auto-post with a heads-up email and a Skip, per studio `photoPosts`, shared/photoPosts.ts; a skipped post never goes out, guarded by tests/unit/photo-posts.test.ts) · hard cap 10
 posts per channel per week · Buffer free plan for posting · OpenRouter free models default ·
 **nothing hidden, nothing switched off**: every Settings switch defaults ON and no switch ever
 hides a screen, nav item or button (validator `nothing-hidden`) · research brief approved before

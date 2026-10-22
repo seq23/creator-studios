@@ -86,6 +86,18 @@ export interface Env {
   // Google sign-in). Vendor-prefixed on purpose, not a reserved name. A studio can instead paste its
   // own on Setup (stored encrypted in D1, read first); without either, Stats runs in practice mode.
   YOUTUBE_API_KEY?: string;
+  // Photo posts (shared/photoPosts.ts). The Page token / Pinterest token are pasted on Setup (stored
+  // encrypted, read first) or set as these Worker secrets; without them those posts wait ("Connect Facebook").
+  FACEBOOK_PAGE_ID?: string;
+  FACEBOOK_PAGE_TOKEN?: string;
+  PINTEREST_ACCESS_TOKEN?: string;
+  PINTEREST_BOARD_ID?: string;
+  /** studios/<slug>.json "photoPosts" as JSON (shared/photoPosts.ts parsePhotoPosts); missing = off. */
+  PHOTO_POSTS?: string;
+  /** studios/<slug>.json "contentRules" as JSON (shared/contentRules.ts parseRules); missing = no rules. */
+  CONTENT_RULES?: string;
+  /** studios/<slug>.json "whatsNew" as JSON: the one-time note shown to the owner (shared/photoPosts.ts). */
+  WHATS_NEW?: string;
 }
 
 export interface SessionUser {

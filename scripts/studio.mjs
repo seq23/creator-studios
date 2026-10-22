@@ -85,6 +85,10 @@ export function themeFor(studio, themes) {
   return { ...rest, wordmark: { name: studio.appName, ...(t.wordmark ?? {}), ...(studio.wordmark ?? {}) } };
 }
 
+/** Local dev / e2e only: photo posts on and a sample rule set (no one-time note: it would sit on every e2e screen; tests/unit/whats-new.test.ts covers it). */
+export const DEV_PHOTO_POSTS = { on: true, platforms: ["facebook", "instagram", "tiktok", "pinterest"], headsUpHours: 24, postHour: 11 };
+export const DEV_CONTENT_RULES = { banWords: ["insured"], blockAddresses: true, blockFaces: true, prices: [{ name: "Sample Package", usd: 500 }] };
+
 /** The wrangler env block for one studio. Pure. */
 export function envBlock(s, themes) {
   return {
@@ -112,6 +116,10 @@ export function envBlock(s, themes) {
       ...(s.previousHostnames?.length ? { PREVIOUS_HOSTNAMES: s.previousHostnames.join(",") } : {}),
       GITHUB_REPO: s.githubRepo ?? "",
       AUDIENCE_TIMEZONE: s.audienceTimezone ?? "America/New_York",
+      // Per-studio features and rules (shared/photoPosts.ts, shared/contentRules.ts): absent = off / none.
+      ...(s.photoPosts ? { PHOTO_POSTS: JSON.stringify(s.photoPosts) } : {}),
+      ...(s.contentRules ? { CONTENT_RULES: JSON.stringify(s.contentRules) } : {}),
+      ...(s.whatsNew ? { WHATS_NEW: JSON.stringify(s.whatsNew) } : {}),
       ENV_NAME: "production",
       AUTH_MODE: "code",
     },
@@ -144,6 +152,9 @@ export function wranglerConfig({ studios, themes }) {
       PUBLIC_BASE_URL: "http://localhost:8787",
       GITHUB_REPO: "example/studio-jobs",
       AUDIENCE_TIMEZONE: "America/New_York",
+      // Local dev and e2e exercise photo posts with a sample rule set (no real business's words).
+      PHOTO_POSTS: JSON.stringify(DEV_PHOTO_POSTS),
+      CONTENT_RULES: JSON.stringify(DEV_CONTENT_RULES),
       ENV_NAME: "dev",
       AUTH_MODE: "code",
     },

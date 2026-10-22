@@ -16,6 +16,7 @@ import { pollEditorJobs } from "../lib/editorJobs";
 import { dailyBrandRefresh } from "./deals";
 import { refreshPublicStats } from "../lib/publicStats";
 import { youtubeDirectSync } from "../lib/youtubeDirect";
+import { photoPostsTick, photoStopLights } from "../lib/photoPosts";
 
 /**
  * The "Last <lane> run" note: "OK · Wed, Oct 7, 1:00 PM" in her audience time zone, the same parts
@@ -39,6 +40,9 @@ export async function runCron(env: Env, cron: string): Promise<void> {
       await bufferSync(env);
       // Full videos straight to her channel (Connect YouTube): uploads due, Calendar moves, read-backs.
       await youtubeDirectSync(env);
+      // Photo posts (per studio, studios/<slug>.json photoPosts): heads-ups, Skip honoured, due posts out.
+      await photoPostsTick(env);
+      await photoStopLights(env);
       await briefDraftNotice(env);
       // Connected editors (docs/EDITORS.md): the screens ask while they are open; this catches the rest.
       const e = await pollEditorJobs(env);

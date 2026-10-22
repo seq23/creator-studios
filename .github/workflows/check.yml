@@ -35,7 +35,10 @@ jobs:
       - name: ffmpeg (the full-video job's tests run it on synthetic footage)
         # A static ffmpeg from GitHub releases, not apt: 7 Oct 2026 the runners' apt mirror hung for 8
         # minutes, then refused twice with timeouts, and the gate went red with no code at fault.
-        uses: FedericoCarboni/setup-ffmpeg@v3
-        timeout-minutes: 4
+        # 22 Oct 2026: FedericoCarboni/setup-ffmpeg@v3 broke upstream ("Failed to read version from
+        # readme") and turned the gate red with no code at fault. Now: the static BtbN build from
+        # GitHub releases (no apt), falling back to the bounded apt installer if that download fails.
+        timeout-minutes: 6
+        run: bash .github/scripts/ffmpeg-static.sh
       - name: Python job tests (web search + page reading, keyless and Firecrawl; the voice batch; the full video kept whole)
         run: python3 -m unittest discover -s jobs/tests -v
