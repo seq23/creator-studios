@@ -39,6 +39,10 @@ The hostname is the `hostname` field of the registry entry; renaming a studio is
 `npm run studio:deploy <slug>` (README "Rename a studio"). Only these four names on the zone belong
 to this repo: the apex site and the `mail.` email records are not ours and are never touched.
 
+A studio with a `landing` block in its registry entry shows a one-page landing (hero, how-it-works,
+sign-in) at its logged-out `/`; without one it keeps today's plain login card (`worker/routes/studio.ts`
+`readLanding()`, `app/components/StudioLanding.tsx`).
+
 Platform sender (login codes only): `Studio sign-in <login@mail.spryexecutiveos.com>`, the host's own
 Resend account (sending-only key in the 0600 file `PLATFORM_RESEND_API_KEY`). Change it on every
 studio: `node scripts/studio.mjs secrets --all --refresh --only=PLATFORM_RESEND_API_KEY,PLATFORM_EMAIL_FROM`.

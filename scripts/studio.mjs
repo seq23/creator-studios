@@ -107,6 +107,10 @@ export function envBlock(s, themes) {
       // host-accounts | client: the Worker reads the host fallback keys only on host-accounts (worker/lib/hostKeys.ts).
       STUDIO_KIND: s.kind,
       STUDIO_THEME: JSON.stringify(themeFor(s, themes)),
+      // A studio's optional one-page landing (its logged-out "/": worker/routes/studio.ts
+      // readLanding(), app/components/StudioLanding.tsx) is config, never a code fork: a studio
+      // with no `landing` entry carries no var and keeps today's plain login card.
+      ...(s.landing ? { STUDIO_LANDING: JSON.stringify(s.landing) } : {}),
       FAKE_SERVICES: "0",
       PUBLIC_BASE_URL: s.url,
       ...(s.previousHostnames?.length ? { PREVIOUS_HOSTNAMES: s.previousHostnames.join(",") } : {}),

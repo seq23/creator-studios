@@ -28,6 +28,12 @@ export interface Env {
   STUDIO_KIND?: string;
   /** The studio's theme (JSON from studios/<slug>.json: palette tokens, fonts, wordmark). */
   STUDIO_THEME?: string;
+  /**
+   * A studio's optional one-page landing (JSON from studios/<slug>.json → `landing`), shown at its
+   * logged-out "/" above the unchanged sign-in card. worker/routes/studio.ts readLanding() is the
+   * one reader; a studio with no `landing` entry has no var and keeps today's plain login card.
+   */
+  STUDIO_LANDING?: string;
   FAKE_SERVICES: string;
   PUBLIC_BASE_URL: string;
   /** A renamed studio's old custom hostnames, comma separated: their pages 301 to PUBLIC_BASE_URL (lib/canonical-host.ts). */

@@ -1,0 +1,111 @@
+/* A studio's optional one-page landing (app/components/StudioLanding.tsx, studios/<slug>.json ->
+   `landing`). Layout only: every colour, font and space is a token (validator design-tokens). */
+.landing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2xl);
+  width: 100%;
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: var(--space-xl) var(--gutter);
+}
+.landing-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  max-width: 44rem;
+  text-align: center;
+}
+.landing-hero h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-display);
+  line-height: var(--lh-tight);
+  color: var(--text);
+  margin: 0;
+}
+.landing-hero p {
+  font-size: var(--text-md);
+  line-height: var(--lh-body);
+  color: var(--text-soft);
+  margin: 0;
+  max-width: var(--measure);
+}
+.landing-steps {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-md);
+  width: 100%;
+}
+.landing-step {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2xs);
+  padding: var(--space-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  text-align: left;
+}
+.landing-step-n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-lg);
+  height: var(--space-lg);
+  border-radius: var(--pill);
+  background: var(--gold-faint);
+  color: var(--gold-ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.landing-step h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  color: var(--text);
+  margin: 0;
+}
+.landing-step p {
+  font-size: var(--text-sm);
+  line-height: var(--lh-body);
+  color: var(--text-soft);
+  margin: 0;
+}
+.landing-facts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.landing-facts li {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  padding: var(--space-3xs) var(--space-xs);
+  border: 1px solid var(--line);
+  border-radius: var(--pill);
+}
+.landing-signin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+}
+.landing-signin-heading {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  color: var(--text);
+  margin: 0;
+}
+
+@media (min-width: 640px) {
+  .landing-steps {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

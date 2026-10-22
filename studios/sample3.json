@@ -14,5 +14,17 @@
   },
   "r2": {
     "bucket": "creator-studios-sample3-files"
+  },
+  "landing": {
+    "heading": "Your footage, cut and ready to post.",
+    "sub": "Sample 3 Studio takes the videos already on your phone and turns them into short posts. You read every one before it goes anywhere.",
+    "cta": "Email me a code",
+    "steps": [
+      { "title": "Dump it", "body": "Send the clips off your phone. No folders, no naming, no editing app." },
+      { "title": "We cut it", "body": "The studio cuts short posts from your footage, writes the captions and lines them up." },
+      { "title": "You approve", "body": "Nothing posts until you tap approve. Ten posts a week per channel, at most." }
+    ],
+    "facts": ["Real footage only, nothing invented.", "Built for a phone.", "Sign in with a code we email you. No password."],
+    "signInHeading": "Sign in to your studio"
   }
 }

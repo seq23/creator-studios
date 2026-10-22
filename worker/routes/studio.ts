@@ -53,6 +53,60 @@ export function themeToCss(theme: StudioTheme): string {
   return out.join("\n") + "\n";
 }
 
+export interface LandingStep {
+  title: string;
+  body: string;
+}
+
+/** A studio's optional one-page landing (studios/<slug>.json → `landing`). */
+export interface Landing {
+  heading: string;
+  sub: string;
+  cta: string;
+  steps: LandingStep[];
+  facts: string[];
+  signInHeading: string;
+}
+
+// A value may never open or close markup.
+const NO_MARKUP = /^[^<>]*$/;
+const text = (v: unknown, max: number): string | null => (typeof v === "string" && v.trim().length > 0 && v.length <= max && NO_MARKUP.test(v) ? v : null);
+
+/**
+ * A studio's landing, from STUDIO_LANDING (JSON, studios/<slug>.json → `landing`). Strict: a wrong
+ * type, an over-long line, markup, or a step/fact count outside 3-6 returns null, so a bad or
+ * missing entry falls back to the plain login card rather than showing something broken.
+ */
+export function readLanding(env: Pick<Env, "STUDIO_LANDING">): Landing | null {
+  if (!env.STUDIO_LANDING) return null;
+  try {
+    const raw = JSON.parse(env.STUDIO_LANDING);
+    const heading = text(raw.heading, 120);
+    const sub = text(raw.sub, 400);
+    const cta = text(raw.cta, 40);
+    const signInHeading = text(raw.signInHeading, 80);
+    if (!heading || !sub || !cta || !signInHeading) return null;
+    if (!Array.isArray(raw.steps) || raw.steps.length < 3 || raw.steps.length > 6) return null;
+    const steps: LandingStep[] = [];
+    for (const s of raw.steps) {
+      const title = text(s?.title, 40);
+      const body = text(s?.body, 200);
+      if (!title || !body) return null;
+      steps.push({ title, body });
+    }
+    if (!Array.isArray(raw.facts) || raw.facts.length < 3 || raw.facts.length > 6) return null;
+    const facts: string[] = [];
+    for (const f of raw.facts) {
+      const t = text(f, 140);
+      if (!t) return null;
+      facts.push(t);
+    }
+    return { heading, sub, cta, steps, facts, signInHeading };
+  } catch {
+    return null;
+  }
+}
+
 export const studio = new Hono<{ Bindings: Env; Variables: Vars }>();
 
 studio.get("/", (c) => {
@@ -63,6 +117,7 @@ studio.get("/", (c) => {
     ownerName: c.env.OWNER_NAME ?? "",
     wordmark: t.wordmark ?? { name: c.env.APP_NAME },
     chrome: t.chrome ?? null,
+    landing: readLanding(c.env),
   });
 });
 

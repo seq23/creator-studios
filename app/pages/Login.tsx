@@ -3,8 +3,10 @@ import { post } from "../lib/api";
 import { useApp } from "../state";
 import { useToast } from "../components/ui";
 import { LegalLinks } from "../components/Shell";
+import { StudioLanding } from "../components/StudioLanding";
 import { Wordmark } from "../components/Wordmark";
 import { studio } from "../lib/studio";
+import "../styles/landing.css";
 
 export function Login() {
   const { refreshMe } = useApp();
@@ -52,48 +54,50 @@ export function Login() {
   }
 
   return (
-    <div className="login-wrap">
-      <div className="login-card">
-        <div className="login-title">
-          <h1 aria-label={studio().appName}>
-            <Wordmark size="lg" />
-          </h1>
-          <span className="script">{firstLogin ? "welcome" : "welcome back"}</span>
+    <StudioLanding>
+      <div className="login-wrap">
+        <div className="login-card">
+          <div className="login-title">
+            <h1 aria-label={studio().appName}>
+              <Wordmark size="lg" />
+            </h1>
+            <span className="script">{firstLogin ? "welcome" : "welcome back"}</span>
+          </div>
+          {stage === "email" ? (
+            <form onSubmit={request} className="section">
+              <div className="field">
+                {invite ? <p className="hint">Welcome to {studio().appName}. Type the email you will log in with from now on: it becomes this studio's owner login.</p> : null}
+                <label htmlFor="email">Your email</label>
+                <input id="email" className="input" type="email" autoComplete="email" inputMode="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+                <div className="hint">We email you a 6-digit code. No password to remember.</div>
+              </div>
+              <button className="btn big block" data-primary disabled={busy}>
+                {busy ? "Sending…" : invite ? "Claim my studio" : "Email me a code"}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={verify} className="section">
+              <div className="field">
+                <label htmlFor="code">The code from your email</label>
+                <input id="code" className="input code-input" inputMode="numeric" pattern="[0-9]*" maxLength={6} autoComplete="one-time-code" required value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="••••••" autoFocus />
+                <div className="hint">Sent to {email}. It works for 10 minutes.</div>
+                {devCode ? (
+                  <div className="notice info">
+                    Local mode: your code is <strong className="mono">{devCode}</strong>
+                  </div>
+                ) : null}
+              </div>
+              <button className="btn big block" data-primary disabled={busy || code.length !== 6}>
+                {busy ? "Checking…" : "Log in"}
+              </button>
+              <button type="button" className="btn quiet block" onClick={() => setStage("email")}>
+                Use a different email
+              </button>
+            </form>
+          )}
+          <LegalLinks />
         </div>
-        {stage === "email" ? (
-          <form onSubmit={request} className="section">
-            <div className="field">
-              {invite ? <p className="hint">Welcome to {studio().appName}. Type the email you will log in with from now on: it becomes this studio's owner login.</p> : null}
-              <label htmlFor="email">Your email</label>
-              <input id="email" className="input" type="email" autoComplete="email" inputMode="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
-              <div className="hint">We email you a 6-digit code. No password to remember.</div>
-            </div>
-            <button className="btn big block" data-primary disabled={busy}>
-              {busy ? "Sending…" : invite ? "Claim my studio" : "Email me a code"}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={verify} className="section">
-            <div className="field">
-              <label htmlFor="code">The code from your email</label>
-              <input id="code" className="input code-input" inputMode="numeric" pattern="[0-9]*" maxLength={6} autoComplete="one-time-code" required value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="••••••" autoFocus />
-              <div className="hint">Sent to {email}. It works for 10 minutes.</div>
-              {devCode ? (
-                <div className="notice info">
-                  Local mode: your code is <strong className="mono">{devCode}</strong>
-                </div>
-              ) : null}
-            </div>
-            <button className="btn big block" data-primary disabled={busy || code.length !== 6}>
-              {busy ? "Checking…" : "Log in"}
-            </button>
-            <button type="button" className="btn quiet block" onClick={() => setStage("email")}>
-              Use a different email
-            </button>
-          </form>
-        )}
-        <LegalLinks />
       </div>
-    </div>
+    </StudioLanding>
   );
 }

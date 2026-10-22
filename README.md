@@ -37,7 +37,9 @@ smoke proves the 301. Nothing else on the zone is touched (the apex site and the
   **Owner email:** never in this public repo; see "Owner email" below.
 - **Sample 1/2/3** carry **none of the host's software**: no host API keys, data, emails or links.
   Every service is the client's own, pasted on **Setup** (below). Samples 2 and 3 wear the neutral
-  "slate" theme. **Sample 1 is Porch & Party Studio** (renamed in place 22 Oct 2026, owner's word):
+  "slate" theme. A studio whose registry entry has a `landing` block (Sample 3) shows a one-page
+  landing at its logged-out `/`, above the unchanged sign-in card; one with none keeps today's
+  plain login card. **Sample 1 is Porch & Party Studio** (renamed in place 22 Oct 2026, owner's word):
   theme `porchandparty` matched to porchandparty901.com, its owner set from
   `<secrets dir>/sample1/OWNER_EMAIL`, practice mode until she connects her own accounts on Setup.
 
