@@ -118,6 +118,10 @@
       "workers_dev": true,
       "routes": [
         {
+          "pattern": "pnpstudio.spryexecutiveos.com",
+          "custom_domain": true
+        },
+        {
           "pattern": "sample1-studio.spryexecutiveos.com",
           "custom_domain": true
         }
@@ -153,15 +157,16 @@
         ]
       },
       "vars": {
-        "APP_NAME": "Sample 1 Studio",
+        "APP_NAME": "Porch & Party Studio",
         "OWNER_NAME": "",
         "STUDIO_SLUG": "sample1",
         "STUDIO_KIND": "client",
-        "STUDIO_THEME": "{\"fonts\":\"https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap\",\"chrome\":\"#1e2227\",\"light\":{\"--cream\":\"#f4f4f1\",\"--ivory\":\"#ffffff\",\"--paper\":\"#fbfbfa\",\"--parchment\":\"#ebebe6\",\"--champagne\":\"#d6dbe0\",\"--gold\":\"#3b6c8e\",\"--gold-deep\":\"#2c5470\",\"--gold-ink\":\"#2a5574\",\"--gold-soft\":\"rgba(59, 108, 142, 0.32)\",\"--gold-faint\":\"rgba(59, 108, 142, 0.1)\",\"--gold-line\":\"rgba(59, 108, 142, 0.32)\",\"--gold-glow\":\"rgba(59, 108, 142, 0.24)\",\"--espresso\":\"#1e2227\",\"--espresso-2\":\"#2e343b\",\"--ink\":\"#1b1d21\",\"--ink-soft\":\"rgba(27, 29, 33, 0.8)\",\"--muted\":\"#5b6068\",\"--line\":\"rgba(27, 29, 33, 0.12)\",\"--line-strong\":\"rgba(27, 29, 33, 0.28)\",\"--blush\":\"#a9bccb\",\"--blush-faint\":\"rgba(169, 188, 203, 0.18)\",\"--rose\":\"#9a4a2a\",\"--terracotta\":\"#9c4b22\",\"--teal\":\"#0d7c79\",\"--on-dark\":\"#f6f7f8\",\"--on-dark-soft\":\"rgba(246, 247, 248, 0.8)\",\"--on-dark-faint\":\"rgba(246, 247, 248, 0.1)\",\"--scrim\":\"rgba(27, 29, 33, 0.55)\",\"--glass\":\"rgba(255, 255, 255, 0.92)\",\"--accent-ink\":\"#ffffff\",\"--focus-color\":\"#2c5470\",\"--brand-mark-bg\":\"linear-gradient(145deg, #ffffff, #e6e9ec)\",\"--login-bg\":\"radial-gradient(circle at 85% 10%, rgba(59, 108, 142, 0.16), transparent 32%), linear-gradient(135deg, #ffffff, #f4f4f1)\",\"--shadow-btn\":\"0 8px 18px rgba(59, 108, 142, 0.2)\",\"--font-display\":\"\\\"Source Serif 4\\\", Georgia, \\\"Times New Roman\\\", serif\",\"--font-body\":\"\\\"Public Sans\\\", system-ui, -apple-system, \\\"Segoe UI\\\", sans-serif\",\"--font-script\":\"\\\"Source Serif 4\\\", Georgia, serif\",\"--wordmark-tracking\":\"0\"},\"dark\":{\"--bg\":\"#121417\",\"--surface\":\"#1a1d21\",\"--surface-2\":\"#22262b\",\"--surface-sunk\":\"#0f1114\",\"--text\":\"#eceef0\",\"--text-soft\":\"rgba(236, 238, 240, 0.82)\",\"--text-muted\":\"#a7adb5\",\"--line\":\"rgba(236, 238, 240, 0.12)\",\"--line-strong\":\"rgba(236, 238, 240, 0.3)\",\"--primary\":\"#8fb6d3\",\"--primary-text\":\"#121417\",\"--gold-ink\":\"#8fb6d3\",\"--gold-soft\":\"rgba(143, 182, 211, 0.3)\",\"--gold-faint\":\"rgba(143, 182, 211, 0.12)\",\"--focus-color\":\"#8fb6d3\",\"--glass\":\"rgba(26, 29, 33, 0.92)\",\"--login-bg\":\"radial-gradient(circle at 85% 10%, rgba(143, 182, 211, 0.14), transparent 32%), linear-gradient(135deg, #1a1d21, #121417)\"},\"wordmark\":{\"name\":\"Sample 1 Studio\",\"mark\":\"▪\"}}",
+        "STUDIO_THEME": "{\"fonts\":\"https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Great+Vibes&family=Inter:wght@400;500;600;700;800&display=swap\",\"chrome\":\"#3b302a\",\"light\":{\"--cream\":\"#faf7f2\",\"--ivory\":\"#fffdf9\",\"--paper\":\"#fffefb\",\"--parchment\":\"#f4ece3\",\"--champagne\":\"#ead8c6\",\"--gold\":\"#aa5c40\",\"--gold-deep\":\"#8f4b33\",\"--gold-ink\":\"#8f4b33\",\"--gold-soft\":\"rgba(196, 110, 78, 0.32)\",\"--gold-faint\":\"rgba(196, 110, 78, 0.1)\",\"--gold-line\":\"rgba(196, 110, 78, 0.36)\",\"--gold-glow\":\"rgba(196, 110, 78, 0.24)\",\"--espresso\":\"#3b302a\",\"--espresso-2\":\"#4d3f37\",\"--ink\":\"#2f2621\",\"--ink-soft\":\"rgba(47, 38, 33, 0.8)\",\"--muted\":\"#6e5f55\",\"--line\":\"rgba(59, 48, 42, 0.12)\",\"--line-strong\":\"rgba(59, 48, 42, 0.28)\",\"--blush\":\"#c98f8a\",\"--blush-faint\":\"rgba(201, 143, 138, 0.18)\",\"--rose\":\"#9b4f4a\",\"--terracotta\":\"#aa5c40\",\"--teal\":\"#4f6f5a\",\"--on-dark\":\"#faf3ea\",\"--on-dark-soft\":\"rgba(250, 243, 234, 0.8)\",\"--on-dark-faint\":\"rgba(250, 243, 234, 0.1)\",\"--scrim\":\"rgba(59, 48, 42, 0.55)\",\"--glass\":\"rgba(255, 253, 249, 0.92)\",\"--accent-ink\":\"#ffffff\",\"--focus-color\":\"#9b4f4a\",\"--danger\":\"#b42318\",\"--danger-soft\":\"rgba(180, 35, 24, 0.12)\",\"--brand-mark-bg\":\"linear-gradient(145deg, #fffdf9, #f4ece3)\",\"--login-bg\":\"radial-gradient(circle at 12% 0%, rgba(201, 143, 138, 0.24), transparent 34%), radial-gradient(circle at 100% 100%, rgba(196, 110, 78, 0.14), transparent 40%), linear-gradient(160deg, #fffdf9, #faf7f2)\",\"--shadow-btn\":\"0 8px 18px rgba(170, 92, 64, 0.22)\",\"--font-display\":\"\\\"Cormorant Garamond\\\", Georgia, \\\"Times New Roman\\\", serif\",\"--font-body\":\"\\\"Inter\\\", system-ui, -apple-system, \\\"Segoe UI\\\", sans-serif\",\"--font-script\":\"\\\"Cormorant Garamond\\\", Georgia, serif\",\"--font-wordmark\":\"\\\"Great Vibes\\\", \\\"Snell Roundhand\\\", cursive\",\"--text-wordmark\":\"2rem\",\"--text-wordmark-lg\":\"clamp(2.75rem, 2rem + 2.3vw, 3.75rem)\",\"--wordmark-tracking\":\"0\"},\"dark\":{\"--bg\":\"#1c1714\",\"--surface\":\"#26201c\",\"--surface-2\":\"#2e2722\",\"--surface-sunk\":\"#16120f\",\"--text\":\"#efe6dc\",\"--text-soft\":\"rgba(239, 230, 220, 0.82)\",\"--text-muted\":\"#b5a79b\",\"--line\":\"rgba(239, 230, 220, 0.12)\",\"--line-strong\":\"rgba(239, 230, 220, 0.3)\",\"--primary\":\"#e39a7c\",\"--primary-text\":\"#1c1714\",\"--gold-ink\":\"#e39a7c\",\"--gold-soft\":\"rgba(227, 154, 124, 0.3)\",\"--gold-faint\":\"rgba(227, 154, 124, 0.12)\",\"--focus-color\":\"#e39a7c\",\"--glass\":\"rgba(38, 32, 28, 0.92)\",\"--login-bg\":\"radial-gradient(circle at 12% 0%, rgba(201, 143, 138, 0.16), transparent 34%), linear-gradient(160deg, #26201c, #1c1714)\"},\"wordmark\":{\"name\":\"Porch & Party\",\"tag\":\"studio\"}}",
         "FAKE_SERVICES": "0",
-        "PUBLIC_BASE_URL": "https://sample1-studio.spryexecutiveos.com",
+        "PUBLIC_BASE_URL": "https://pnpstudio.spryexecutiveos.com",
+        "PREVIOUS_HOSTNAMES": "sample1-studio.spryexecutiveos.com",
         "GITHUB_REPO": "",
-        "AUDIENCE_TIMEZONE": "America/New_York",
+        "AUDIENCE_TIMEZONE": "America/Chicago",
         "ENV_NAME": "production",
         "AUTH_MODE": "code"
       }

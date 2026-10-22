@@ -85,6 +85,7 @@
   --font-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-script: "Source Serif 4", Georgia, serif; /* outlier: brand flourish only */
   --wordmark-tracking: 0;
+  --font-wordmark: var(--font-display); /* a theme may set the brand's own logo face (porchandparty: its script) */
   --font-mono: "SF Mono", Menlo, Consolas, monospace; /* times, codes, counts only */
 
   --text-2xs: 0.75rem; /* 12 · pills, micro labels */
@@ -98,6 +99,8 @@
   --text-display: clamp(2.4rem, 1.5rem + 3.2vw, 3.8rem); /* public media kit name */
   --text-script: 1.35rem; /* the one flourish line (welcome back) */
   --text-script-lg: 1.8rem;
+  --text-wordmark: var(--text-lg); /* the wordmark; a theme whose logo face is a script sets it larger (it sits optically small) */
+  --text-wordmark-lg: var(--text-2xl);
   --text-mono: 0.92em; /* mono sits optically small next to the body face */
 
   --lh-tight: 1.08;

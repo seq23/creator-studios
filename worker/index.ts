@@ -92,7 +92,7 @@ app.onError((err, c) => {
 
 export default {
   fetch: async (req: Request, env: Env, ctx: ExecutionContext) => {
-    const moved = canonicalRedirect(req, env.PUBLIC_BASE_URL);
+    const moved = canonicalRedirect(req, env.PUBLIC_BASE_URL, env.PREVIOUS_HOSTNAMES);
     if (moved) return moved;
     const e = await hydrate(env);
     const res = await app.fetch(req, e, ctx);

@@ -73,7 +73,8 @@ export function loadRegistry(root = ROOT) {
  */
 export function withUrls(s) {
   if ("url" in s) throw new Error(`studios/${s.slug}.json: "url" is derived from "hostname"; remove it`);
-  return { ...s, url: `https://${s.hostname}`, workersDevUrl: `https://${s.worker}.${WORKERS_DEV}` };
+  const previousUrls = (s.previousHostnames ?? []).map((h) => `https://${h}`);
+  return { ...s, url: `https://${s.hostname}`, workersDevUrl: `https://${s.worker}.${WORKERS_DEV}`, previousUrls };
 }
 
 /** The theme a studio's Worker serves: the named theme, with the studio's wordmark name filled in. */
@@ -91,7 +92,8 @@ export function envBlock(s, themes) {
     // workers.dev stays on so old links and in-flight jobs still reach the studio (GET/HEAD 301 to
     // the hostname: worker/lib/canonical-host.ts); the hostname is the studio's own address.
     workers_dev: true,
-    routes: [{ pattern: s.hostname, custom_domain: true }],
+    // A renamed studio keeps its old hostnames attached, so an old link 301s to the new one.
+    routes: [s.hostname, ...(s.previousHostnames ?? [])].map((pattern) => ({ pattern, custom_domain: true })),
     assets: { directory: "./dist/client", binding: "ASSETS", not_found_handling: "single-page-application", run_worker_first: RUN_WORKER_FIRST },
     d1_databases: [{ binding: "DB", database_name: s.d1.name, database_id: s.d1.id ?? "00000000-0000-0000-0000-000000000000", migrations_dir: "migrations" }],
     r2_buckets: [{ binding: "FILES", bucket_name: s.r2.bucket }],
@@ -107,6 +109,7 @@ export function envBlock(s, themes) {
       STUDIO_THEME: JSON.stringify(themeFor(s, themes)),
       FAKE_SERVICES: "0",
       PUBLIC_BASE_URL: s.url,
+      ...(s.previousHostnames?.length ? { PREVIOUS_HOSTNAMES: s.previousHostnames.join(",") } : {}),
       GITHUB_REPO: s.githubRepo ?? "",
       AUDIENCE_TIMEZONE: s.audienceTimezone ?? "America/New_York",
       ENV_NAME: "production",
@@ -482,6 +485,11 @@ async function smoke(s) {
   // The old workers.dev address answers with a 301 to the studio's own hostname, path kept.
   const old = await fetch(`${s.workersDevUrl}/dump?x=1`, { redirect: "manual" }).catch(() => null);
   if (old?.status !== 301 || old.headers.get("location") !== `${s.url}/dump?x=1`) problems.push(`${s.workersDevUrl} answered ${old?.status} → ${old?.headers.get("location")} (want 301 → ${s.url}/dump?x=1)`);
+  // A renamed studio's old hostnames answer the same 301 (worker/lib/canonical-host.ts).
+  for (const prev of s.previousUrls ?? []) {
+    const r = await fetch(`${prev}/dump?x=1`, { redirect: "manual" }).catch(() => null);
+    if (r?.status !== 301 || r.headers.get("location") !== `${s.url}/dump?x=1`) problems.push(`${prev} answered ${r?.status} → ${r?.headers.get("location")} (want 301 → ${s.url}/dump?x=1)`);
+  }
   if (problems.length) throw new Error(`smoke ${s.slug}:\n  ${problems.join("\n  ")}`);
   console.log(`smoke ${s.slug}: ok (${s.url})`);
 }
