@@ -2,7 +2,7 @@
 // service keys. Every step says what it powers, what practice mode does until it is set, where to
 // get the key, and has Test key (one live read-only check, nothing saved) and Save (checked again,
 // then stored encrypted). Services the studio's host runs for her show "Provided".
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { powersFor, SETUP_STEPS, type SetupStatus, type SetupStep, type SetupView } from "@shared/setup";
 import { post, get } from "../lib/api";
 import { Card, HelpButton, Notice, PageHead, Skeleton, useLoad, useToast } from "../components/ui";
@@ -18,6 +18,11 @@ const STATE_LABEL: Record<SetupStatus["state"], { text: string; tone: "ok" | "wa
 
 export function Setup() {
   const { data, reload } = useLoad(() => get<SetupView>("/api/setup"));
+  // "Connect Facebook →" on Photos opens /setup#setup-facebook: land on that card, not the top.
+  useEffect(() => {
+    if (!data || !window.location.hash) return;
+    document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: "start" });
+  }, [data]);
   const { refreshMe } = useApp();
   const done = data ? data.steps.filter((s) => s.state === "live" || s.state === "provided").length : 0;
   return (
@@ -41,7 +46,7 @@ export function Setup() {
           </p>
           <ol className="setup-steps">
             {SETUP_STEPS.map((step, i) => (
-              <li key={step.id}>
+              <li key={step.id} id={`setup-${step.id}`}>
                 <StepCard
                   n={i + 1}
                   step={step}

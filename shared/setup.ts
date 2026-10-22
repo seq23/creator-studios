@@ -7,7 +7,7 @@
 // (connections.secret_enc, SECRETS_KEY). At runtime the encrypted key is read FIRST, then the
 // Worker secret named in `secrets` (how a studio the host runs on the host's own accounts gets them).
 
-export type SetupServiceId = "resend" | "buffer" | "openrouter" | "firecrawl" | "hunter" | "youtube_api" | "google_app" | "meta_app" | "github" | "elevenlabs";
+export type SetupServiceId = "resend" | "buffer" | "openrouter" | "firecrawl" | "hunter" | "youtube_api" | "google_app" | "meta_app" | "github" | "facebook" | "pinterest" | "elevenlabs";
 
 export interface SetupField {
   /** Key inside the stored value. A one-field step stores the bare key; a multi-field step stores JSON. */
@@ -173,6 +173,36 @@ export const SETUP_STEPS: SetupStep[] = [
     ],
     secrets: ["GITHUB_DISPATCH_TOKEN"],
     guide: "setup-job-runner",
+    free: true,
+  },
+  {
+    id: "facebook",
+    title: "Facebook Page",
+    powers: "Posts your photo posts to your Facebook Page on their own, with a heads-up first.",
+    practice: "Facebook posts wait safely on Photos (“Connect Facebook”). Nothing is posted until the Page is connected.",
+    where: ["Open developers.facebook.com → Tools → Graph API Explorer, pick your Page, and add pages_manage_posts and pages_read_engagement.", "Tap Generate Access Token, then open the Access Token Debugger and tap Extend access token, so it does not run out.", "Paste the Page ID (on your Page: About → Page transparency) and the Page token here."],
+    link: { label: "Open Graph API Explorer", url: "https://developers.facebook.com/tools/explorer/" },
+    fields: [
+      { name: "page_id", label: "Page ID", placeholder: "100067…", plain: true },
+      { name: "page_token", label: "Page token", placeholder: "Paste the Page token" },
+    ],
+    secrets: ["FACEBOOK_PAGE_ID", "FACEBOOK_PAGE_TOKEN"],
+    guide: "connect-facebook",
+    free: true,
+  },
+  {
+    id: "pinterest",
+    title: "Pinterest",
+    powers: "Pins your photo sets to your Pinterest board on their own, with a heads-up first.",
+    practice: "Pins wait safely on Photos (“Connect Pinterest”). Nothing is pinned until Pinterest is connected.",
+    where: ["Log in to your Pinterest business account and make the board the pins go on.", "Open developers.pinterest.com → My apps, connect an app and generate an access token with boards:read and pins:write.", "Paste the token and the board id (the number in the board's link) here."],
+    link: { label: "Open Pinterest developers", url: "https://developers.pinterest.com/apps/" },
+    fields: [
+      { name: "token", label: "Access token", placeholder: "pina_…" },
+      { name: "board_id", label: "Board ID", placeholder: "1234567890", plain: true },
+    ],
+    secrets: ["PINTEREST_ACCESS_TOKEN", "PINTEREST_BOARD_ID"],
+    guide: "connect-pinterest",
     free: true,
   },
   {

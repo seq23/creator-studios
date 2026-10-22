@@ -12,6 +12,11 @@ import { newId, nowIso } from "../lib/ids";
 import { log } from "../lib/log";
 import { ACCEPTED_DOC_TYPES, ACCEPTED_VIDEO_TYPES, UPLOAD_PART_SIZE } from "@shared/constants";
 import { MAX_EDIT_BYTES } from "../domain/editors";
+import { packPhotoKey, photoConfig } from "../lib/photoPosts";
+import { isPhoto, PACK_MAX_PHOTOS, PHOTO_MAX_BYTES } from "@shared/photoPosts";
+
+/** The stored type of a photo: iPhone Safari may send none for a HEIC, so the name decides. */
+const photoMime = (mime: string, name: string) => (mime && mime !== "application/octet-stream" ? mime.toLowerCase() : /\.png$/i.test(name) ? "image/png" : /\.jpe?g$/i.test(name) ? "image/jpeg" : "image/heic");
 
 export const uploads = new Hono<{ Bindings: Env; Variables: Vars }>();
 uploads.use("*", requireUser);
@@ -19,7 +24,7 @@ uploads.use("*", requireUser);
 /** Her own songs for the music bed (Settings > Editing > My music). */
 export const MUSIC_MAX_BYTES = 25 * 1024 * 1024;
 
-type Kind = "video" | "brand_doc" | "research_upload" | "voice_sample" | "kit_photo" | "music" | "edit";
+type Kind = "video" | "brand_doc" | "research_upload" | "voice_sample" | "kit_photo" | "music" | "edit" | "photo";
 
 function keyFor(kind: Kind, parentId: string | null, id: string): string {
   switch (kind) {
@@ -37,16 +42,19 @@ function keyFor(kind: Kind, parentId: string | null, id: string): string {
       return `music/${id}`;
     case "edit":
       return `edits/${parentId}/${id}`;
+    case "photo":
+      return packPhotoKey(parentId ?? "", id);
   }
 }
 
-function acceptable(kind: Kind, mime: string): boolean {
+function acceptable(kind: Kind, mime: string, name = ""): boolean {
   if (kind === "video") return ACCEPTED_VIDEO_TYPES.includes(mime) || mime.startsWith("video/");
   if (kind === "brand_doc" || kind === "research_upload") return ACCEPTED_DOC_TYPES.includes(mime) || mime.startsWith("text/");
   if (kind === "voice_sample") return mime.startsWith("audio/") || mime.startsWith("video/");
   if (kind === "kit_photo") return mime.startsWith("image/");
   if (kind === "music") return mime.startsWith("audio/");
   if (kind === "edit") return mime.startsWith("video/");
+  if (kind === "photo") return isPhoto(mime, name);
   return false;
 }
 
@@ -54,7 +62,7 @@ function acceptable(kind: Kind, mime: string): boolean {
 uploads.post("/start", async (c) => {
   const body = await readJson<{ kind: Kind; parentId?: string; fileName: string; size: number; mimeType: string; fileNote?: string; contentHash?: string }>(c);
   if (!body?.kind || !body.fileName || !body.mimeType || typeof body.size !== "number") return fail(c, 400, "Missing file details.");
-  if (!acceptable(body.kind, body.mimeType)) return fail(c, 422, "That file type is not supported here.", "clips-look-wrong");
+  if (!acceptable(body.kind, body.mimeType, body.fileName)) return fail(c, 422, body.kind === "photo" ? "That is not a photo we can use. Use a JPG, PNG or iPhone (HEIC) photo." : "That file type is not supported here.", body.kind === "photo" ? "photo-posts" : "clips-look-wrong");
   if (body.size <= 0) return fail(c, 422, "That file is empty.");
   if (body.kind === "music" && body.size > MUSIC_MAX_BYTES) return fail(c, 413, "That song is over 25 MB. Export it as an MP3 or M4A and try again.", "looks-and-styles");
   if (body.kind === "edit") {
@@ -63,8 +71,18 @@ uploads.post("/start", async (c) => {
     const clip = body.parentId ? await c.env.DB.prepare("SELECT id FROM clips WHERE id = ? AND status != 'deleted'").bind(body.parentId).first() : null;
     if (!clip) return fail(c, 404, "That clip is gone.", "edit-in-capcut");
   }
+  if (body.kind === "photo") {
+    // A photo for a photo pack (Photos): only while its pack is still taking photos.
+    if (!photoConfig(c.env).on) return fail(c, 409, "Photo posts are not part of this studio yet.", "photo-posts");
+    if (body.size > PHOTO_MAX_BYTES) return fail(c, 413, "That photo is over 40 MB. Send a smaller copy and try again.", "photo-posts");
+    const pack = body.parentId ? await c.env.DB.prepare("SELECT status FROM photo_packs WHERE id = ?").bind(body.parentId).first<{ status: string }>() : null;
+    if (!pack) return fail(c, 404, "That set of photos is gone. Start again.", "photo-posts");
+    if (pack.status !== "uploading" && pack.status !== "failed") return fail(c, 409, "These posts are already being made. Start a new set for more photos.", "photo-posts");
+    const n = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM pack_photos WHERE pack_id = ? AND upload_status != 'aborted'").bind(body.parentId).first<{ n: number }>();
+    if ((n?.n ?? 0) >= PACK_MAX_PHOTOS) return fail(c, 409, `A set holds up to ${PACK_MAX_PHOTOS} photos. Start a new set for more.`, "photo-posts");
+  }
   const kind = body.kind;
-  const id = newId(kind === "video" ? "ast" : kind === "brand_doc" ? "doc" : "upl");
+  const id = newId(kind === "video" ? "ast" : kind === "brand_doc" ? "doc" : kind === "photo" ? "pph" : "upl");
   const parent = body.parentId ?? null;
 
   if (kind === "video") {
@@ -91,10 +109,15 @@ uploads.post("/start", async (c) => {
     await c.env.DB.prepare("INSERT INTO brand_docs (id, file_name, mime_type, size_bytes, r2_key, extract_status) VALUES (?, ?, ?, ?, ?, 'pending')")
       .bind(id, body.fileName.slice(0, 200), body.mimeType, body.size, key)
       .run();
+  } else if (kind === "photo") {
+    const role = body.fileNote === "before" || body.fileNote === "after" ? body.fileNote : "main";
+    await c.env.DB.prepare("INSERT INTO pack_photos (id, pack_id, role, file_name, mime_type, size_bytes, r2_key, upload_id, upload_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'uploading')")
+      .bind(id, parent, role, body.fileName.slice(0, 200), photoMime(body.mimeType, body.fileName), body.size, key, mp.uploadId)
+      .run();
   } else if (kind === "research_upload") {
     await c.env.DB.prepare("INSERT INTO research_uploads (id, file_name, r2_key) VALUES (?, ?, ?)").bind(id, body.fileName.slice(0, 200), key).run();
   }
-  // voice_sample, kit_photo, music and edit rows are written by their own routes on complete.
+  // voice_sample, kit_photo, music and edit rows are written by their own routes on complete; a photo is its pack's row above.
 
   log.info("upload.start", { kind, parts: Math.ceil(body.size / UPLOAD_PART_SIZE) });
   return c.json({ id, key, uploadId: mp.uploadId, partSize: UPLOAD_PART_SIZE });
@@ -144,6 +167,7 @@ uploads.post("/:id/complete", async (c) => {
   const size = await completeParts(c.env.FILES, body.key, body.uploadId, body.parts);
   if (size === null) return fail(c, 502, "The upload could not be finished. Try again; your finished pieces are kept.");
   await c.env.DB.prepare("UPDATE assets SET upload_status = 'uploaded', size_bytes = ?, upload_id = NULL WHERE id = ?").bind(size, c.req.param("id")).run();
+  await c.env.DB.prepare("UPDATE pack_photos SET upload_status = 'uploaded', size_bytes = ?, upload_id = NULL WHERE id = ?").bind(size, c.req.param("id")).run();
   log.info("upload.complete", { bytes: size });
   return c.json({ ok: true, size });
 });
@@ -157,6 +181,7 @@ uploads.post("/:id/abort", async (c) => {
     // already gone
   }
   await c.env.DB.prepare("UPDATE assets SET upload_status = 'aborted' WHERE id = ? AND upload_status = 'uploading'").bind(c.req.param("id")).run();
+  await c.env.DB.prepare("UPDATE pack_photos SET upload_status = 'aborted' WHERE id = ? AND upload_status = 'uploading'").bind(c.req.param("id")).run();
   return c.json({ ok: true });
 });
 

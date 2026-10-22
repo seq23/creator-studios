@@ -45,6 +45,10 @@ export function overlayFor(service: SetupServiceId, raw: string): Partial<Env> {
       return f.app_id && f.app_secret ? { META_APP_ID: f.app_id, META_APP_SECRET: f.app_secret } : {};
     case "github":
       return f.token && f.repo ? { GITHUB_DISPATCH_TOKEN: f.token, GITHUB_REPO: f.repo } : {};
+    case "facebook":
+      return f.page_id && f.page_token ? { FACEBOOK_PAGE_ID: f.page_id, FACEBOOK_PAGE_TOKEN: f.page_token } : {};
+    case "pinterest":
+      return f.token && f.board_id ? { PINTEREST_ACCESS_TOKEN: f.token, PINTEREST_BOARD_ID: f.board_id } : {};
     default:
       return {};
   }
@@ -69,6 +73,10 @@ export function hasEnvKey(env: Partial<Env>, service: SetupServiceId): boolean {
       return !!(env.META_APP_ID && env.META_APP_SECRET);
     case "github":
       return !!(env.GITHUB_DISPATCH_TOKEN && env.GITHUB_REPO);
+    case "facebook":
+      return !!(env.FACEBOOK_PAGE_ID && env.FACEBOOK_PAGE_TOKEN);
+    case "pinterest":
+      return !!(env.PINTEREST_ACCESS_TOKEN && env.PINTEREST_BOARD_ID);
     default:
       return false;
   }

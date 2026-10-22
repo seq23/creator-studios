@@ -12,6 +12,8 @@ import { log } from "../lib/log";
 import { hasEnvKey } from "../lib/practice";
 import { checkGithubRunner, checkGoogleApp, checkMetaApp, checkResend, checkYouTubeKey, type KeyCheck } from "../services/keychecks";
 import { CHECKS, writeServiceHealth } from "./connections";
+import { getFacebook } from "../services/facebook";
+import { getPinterest } from "../services/pinterest";
 import { SETUP_STEPS, setupStep, type SetupServiceId, type SetupStatus, type SetupView } from "@shared/setup";
 
 export const setup = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -23,6 +25,8 @@ const LIGHT: Partial<Record<SetupServiceId, string>> = {
   youtube_api: "YouTube numbers",
   google_app: "Google sign-in",
   meta_app: "Instagram sign-in",
+  facebook: "Facebook Page",
+  pinterest: "Pinterest",
 };
 
 /** The pasted fields → the value stored (a bare key, or JSON for a multi-field step). Pure. */
@@ -54,6 +58,10 @@ export async function probe(env: Env, id: SetupServiceId, fields: Record<string,
       return checkMetaApp(env, f("app_id"), f("app_secret"));
     case "github":
       return checkGithubRunner(env, f("token"), f("repo"));
+    case "facebook":
+      return getFacebook(env, { pageId: f("page_id"), token: f("page_token") }).checkKey();
+    case "pinterest":
+      return getPinterest(env, { token: f("token"), boardId: f("board_id") }).checkKey();
     default: {
       const check = CHECKS[id as Service];
       if (!check) return { ok: false, error: "That service does not take a key here.", meta: {} };

@@ -297,7 +297,7 @@ p {
     height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
     padding-bottom: env(safe-area-inset-bottom);
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     background: var(--espresso);
     border-top: 1px solid var(--gold-line);
     z-index: var(--z-nav);

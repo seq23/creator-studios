@@ -30,5 +30,27 @@
     "_hostKeys": "Owner decisions 7 Oct 2026: AI writing (OpenRouter), studio email (Resend), web research (Firecrawl) and brand contacts (Hunter) run on the host's personal accounts, from the 0600 files <secrets dir>/hadiyah/<NAME>; used only when Hadiyah has not saved her own on Setup (worker/lib/hostKeys.ts).",
     "_optional": "file? = set when the env var or 0600 secret file exists (README Secrets), otherwise a named stop: Google sign-in runs in practice mode until then."
   },
-  "jobSecretOnHostRepo": true
+  "jobSecretOnHostRepo": true,
+  "photoPosts": {
+    "_why": "Photo posts (shared/photoPosts.ts): one photo becomes a pack of posts that go out on their own with a heads-up and a Skip. On by the host's word, 22 Oct 2026.",
+    "on": true,
+    "platforms": [
+      "facebook",
+      "instagram",
+      "tiktok",
+      "pinterest"
+    ],
+    "headsUpHours": 24,
+    "postHour": 11
+  },
+  "whatsNew": {
+    "id": "2026-10-photo-posts",
+    "title": "New in your studio",
+    "lines": [
+      "You can now add photos, not just videos.",
+      "One photo becomes a few posts: a slow-zoom video, a photo set and captions.",
+      "They post to Facebook, Instagram, TikTok and Pinterest on their own.",
+      "You get an email the day before. Tap Skip to stop one."
+    ]
+  }
 }

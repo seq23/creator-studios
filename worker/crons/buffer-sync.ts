@@ -64,7 +64,7 @@ interface BufferState {
   checkedNow: boolean;
 }
 
-async function bufferState(env: Env, client: BufferClient, force: boolean): Promise<BufferState> {
+export async function bufferState(env: Env, client: BufferClient, force: boolean): Promise<BufferState> {
   const row = await env.DB.prepare("SELECT status, meta, last_error FROM connections WHERE service = 'buffer'").first<{ status: string; meta: string; last_error: string | null }>();
   const key = await getConnectionSecret(env, "buffer");
   const meta = parseJson<BufferMeta>(row?.meta, {});

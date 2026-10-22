@@ -21,6 +21,7 @@ import { MediaKit } from "./pages/MediaKit";
 import { MediaKitPrint } from "./pages/MediaKit";
 import { Help } from "./pages/Help";
 import { HelpGuide } from "./pages/HelpGuide";
+import { Photos } from "./pages/Photos";
 
 export function App() {
   const { me, ready, unreachable, refreshMe } = useApp();
@@ -37,6 +38,7 @@ export function App() {
           <Route index element={<Home />} />
           <Route path="/dump" element={<Dump />} />
           <Route path="/dump/:id" element={<Dump />} />
+          <Route path="/photos" element={<Photos />} />
           <Route path="/review" element={<Review />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/brain" element={<ClientBrain />} />

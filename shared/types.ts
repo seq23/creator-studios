@@ -216,7 +216,7 @@ export interface SettingsShape {
 }
 
 export interface ConnectionView {
-  service: "buffer" | "openrouter" | "firecrawl" | "resend" | "hunter" | "meta" | "google" | "tiktok" | "github" | "elevenlabs" | "opusclip" | "vizard" | "klap" | "submagic" | "descript" | "youtube" | "youtube_api" | "google_app" | "meta_app";
+  service: "buffer" | "openrouter" | "firecrawl" | "resend" | "hunter" | "meta" | "google" | "tiktok" | "github" | "elevenlabs" | "opusclip" | "vizard" | "klap" | "submagic" | "descript" | "youtube" | "youtube_api" | "google_app" | "meta_app" | "facebook" | "pinterest";
   status: "missing" | "ok" | "error" | "disconnected";
   meta: Record<string, unknown>;
   last_ok_at: string | null;
@@ -333,7 +333,7 @@ export interface HelpGuideMeta {
 
 export interface JobRow {
   id: string;
-  type: "cut" | "extract" | "research" | "brand_finder" | "voice" | "help_screenshots" | "metrics" | "fullvideo" | "ytupload";
+  type: "cut" | "extract" | "research" | "brand_finder" | "voice" | "help_screenshots" | "metrics" | "fullvideo" | "ytupload" | "photopack";
   status: "queued" | "dispatched" | "running" | "done" | "failed";
   ref_id: string | null;
   safe_error: string | null;

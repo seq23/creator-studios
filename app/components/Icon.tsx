@@ -22,9 +22,11 @@ export type IconName =
   | "check"
   | "arrow"
   | "search"
-  | "archive";
+  | "archive"
+  | "photo";
 
 const PATHS: Record<IconName, string> = {
+  photo: "M4 7.5A1.5 1.5 0 0 1 5.5 6h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 7.5v10a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5zM12 9.5a3.25 3.25 0 1 0 0 6.5 3.25 3.25 0 0 0 0-6.5",
   home: "M4 11.5 12 5l8 6.5M6 10v9h4.5v-5h3v5H18v-9",
   dump: "M12 15V4M7.5 8.5 12 4l4.5 4.5M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14",
   review: "M5 5.5A1.5 1.5 0 0 1 6.5 4h11A1.5 1.5 0 0 1 19 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 18.5zM10.5 9.5v5l4-2.5z",

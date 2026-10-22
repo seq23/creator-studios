@@ -35,6 +35,9 @@ import { archive } from "./routes/archive";
 import { publicRoutes } from "./routes/public";
 import { kitPage } from "./routes/kitpage";
 import { legal } from "./routes/legal";
+import { photos } from "./routes/photos";
+import { skipPage } from "./routes/skip";
+import { whatsNew } from "./routes/whatsNew";
 import { runCron } from "./crons/index";
 
 const app = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -77,6 +80,9 @@ app.route("/media", media);
 app.route("/api/oauth", oauth);
 app.route("/api/editing", editing);
 app.route("/api/archive", archive);
+app.route("/api/photos", photos);
+app.route("/api/whats-new", whatsNew);
+app.route("/skip", skipPage);
 app.route("/kit", kitPage);
 app.route("/", legal);
 

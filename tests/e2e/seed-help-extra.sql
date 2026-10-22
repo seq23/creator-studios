@@ -5,6 +5,10 @@
 -- yellow). Demo data only, never her real content: every id starts with demo_. Everything
 -- before the first INSERT is the clean-up block tests/e2e/demo.ts runs afterwards.
 
+DELETE FROM social_posts WHERE id LIKE 'demo_%';
+DELETE FROM pack_items WHERE id LIKE 'demo_%';
+DELETE FROM pack_photos WHERE id LIKE 'demo_%';
+DELETE FROM photo_packs WHERE id LIKE 'demo_%';
 DELETE FROM platform_videos WHERE id LIKE 'demo_%';
 DELETE FROM music_tracks WHERE id LIKE 'demo_%';
 DELETE FROM deal_offers WHERE deal_id LIKE 'demo_%';
@@ -72,3 +76,15 @@ INSERT INTO brand_docs (id, file_name, mime_type, size_bytes, r2_key, extract_st
   ('demo_doc_2', 'demo-goals-chat.txt', 'text/plain', 12000, 'docs/demo_doc_2.txt', 'done', 11800, '2026-09-20T12:05:00.000Z');
 -- The built-in voice over on demo_clip_3 is in the clip (mixed) and was made automatically.
 UPDATE narrations SET mix_status = 'ready', mixed_r2_key = 'narrations/demo_narr_1-mix.mp4', auto = 1 WHERE id = 'demo_narr_1';
+
+-- A photo set made into posts (Photos): one going out on its own, one waiting on Pinterest. No
+-- real business, place or person: demo words only, pictures are the Look previews.
+INSERT INTO photo_packs (id, status, note, privacy, privacy_detail, captions, created_at, ready_at) VALUES ('demo_pck_1', 'ready', 'Fall front steps with pumpkins', 'fixed', '{"faces":0,"numbers":1}', '["Fall front steps, ready for guests.","Swipe through the details.","Made with care this week."]', '2026-09-24T12:00:00.000Z', '2026-09-24T12:05:00.000Z');
+INSERT INTO pack_photos (id, pack_id, role, file_name, mime_type, size_bytes, r2_key, upload_status) VALUES ('demo_pph_1', 'demo_pck_1', 'main', 'demo-steps.png', 'image/png', 120000, 'covers/demo/clean.png', 'uploaded');
+INSERT INTO pack_items (id, pack_id, kind, r2_key, cover_r2_key, images, media_token, ai_made) VALUES
+  ('demo_pki_1', 'demo_pck_1', 'reel', NULL, 'covers/demo/clean.png', '[]', 'demopacktokenreel000000000000000000000001', 1),
+  ('demo_pki_2', 'demo_pck_1', 'carousel', NULL, NULL, '["covers/demo/clean.png"]', 'demopacktokencarousel0000000000000000002', 0);
+INSERT INTO social_posts (id, pack_id, item_kind, platform, caption, scheduled_at, status, error) VALUES
+  ('demo_spo_1', 'demo_pck_1', 'reel', 'facebook', 'Fall front steps, ready for guests.', '2030-10-03T16:00:00.000Z', 'scheduled', NULL),
+  ('demo_spo_2', 'demo_pck_1', 'reel', 'instagram', 'Swipe through the details.', '2030-10-03T16:00:00.000Z', 'scheduled', NULL),
+  ('demo_spo_3', 'demo_pck_1', 'carousel', 'pinterest', 'Fall front steps, ready for guests.', '2030-10-04T16:00:00.000Z', 'waiting', 'connect:pinterest');

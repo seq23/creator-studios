@@ -62,6 +62,30 @@ export async function voicedKey(env: Env, clipId: string): Promise<string | null
   return n?.mixed_r2_key ?? null;
 }
 
+/**
+ * /media/p/<token>/video | cover | img/<n>: a photo pack's made pieces (worker/lib/photoPosts.ts),
+ * which Facebook, Pinterest and Buffer fetch when a post goes out. Only what the photo maker wrote
+ * (or the practice copies) is served here; her original uploads never are.
+ */
+media.get("/p/:token/:part{video|cover}", async (c) => {
+  const it = await c.env.DB.prepare("SELECT r2_key, cover_r2_key FROM pack_items WHERE media_token = ?").bind(c.req.param("token")).first<{ r2_key: string | null; cover_r2_key: string | null }>();
+  const key = c.req.param("part") === "video" ? it?.r2_key : it?.cover_r2_key;
+  if (!key) return c.text("Not found", 404);
+  return stream(c, c.env.FILES, key, c.req.param("part") === "video" ? "video/mp4" : "image/jpeg");
+});
+media.get("/p/:token/img/:n{[0-9]+}", async (c) => {
+  const it = await c.env.DB.prepare("SELECT images FROM pack_items WHERE media_token = ?").bind(c.req.param("token")).first<{ images: string }>();
+  let images: string[] = [];
+  try {
+    images = JSON.parse(it?.images ?? "[]") as string[];
+  } catch {
+    images = [];
+  }
+  const key = images[Number(c.req.param("n"))];
+  if (!key) return c.text("Not found", 404);
+  return stream(c, c.env.FILES, key, "image/jpeg");
+});
+
 media.get("/:token", async (c) => {
   const token = c.req.param("token");
   if (!/^[a-z0-9]{30,64}$/.test(token)) return c.text("Not found", 404);

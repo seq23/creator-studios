@@ -5,14 +5,16 @@
 // Menu tab that opens a sheet with every other screen, so nothing is desktop-only. The help
 // guides say "tap X in the menu"; the tab is called Menu so that sentence is true on a phone.
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useApp } from "../state";
 import { Icon, type IconName } from "./Icon";
 import { Tour } from "./Tour";
 import { Wordmark } from "./Wordmark";
 import { PracticeBanner } from "./PracticeBanner";
 import { studio } from "../lib/studio";
-import { post } from "../lib/api";
+import { get, post } from "../lib/api";
+import "../styles/photos.css";
+import type { WhatsNew } from "@shared/photoPosts";
 
 interface NavItem {
   to: string;
@@ -25,6 +27,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { to: "/", label: "Home", icon: "home", group: "daily" },
   { to: "/dump", label: "Dump", icon: "dump", group: "daily" },
+  { to: "/photos", label: "Photos", icon: "photo", group: "daily" },
   { to: "/review", label: "Review", icon: "review", badge: (s) => s.reviewCount || undefined, group: "daily" },
   { to: "/calendar", label: "Calendar", icon: "calendar", group: "daily" },
   { to: "/deals", label: "Deals", icon: "deals", badge: (s) => s.followups || undefined, group: "business" },
@@ -37,7 +40,7 @@ const NAV: NavItem[] = [
   { to: "/help", label: "Help", icon: "help", group: "setup" },
 ];
 
-const TABS = ["/", "/dump", "/review", "/calendar"];
+const TABS = ["/", "/photos", "/dump", "/review", "/calendar"];
 
 export interface ShellCounts {
   reviewCount: number;
@@ -137,7 +140,9 @@ export function Shell() {
         </div>
       </aside>
       <main className="main" id="main">
+        <BackLink />
         <PracticeBanner />
+        <WhatsNewNote />
         <Outlet />
         <Tour />
       </main>
@@ -160,5 +165,63 @@ export function Shell() {
         </button>
       </nav>
     </div>
+  );
+}
+
+/**
+ * The one-time "What's new" note (studios/<slug>.json "whatsNew"; worker/routes/whatsNew.ts): the
+ * owner sees it once, at the top of the screen, until she taps Got it. Never again after that.
+ */
+function WhatsNewNote() {
+  const [note, setNote] = useState<WhatsNew | null>(null);
+  useEffect(() => {
+    void get<{ note: WhatsNew | null }>("/api/whats-new")
+      .then((r) => setNote(r.note))
+      .catch(() => undefined);
+  }, []);
+  if (!note) return null;
+  return (
+    <section className="whats-new" role="status" aria-label={note.title}>
+      <h2>{note.title}</h2>
+      <ul>
+        {note.lines.map((l) => (
+          <li key={l}>{l}</li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        className="btn block"
+        data-primary
+        onClick={() => {
+          setNote(null);
+          void post(`/api/whats-new/${encodeURIComponent(note.id)}/seen`).catch(() => undefined);
+        }}
+      >
+        Got it
+      </button>
+    </section>
+  );
+}
+
+/**
+ * make-it-calm: a written way back on every screen but Home ("← Back"), to where she was; to Home
+ * when there is nowhere to go back to (she opened the link straight from an email).
+ */
+function BackLink() {
+  const loc = useLocation();
+  const navigate = useNavigate();
+  if (loc.pathname === "/") return null;
+  return (
+    <a
+      href="/"
+      className="back-link"
+      onClick={(e) => {
+        e.preventDefault();
+        if (window.history.length > 1 && (window.history.state as { idx?: number } | null)?.idx) navigate(-1);
+        else navigate("/");
+      }}
+    >
+      ← Back
+    </a>
   );
 }

@@ -80,6 +80,14 @@ export function jobStorageScope(type: JobRow["type"], jobId: string, refId: stri
       if (m) scope.read.push(`full/${m[1]}/`);
       break;
     }
+    case "photopack": {
+      // A photo pack ("pck_…"): reads only that pack's uploads, writes only its out folder.
+      if (/^pck_[a-z0-9]{6,32}$/.test(refId ?? "")) {
+        scope.read.push(`packs/${refId}/in/`);
+        scope.write.push(`packs/${refId}/out/`);
+      }
+      break;
+    }
     default:
       break;
   }
