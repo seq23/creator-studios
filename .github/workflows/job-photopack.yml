@@ -32,8 +32,10 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: jobs/requirements.txt
-      - name: System tools (ffmpeg, tesseract for house numbers, a bold font for Before/After)
-        run: bash .github/scripts/apt-install.sh ffmpeg tesseract-ocr tesseract-ocr-eng fonts-dejavu-core
+      - name: ffmpeg (static build, no apt)
+        run: bash .github/scripts/ffmpeg-static.sh
+      - name: System tools (tesseract for house numbers, a bold font for Before/After)
+        run: bash .github/scripts/apt-install.sh tesseract-ocr tesseract-ocr-eng fonts-dejavu-core
       - run: pip install -q -r jobs/requirements.txt pillow pillow-heif "opencv-python-headless>=4.8,<5" numpy
       - name: Run
         run: python3 jobs/photopack.py
@@ -52,14 +54,18 @@ jobs:
   selftest:
     if: github.event_name != 'repository_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 15    # fault detector (~4x a normal run), never a budget
+    # A normal run is ~1 minute; the bound is the apt installer's own worst case (3 bounded tries,
+    # .github/scripts/apt-install.sh) plus margin: 22 Oct 2026 a hung mirror ran past 15 minutes.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: System tools
-        run: bash .github/scripts/apt-install.sh ffmpeg tesseract-ocr tesseract-ocr-eng fonts-dejavu-core
+      - name: ffmpeg (static build, no apt)
+        run: bash .github/scripts/ffmpeg-static.sh
+      - name: System tools (tesseract for house numbers, a bold font)
+        run: bash .github/scripts/apt-install.sh tesseract-ocr tesseract-ocr-eng fonts-dejavu-core
       - run: pip install -q pillow pillow-heif "opencv-python-headless>=4.8,<5" numpy
       - name: Photo maker self-test (made-up photos, no secrets)
         run: python3 jobs/photopack.py --selftest

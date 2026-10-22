@@ -39,14 +39,6 @@ jobs:
         # readme") and turned the gate red with no code at fault. Now: the static BtbN build from
         # GitHub releases (no apt), falling back to the bounded apt installer if that download fails.
         timeout-minutes: 6
-        run: |
-          set -uo pipefail
-          if curl -fsSL --retry 3 --max-time 180 -o /tmp/ffmpeg.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz \
-            && mkdir -p /tmp/ffmpeg && tar -xJf /tmp/ffmpeg.tar.xz -C /tmp/ffmpeg --strip-components=1; then
-            echo "/tmp/ffmpeg/bin" >> "$GITHUB_PATH"
-          else
-            echo "static ffmpeg download failed; using apt"
-            bash .github/scripts/apt-install.sh ffmpeg
-          fi
+        run: bash .github/scripts/ffmpeg-static.sh
       - name: Python job tests (web search + page reading, keyless and Firecrawl; the voice batch; the full video kept whole)
         run: python3 -m unittest discover -s jobs/tests -v
