@@ -2,7 +2,11 @@
 // one pack of photos → a slow-zoom reel, a before/after video when a before and an after photo
 // exist, a carousel of checked photos, and the photo check (faces and house numbers blurred).
 //
-// buildSpec   → the pack's photos (key + role) and exactly where each output goes.
+// buildSpec   → the pack's photos (key + role) and exactly where each output goes; with a Hugging
+//               Face token (Setup "Connect Hugging Face", or the studio's HF_TOKEN secret) the reel
+//               asks for realistic motion (owner's word 22 Oct 2026), with the slow zoom as the
+//               fallback the job uses whenever the free model is busy or fails. No token: no
+//               motion block, so the job makes no Hugging Face call at all.
 // applyResult → every output must be in the pack's out folder and in storage; then
 //               worker/lib/photoPosts.ts finishPack stores it and plans the posts.
 // onFailure   → the pack says what happened, in plain words.
@@ -61,16 +65,29 @@ export async function buildPackSpec(env: Env, jobId: string, packId: string) {
     strict: rules.blockFaces || rules.blockAddresses,
     out: outKeys(packId, ps.length),
     before_after: hasBeforeAfter(ps),
+    ...motionSpec(env),
   };
+}
+
+/**
+ * Realistic motion for the reel: present only when the studio has a Hugging Face token. The token
+ * travels only in this signed spec (as the research job's keys do), is never logged, and the job
+ * falls back to the slow zoom on any failure. Pure.
+ */
+export function motionSpec(env: Pick<Env, "HF_TOKEN">): { motion?: { engine: "hf-wan2.2"; hf_token: string } } {
+  const token = (env.HF_TOKEN ?? "").trim();
+  return token ? { motion: { engine: "hf-wan2.2", hf_token: token } } : {};
 }
 
 interface PackResult {
   privacy?: { status?: string; faces?: number; numbers?: number };
+  /** How the reel moved: "realistic" (the open-source model) or "slow-zoom" (ffmpeg; also the fallback). */
+  motion?: string;
   items?: { kind?: string; key?: string | null; cover_key?: string | null; images?: string[] }[];
 }
 
 /** The job's answer, checked: only this pack's out folder, known kinds, a known photo check. Pure. */
-export function parsePackResult(result: unknown, packId: string): { items: MadeItem[]; privacy: "unchecked" | "clean" | "fixed" | "blocked"; detail: Record<string, number> } {
+export function parsePackResult(result: unknown, packId: string): { items: MadeItem[]; privacy: "unchecked" | "clean" | "fixed" | "blocked"; detail: Record<string, number>; motion: "realistic" | "slow-zoom" } {
   const r = (result ?? {}) as PackResult;
   const o = packOutPrefix(packId);
   const mine = (k: unknown): k is string => typeof k === "string" && k.startsWith(o) && !k.includes("..");
@@ -87,7 +104,7 @@ export function parsePackResult(result: unknown, packId: string): { items: MadeI
     items.push({ kind, r2_key: it.key ?? null, cover_r2_key: it.cover_key ?? null, images });
   }
   if (!items.length) throw new Error("photo pack result made nothing");
-  return { items, privacy, detail: { faces: Number(r.privacy?.faces) || 0, numbers: Number(r.privacy?.numbers) || 0 } };
+  return { items, privacy, detail: { faces: Number(r.privacy?.faces) || 0, numbers: Number(r.privacy?.numbers) || 0 }, motion: r.motion === "realistic" ? "realistic" : "slow-zoom" };
 }
 
 export const photoPackJob: JobHandler = {
@@ -97,7 +114,7 @@ export const photoPackJob: JobHandler = {
     const p = parsePackResult(result, packId);
     for (const it of p.items) for (const k of [it.r2_key, it.cover_r2_key, ...it.images]) if (k && !(await env.FILES.head(k))) throw new Error("a photo pack file is not in storage");
     await finishPack(env, packId, p.items, p.privacy, p.detail);
-    log.info("photos.made", { pieces: p.items.length, privacy: p.privacy });
+    log.info("photos.made", { pieces: p.items.length, privacy: p.privacy, motion: p.motion });
   },
   async onFailure(env, _jobId, refId, safeError) {
     await env.DB.prepare("UPDATE photo_packs SET status = 'failed', error = ? WHERE id = ?").bind(`The photo maker stopped: ${safeError}`.slice(0, 300), refId).run();

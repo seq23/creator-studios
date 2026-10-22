@@ -26,6 +26,10 @@ export interface Env {
    * host's own accounts) or "client" (every service is the client's own). Missing reads as client.
    */
   STUDIO_KIND?: string;
+  /** The host fallback secrets a host-accounts studio may read, comma-separated (registry hostKeys; worker/lib/hostKeys.ts). */
+  HOST_KEYS?: string;
+  /** Hugging Face token for realistic motion (Setup → Realistic motion, or a Worker secret). */
+  HF_TOKEN?: string;
   /** The studio's theme (JSON from studios/<slug>.json: palette tokens, fonts, wordmark). */
   STUDIO_THEME?: string;
   FAKE_SERVICES: string;

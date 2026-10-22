@@ -21,12 +21,15 @@ operational reference ("runbook creator-studios" opens it).
   own accounts, plus studio email, OpenRouter, Firecrawl and Hunter on the host's personal accounts
   by owner decision 7 Oct 2026 (`worker/lib/hostKeys.ts`, validator `host-keys-host-only`); README
   "Hadiyah: whose account runs what") and **client**
-  (Sample 1/2/3: none of the host's software, keys, data, emails or links; every service is the
-  client's own, pasted on Setup).
+  (Sample 2/3: none of the host's software, keys, data, emails or links; every service is the
+  client's own, pasted on Setup). Porch & Party Studio (slug `sample1`) became host-accounts on the
+  owner's word 22 Oct 2026 for studio email, AI writing and the job runner only: a host-accounts
+  studio reads only the host keys its registry `hostKeys` names, and the exact list per studio is
+  pinned in `scripts/validators/host-keys-host-only.mjs` (ALLOWED).
 
 ## Locked decisions you do not reopen
 
-Real footage only (no AI video) · two-door Dump · nothing posts without approval (one exception, owner's word 22 Oct 2026: **photo posts** auto-post with a heads-up email and a Skip, per studio `photoPosts`, shared/photoPosts.ts; a skipped post never goes out, guarded by tests/unit/photo-posts.test.ts) · hard cap 10
+Real footage only (no AI video; one exception, owner's word 22 Oct 2026: a photo post's reel may get **realistic motion** from an open-source image-to-video model on a free Hugging Face Space, labelled “Made with AI”, with the slow zoom as the automatic fallback; jobs/photopack.py `realistic_clip`, Setup step `huggingface`) · two-door Dump · nothing posts without approval (one exception, owner's word 22 Oct 2026: **photo posts** auto-post with a heads-up email and a Skip, per studio `photoPosts`, shared/photoPosts.ts; a skipped post never goes out, guarded by tests/unit/photo-posts.test.ts) · hard cap 10
 posts per channel per week · Buffer free plan for posting · OpenRouter free models default ·
 **nothing hidden, nothing switched off**: every Settings switch defaults ON and no switch ever
 hides a screen, nav item or button (validator `nothing-hidden`) · research brief approved before

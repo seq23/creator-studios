@@ -36,7 +36,7 @@ jobs:
         run: bash .github/scripts/ffmpeg-static.sh
       - name: System tools (tesseract for house numbers, a bold font for Before/After)
         run: bash .github/scripts/apt-install.sh tesseract-ocr tesseract-ocr-eng fonts-dejavu-core
-      - run: pip install -q -r jobs/requirements.txt pillow pillow-heif "opencv-python-headless>=4.8,<5" numpy
+      - run: pip install -q -r jobs/requirements.txt pillow pillow-heif "opencv-python-headless>=4.8,<5" numpy "gradio_client>=2.7,<3"
       - name: Run
         run: python3 jobs/photopack.py
         env:

@@ -10,7 +10,13 @@
   "ownerName": "",
   "_ownerEmail": "Never in this file (public repo). Set at deploy time from the 0600 file <secrets dir>/sample1/OWNER_EMAIL by `npm run studio:secrets sample1` (README \"Owner email\"). No first-login link is needed.",
   "theme": "porchandparty",
-  "kind": "client",
+  "kind": "host-accounts",
+  "_hostAccounts": "Owner's word 22 Oct 2026 (\"Yes, same as Hadiyah\"): Porch & Party Studio runs studio email (the host's Resend, its own sending key and From address), AI writing (the host's OpenRouter, its own $0-limit key, free models only) and the job runner (the host's) on the host's accounts. Only the keys in hostKeys; validator host-keys-host-only pins the list.",
+  "hostKeys": [
+    "OPENROUTER_API_KEY",
+    "RESEND_API_KEY",
+    "STUDIO_EMAIL_FROM"
+  ],
   "audienceTimezone": "America/Chicago",
   "d1": {
     "name": "creator-studios-sample1-db",
@@ -19,6 +25,17 @@
   "r2": {
     "bucket": "creator-studios-sample1-files"
   },
+  "githubRepo": "seq23/creator-studios",
+  "hostSecrets": {
+    "_why": "The host's job runner, studio email and AI writing (owner's word 22 Oct 2026). Everything else (Facebook, Pinterest, Buffer…) is the owner's own, pasted on Setup.",
+    "GITHUB_DISPATCH_TOKEN": "gh-auth-token",
+    "OPENROUTER_API_KEY": "studio-file?:OPENROUTER_API_KEY",
+    "RESEND_API_KEY": "studio-file:RESEND_API_KEY",
+    "STUDIO_EMAIL_FROM": "studio-file:STUDIO_EMAIL_FROM",
+    "HF_TOKEN": "studio-file?:HF_TOKEN",
+    "_optional": "file? = set when the 0600 secret file exists, otherwise a named stop: that service stays in practice mode (README Secrets)."
+  },
+  "jobSecretOnHostRepo": true,
   "photoPosts": {
     "_why": "Photo posts (shared/photoPosts.ts): one photo becomes a pack of posts that go out on their own with a heads-up and a Skip. On by the host's word, 22 Oct 2026.",
     "on": true,
