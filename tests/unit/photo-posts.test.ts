@@ -251,6 +251,21 @@ describe("a platform with no token is a named stop; its posts wait, never fail",
     expect(home.upcoming.find((p) => p.platform === "facebook")!.connect).toBe("facebook");
   });
 
+  it("no heads-up is sent for posts that cannot go out (platform not connected): the owner is never told they are going", async () => {
+    env = makeEnv({ FAKE_SERVICES: "0" });
+    vi.stubGlobal("fetch", async () => {
+      throw new Error("no vendor may be called without a token");
+    });
+    const r = await req("POST", "/api/photos/packs", { note: "" });
+    const id = ((await r.json()) as { id: string }).id;
+    raw.prepare("INSERT INTO pack_photos (id, pack_id, role, file_name, mime_type, size_bytes, r2_key, upload_status) VALUES ('pph_b', ?, 'main', 'a.jpg', 'image/jpeg', 4, 'k', 'uploaded')").run(id);
+    await finishPack(await hydrate(env), id, [{ kind: "reel", r2_key: `packs/${id}/out/reel.mp4`, cover_r2_key: null, images: [] }], "clean", {}, NOW);
+    const out = await tick(NOW + 3_600_000);
+    expect(out.headsUp).toBe(0);
+    expect((raw.prepare("SELECT COUNT(*) AS n FROM emails_sent WHERE kind = 'heads_up'").get() as { n: number }).n).toBe(0);
+    expect((raw.prepare("SELECT COUNT(*) AS n FROM social_posts WHERE heads_up_at IS NOT NULL").get() as { n: number }).n).toBe(0);
+  });
+
   it("a studio with photo posts off refuses a new set in plain words", async () => {
     env = makeEnv({ PHOTO_POSTS: undefined });
     const r = await req("POST", "/api/photos/packs", { note: "" });
@@ -270,5 +285,32 @@ describe("photo uploads", () => {
     expect(bad.status).toBe(422);
     const heic = raw.prepare("SELECT mime_type FROM pack_photos WHERE file_name = 'd.heic'").get() as { mime_type: string };
     expect(heic.mime_type).toBe("image/heic");
+  });
+});
+
+describe("test heads-up: the host developer only, to the developer's own address", () => {
+  it("the developer login sends a test for one pack to DEVELOPER_EMAIL, never the owner, and marks nothing", async () => {
+    env = makeEnv({ OWNER_EMAIL: "dev@host.example", DEVELOPER_EMAIL: "dev@host.example" } as Partial<Env>);
+    await saveConnection(env, "buffer", "good-key-e2e-000", "ok", {});
+    const id = await readyPack();
+    raw.prepare("INSERT INTO settings (key, value) VALUES ('owner_email', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify("valerie@owner.example"));
+    const r = await req("POST", `/api/photos/packs/${id}/heads-up-test`);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ ok: true, posts: 5 });
+    const sent = raw.prepare("SELECT to_email, subject FROM emails_sent WHERE kind = 'heads_up'").all() as { to_email: string; subject: string }[];
+    expect(sent).toHaveLength(1);
+    expect(sent[0].to_email).toContain("dev@host.example");
+    expect(sent[0].to_email).not.toContain("valerie");
+    expect(sent[0].subject).toMatch(/^\[Test\] Going out soon: 5 posts/);
+    expect((raw.prepare("SELECT COUNT(*) AS n FROM social_posts WHERE heads_up_at IS NOT NULL").get() as { n: number }).n).toBe(0);
+  });
+
+  it("anyone else gets 403 and nothing is sent", async () => {
+    env = makeEnv({ DEVELOPER_EMAIL: "dev@host.example" } as Partial<Env>);
+    await saveConnection(env, "buffer", "good-key-e2e-000", "ok", {});
+    const id = await readyPack();
+    const r = await req("POST", `/api/photos/packs/${id}/heads-up-test`);
+    expect(r.status).toBe(403);
+    expect((raw.prepare("SELECT COUNT(*) AS n FROM emails_sent WHERE kind = 'heads_up'").get() as { n: number }).n).toBe(0);
   });
 });
