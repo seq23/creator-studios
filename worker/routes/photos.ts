@@ -20,8 +20,8 @@ photos.get("/", async (c) => c.json(await photosHome(c.env)));
 /** A new set of photos (before the files upload). */
 photos.post("/packs", async (c) => {
   if (!photoConfig(c.env).on) return fail(c, 409, OFF, "photo-posts");
-  const body = await readJson<{ note?: string }>(c);
-  return c.json({ id: await createPack(c.env, String(body?.note ?? "")) });
+  const body = await readJson<{ note?: string; ai_edited?: boolean }>(c);
+  return c.json({ id: await createPack(c.env, String(body?.note ?? ""), body?.ai_edited === true) });
 });
 
 photos.get("/packs/:id", async (c) => {
@@ -32,11 +32,12 @@ photos.get("/packs/:id", async (c) => {
 
 /** Her note about the photos (what it shows): the captions start from it. Checked against the rules. */
 photos.patch("/packs/:id", async (c) => {
-  const body = await readJson<{ note?: string }>(c);
+  const body = await readJson<{ note?: string; ai_edited?: boolean }>(c);
   const note = String(body?.note ?? "").slice(0, 2000);
   const problems = textProblems(note, contentRules(c.env));
   if (problems.length) return c.json({ ok: false, problems }, 422);
   await c.env.DB.prepare("UPDATE photo_packs SET note = ? WHERE id = ? AND status IN ('uploading', 'failed')").bind(note, c.req.param("id")).run();
+  if (typeof body?.ai_edited === "boolean") await c.env.DB.prepare("UPDATE photo_packs SET ai_edited = ? WHERE id = ? AND status IN ('uploading', 'failed')").bind(body.ai_edited ? 1 : 0, c.req.param("id")).run();
   return c.json({ ok: true, problems: [] });
 });
 

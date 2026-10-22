@@ -124,9 +124,9 @@ export function photoGate(privacy: string, rules: ContentRules): string | null {
 
 // ------------------------------------------------------------------ packs
 
-export async function createPack(env: Env, note: string): Promise<string> {
+export async function createPack(env: Env, note: string, aiEdited = false): Promise<string> {
   const id = newId("pck");
-  await env.DB.prepare("INSERT INTO photo_packs (id, note, status) VALUES (?, ?, 'uploading')").bind(id, note.slice(0, 2000)).run();
+  await env.DB.prepare("INSERT INTO photo_packs (id, note, status, ai_edited) VALUES (?, ?, 'uploading', ?)").bind(id, note.slice(0, 2000), aiEdited ? 1 : 0).run();
   return id;
 }
 
@@ -159,9 +159,11 @@ export interface MadeItem {
 /** The photo maker's answer: store what it made, the photo check, then plan the posts. */
 export async function finishPack(env: Env, packId: string, items: MadeItem[], privacy: "unchecked" | "clean" | "fixed" | "blocked", detail: Record<string, number>, now = Date.now()): Promise<void> {
   await env.DB.prepare("DELETE FROM pack_items WHERE pack_id = ?").bind(packId).run();
+  // AI-edited photos (the owner's tick): every piece made from them carries the label, the photo set too.
+  const edited = !!(await env.DB.prepare("SELECT ai_edited FROM photo_packs WHERE id = ?").bind(packId).first<{ ai_edited: number }>())?.ai_edited;
   for (const it of items) {
     await env.DB.prepare("INSERT INTO pack_items (id, pack_id, kind, r2_key, cover_r2_key, images, media_token, ai_made) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(newId("pki"), packId, it.kind, it.r2_key, it.cover_r2_key, JSON.stringify(it.images), mediaToken(), AI_MADE[it.kind] ? 1 : 0)
+      .bind(newId("pki"), packId, it.kind, it.r2_key, it.cover_r2_key, JSON.stringify(it.images), mediaToken(), AI_MADE[it.kind] || edited ? 1 : 0)
       .run();
   }
   await env.DB.prepare("UPDATE photo_packs SET status = 'ready', ready_at = ?, privacy = ?, privacy_detail = ?, error = NULL WHERE id = ?").bind(nowIso(), privacy, JSON.stringify(detail), packId).run();
