@@ -14,18 +14,29 @@ export function checkEntries(studios, themes) {
     if (!["host-accounts", "client"].includes(s.kind)) problems.push(`${s.slug}: kind must be host-accounts or client`);
     if (!themes[s.theme]) problems.push(`${s.slug}: theme ${s.theme} is not in studios/themes.json`);
     if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(s.hostname ?? "") || /workers\.dev$/.test(s.hostname ?? "")) problems.push(`${s.slug}: hostname must be the studio's own domain name (e.g. ${s.slug}-studio.spryexecutiveos.com), not a URL or workers.dev`);
+    const prev = s.previousHostnames ?? [];
+    if (!Array.isArray(prev)) problems.push(`${s.slug}: previousHostnames must be a list of hostnames`);
+    else for (const h of prev) {
+      if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(h ?? "") || /workers\.dev$/.test(h ?? "")) problems.push(`${s.slug}: previous hostname ${JSON.stringify(h)} must be a domain name, not a URL or workers.dev`);
+      if (h === s.hostname) problems.push(`${s.slug}: previous hostname ${h} is its current hostname`);
+    }
     if (!s.appName) problems.push(`${s.slug}: appName is empty`);
     if ("ownerEmail" in s) problems.push(`${s.slug}: ownerEmail is never in the public registry; it is set at deploy time from <secrets dir>/${s.slug}/OWNER_EMAIL (validator registry-no-emails)`);
   }
   return problems;
 }
 
+/** One hostname, current or previous, belongs to one studio (a shared one would serve two studios' data on one address). */
+export function checkHostsUnique(studios) {
+  const hosts = studios.flatMap((s) => [s.hostname, ...(Array.isArray(s.previousHostnames) ? s.previousHostnames : [])]);
+  return [...new Set(hosts)].filter((h) => hosts.filter((x) => x === h).length > 1).map((h) => `hostname ${h} is used by more than one studio`);
+}
+
 export default async function ({ root }) {
   const studio = await import(pathToFileURL(path.join(root, "scripts", "studio.mjs")).href);
   const reg = studio.loadRegistry(root);
   const problems = checkEntries(reg.studios, reg.themes);
-  const hosts = reg.studios.map((s) => s.hostname);
-  for (const h of new Set(hosts)) if (hosts.filter((x) => x === h).length > 1) problems.push(`hostname ${h} is used by more than one studio`);
+  problems.push(...checkHostsUnique(reg.studios));
   if (!reg.studios.length) problems.push("no studios (Rule 0)");
   const have = await readFile(path.join(root, "wrangler.jsonc"), "utf8").catch(() => "");
   if (have !== studio.wranglerConfig(reg)) problems.push("wrangler.jsonc is not what the registry generates: run node scripts/studio.mjs gen");

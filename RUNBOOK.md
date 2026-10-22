@@ -31,7 +31,7 @@ generated (`npm run studio:gen`).
 | Studio | Address (Workers Custom Domain, zone `spryexecutiveos.com`) | Old address |
 | --- | --- | --- |
 | Hadiyah | https://hadiyah-studio.spryexecutiveos.com | https://hadiyahstudio.seq-taylor.workers.dev → 301 |
-| Sample 1 | https://sample1-studio.spryexecutiveos.com | https://sample1studio.seq-taylor.workers.dev → 301 |
+| Porch & Party (slug sample1) | https://pnpstudio.spryexecutiveos.com | https://sample1-studio.spryexecutiveos.com and https://sample1studio.seq-taylor.workers.dev → 301 |
 | Sample 2 | https://sample2-studio.spryexecutiveos.com | https://sample2studio.seq-taylor.workers.dev → 301 |
 | Sample 3 | https://sample3-studio.spryexecutiveos.com | https://sample3studio.seq-taylor.workers.dev → 301 |
 

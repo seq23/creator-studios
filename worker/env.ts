@@ -30,6 +30,8 @@ export interface Env {
   STUDIO_THEME?: string;
   FAKE_SERVICES: string;
   PUBLIC_BASE_URL: string;
+  /** A renamed studio's old custom hostnames, comma separated: their pages 301 to PUBLIC_BASE_URL (lib/canonical-host.ts). */
+  PREVIOUS_HOSTNAMES?: string;
   GITHUB_REPO: string;
   AUDIENCE_TIMEZONE: string;
   /**

@@ -65,5 +65,41 @@
       "--login-bg": "radial-gradient(circle at 12% 0%, rgba(224, 166, 64, 0.18), transparent 34%), linear-gradient(160deg, #15211d, #0e1714)"
     },
     "wordmark": { "name": "hadiyah", "tag": "studio", "mark": "◆" }
+  },
+  "porchandparty": {
+    "_about": "Porch & Party Studio, matched to porchandparty901.com: warm linen ground, a terracotta accent (the site's button colour, darkened one step to #aa5c40 so white text on it reads 4.9:1), dusty rose for the tag line and small flourishes, a warm cocoa sidebar. Cormorant Garamond headings and Inter body as on the site; the wordmark in Great Vibes, the site's logo script. Alarms stay a true crimson (--danger) so the terracotta accent is never read as one (make-it-calm: red is a real alarm only).",
+    "fonts": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Great+Vibes&family=Inter:wght@400;500;600;700;800&display=swap",
+    "chrome": "#3b302a",
+    "light": {
+      "--cream": "#faf7f2", "--ivory": "#fffdf9", "--paper": "#fffefb", "--parchment": "#f4ece3", "--champagne": "#ead8c6",
+      "--gold": "#aa5c40", "--gold-deep": "#8f4b33", "--gold-ink": "#8f4b33",
+      "--gold-soft": "rgba(196, 110, 78, 0.32)", "--gold-faint": "rgba(196, 110, 78, 0.1)", "--gold-line": "rgba(196, 110, 78, 0.36)", "--gold-glow": "rgba(196, 110, 78, 0.24)",
+      "--espresso": "#3b302a", "--espresso-2": "#4d3f37", "--ink": "#2f2621", "--ink-soft": "rgba(47, 38, 33, 0.8)", "--muted": "#6e5f55",
+      "--line": "rgba(59, 48, 42, 0.12)", "--line-strong": "rgba(59, 48, 42, 0.28)",
+      "--blush": "#c98f8a", "--blush-faint": "rgba(201, 143, 138, 0.18)", "--rose": "#9b4f4a", "--terracotta": "#aa5c40", "--teal": "#4f6f5a",
+      "--on-dark": "#faf3ea", "--on-dark-soft": "rgba(250, 243, 234, 0.8)", "--on-dark-faint": "rgba(250, 243, 234, 0.1)",
+      "--scrim": "rgba(59, 48, 42, 0.55)", "--glass": "rgba(255, 253, 249, 0.92)",
+      "--accent-ink": "#ffffff", "--focus-color": "#9b4f4a",
+      "--danger": "#b42318", "--danger-soft": "rgba(180, 35, 24, 0.12)",
+      "--brand-mark-bg": "linear-gradient(145deg, #fffdf9, #f4ece3)",
+      "--login-bg": "radial-gradient(circle at 12% 0%, rgba(201, 143, 138, 0.24), transparent 34%), radial-gradient(circle at 100% 100%, rgba(196, 110, 78, 0.14), transparent 40%), linear-gradient(160deg, #fffdf9, #faf7f2)",
+      "--shadow-btn": "0 8px 18px rgba(170, 92, 64, 0.22)",
+      "--font-display": "\"Cormorant Garamond\", Georgia, \"Times New Roman\", serif",
+      "--font-body": "\"Inter\", system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "--font-script": "\"Cormorant Garamond\", Georgia, serif",
+      "--font-wordmark": "\"Great Vibes\", \"Snell Roundhand\", cursive",
+      "--text-wordmark": "2rem", "--text-wordmark-lg": "clamp(2.75rem, 2rem + 2.3vw, 3.75rem)",
+      "--wordmark-tracking": "0"
+    },
+    "dark": {
+      "--bg": "#1c1714", "--surface": "#26201c", "--surface-2": "#2e2722", "--surface-sunk": "#16120f",
+      "--text": "#efe6dc", "--text-soft": "rgba(239, 230, 220, 0.82)", "--text-muted": "#b5a79b",
+      "--line": "rgba(239, 230, 220, 0.12)", "--line-strong": "rgba(239, 230, 220, 0.3)",
+      "--primary": "#e39a7c", "--primary-text": "#1c1714", "--gold-ink": "#e39a7c",
+      "--gold-soft": "rgba(227, 154, 124, 0.3)", "--gold-faint": "rgba(227, 154, 124, 0.12)", "--focus-color": "#e39a7c",
+      "--glass": "rgba(38, 32, 28, 0.92)",
+      "--login-bg": "radial-gradient(circle at 12% 0%, rgba(201, 143, 138, 0.16), transparent 34%), linear-gradient(160deg, #26201c, #1c1714)"
+    },
+    "wordmark": { "name": "Porch & Party", "tag": "studio" }
   }
 }

@@ -1,13 +1,15 @@
 {
   "slug": "sample1",
   "worker": "sample1studio",
-  "hostname": "sample1-studio.spryexecutiveos.com",
-  "appName": "Sample 1 Studio",
+  "hostname": "pnpstudio.spryexecutiveos.com",
+  "_renamed": "Sample 1 became Porch & Party Studio on 22 Oct 2026 (owner's word). The slug, Worker, D1 and R2 keep their sample1 names: renaming them would orphan the data (README \"Rename a studio\").",
+  "previousHostnames": ["sample1-studio.spryexecutiveos.com"],
+  "appName": "Porch & Party Studio",
   "ownerName": "",
-  "_ownerEmail": "Claimed through the first-login invite link; a deploy-time OWNER_EMAIL from <secrets dir>/sample1/OWNER_EMAIL is optional (README \"Owner email\").",
-  "theme": "slate",
+  "_ownerEmail": "Never in this file (public repo). Set at deploy time from the 0600 file <secrets dir>/sample1/OWNER_EMAIL by `npm run studio:secrets sample1` (README \"Owner email\"). No first-login link is needed.",
+  "theme": "porchandparty",
   "kind": "client",
-  "audienceTimezone": "America/New_York",
+  "audienceTimezone": "America/Chicago",
   "d1": {
     "name": "creator-studios-sample1-db",
     "id": "b7f94a59-1be8-436d-a022-fcfa92b5358a"

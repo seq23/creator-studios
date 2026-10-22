@@ -20,7 +20,7 @@ import sampleClean, { checkStudios } from "../../scripts/validators/sample-clean
 // @ts-expect-error plain .mjs validator, no types
 import studioIsolation, { checkIsolation, parseJsonc } from "../../scripts/validators/studio-isolation.mjs";
 // @ts-expect-error plain .mjs validator, no types
-import studiosGenerated, { checkEntries } from "../../scripts/validators/studios-generated.mjs";
+import studiosGenerated, { checkEntries, checkHostsUnique } from "../../scripts/validators/studios-generated.mjs";
 // @ts-expect-error plain .mjs, no types
 import { findIdentifiers, OWNER_KEY_NAMES } from "../../scripts/lib/owner-identifiers.mjs";
 // @ts-expect-error plain .mjs, no types
@@ -31,11 +31,16 @@ const reg = loadRegistry(root);
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 
 describe("the registry", () => {
-  it("has Hadiyah (host accounts) and three sample studios (clients) at the agreed URLs", () => {
+  it("has Hadiyah (host accounts), Porch & Party (client, was Sample 1) and two sample studios (clients) at the agreed URLs", () => {
     const by = Object.fromEntries(reg.studios.map((s: { slug: string }) => [s.slug, s]));
     expect(Object.keys(by).sort()).toEqual(["hadiyah", "sample1", "sample2", "sample3"]);
     expect(by.hadiyah).toMatchObject({ kind: "host-accounts", appName: "Hadiyah Studio", ownerName: "Hadiyah", theme: "hadiyah", hostname: "hadiyah-studio.spryexecutiveos.com", url: "https://hadiyah-studio.spryexecutiveos.com", workersDevUrl: "https://hadiyahstudio.seq-taylor.workers.dev" });
-    for (const n of [1, 2, 3]) expect(by[`sample${n}`]).toMatchObject({ kind: "client", appName: `Sample ${n} Studio`, theme: "slate", hostname: `sample${n}-studio.spryexecutiveos.com`, url: `https://sample${n}-studio.spryexecutiveos.com`, workersDevUrl: `https://sample${n}studio.seq-taylor.workers.dev` });
+    expect(by.hadiyah).not.toHaveProperty("previousHostnames");
+    // Sample 1 renamed in place (22 Oct 2026): new name, host and theme; the slug, Worker, D1 and R2 keep their names (the data stays).
+    expect(by.sample1).toMatchObject({ kind: "client", appName: "Porch & Party Studio", theme: "porchandparty", hostname: "pnpstudio.spryexecutiveos.com", url: "https://pnpstudio.spryexecutiveos.com", previousHostnames: ["sample1-studio.spryexecutiveos.com"], previousUrls: ["https://sample1-studio.spryexecutiveos.com"], worker: "sample1studio", workersDevUrl: "https://sample1studio.seq-taylor.workers.dev", d1: { name: "creator-studios-sample1-db", id: "b7f94a59-1be8-436d-a022-fcfa92b5358a" }, r2: { bucket: "creator-studios-sample1-files" } });
+    expect(by.sample1).not.toHaveProperty("githubRepo");
+    expect(by.sample1).not.toHaveProperty("hostSecrets");
+    for (const n of [2, 3]) expect(by[`sample${n}`]).toMatchObject({ kind: "client", appName: `Sample ${n} Studio`, theme: "slate", hostname: `sample${n}-studio.spryexecutiveos.com`, url: `https://sample${n}-studio.spryexecutiveos.com`, workersDevUrl: `https://sample${n}studio.seq-taylor.workers.dev` });
     for (const s of reg.studios) expect(s, s.slug).not.toHaveProperty("ownerEmail");
   });
 
@@ -49,12 +54,23 @@ describe("the registry", () => {
       const e = envBlock(s, reg.themes);
       expect(e.vars).toMatchObject({ APP_NAME: s.appName, STUDIO_SLUG: s.slug, PUBLIC_BASE_URL: s.url, FAKE_SERVICES: "0", AUTH_MODE: "code", ENV_NAME: "production" });
       // Its own hostname as a Workers Custom Domain; workers.dev kept on (it 301s); no owner email var.
-      expect(e.routes).toEqual([{ pattern: s.hostname, custom_domain: true }]);
+      // A renamed studio keeps its old hostnames attached too (they 301 to the new one); no other route.
+      expect(e.routes).toEqual([s.hostname, ...(s.previousHostnames ?? [])].map((pattern: string) => ({ pattern, custom_domain: true })));
+      if (s.previousHostnames?.length) expect(e.vars.PREVIOUS_HOSTNAMES).toBe(s.previousHostnames.join(","));
+      else expect(e.vars).not.toHaveProperty("PREVIOUS_HOSTNAMES");
       expect(e.workers_dev).toBe(true);
       expect(e.vars).not.toHaveProperty("OWNER_EMAIL");
-      expect(JSON.parse(e.vars.STUDIO_THEME).wordmark.name).toBe(s.slug === "hadiyah" ? "hadiyah" : s.appName);
+      expect(JSON.parse(e.vars.STUDIO_THEME).wordmark.name).toBe(s.slug === "hadiyah" ? "hadiyah" : s.slug === "sample1" ? "Porch & Party" : s.appName);
     }
     expect(themeFor(reg.studios.find((s: { slug: string }) => s.slug === "hadiyah"), reg.themes).light["--font-display"]).toMatch(/Young Serif/);
+    // Porch & Party matches porchandparty901.com: Cormorant Garamond + Inter, the Great Vibes logo script, its terracotta.
+    const pnp = themeFor(reg.studios.find((s: { slug: string }) => s.slug === "sample1"), reg.themes);
+    expect(pnp.fonts).toMatch(/Cormorant\+Garamond.*Great\+Vibes.*Inter/);
+    expect(pnp.light).toMatchObject({ "--gold": "#aa5c40", "--cream": "#faf7f2", "--espresso": "#3b302a" });
+    expect(pnp.light["--font-wordmark"]).toMatch(/Great Vibes/);
+    expect(pnp.wordmark).toEqual({ name: "Porch & Party", tag: "studio" });
+    // Samples 2 and 3 stay on the neutral sample theme.
+    for (const n of [2, 3]) expect(reg.studios.find((s: { slug: string }) => s.slug === `sample${n}`).theme).toBe("slate");
   });
 
   it("job dispatches name the studio, so the workflow picks JOB_SHARED_SECRET_<SLUG>", () => {
@@ -235,6 +251,17 @@ describe("the owner email and the platform sender are never committed config", (
   it("a registry hostname must be a bare domain of its own, not a URL, not workers.dev, not shared", () => {
     for (const bad of ["https://a.example", "x.seq-taylor.workers.dev", "nodot", ""]) expect(checkEntries([{ ...clone(reg.studios[0]), hostname: bad }], reg.themes).join("\n"), bad).toMatch(/hostname must be/);
     expect(() => withUrls({ slug: "x", worker: "xstudio", hostname: "x.example", url: "https://x.example" })).toThrow(/derived from "hostname"/);
+    // Previous hostnames (a renamed studio): bare domains, never its current one, never another studio's.
+    for (const bad of ["https://a.example", "x.seq-taylor.workers.dev", "nodot"]) expect(checkEntries([{ ...clone(reg.studios[0]), previousHostnames: [bad] }], reg.themes).join("\n"), bad).toMatch(/previous hostname .* must be a domain name/);
+    expect(checkEntries([{ ...clone(reg.studios[0]), previousHostnames: "a.example" }], reg.themes).join("\n")).toMatch(/previousHostnames must be a list/);
+    const s0 = clone(reg.studios[0]);
+    expect(checkEntries([{ ...s0, previousHostnames: [s0.hostname] }], reg.themes).join("\n")).toMatch(/is its current hostname/);
+    expect(checkHostsUnique(reg.studios)).toEqual([]);
+    const s1 = reg.studios.find((s: { slug: string }) => s.slug === "sample1");
+    const stolen = reg.studios.map((s: { slug: string }) => (s.slug === "sample2" ? { ...clone(s), previousHostnames: [s1.hostname] } : s));
+    expect(checkHostsUnique(stolen).join("\n")).toMatch(/hostname pnpstudio\.spryexecutiveos\.com is used by more than one studio/);
+    const reused = reg.studios.map((s: { slug: string }) => (s.slug === "sample2" ? { ...clone(s), hostname: s1.previousHostnames[0] } : s));
+    expect(checkHostsUnique(reused).join("\n")).toMatch(/sample1-studio\.spryexecutiveos\.com is used by more than one studio/);
   });
 });
 

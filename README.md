@@ -16,7 +16,7 @@ entry in the registry, `studios/<slug>.json`. `wrangler.jsonc` is generated from
 | Studio | Slug | URL | Kind | Owner login |
 | --- | --- | --- | --- | --- |
 | Hadiyah Studio | `hadiyah` | https://hadiyah-studio.spryexecutiveos.com | host-accounts | deploy-time `OWNER_EMAIL` (see "Owner email") |
-| Sample 1 Studio | `sample1` | https://sample1-studio.spryexecutiveos.com | client | claimed with its first-login link |
+| Porch & Party Studio (was Sample 1) | `sample1` | https://pnpstudio.spryexecutiveos.com (old sample1-studio address 301s here) | client | deploy-time `OWNER_EMAIL` (see "Owner email") |
 | Sample 2 Studio | `sample2` | https://sample2-studio.spryexecutiveos.com | client | claimed with its first-login link |
 | Sample 3 Studio | `sample3` | https://sample3-studio.spryexecutiveos.com | client | claimed with its first-login link |
 
@@ -36,7 +36,10 @@ smoke proves the 301. Nothing else on the zone is touched (the apex site and the
   saffron on bone, Young Serif headings and wordmark, Hanken Grotesk text).
   **Owner email:** never in this public repo; see "Owner email" below.
 - **Sample 1/2/3** carry **none of the host's software**: no host API keys, data, emails or links.
-  Neutral "slate" theme. Every service is the client's own, pasted on **Setup** (below).
+  Every service is the client's own, pasted on **Setup** (below). Samples 2 and 3 wear the neutral
+  "slate" theme. **Sample 1 is Porch & Party Studio** (renamed in place 22 Oct 2026, owner's word):
+  theme `porchandparty` matched to porchandparty901.com, its owner set from
+  `<secrets dir>/sample1/OWNER_EMAIL`, practice mode until she connects her own accounts on Setup.
 
 ## Hadiyah: whose account runs what
 
@@ -143,8 +146,12 @@ A host-run studio also needs its owner email file first (see "Owner email").
 
 One registry change, one command. Edit `hostname` (and `appName`, `theme`, `ownerName` as wanted) in
 `studios/<slug>.json`, then `npm run studio:deploy <slug>` (or merge it: green main deploys every
-studio). The new hostname is attached on deploy and `PUBLIC_BASE_URL` follows it. Then: the old
-hostname, if Cloudflare still lists it (Workers → the Worker → Settings → Domains), is removed there;
+studio). The new hostname is attached on deploy and `PUBLIC_BASE_URL` follows it. To keep old links
+working, move the old hostname into `previousHostnames` (a list): it stays attached and every page
+on it 301s to the new hostname, the API never (var `PREVIOUS_HOSTNAMES`, `worker/lib/canonical-host.ts`;
+the deploy smoke proves it; validator `studios-generated` keeps every hostname, current or previous,
+to one studio). Without that, the old hostname, if Cloudflare still lists it (Workers → the Worker →
+Settings → Domains), is removed there;
 the studio's own Google/Meta sign-in clients need the new redirect URIs
 `https://<hostname>/api/oauth/google/callback` and `/api/oauth/meta/callback` (Setup shows them).
 The slug, Worker, D1 and R2 names never change (renaming them would orphan the data).
@@ -186,7 +193,7 @@ host-accounts studios the `hostSecrets` in the entry. GitHub: `CLOUDFLARE_API_TO
 | the host's personal OpenRouter / Resend / Firecrawl / Hunter reach host-accounts studios only | `worker/lib/hostKeys.ts` (hydrate strips them on a client), `secretPlan` refusal, validator `host-keys-host-only` | `tests/unit/host-keys.test.ts` |
 | no owner email committed in the registry | validator `registry-no-emails` | `tests/unit/studios.test.ts` |
 | the host's former business name nowhere in the repo (every tracked file) | validator `no-host-brand` | `tests/unit/studios.test.ts` |
-| an old workers.dev page 301s to the studio's hostname; the API is never redirected | `worker/lib/canonical-host.ts`, smoke in `studio:deploy` | `tests/unit/canonical-host.test.ts` |
+| an old workers.dev page, or a renamed studio's previous hostname, 301s to the studio's hostname; the API is never redirected | `worker/lib/canonical-host.ts`, smoke in `studio:deploy` | `tests/unit/canonical-host.test.ts` |
 
 ## Run it locally
 
