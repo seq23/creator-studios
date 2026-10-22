@@ -41,7 +41,7 @@ describe("the registry", () => {
     // Owner's word 22 Oct 2026 ("same as Hadiyah"): the host's job runner, Resend and OpenRouter, plus its
     // own Hugging Face token; none of the host's YouTube, Google, Firecrawl or Hunter.
     expect(by.sample1).toMatchObject({ githubRepo: "seq23/creator-studios", jobSecretOnHostRepo: true, hostKeys: ["OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM"] });
-    expect(Object.keys(by.sample1.hostSecrets).filter((k) => !k.startsWith("_")).sort()).toEqual(["GITHUB_DISPATCH_TOKEN", "HF_TOKEN", "OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM"]);
+    expect(Object.keys(by.sample1.hostSecrets).filter((k) => !k.startsWith("_")).sort()).toEqual(["GITHUB_DISPATCH_TOKEN", "HF_TOKEN", "NOTIFY_EMAIL", "OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM"]);
     for (const n of [2, 3]) {
       expect(by[`sample${n}`], `sample${n}`).not.toHaveProperty("githubRepo");
       expect(by[`sample${n}`], `sample${n}`).not.toHaveProperty("hostSecrets");
