@@ -324,6 +324,16 @@ export async function sendPost(env: Env, row: PostRow): Promise<SocialPostStatus
 
 type HeadsUpRow = { id: string; platform: Social; item_kind: ItemKind; caption: string; scheduled_at: string };
 
+/** Browser-showable uploads (a HEIC is not: Chrome and most phones' browsers cannot draw it). */
+const SHOWABLE = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+/** The card picture: the made (checked) cover first, else the first showable upload, else null. Pure. */
+export function packThumb(packId: string, photos: { id: string; mime_type: string }[], made: string | null): string | null {
+  if (made) return made;
+  const ph = photos.find((p) => SHOWABLE.has((p.mime_type ?? "").toLowerCase()));
+  return ph ? `/api/photos/${packId}/photo/${ph.id}` : null;
+}
+
 /** The heads-up email for these posts: one line each with its own Skip link. */
 async function headsUpEmail(env: Env, rows: HeadsUpRow[]) {
   const tz = await timeZone(env);
@@ -457,7 +467,7 @@ const PRIVACY_LINE: Record<string, string> = {
 export async function packView(env: Env, packId: string, tz: string): Promise<PackView | null> {
   const p = await env.DB.prepare("SELECT id, status, note, created_at, privacy, captions, error FROM photo_packs WHERE id = ?").bind(packId).first<{ id: string; status: PackView["status"]; note: string; created_at: string; privacy: PackView["privacy"]; captions: string; error: string | null }>();
   if (!p) return null;
-  const { results: photos } = await env.DB.prepare("SELECT id, role FROM pack_photos WHERE pack_id = ? AND upload_status = 'uploaded' ORDER BY created_at").bind(packId).all<{ id: string; role: "main" | "before" | "after" }>();
+  const { results: photos } = await env.DB.prepare("SELECT id, role, mime_type FROM pack_photos WHERE pack_id = ? AND upload_status = 'uploaded' ORDER BY created_at").bind(packId).all<{ id: string; role: "main" | "before" | "after"; mime_type: string }>();
   const { results: items } = await env.DB.prepare("SELECT id, kind, r2_key, cover_r2_key, images, media_token, ai_made FROM pack_items WHERE pack_id = ?").bind(packId).all<ItemRow>();
   const { results: posts } = await env.DB.prepare("SELECT id, pack_id, item_kind, platform, caption, scheduled_at, status, error, posted_at, url FROM social_posts WHERE pack_id = ? ORDER BY scheduled_at, platform").bind(packId).all<PostRow>();
   const coverOf = (kind: ItemKind) => {
@@ -475,6 +485,7 @@ export async function packView(env: Env, packId: string, tz: string): Promise<Pa
     privacy_line: PRIVACY_LINE[p.privacy] ?? "",
     error: p.error,
     photos: photos.map((ph) => ({ id: ph.id, role: ph.role, url: `/api/photos/${packId}/photo/${ph.id}` })),
+    thumb_url: packThumb(packId, photos, coverOf("carousel") ?? coverOf("reel") ?? coverOf("before_after")),
     items: items.map((i) => ({
       id: i.id,
       kind: i.kind,

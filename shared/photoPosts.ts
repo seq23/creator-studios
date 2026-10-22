@@ -101,6 +101,12 @@ export interface PackView {
   privacy_line: string;
   error: string | null;
   photos: PackPhotoView[];
+  /**
+   * The set's picture on its card: the photo maker's checked (blurred) picture once made, else the
+   * first upload a browser can show (JPEG/PNG/WebP), else none. 22 Oct 2026: an iPhone HEIC upload
+   * showed as a broken image on the card.
+   */
+  thumb_url: string | null;
   items: PackItemView[];
   captions: string[];
   posts: SocialPostView[];
