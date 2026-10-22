@@ -10,7 +10,7 @@ import { recordEvent, setHealth } from "../lib/db";
 import { fail, readJson } from "../lib/http";
 import { log } from "../lib/log";
 import { hasEnvKey } from "../lib/practice";
-import { checkGithubRunner, checkGoogleApp, checkMetaApp, checkResend, checkYouTubeKey, type KeyCheck } from "../services/keychecks";
+import { checkGithubRunner, checkGoogleApp, checkHuggingFace, checkMetaApp, checkResend, checkYouTubeKey, type KeyCheck } from "../services/keychecks";
 import { CHECKS, writeServiceHealth } from "./connections";
 import { getFacebook } from "../services/facebook";
 import { getPinterest } from "../services/pinterest";
@@ -27,6 +27,7 @@ const LIGHT: Partial<Record<SetupServiceId, string>> = {
   meta_app: "Instagram sign-in",
   facebook: "Facebook Page",
   pinterest: "Pinterest",
+  huggingface: "Realistic motion (Hugging Face)",
 };
 
 /** The pasted fields → the value stored (a bare key, or JSON for a multi-field step). Pure. */
@@ -58,6 +59,8 @@ export async function probe(env: Env, id: SetupServiceId, fields: Record<string,
       return checkMetaApp(env, f("app_id"), f("app_secret"));
     case "github":
       return checkGithubRunner(env, f("token"), f("repo"));
+    case "huggingface":
+      return checkHuggingFace(env, f("key"));
     case "facebook":
       return getFacebook(env, { pageId: f("page_id"), token: f("page_token") }).checkKey();
     case "pinterest":

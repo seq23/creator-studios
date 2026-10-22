@@ -1,7 +1,9 @@
 // Owner decisions 7 Oct 2026: Hadiyah's studio (host-accounts) runs AI writing (OpenRouter), studio
 // email (Resend), web research (Firecrawl) and brand contacts (Hunter) on the HOST's personal
-// accounts when she has saved none of her own; a client studio (Sample 1/2/3) never reads those
-// Worker secrets, even when they are set on its Worker. Driven through the real Worker entry.
+// accounts when she has saved none of her own. Owner's word 22 Oct 2026 ("same as Hadiyah"): Porch &
+// Party Studio (slug sample1) runs studio email and AI writing on the host's accounts too, and ONLY
+// those (HOST_KEYS). A client studio (Sample 2/3) never reads those Worker secrets, even when they are
+// set on its Worker. Driven through the real Worker entry.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -19,7 +21,7 @@ import { ownerCookie } from "./helpers/owner-session";
 // @ts-expect-error plain .mjs module
 import { HOST_FALLBACK_SECRETS as CLI_LIST, loadRegistry, secretPlan, wranglerConfig } from "../../scripts/studio.mjs";
 // @ts-expect-error plain .mjs module
-import hostKeysValidator, { checkHostKeys } from "../../scripts/validators/host-keys-host-only.mjs";
+import hostKeysValidator, { ALLOWED, checkHostKeys } from "../../scripts/validators/host-keys-host-only.mjs";
 // @ts-expect-error plain .mjs module
 import { parseJsonc } from "../../scripts/validators/studio-isolation.mjs";
 
@@ -38,7 +40,9 @@ const HOST = {
 };
 const FOUR = ["resend", "openrouter", "firecrawl", "hunter"] as const;
 
-function studio(kind: "host-accounts" | "client"): Env {
+const PNP_KEYS = "OPENROUTER_API_KEY,RESEND_API_KEY,STUDIO_EMAIL_FROM";
+
+function studio(kind: "host-accounts" | "client" | "pnp"): Env {
   return {
     DB: sqliteD1().DB,
     FILES: memoryR2().FILES,
@@ -46,8 +50,9 @@ function studio(kind: "host-accounts" | "client"): Env {
     APP_NAME: "Studio",
     OWNER_NAME: "",
     OWNER_EMAIL: "owner@owner.example",
-    STUDIO_SLUG: kind === "client" ? "sample1" : "hadiyah",
-    STUDIO_KIND: kind,
+    STUDIO_SLUG: kind === "client" ? "sample2" : kind === "pnp" ? "sample1" : "hadiyah",
+    STUDIO_KIND: kind === "client" ? "client" : "host-accounts",
+    HOST_KEYS: kind === "client" ? "" : kind === "pnp" ? PNP_KEYS : HOST_FALLBACK_SECRETS.join(","),
     FAKE_SERVICES: "0",
     PUBLIC_BASE_URL: BASE,
     GITHUB_REPO: "",
@@ -129,7 +134,42 @@ describe("host-accounts studio (Hadiyah): the host's four services stand in unti
   });
 });
 
-describe("client studio (Sample 1/2/3): never the host's keys, even if they are set on its Worker", () => {
+describe("Porch & Party Studio (sample1): the host's email and AI writing, and nothing else of the host's", () => {
+  it("hydrate keeps the host's Resend, From and OpenRouter, and drops Firecrawl and Hunter even when they are set on its Worker", async () => {
+    const h = await hydrate(studio("pnp"));
+    expect(h.OPENROUTER_API_KEY).toBe("sk-or-host");
+    expect(h.RESEND_API_KEY).toBe("re_host");
+    expect(h.FIRECRAWL_API_KEY).toBeUndefined();
+    expect(h.HUNTER_API_KEY).toBeUndefined();
+    expect(h.PRACTICE).not.toContain("resend");
+    expect(h.PRACTICE).not.toContain("openrouter");
+    expect(h.PRACTICE).toContain("firecrawl");
+    expect(h.PRACTICE).toContain("hunter");
+    const states = await setupStates(studio("pnp"));
+    expect(states).toMatchObject({ resend: "provided", openrouter: "provided", firecrawl: "practice", hunter: "practice" });
+  });
+
+  it("key readers give the host's OpenRouter only; studio email goes from its own From, replies to the host developer", async () => {
+    const raw = studio("pnp");
+    expect(hostKeyFor(raw, "openrouter")).toBe("sk-or-host");
+    expect(hostKeyFor(raw, "firecrawl")).toBeNull();
+    expect(hostKeyFor(raw, "hunter")).toBeNull();
+    const env = await hydrate(raw);
+    const spec = (await researchJob.buildSpec(env, "job_1", null)) as { keys: Record<string, string | null> };
+    expect(spec.keys).toEqual({ openrouter: "sk-or-host", firecrawl: null });
+    await sendEmail(env, { kind: "weekly_recap", to: ["owner@owner.example"], subject: "Weekly recap", html: "<p>x</p>", text: "x" });
+    expect(sent[0].body).toMatchObject({ from: HOST.STUDIO_EMAIL_FROM, reply_to: HOST.DEVELOPER_EMAIL });
+  });
+
+  it("a host-accounts studio with no HOST_KEYS reads none of the host's keys (fail closed)", async () => {
+    const raw = { ...studio("host-accounts"), HOST_KEYS: undefined } as Env;
+    const b = hostBase(raw);
+    for (const n of HOST_FALLBACK_SECRETS) expect((b as unknown as Record<string, unknown>)[n], n).toBeUndefined();
+    for (const s of ["openrouter", "firecrawl", "hunter"]) expect(hostKeyFor(raw, s), s).toBeNull();
+  });
+});
+
+describe("client studio (Sample 2/3): never the host's keys, even if they are set on its Worker", () => {
   it("hydrate removes every host fallback secret, so all four run in practice mode", async () => {
     const env = studio("client");
     const h = await hydrate(env);
@@ -175,23 +215,38 @@ describe("secret plan and validator host-keys-host-only", () => {
   const reg = loadRegistry(root);
   const cfg = () => parseJsonc(readFileSync(path.join(root, "wrangler.jsonc"), "utf8"));
 
-  it("hadiyah carries all five host secrets from her own 0600 files; no sample carries any", () => {
-    expect([...CLI_LIST].sort()).toEqual([...HOST_FALLBACK_SECRETS].sort());
-    for (const s of reg.studios) {
-      const plan = secretPlan(s);
-      for (const n of CLI_LIST) {
-        if (s.kind === "host-accounts") expect(plan[n], `${s.slug} ${n}`).toBe(`studio-file:${n}`);
-        else expect(plan, `${s.slug} ${n}`).not.toHaveProperty(n);
-      }
-    }
-    const gen = parseJsonc(wranglerConfig(reg));
-    for (const s of reg.studios) expect(gen.env[s.slug].vars.STUDIO_KIND, s.slug).toBe(s.kind);
+  it("the pinned list is exactly hadiyah (all five) and sample1 (email + AI writing); sample2 and sample3 carry none", () => {
+    expect(ALLOWED).toEqual({
+      hadiyah: ["OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM", "FIRECRAWL_API_KEY", "HUNTER_API_KEY"],
+      sample1: ["OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM"],
+    });
+    expect(reg.studios.filter((s: { kind: string }) => s.kind === "host-accounts").map((s: { slug: string }) => s.slug).sort()).toEqual(["hadiyah", "sample1"]);
+    for (const slug of ["sample2", "sample3"]) expect(reg.studios.find((s: { slug: string }) => s.slug === slug).kind, slug).toBe("client");
   });
 
-  it("secretPlan refuses a host key on a client studio", () => {
+  it("each studio's secret plan and generated HOST_KEYS carry exactly its pinned host secrets, each from its own 0600 file", () => {
+    expect([...CLI_LIST].sort()).toEqual([...HOST_FALLBACK_SECRETS].sort());
+    const gen = parseJsonc(wranglerConfig(reg));
+    for (const s of reg.studios) {
+      const want: string[] = (ALLOWED as Record<string, string[]>)[s.slug] ?? [];
+      const plan = secretPlan(s);
+      expect(CLI_LIST.filter((n: string) => n in plan).sort(), s.slug).toEqual([...want].sort());
+      for (const n of want) expect(plan[n], `${s.slug} ${n}`).toMatch(new RegExp(`^studio-file\\??:${n}$`));
+      expect(gen.env[s.slug].vars.STUDIO_KIND, s.slug).toBe(s.kind);
+      expect(String(gen.env[s.slug].vars.HOST_KEYS).split(",").filter(Boolean).sort(), s.slug).toEqual([...want].sort());
+    }
+    expect(gen.vars.HOST_KEYS).toBe("");
+    // Hadiyah's are required files, as before (7 Oct 2026).
+    for (const n of CLI_LIST) expect(secretPlan(reg.studios.find((s: { slug: string }) => s.slug === "hadiyah"))[n]).toBe(`studio-file:${n}`);
+  });
+
+  it("secretPlan refuses a host key on a client studio, and one not in a host-accounts studio's hostKeys", () => {
+    const s2 = structuredClone(reg.studios.find((s: { slug: string }) => s.slug === "sample2"));
+    s2.hostSecrets = { HUNTER_API_KEY: "file:HUNTER_API_KEY" };
+    expect(() => secretPlan(s2)).toThrow(/HUNTER_API_KEY is the host's own key, for host-accounts studios only/);
     const s1 = structuredClone(reg.studios.find((s: { slug: string }) => s.slug === "sample1"));
-    s1.hostSecrets = { HUNTER_API_KEY: "file:HUNTER_API_KEY" };
-    expect(() => secretPlan(s1)).toThrow(/HUNTER_API_KEY is the host's own key, for host-accounts studios only/);
+    s1.hostSecrets = { ...s1.hostSecrets, HUNTER_API_KEY: "studio-file:HUNTER_API_KEY" };
+    expect(() => secretPlan(s1)).toThrow(/HUNTER_API_KEY is the host's own key and is not in this studio's hostKeys/);
   });
 
   it("passes on the repo", async () => {
@@ -221,5 +276,28 @@ describe("secret plan and validator host-keys-host-only", () => {
     expect(text).not.toMatch(/worker\/lib\/hostKeys\.ts: reads/);
     expect(text).toMatch(/hydrate no longer starts from hostBase\(env\)/);
     expect(text).toMatch(/worker\/lib\/hostKeys\.ts HOST_FALLBACK_SECRETS .* differs/);
+    expect(text).toMatch(/hostBase\/hostKeyFor no longer gate on allowedHostKeys/);
+  });
+
+  it("negative proof: a third host-accounts studio, a widened sample1, a hostKeys/HOST_KEYS drift, and a client with hostKeys each fail", () => {
+    const studios = structuredClone(reg.studios);
+    const s1 = studios.find((s: { slug: string }) => s.slug === "sample1");
+    s1.hostKeys = [...s1.hostKeys, "FIRECRAWL_API_KEY"];
+    s1.hostSecrets = { ...s1.hostSecrets, FIRECRAWL_API_KEY: "studio-file:FIRECRAWL_API_KEY" };
+    const s3 = studios.find((s: { slug: string }) => s.slug === "sample3");
+    s3.hostKeys = ["RESEND_API_KEY"];
+    const s2 = studios.find((s: { slug: string }) => s.slug === "sample2");
+    s2.kind = "host-accounts";
+    const c = cfg();
+    c.env.sample2.vars.STUDIO_KIND = "host-accounts";
+    c.env.hadiyah.vars.HOST_KEYS = "OPENROUTER_API_KEY";
+    const sources = { "worker/lib/practice.ts": "hydrate: const out = hostBase(env);", "worker/lib/hostKeys.ts": "allowedHostKeys(env)" };
+    const r = checkHostKeys({ studios, cfg: c, secretPlan, cliList: CLI_LIST, workerList: CLI_LIST, sources });
+    const text = r.problems.join("\n");
+    expect(text).toMatch(/host-accounts studios are \[hadiyah,sample1,sample2\], the pinned list is \[hadiyah,sample1\]/);
+    expect(text).toMatch(/env\.sample1 would carry the host's FIRECRAWL_API_KEY, which is not pinned for it/);
+    expect(text).toMatch(/studios\/sample1\.json hostKeys .* differ from the pinned/);
+    expect(text).toMatch(/studios\/sample3\.json: a client studio has hostKeys/);
+    expect(text).toMatch(/wrangler env\.hadiyah: HOST_KEYS is \[OPENROUTER_API_KEY\]/);
   });
 });

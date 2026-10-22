@@ -216,7 +216,7 @@ export interface SettingsShape {
 }
 
 export interface ConnectionView {
-  service: "buffer" | "openrouter" | "firecrawl" | "resend" | "hunter" | "meta" | "google" | "tiktok" | "github" | "elevenlabs" | "opusclip" | "vizard" | "klap" | "submagic" | "descript" | "youtube" | "youtube_api" | "google_app" | "meta_app" | "facebook" | "pinterest";
+  service: "buffer" | "openrouter" | "firecrawl" | "resend" | "hunter" | "meta" | "google" | "tiktok" | "github" | "elevenlabs" | "opusclip" | "vizard" | "klap" | "submagic" | "descript" | "youtube" | "youtube_api" | "google_app" | "meta_app" | "facebook" | "pinterest" | "huggingface";
   status: "missing" | "ok" | "error" | "disconnected";
   meta: Record<string, unknown>;
   last_ok_at: string | null;

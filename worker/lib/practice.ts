@@ -49,6 +49,8 @@ export function overlayFor(service: SetupServiceId, raw: string): Partial<Env> {
       return f.page_id && f.page_token ? { FACEBOOK_PAGE_ID: f.page_id, FACEBOOK_PAGE_TOKEN: f.page_token } : {};
     case "pinterest":
       return f.token && f.board_id ? { PINTEREST_ACCESS_TOKEN: f.token, PINTEREST_BOARD_ID: f.board_id } : {};
+    case "huggingface":
+      return { HF_TOKEN: f.key };
     default:
       return {};
   }
@@ -77,6 +79,8 @@ export function hasEnvKey(env: Partial<Env>, service: SetupServiceId): boolean {
       return !!(env.FACEBOOK_PAGE_ID && env.FACEBOOK_PAGE_TOKEN);
     case "pinterest":
       return !!(env.PINTEREST_ACCESS_TOKEN && env.PINTEREST_BOARD_ID);
+    case "huggingface":
+      return !!env.HF_TOKEN;
     default:
       return false;
   }

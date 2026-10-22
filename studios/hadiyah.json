@@ -7,6 +7,13 @@
   "_ownerEmail": "Never in this file (public repo). Set at deploy time from the 0600 file <secrets dir>/hadiyah/OWNER_EMAIL by `npm run studio:secrets hadiyah` (README \"Owner email\").",
   "theme": "hadiyah",
   "kind": "host-accounts",
+  "hostKeys": [
+    "OPENROUTER_API_KEY",
+    "RESEND_API_KEY",
+    "STUDIO_EMAIL_FROM",
+    "FIRECRAWL_API_KEY",
+    "HUNTER_API_KEY"
+  ],
   "audienceTimezone": "America/New_York",
   "d1": {
     "name": "creator-studios-hadiyah-db",
@@ -27,8 +34,10 @@
     "STUDIO_EMAIL_FROM": "studio-file:STUDIO_EMAIL_FROM",
     "FIRECRAWL_API_KEY": "studio-file:FIRECRAWL_API_KEY",
     "HUNTER_API_KEY": "studio-file:HUNTER_API_KEY",
+    "HF_TOKEN": "studio-file?:HF_TOKEN",
     "_hostKeys": "Owner decisions 7 Oct 2026: AI writing (OpenRouter), studio email (Resend), web research (Firecrawl) and brand contacts (Hunter) run on the host's personal accounts, from the 0600 files <secrets dir>/hadiyah/<NAME>; used only when Hadiyah has not saved her own on Setup (worker/lib/hostKeys.ts).",
-    "_optional": "file? = set when the env var or 0600 secret file exists (README Secrets), otherwise a named stop: Google sign-in runs in practice mode until then."
+    "_optional": "file? = set when the env var or 0600 secret file exists (README Secrets), otherwise a named stop: Google sign-in runs in practice mode until then.",
+    "_hf": "Realistic motion for photo videos (owner's word 22 Oct 2026): a free Hugging Face token from the 0600 file <secrets dir>/hadiyah/HF_TOKEN; without it the slow zoom is used and Setup shows Connect Hugging Face."
   },
   "jobSecretOnHostRepo": true,
   "photoPosts": {
@@ -48,7 +57,7 @@
     "title": "New in your studio",
     "lines": [
       "You can now add photos, not just videos.",
-      "One photo becomes a few posts: a slow-zoom video, a photo set and captions.",
+      "One photo becomes a few posts: a short moving video, a photo set and captions.",
       "They post to Facebook, Instagram, TikTok and Pinterest on their own.",
       "You get an email the day before. Tap Skip to stop one."
     ]

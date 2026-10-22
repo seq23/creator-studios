@@ -66,6 +66,12 @@
       "screen": "setup"
     },
     {
+      "slug": "connect-huggingface",
+      "title": "Connect Hugging Face for realistic motion (free)",
+      "group": "getting_started",
+      "screen": "setup"
+    },
+    {
       "slug": "connect-pinterest",
       "title": "Connect Pinterest",
       "group": "getting_started",
@@ -452,6 +458,12 @@
     {
       "slug": "reconnect-facebook",
       "title": "Facebook stopped posting: connect it again",
+      "group": "fix_it",
+      "screen": "setup"
+    },
+    {
+      "slug": "reconnect-huggingface",
+      "title": "Realistic motion stopped: connect Hugging Face again",
       "group": "fix_it",
       "screen": "setup"
     },

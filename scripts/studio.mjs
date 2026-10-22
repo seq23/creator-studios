@@ -108,8 +108,10 @@ export function envBlock(s, themes) {
       // OWNER_EMAIL is NOT a var: it is a deploy-time Worker secret from <secrets dir>/<slug>/OWNER_EMAIL
       // (public repo; README "Owner email"), set by `studio:secrets`.
       STUDIO_SLUG: s.slug,
-      // host-accounts | client: the Worker reads the host fallback keys only on host-accounts (worker/lib/hostKeys.ts).
+      // host-accounts | client: the Worker reads the host fallback keys only on host-accounts (worker/lib/hostKeys.ts),
+      // and only the ones named in HOST_KEYS (the registry's hostKeys; pinned per studio by validator host-keys-host-only).
       STUDIO_KIND: s.kind,
+      HOST_KEYS: s.kind === "host-accounts" ? (s.hostKeys ?? []).join(",") : "",
       STUDIO_THEME: JSON.stringify(themeFor(s, themes)),
       FAKE_SERVICES: "0",
       PUBLIC_BASE_URL: s.url,
@@ -149,6 +151,7 @@ export function wranglerConfig({ studios, themes }) {
       OWNER_NAME: "Sample Creator",
       STUDIO_SLUG: "dev",
       STUDIO_KIND: "client",
+      HOST_KEYS: "",
       STUDIO_THEME: JSON.stringify(slate),
       FAKE_SERVICES: "1",
       PUBLIC_BASE_URL: "http://localhost:8787",
@@ -356,6 +359,7 @@ export function secretPlan(s) {
   for (const [k, v] of Object.entries(s.hostSecrets ?? {})) {
     if (k.startsWith("_")) continue;
     if (HOST_FALLBACK_SECRETS.includes(k) && s.kind !== "host-accounts") throw new Error(`studios/${s.slug}.json: ${k} is the host's own key, for host-accounts studios only (a ${s.kind} studio pastes its own on Setup)`);
+    if (HOST_FALLBACK_SECRETS.includes(k) && !(s.hostKeys ?? []).includes(k)) throw new Error(`studios/${s.slug}.json: ${k} is the host's own key and is not in this studio's hostKeys`);
     plan[k] = v;
   }
   return plan;
@@ -529,6 +533,10 @@ async function deploy(target) {
       // Guard (a), live: a client studio's Worker holds none of the host's keys as secrets.
       const bound = [...secretNames(s.slug)].filter((n) => OWNER_KEY_NAMES.includes(n));
       if (bound.length) throw new Error(`${s.slug}: the host's key(s) ${bound.join(", ")} are bound as secrets on a client studio. Remove them: npx wrangler secret delete <NAME> --env ${s.slug}`);
+    } else {
+      // Live, host-accounts: no host fallback key beyond the ones pinned for this studio (hostKeys).
+      const extra = [...secretNames(s.slug)].filter((n) => HOST_FALLBACK_SECRETS.includes(n) && !(s.hostKeys ?? []).includes(n));
+      if (extra.length) throw new Error(`${s.slug}: the host's key(s) ${extra.join(", ")} are bound but not in its hostKeys. Remove them: npx wrangler secret delete <NAME> --env ${s.slug}`);
     }
   }
 }

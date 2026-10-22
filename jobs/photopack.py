@@ -6,7 +6,10 @@ For each pack it:
      (tesseract) are blurred hard; with the studio's face/address rules on ("strict"), a check that
      cannot run blocks the pack instead of passing it,
   3. writes the carousel: each checked photo at 1080x1350,
-  4. writes the slow-zoom reel (1080x1920, real photos moved slowly, never AI-generated pixels),
+  4. writes the reel (1080x1920): with a Hugging Face token in the spec, the first photo becomes a
+     short realistic camera-move clip from an open-source image-to-video model (realistic_clip,
+     owner's word 22 Oct 2026); without one, or whenever that model is busy, rate-limited or fails,
+     the slow zoom (real photos moved slowly) is used, so the post never waits,
   5. writes the before/after video when a before and an after photo exist.
 Logs: step names and counts only (common.log). Nothing about the photos reaches a log.
 
@@ -151,6 +154,164 @@ def zoom_clip(src: Path, dst: Path, seconds: float, label: str | None = None) ->
     sh(["ffmpeg", "-y", "-loglevel", "error", "-loop", "1", "-i", str(src), *silent(seconds), "-vf", vf, "-t", f"{seconds:.2f}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-c:a", "aac", "-shortest", "-movflags", "+faststart", str(dst)])
 
 
+# ---------------------------------------------------------------- realistic motion (Hugging Face)
+# Model: Wan 2.2 image-to-video (Wan-AI/Wan2.2-I2V-A14B), served free on Hugging Face's own ZeroGPU
+# Space below. Licence check, 22 Oct 2026: the Wan2.2 weights are Apache-2.0
+# (huggingface.co/api/models/Wan-AI/Wan2.2-I2V-A14B → cardData.license "apache-2.0"), which allows
+# commercial use, and the Wan licence claims no rights over the videos it makes. LTX-Video was not
+# chosen: its weights are under Lightricks' own "LTXV Open Weights" licence (license: other), which
+# limits commercial use. The Space is called with the studio's free token (its ZeroGPU quota); $0.
+# Only the CHECKED photo (faces and house numbers already blurred) is sent. Every clip is labelled
+# "Made with AI" (shared/photoPosts.ts AI_MADE.reel) and still passes the studio's content rules.
+HF_SPACE = "zerogpu-aoti/wan2-2-fp8da-aoti-faster"
+HF_API = "/generate_video"
+HF_ATTEMPTS = 2            # bounded: then the slow zoom
+HF_TIMEOUT_S = 240         # per attempt (queue + render); a busy Space falls back instead of waiting
+HF_WAIT_S = 20             # between attempts
+# Never the word "camera" in the prompt: 22 Oct 2026 the model drew a person holding a video camera
+# into the room when asked for a "camera push-in". The view moves; nothing is added.
+MOTION_PROMPT = (
+    "the view drifts slowly closer, gentle parallax, soft natural light, candle flames flicker softly, "
+    "an empty still room, everything stays exactly as photographed"
+)
+MOTION_NEGATIVE = (
+    "person, people, man, woman, hands, arms, face, photographer, camera, tripod, phone, new objects, "
+    "text, letters changing, morphing, distortion, blurry, low quality, watermark"
+)
+
+
+def _hf_call(src: Path, token: str) -> str:
+    """One Space call; returns the local path of the video it made. Raises on any failure."""
+    from gradio_client import Client, handle_file  # type: ignore
+
+    client = Client(HF_SPACE, token=token, verbose=False)  # gradio_client 2.x (pinned in job-photopack.yml)
+    out = client.predict(
+        input_image=handle_file(str(src)),
+        prompt=MOTION_PROMPT,
+        negative_prompt=MOTION_NEGATIVE,
+        steps=6,
+        duration_seconds=3.5,
+        randomize_seed=True,
+        api_name=HF_API,
+    )
+    video = out[0] if isinstance(out, (list, tuple)) else out
+    if isinstance(video, dict):
+        video = video.get("video") or video.get("path")
+    if not video or not Path(str(video)).exists():
+        raise RuntimeError("the model returned no video")
+    return str(video)
+
+
+DRIFT_MAX = 0.16          # mean difference (0..1) a frame may drift from the photo before the clip is refused
+
+
+def _frames(video: Path, n: int = 4) -> list:
+    """n frames spread over the clip (after the first), as PIL images."""
+    from PIL import Image
+
+    dur = probe_duration(video) or 3.0
+    out = []
+    with tempfile.TemporaryDirectory() as d:
+        for i in range(1, n + 1):
+            f = Path(d) / f"f{i}.png"
+            sh(["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{dur * i / (n + 1):.2f}", "-i", str(video), "-frames:v", "1", str(f)], timeout=60)
+            out.append(Image.open(f).convert("RGB").copy())
+    return out
+
+
+def _drift(a, b) -> float:
+    """Mean absolute difference of two images, small and grey, 0..1."""
+    from PIL import ImageChops, ImageStat
+
+    size = (48, 85)
+    ga, gb = cover_crop(a, *size).convert("L"), cover_crop(b, *size).convert("L")
+    return ImageStat.Stat(ImageChops.difference(ga, gb)).mean[0] / 255.0
+
+
+def clip_is_faithful(src: Path, video: Path) -> bool:
+    """The made clip must still be THIS photo: every sampled frame stays close to it. A model that
+    replaces the scene is refused (the slow zoom is used instead)."""
+    photo = open_photo(src)
+    return all(_drift(photo, fr) <= DRIFT_MAX for fr in _frames(video))
+
+
+def clip_privacy_boxes(video: Path) -> list[tuple[int, int, int, int]]:
+    """Every face and readable number the photo check finds in frames spread over the clip (in the
+    clip's own pixels). The clip moves slowly, so each box is padded and held for the whole clip."""
+    boxes: list[tuple[int, int, int, int]] = []
+    for fr in _frames(video, 5):
+        boxes += find_faces(fr) + find_numbers(fr)
+    return boxes
+
+
+def blur_regions(video: Path, boxes: list[tuple[int, int, int, int]], dst: Path) -> None:
+    """The clip with each box blurred hard for its whole length (the photo check, applied to motion)."""
+    chain, last = "", "[0:v]"
+    for i, (x0, y0, x1, y1) in enumerate(boxes):
+        pw, ph = int((x1 - x0) * 0.35) + 12, int((y1 - y0) * 0.35) + 12
+        x, y = max(0, x0 - pw), max(0, y0 - ph)
+        w, h = min(W - x, x1 - x0 + 2 * pw), min(H - y, y1 - y0 + 2 * ph)
+        w, h = max(2, w - w % 2), max(2, h - h % 2)
+        chain += f"[0:v]crop={w}:{h}:{x}:{y},boxblur=24:3[b{i}];{last}[b{i}]overlay={x}:{y}[o{i}];"
+        last = f"[o{i}]"
+    sh(["ffmpeg", "-y", "-loglevel", "error", "-i", str(video), "-filter_complex", chain.rstrip(";"), "-map", last, "-map", "0:a", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(dst)])
+
+
+def _run_with_timeout(fn, timeout: float):
+    import concurrent.futures as cf
+
+    ex = cf.ThreadPoolExecutor(max_workers=1)
+    try:
+        return ex.submit(fn).result(timeout=timeout)
+    finally:
+        ex.shutdown(wait=False, cancel_futures=True)
+
+
+def realistic_clip(src: Path, dst: Path, seconds: float, token: str | None, call=None, attempts: int = HF_ATTEMPTS, wait_s: float = HF_WAIT_S, strict: bool = True) -> bool:
+    """A realistic camera-move clip of one photo at 1080x1920 with a silent track, or False.
+
+    No token: returns False before anything is imported or called. Any failure (busy, rate
+    limit, timeout, bad output) is retried at most `attempts` times, then False: the caller uses
+    the slow zoom. A clip that no longer looks like the photo is refused the same way; faces and
+    numbers in the clip are blurred like the photo's. Logs carry counts and the error class only."""
+    import time
+
+    if not token:
+        return False
+    call = call or (lambda: _hf_call(src, token))
+    for attempt in range(1, attempts + 1):
+        try:
+            made = _run_with_timeout(call, HF_TIMEOUT_S)
+            if not clip_is_faithful(src, Path(made)):
+                raise ValueError("drift")
+            vf = (
+                f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps=30,"
+                f"tpad=stop_mode=clone:stop_duration={seconds:.2f},format=yuv420p"
+            )
+            raw = dst.with_name(dst.stem + "-raw.mp4")
+            sh(["ffmpeg", "-y", "-loglevel", "error", "-i", str(made), *silent(seconds), "-map", "0:v", "-map", "1:a", "-vf", vf, "-t", f"{seconds:.2f}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-c:a", "aac", "-movflags", "+faststart", str(raw)])
+            # The photo check again, on the moving clip: anything face- or number-like the model made
+            # visible is blurred for the whole clip. With the studio's face/address rules on, a check
+            # that cannot run refuses the clip (the slow zoom of the checked photo is used).
+            try:
+                boxes = clip_privacy_boxes(raw)
+            except Exception:  # noqa: BLE001
+                if strict:
+                    raise
+                boxes = []
+            if boxes:
+                blur_regions(raw, boxes, dst)
+            else:
+                raw.replace(dst)
+            log("photopack.motion", engine="hf-wan2.2", attempt=attempt, ok=True, blurred=len(boxes))
+            return True
+        except Exception as e:  # noqa: BLE001 - every failure falls back to the slow zoom
+            log("photopack.motion", engine="hf-wan2.2", attempt=attempt, ok=False, error=type(e).__name__)
+            if attempt < attempts:
+                time.sleep(wait_s)
+    return False
+
+
 def concat(parts: list[Path], dst: Path, fade: float = 0.8) -> None:
     """Join clips with a short soft wipe between each."""
     if len(parts) == 1:
@@ -175,7 +336,7 @@ def probe_duration(p: Path) -> float:
     return float(out.stdout.strip() or 0)
 
 
-def make_pack(photos: list[tuple[Path, str]], work: Path, strict: bool, before_after: bool) -> dict[str, Any]:
+def make_pack(photos: list[tuple[Path, str]], work: Path, strict: bool, before_after: bool, hf_token: str | None = None) -> dict[str, Any]:
     """photos: (local file, role). Returns local files by piece and the photo check."""
     checked: list[tuple[Path, str]] = []
     faces = numbers = 0
@@ -202,17 +363,22 @@ def make_pack(photos: list[tuple[Path, str]], work: Path, strict: bool, before_a
     mains = [p for p, r in checked if r == "main"] or [p for p, _ in checked]
     reel_parts = []
     each = REEL_S if len(mains) == 1 else max(3.0, REEL_S / min(3, len(mains)) + 0.8)
+    motion = "slow-zoom"
     for i, p in enumerate(mains[:3]):
         part = work / f"reel-{i}.mp4"
-        zoom_clip(p, part, each)
+        # The first photo moves realistically when a token is set; the slow zoom otherwise (and on any failure).
+        if i == 0 and realistic_clip(p, part, each, hf_token, strict=strict):
+            motion = "realistic"
+        else:
+            zoom_clip(p, part, each)
         reel_parts.append(part)
     reel = work / "reel.mp4"
     concat(reel_parts, reel)
     reel_cover = work / "reel.jpg"
     cover_crop(open_photo(mains[0]), W, H).save(reel_cover, "JPEG", quality=88)
-    log("photopack.reel", parts=len(reel_parts))
+    log("photopack.reel", parts=len(reel_parts), motion=motion)
 
-    out: dict[str, Any] = {"status": status, "faces": faces, "numbers": numbers, "carousel": carousel, "reel": reel, "reel_cover": reel_cover}
+    out: dict[str, Any] = {"motion": motion, "status": status, "faces": faces, "numbers": numbers, "carousel": carousel, "reel": reel, "reel_cover": reel_cover}
     if before_after:
         before = next(p for p, r in checked if r == "before")
         after = next(p for p, r in checked if r == "after")
@@ -239,7 +405,8 @@ def main(job, spec: dict[str, Any]) -> dict[str, Any]:
         download_input(p["key"], dest)
         photos.append((dest, p.get("role") or "main"))
     job.progress("Checking your photos", 1, 4)
-    made = make_pack(photos, work, bool(spec.get("strict")), bool(spec.get("before_after")))
+    hf_token = (spec.get("motion") or {}).get("hf_token") or None
+    made = make_pack(photos, work, bool(spec.get("strict")), bool(spec.get("before_after")), hf_token)
     if made["status"] == "blocked":
         # Nothing is uploaded for a pack that could not be checked: it never posts.
         return {"privacy": {"status": "blocked", "faces": made["faces"], "numbers": made["numbers"]}, "items": [{"kind": "carousel", "key": None, "cover_key": None, "images": []}]}
@@ -257,7 +424,7 @@ def main(job, spec: dict[str, Any]) -> dict[str, Any]:
         job.upload_output(made["before_after"], out["before_after"], "video/mp4")
         job.upload_output(made["before_after_cover"], out["before_after_cover"], "image/jpeg")
         items.append({"kind": "before_after", "key": out["before_after"], "cover_key": out["before_after_cover"]})
-    return {"privacy": {"status": made["status"], "faces": made["faces"], "numbers": made["numbers"]}, "items": items}
+    return {"privacy": {"status": made["status"], "faces": made["faces"], "numbers": made["numbers"]}, "motion": made["motion"], "items": items}
 
 
 def log(step: str, **fields: Any) -> None:

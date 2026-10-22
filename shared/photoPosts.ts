@@ -46,7 +46,7 @@ export const PACK_MAX_PHOTOS = 10;
 export const isPhoto = (mime: string, name = ""): boolean => PHOTO_TYPES.includes(mime.toLowerCase()) || ((!mime || mime === "application/octet-stream") && PHOTO_EXT.test(name));
 
 export type ItemKind = "reel" | "before_after" | "carousel";
-export const ITEM_LABEL: Record<ItemKind, string> = { reel: "Slow-zoom video", before_after: "Before and after video", carousel: "Photo set" };
+export const ITEM_LABEL: Record<ItemKind, string> = { reel: "Photo video", before_after: "Before and after video", carousel: "Photo set" };
 /** Made or moved by the studio's tools: carries the platform AI flag or the "Made with AI" label. */
 export const AI_MADE: Record<ItemKind, boolean> = { reel: true, before_after: true, carousel: false };
 

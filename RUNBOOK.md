@@ -7,7 +7,19 @@
 Only a secret or an account the host alone holds stops anything; each one is here with the
 paste-ready command, and nothing else waits on it (the feature runs in practice mode meanwhile).
 
-1. **Hadiyah's Google sign-in client** (YouTube uploads straight to her channel). It lives in the
+1. **Porch & Party Studio's own OpenRouter key** (AI writing; owner's word 22 Oct 2026). Creating
+   an API key needs the host's logged-in OpenRouter page and shows the key once, so only the host
+   can copy it. Until then AI writing on Porch & Party runs on starter text (practice). At
+   openrouter.ai → Keys → New Key: name `creator-studios-pnp`, Expiration 180 days, Credit limit →
+   Custom amount `0` (free models only; $0 can never be spent), Create, Copy. Then in Terminal:
+   `pbpaste > ~/.config/creator-studios/secrets/sample1/OPENROUTER_API_KEY && chmod 600 ~/.config/creator-studios/secrets/sample1/OPENROUTER_API_KEY && npm run studio:secrets sample1 -- --only=OPENROUTER_API_KEY`
+2. **Porch & Party Studio's own Resend key** (studio email). It sends today with the host's
+   sending-only studio key (the same Resend account and domain as Hadiyah's, from its own
+   From address in the 0600 file STUDIO_EMAIL_FROM). A key of its own needs the host's Resend login: resend.com →
+   API Keys → Create API key, name `creator-studios-pnp-email`, Sending access, domain
+   mail.spryexecutiveos.com, Add, Copy. Then:
+   `pbpaste > ~/.config/creator-studios/secrets/sample1/RESEND_API_KEY && chmod 600 ~/.config/creator-studios/secrets/sample1/RESEND_API_KEY && npm run studio:secrets sample1 -- --refresh --only=RESEND_API_KEY`
+3. **Hadiyah's Google sign-in client** (YouTube uploads straight to her channel). It lives in the
    host's Google Cloud project, like Sheila's, and a web OAuth client can only be created in the
    console with the host's Google login. Until then Hadiyah's Connect YouTube is a practice
    connection. In console.cloud.google.com → project `sheilastudio-staging-p0` → APIs & Services →
@@ -23,7 +35,7 @@ paste-ready command, and nothing else waits on it (the feature runs in practice 
    cd ~/GitHub/creator-studios && npm run studio:secrets hadiyah
    ```
 
-2. **Photo posts: the platform tokens** (Porch & Party `sample1` and Hadiyah; shared/photoPosts.ts).
+4. **Photo posts: the platform tokens** (Porch & Party `sample1` and Hadiyah; shared/photoPosts.ts).
    Posts are planned, get their heads-up and Skip, then WAIT ("Connect Facebook" on Photos, a grey
    "Photo posts (<platform>)" light) until each token exists. None is in the vault or the secrets
    folder yet (checked by name 22 Oct 2026). Each is the account owner's own:

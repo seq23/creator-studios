@@ -106,6 +106,14 @@ export async function checkResend(env: Env, key: string): Promise<KeyCheck> {
   return { ok: false, error: vendorStatusError("Resend", res.status), meta: {} };
 }
 
+/** Hugging Face: whoami (read-only). Any valid token works: the Space calls only need it to identify the account. */
+export async function checkHuggingFace(env: Env, key: string): Promise<KeyCheck> {
+  if (fakeServices(env)) return fakeCheck(key, "Hugging Face");
+  const res = await fetch("https://huggingface.co/api/whoami-v2", { headers: { Authorization: `Bearer ${key}` } });
+  if (res.ok) return { ok: true, error: null, meta: {} };
+  return { ok: false, error: vendorStatusError("Hugging Face", res.status), meta: {} };
+}
+
 /** YouTube Data API key: the video categories list (1 quota unit, public data, read-only). */
 export async function checkYouTubeKey(env: Env, key: string): Promise<KeyCheck> {
   if (fakeServices(env)) return fakeCheck(key, "Google");

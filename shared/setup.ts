@@ -7,7 +7,7 @@
 // (connections.secret_enc, SECRETS_KEY). At runtime the encrypted key is read FIRST, then the
 // Worker secret named in `secrets` (how a studio the host runs on the host's own accounts gets them).
 
-export type SetupServiceId = "resend" | "buffer" | "openrouter" | "firecrawl" | "hunter" | "youtube_api" | "google_app" | "meta_app" | "github" | "facebook" | "pinterest" | "elevenlabs";
+export type SetupServiceId = "resend" | "buffer" | "openrouter" | "firecrawl" | "hunter" | "youtube_api" | "google_app" | "meta_app" | "github" | "facebook" | "pinterest" | "elevenlabs" | "huggingface";
 
 export interface SetupField {
   /** Key inside the stored value. A one-field step stores the bare key; a multi-field step stores JSON. */
@@ -203,6 +203,22 @@ export const SETUP_STEPS: SetupStep[] = [
     ],
     secrets: ["PINTEREST_ACCESS_TOKEN", "PINTEREST_BOARD_ID"],
     guide: "connect-pinterest",
+    free: true,
+  },
+  {
+    // Realistic motion (owner's word 22 Oct 2026): one photo → a short camera-move clip from an
+    // open-source image-to-video model on a free Hugging Face Space (jobs/photopack.py). Without a
+    // token the slow zoom is used; with one, the slow zoom is still the fallback when the Space is busy.
+    id: "huggingface",
+    title: "Connect Hugging Face (free) for realistic motion",
+    powers: "Turns one photo into a short, realistic camera-move video for your photo posts, with a free open-source AI model. Labelled “Made with AI”.",
+    provided: "Turns one photo into a short, realistic camera-move video for your photo posts, on a free AI account provided by your studio host. Labelled “Made with AI”.",
+    practice: "Photo videos use the slow zoom. Everything else works as usual.",
+    where: ["Make a free account at huggingface.co.", "Open Settings → Access Tokens → Create new token, type Read.", "Copy the token and paste it here."],
+    link: { label: "Open Hugging Face tokens", url: "https://huggingface.co/settings/tokens" },
+    fields: [KEY],
+    secrets: ["HF_TOKEN"],
+    guide: "connect-huggingface",
     free: true,
   },
   {
