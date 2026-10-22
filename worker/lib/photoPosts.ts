@@ -15,7 +15,7 @@ import { parseJson, recordEvent, setHealth } from "./db";
 import { mediaToken, newId, nowIso } from "./ids";
 import { log, safeError } from "./log";
 import { practice } from "./practice";
-import { ownerEmail } from "./auth";
+import { developerEmail, ownerEmail } from "./auth";
 import { getLlm } from "../services/openrouter";
 import { emailFrame, sendEmail } from "../services/email";
 import { getFacebook, facebookConnected } from "../services/facebook";
@@ -320,30 +320,62 @@ export async function sendPost(env: Env, row: PostRow): Promise<SocialPostStatus
   return "posted";
 }
 
-/** The heads-up: one email listing what goes out in the next day, each with its own Skip link. */
-export async function sendHeadsUp(env: Env, now = Date.now()): Promise<number> {
-  const cfg = photoConfig(env);
-  const until = new Date(now + cfg.headsUpHours * 3_600_000 + 3_600_000).toISOString();
-  const { results } = await env.DB.prepare("SELECT id, platform, item_kind, caption, scheduled_at FROM social_posts WHERE status = 'scheduled' AND heads_up_at IS NULL AND scheduled_at <= ? ORDER BY scheduled_at LIMIT 20").bind(until).all<{ id: string; platform: Social; item_kind: ItemKind; caption: string; scheduled_at: string }>();
-  if (!results.length) return 0;
-  const to = await ownerEmail(env);
-  if (!to) return 0;
+type HeadsUpRow = { id: string; platform: Social; item_kind: ItemKind; caption: string; scheduled_at: string };
+
+/** The heads-up email for these posts: one line each with its own Skip link. */
+async function headsUpEmail(env: Env, rows: HeadsUpRow[]) {
   const tz = await timeZone(env);
-  const lines: string[] = [`${results.length === 1 ? "This post goes" : `These ${results.length} posts go`} out on their own. Nothing to do if they look fine.`];
-  const textLines: string[] = [];
-  for (const [i, p] of results.entries()) {
+  const lines: string[] = [`${rows.length === 1 ? "This post goes" : `These ${rows.length} posts go`} out on their own. Nothing to do if they look fine.`];
+  for (const [i, p] of rows.entries()) {
     const link = `${env.PUBLIC_BASE_URL}/skip/${await skipToken(env.SESSION_SECRET, p.id)}`;
     const line = `${i + 1}. ${whenLine(p.scheduled_at, tz)} · ${SOCIAL_LABEL[p.platform]} · ${ITEM_LABEL[p.item_kind]}: “${p.caption.slice(0, 120)}”`;
     lines.push(line, `Skip this one: ${link}`);
-    textLines.push(line, `   Skip this one: ${link}`);
   }
   lines.push("To see them all, open Photos in your studio.");
-  const frame = emailFrame(`Going out soon: ${results.length} post${results.length === 1 ? "" : "s"}`, lines, { label: "Open Photos", url: `${env.PUBLIC_BASE_URL}/photos` });
-  const r = await sendEmail(env, { kind: "heads_up", to: [to], subject: `Going out soon: ${results.length} post${results.length === 1 ? "" : "s"} · ${env.APP_NAME}`, html: frame.html, text: frame.text, refId: results[0].id });
-  // Marked even when only listed (practice): the Photos screen shows the same list with Skip buttons.
-  for (const p of results) await env.DB.prepare("UPDATE social_posts SET heads_up_at = ? WHERE id = ?").bind(nowIso(), p.id).run();
-  log.info("photos.heads_up", { posts: results.length, ok: r.ok });
-  return results.length;
+  const subject = `Going out soon: ${rows.length} post${rows.length === 1 ? "" : "s"}`;
+  const frame = emailFrame(subject, lines, { label: "Open Photos", url: `${env.PUBLIC_BASE_URL}/photos` });
+  return { subject: `${subject} · ${env.APP_NAME}`, html: frame.html, text: frame.text };
+}
+
+/**
+ * The heads-up: one email listing what goes out in the next day, each with its own Skip link.
+ * Only posts that CAN go out are announced: a post on a platform that is not connected waits
+ * (status 'waiting', "Connect …") and gets its own fresh heads-up when it is planned again
+ * (replanWaiting). 22 Oct 2026: an owner must never be told a post is "going out" that cannot.
+ */
+export async function sendHeadsUp(env: Env, now = Date.now()): Promise<number> {
+  const cfg = photoConfig(env);
+  const until = new Date(now + cfg.headsUpHours * 3_600_000 + 3_600_000).toISOString();
+  const { results } = await env.DB.prepare("SELECT id, platform, item_kind, caption, scheduled_at FROM social_posts WHERE status = 'scheduled' AND heads_up_at IS NULL AND scheduled_at <= ? ORDER BY scheduled_at LIMIT 20").bind(until).all<HeadsUpRow>();
+  const ready = new Map<Social, boolean>();
+  const going: HeadsUpRow[] = [];
+  for (const p of results) {
+    if (!ready.has(p.platform)) ready.set(p.platform, await platformReady(env, p.platform));
+    if (ready.get(p.platform)) going.push(p);
+  }
+  if (!going.length) return 0;
+  const to = await ownerEmail(env);
+  if (!to) return 0;
+  const mail = await headsUpEmail(env, going);
+  const r = await sendEmail(env, { kind: "heads_up", to: [to], subject: mail.subject, html: mail.html, text: mail.text, refId: going[0].id });
+  for (const p of going) await env.DB.prepare("UPDATE social_posts SET heads_up_at = ? WHERE id = ?").bind(nowIso(), p.id).run();
+  log.info("photos.heads_up", { posts: going.length, ok: r.ok });
+  return going.length;
+}
+
+/**
+ * A test heads-up for one pack, to the host developer ONLY (DEVELOPER_EMAIL), whatever the
+ * platforms: proves the email end to end without writing to the owner. Marks nothing.
+ */
+export async function sendTestHeadsUp(env: Env, packId: string): Promise<{ ok: boolean; posts: number; error?: string }> {
+  const to = developerEmail(env);
+  if (!to) return { ok: false, posts: 0, error: "no developer email" };
+  const { results } = await env.DB.prepare("SELECT id, platform, item_kind, caption, scheduled_at FROM social_posts WHERE pack_id = ? AND status IN ('scheduled', 'waiting', 'held') ORDER BY scheduled_at LIMIT 20").bind(packId).all<HeadsUpRow>();
+  if (!results.length) return { ok: false, posts: 0, error: "no posts in this pack" };
+  const mail = await headsUpEmail(env, results);
+  const r = await sendEmail(env, { kind: "heads_up", to: [to], subject: `[Test] ${mail.subject}`, html: mail.html, text: mail.text, refId: results[0].id });
+  log.info("photos.heads_up_test", { posts: results.length, ok: r.ok });
+  return { ok: r.ok, posts: results.length, error: r.ok ? undefined : "send failed" };
 }
 
 /** Posts that waited on a connection go back on the plan once it is there (with a fresh heads-up). */

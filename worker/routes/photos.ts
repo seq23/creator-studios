@@ -2,11 +2,11 @@
 // when, Skip one, change a caption. Everything posts on its own; nothing here posts directly.
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
-import { requireUser } from "../lib/auth";
+import { developerEmail, requireUser } from "../lib/auth";
 import { fail, readJson } from "../lib/http";
 import { dispatchJob } from "../services/github";
 import { readSettings } from "./settings";
-import { contentRules, createPack, editCaption, makePack, packView, photoConfig, photosHome, schedulePack, skipPost, unskipPost } from "../lib/photoPosts";
+import { contentRules, createPack, editCaption, makePack, packView, photoConfig, photosHome, schedulePack, sendTestHeadsUp, skipPost, unskipPost } from "../lib/photoPosts";
 import { textProblems } from "@shared/contentRules";
 
 export const photos = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -110,3 +110,14 @@ photos.post("/check", async (c) => {
 
 /** Plan a ready pack's posts again (only when none were planned, e.g. the studio was just switched on). */
 photos.post("/packs/:id/plan", async (c) => c.json({ planned: await schedulePack(c.env, c.req.param("id")) }));
+
+/**
+ * Developer only: a test heads-up for one pack, sent to the host developer's own address
+ * (DEVELOPER_EMAIL), never the owner's. Proves the email end to end; marks nothing.
+ */
+photos.post("/packs/:id/heads-up-test", async (c) => {
+  const dev = developerEmail(c.env);
+  if (!dev || (c.get("user").email ?? "").trim().toLowerCase() !== dev) return fail(c, 403, "Only the studio host's developer login can send a test heads-up.");
+  const r = await sendTestHeadsUp(c.env, c.req.param("id"));
+  return c.json(r, r.ok ? 200 : 409);
+});
