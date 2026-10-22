@@ -336,3 +336,20 @@ describe("AI-edited photos carry the label on every piece (owner's word 22 Oct 2
     expect((raw.prepare("SELECT ai_edited FROM photo_packs WHERE id = ?").get(id) as { ai_edited: number }).ai_edited).toBe(1);
   });
 });
+
+describe("a photo set's card picture is one the browser can show (22 Oct 2026: a HEIC showed broken)", () => {
+  it("made cover first; else the first JPEG/PNG/WebP upload; a HEIC alone gives none", async () => {
+    const { packThumb } = await import("@worker/lib/photoPosts");
+    expect(packThumb("pk", [{ id: "a", mime_type: "image/heic" }, { id: "b", mime_type: "image/jpeg" }], "https://x/media/p/t/img/0")).toBe("https://x/media/p/t/img/0");
+    expect(packThumb("pk", [{ id: "a", mime_type: "image/heic" }, { id: "b", mime_type: "image/jpeg" }], null)).toBe("/api/photos/pk/photo/b");
+    expect(packThumb("pk", [{ id: "a", mime_type: "image/heic" }], null)).toBeNull();
+  });
+
+  it("a made pack's card uses the checked picture, never the raw upload", async () => {
+    const id = await readyPack();
+    const r = await req("GET", `/api/photos/packs/${id}`);
+    const v = (await r.json()) as { thumb_url: string | null };
+    expect(v.thumb_url).toMatch(/\/media\/p\//);
+  });
+});
+

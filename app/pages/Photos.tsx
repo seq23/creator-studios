@@ -333,7 +333,7 @@ function PackCard({ pack, reload }: { pack: PackView; reload: () => void | Promi
   return (
     <article className={`photos-card ${pack.status === "failed" || pack.privacy === "blocked" ? "bad" : ""}`}>
       <div className="photos-card-head">
-        {pack.photos[0] ? <img src={pack.photos[0].url} alt="" className="photos-thumb" /> : <div className="photos-thumb empty" aria-hidden />}
+        {pack.thumb_url ? <img src={pack.thumb_url} alt="" className="photos-thumb" /> : <div className="photos-thumb empty" aria-hidden />}
         <div>
           <p className="photos-card-title">Photo set from {fmtDateTime(pack.created_at)}</p>
           <p className="photos-card-line">{status}</p>
