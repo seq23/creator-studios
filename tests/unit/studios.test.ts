@@ -234,6 +234,9 @@ describe("the owner email and the platform sender are never committed config", (
     const warn = "\u001b[33m▲ \u001b[43;33m[\u001b[43;30mWARNING\u001b[43;33m]\u001b[0m something\n";
     expect([...parseSecretList(`${warn}[\n  { "name": "SECRETS_KEY", "type": "secret_text" }\n]\n`)]).toEqual(["SECRETS_KEY"]);
     expect([...parseSecretList("[]")]).toEqual([]);
+    // A warning printed AFTER the list (with its own "[WARNING]" brackets) is not part of it (22 Oct 2026).
+    const after = `[\n  { "name": "SECRETS_KEY", "type": "secret_text" }\n]\n${warn}\n    - CONTENT_RULES\n`;
+    expect([...parseSecretList(after)]).toEqual(["SECRETS_KEY"]);
     // An unreadable answer is never "no secrets" (that would put a new SECRETS_KEY over the live one).
     expect(() => parseSecretList(`${warn}✘ [ERROR] something went wrong`)).toThrow(/refusing to guess/);
   });
