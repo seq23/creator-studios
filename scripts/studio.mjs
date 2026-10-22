@@ -116,9 +116,11 @@ export function envBlock(s, themes) {
       ...(s.previousHostnames?.length ? { PREVIOUS_HOSTNAMES: s.previousHostnames.join(",") } : {}),
       GITHUB_REPO: s.githubRepo ?? "",
       AUDIENCE_TIMEZONE: s.audienceTimezone ?? "America/New_York",
-      // Per-studio features and rules (shared/photoPosts.ts, shared/contentRules.ts): absent = off / none.
-      ...(s.photoPosts ? { PHOTO_POSTS: JSON.stringify(s.photoPosts) } : {}),
-      ...(s.contentRules ? { CONTENT_RULES: JSON.stringify(s.contentRules) } : {}),
+      // Per-studio features and rules (shared/photoPosts.ts, shared/contentRules.ts): "" = off / none.
+      // Always present: a var on the top level but missing from an env makes wrangler print a warning
+      // into the JSON the deploy's live secret check parses (22 Oct 2026: deploy:all stopped at sample2).
+      PHOTO_POSTS: s.photoPosts ? JSON.stringify(s.photoPosts) : "",
+      CONTENT_RULES: s.contentRules ? JSON.stringify(s.contentRules) : "",
       ...(s.whatsNew ? { WHATS_NEW: JSON.stringify(s.whatsNew) } : {}),
       ENV_NAME: "production",
       AUTH_MODE: "code",
@@ -311,7 +313,10 @@ export function parseSecretList(out) {
   // wrangler may print warnings first, and their ANSI colour codes contain "[": start at the JSON line.
   const at = out.search(/^\[/m);
   if (at < 0) throw new Error("wrangler secret list printed no JSON list; refusing to guess which secrets are set");
-  const list = JSON.parse(out.slice(at, out.lastIndexOf("]") + 1));
+  // ...and may print warnings AFTER it too (22 Oct 2026: "[WARNING] vars not inherited" after the
+  // list stopped deploy:all), so the list ends at its own closing line, not at the last "]".
+  const close = out.slice(at).search(/^\]/m);
+  const list = JSON.parse(close < 0 ? out.slice(at, out.lastIndexOf("]") + 1) : out.slice(at, at + close + 1));
   if (!Array.isArray(list)) throw new Error("wrangler secret list did not print a list");
   return new Set(list.map((x) => x.name));
 }
