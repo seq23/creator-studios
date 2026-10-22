@@ -314,3 +314,25 @@ describe("test heads-up: the host developer only, to the developer's own address
     expect((raw.prepare("SELECT COUNT(*) AS n FROM emails_sent WHERE kind = 'heads_up'").get() as { n: number }).n).toBe(0);
   });
 });
+
+describe("AI-edited photos carry the label on every piece (owner's word 22 Oct 2026)", () => {
+  it("a set ticked 'edited with AI' labels the photo set too; an unticked set labels only the moved videos", async () => {
+    const make = async (ai: boolean) => {
+      const r = await req("POST", "/api/photos/packs", { note: "", ai_edited: ai });
+      const { id } = (await r.json()) as { id: string };
+      raw.prepare("INSERT INTO pack_photos (id, pack_id, role, file_name, mime_type, size_bytes, r2_key, upload_status) VALUES (?, ?, 'main', 'a.jpg', 'image/jpeg', 4, 'k', 'uploaded')").run(`pph_ai_${ai}`, id);
+      const o = `packs/${id}/out/`;
+      await finishPack(await hydrate(env), id, [{ kind: "reel", r2_key: `${o}reel.mp4`, cover_r2_key: null, images: [] }, { kind: "carousel", r2_key: null, cover_r2_key: null, images: [`${o}photo-1.jpg`] }], "clean", {}, NOW);
+      return Object.fromEntries((raw.prepare("SELECT kind, ai_made FROM pack_items WHERE pack_id = ?").all(id) as { kind: string; ai_made: number }[]).map((x) => [x.kind, x.ai_made]));
+    };
+    expect(await make(true)).toEqual({ reel: 1, carousel: 1 });
+    expect(await make(false)).toEqual({ reel: 1, carousel: 0 });
+  });
+
+  it("the tick can change until the posts are made", async () => {
+    const r = await req("POST", "/api/photos/packs", { note: "" });
+    const { id } = (await r.json()) as { id: string };
+    expect((await req("PATCH", `/api/photos/packs/${id}`, { note: "", ai_edited: true })).status).toBe(200);
+    expect((raw.prepare("SELECT ai_edited FROM photo_packs WHERE id = ?").get(id) as { ai_edited: number }).ai_edited).toBe(1);
+  });
+});

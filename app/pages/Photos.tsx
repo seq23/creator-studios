@@ -111,6 +111,7 @@ function AddPhotos({ onMade }: { onMade: () => void | Promise<void> }) {
   const [packId, setPackId] = useState<string | null>(null);
   const [files, setFiles] = useState<Local[]>([]);
   const [note, setNote] = useState("");
+  const [aiEdited, setAiEdited] = useState(false);
   const [problems, setProblems] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const mainRef = useRef<HTMLInputElement>(null);
@@ -127,7 +128,7 @@ function AddPhotos({ onMade }: { onMade: () => void | Promise<void> }) {
 
   async function ensurePack(): Promise<string> {
     if (packId) return packId;
-    const r = await post<{ id: string }>("/api/photos/packs", { note });
+    const r = await post<{ id: string }>("/api/photos/packs", { note, ai_edited: aiEdited });
     setPackId(r.id);
     return r.id;
   }
@@ -156,12 +157,13 @@ function AddPhotos({ onMade }: { onMade: () => void | Promise<void> }) {
     if (!packId) return;
     setBusy(true);
     try {
-      await patch(`/api/photos/packs/${packId}`, { note });
+      await patch(`/api/photos/packs/${packId}`, { note, ai_edited: aiEdited });
       await post(`/api/photos/packs/${packId}/make`);
       toast.ok("Your posts are being made. They show up below in a few minutes.");
       setPackId(null);
       setFiles([]);
       setNote("");
+      setAiEdited(false);
       await onMade();
     } catch (e) {
       toast.bad(e, "That did not work. Try again.");
@@ -203,6 +205,10 @@ function AddPhotos({ onMade }: { onMade: () => void | Promise<void> }) {
       <label className="photos-note">
         <span>What does it show? (optional, helps the captions)</span>
         <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} maxLength={2000} placeholder="Fall porch with mums and pumpkins" />
+      </label>
+      <label className="photos-ai-edited">
+        <input type="checkbox" checked={aiEdited} onChange={(e) => setAiEdited(e.target.checked)} />
+        <span>Some of these photos were edited with AI (every post from them is labelled “Made with AI”)</span>
       </label>
       {problems.map((p) => (
         <Notice key={p} tone="warn">
