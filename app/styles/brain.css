@@ -57,11 +57,20 @@
   opacity: 0.85;
   background: var(--surface);
 }
-@media (max-width: 560px) {
-  .brain-doc .list-row {
-    flex-wrap: wrap;
-  }
-  .brain-doc .list-row .grow {
-    min-width: 55%;
-  }
+/* A doc row in a narrow column (the 5fr side at desktop, or a phone): the name keeps a real width
+   and ellipsizes on one line, the size and date stay on one line, and the status pill and × wrap
+   below instead of crushing the name. 22 Oct 2026: at 1200 px the name showed as "P" and the meta
+   stacked one word per line (tests/e2e/brain-doc-layout.spec.ts). Wrapping is by available room
+   (flex-basis), not by viewport, because the column is narrow at desktop widths too. */
+.brain-doc .list-row {
+  flex-wrap: wrap;
+}
+.brain-doc .list-row .grow {
+  flex: 1 1 11rem;
+  min-width: 11rem;
+}
+.brain-doc .list-row .meta {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

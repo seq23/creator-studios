@@ -30,6 +30,8 @@ export interface Env {
   HOST_KEYS?: string;
   /** Hugging Face token for realistic motion (Setup → Realistic motion, or a Worker secret). */
   HF_TOKEN?: string;
+  /** Every studio email except login codes goes ONLY here when set (worker/services/email.ts routeRecipients). */
+  NOTIFY_EMAIL?: string;
   /** The studio's theme (JSON from studios/<slug>.json: palette tokens, fonts, wordmark). */
   STUDIO_THEME?: string;
   FAKE_SERVICES: string;
