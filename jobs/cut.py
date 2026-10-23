@@ -1985,7 +1985,7 @@ def rerender_clip(spec: dict[str, Any], work: Path, download: Downloader, upload
         # A clip cut with the camera sound off stays that way in every new look: music, never silence.
         opts = {**opts, "music": True, "mute": True}
     wanted: dict[str, list[tuple[float, float]]] = {}
-    stretches = [*(spec.get("parts") or []), *(spec.get("cells") or []), *([spec["inset"]] if spec.get("inset") else [])]
+    stretches = [*(spec.get("parts") or []), *(spec.get("cells") or []), *([spec["inset"]] if spec.get("inset") else []), *([spec["ending"]] if spec.get("ending") else [])]
     for p in stretches:
         wanted.setdefault(str(p["src"]), []).append((float(p["start"]), float(p["end"])))
     if not wanted:
@@ -2027,7 +2027,9 @@ def rerender_clip(spec: dict[str, Any], work: Path, download: Downloader, upload
     progress("Cutting clips", 0, 1)
     k = int(spec.get("music_turn") or 0)
     song = music_key(spec, k, muted) if opts.get("music") else None
-    r = render_moment(m, main_src, opts, brand, work, str(spec["clip_id"]), mediapipe, cells=cells, voice=voice, voice_src=voice_src, music=music_for(spec, k, work, download, {}, muted) if song else None)
+    # A grid made from the clip's own shots ends on its hero (layout.ending, studio fix).
+    ending = seg(spec["ending"])[0] if cells and spec.get("ending") else None
+    r = render_moment(m, main_src, opts, brand, work, str(spec["clip_id"]), mediapipe, cells=cells, voice=voice if ending is None else 0, voice_src=voice_src, music=music_for(spec, k, work, download, {}, muted) if song else None, ending=ending)
     progress("Saving clips", 0, 1)
     upload(r.mp4, str(spec["output_key"]), "video/mp4")
     upload(r.cover, str(spec["output_cover_key"]), "image/jpeg")
