@@ -251,6 +251,20 @@ def clean_shot(s: dict[str, Any], duration: float, services: list[str]) -> Shot 
     return _shot_fields(Shot(round(start, 2), round(end, 2)), s, services)
 
 
+def confidence_of(v: Any) -> float:
+    """A number 0..1 from what a model wrote: 0.8, "0.8", "80%", or a word (small models say "high")."""
+    if isinstance(v, (int, float)):
+        return float(v) / 100 if v > 1 else float(v)
+    t = str(v or "").strip().lower()
+    words = {"very high": 0.95, "high": 0.85, "medium": 0.6, "moderate": 0.6, "low": 0.3, "very low": 0.1}
+    if t in words:
+        return words[t]
+    try:
+        return float(t.rstrip("%")) / (100 if t.endswith("%") or float(t.rstrip("%")) > 1 else 1)
+    except ValueError:
+        return 0.0
+
+
 def _shot_fields(shot: Shot, s: dict[str, Any], services: list[str]) -> Shot:
     shot.what = re.sub(r"\s+", " ", str(s.get("what", "")))[:200].strip()
     shot.subject = re.sub(r"\s+", " ", str(s.get("subject", "")))[:60].strip()
@@ -264,10 +278,12 @@ def _shot_fields(shot: Shot, s: dict[str, Any], services: list[str]) -> Shot:
         setattr(shot, q, s.get(q) is not False)
     svc = str(s.get("service", UNSURE)).strip()
     match = next((x for x in services if x.lower() == svc.lower()), None)
-    try:
-        conf = float(s.get("confidence", 0))
-    except (TypeError, ValueError):
-        conf = 0.0
+    if not match and svc.lower() not in ("", UNSURE):
+        # A small model may echo a label loosely ("balloon garland" for "balloon garlands"): the
+        # one service whose words it carries, never a guess between two.
+        hits = [x for x in services if set(re.findall(r"[a-z]+", x.lower())) <= set(re.findall(r"[a-z]+", svc.lower() + "s")) or svc.lower().rstrip("s") in x.lower()]
+        match = hits[0] if len(hits) == 1 else None
+    conf = confidence_of(s.get("confidence", 0))
     shot.confidence = max(0.0, min(1.0, conf))
     shot.service = match if match and shot.sure else UNSURE
     if not shot.sure and shot.state in ("before", "after", "in_progress"):
@@ -662,7 +678,10 @@ def local_vlm_sheet(b: dict[str, Any], services: list[str], looks: dict[str, str
         answer = A.first_json(A.ask_local_vlm(LOCAL_SYSTEM, text, grid, "vision", 400))
         if answer is None:
             return None
-        shots.append(_shot_fields(Shot(s0, s1), answer, services))
+        sh = _shot_fields(Shot(s0, s1), answer, services)
+        # Enums and numbers only (never the words): how the local model read this stretch.
+        log("see.local.answer", state=sh.state, people=sh.people, service=sh.service != UNSURE, confidence=round(sh.confidence, 2), raw_state=str(answer.get("state", ""))[:12] in STATES)
+        shots.append(sh)
         model = A.LOCAL_VLM.split("/")[-1]
     if not shots:
         return None
