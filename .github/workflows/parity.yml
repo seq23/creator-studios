@@ -1,0 +1,36 @@
+# Studio parity (owner, 23 Oct 2026: "make sure there is parity among the 4"): every studio in the
+# registry must answer /healthz on the same commit as the newest successful deploy on main
+# (scripts/parity-check.mjs). Runs after each deploy and daily; a studio on old code, down, or
+# answering as another studio turns this run red (GitHub emails the owner). Never a merge gate.
+name: parity
+
+on:
+  workflow_run:
+    workflows: [deploy]
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: "17 14 * * *"   # daily 14:17 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: parity
+  cancel-in-progress: false
+
+jobs:
+  parity:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10    # fault detector (~4x a normal run), never a budget
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Every studio on the deployed commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/parity-check.mjs
