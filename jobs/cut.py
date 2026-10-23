@@ -1224,10 +1224,14 @@ def shot_list(m: Moment, sheets: dict[str, "V.ShotSheet"]) -> list[dict[str, Any
     out: list[dict[str, Any]] = []
     t = 0.0
     stages = m.part_stages or []
+    # Never past the clip's own length (a grid plays its cells side by side, not one after another).
+    length = max(0.0, m.end - m.start)
     for i, (a, (s, e)) in enumerate(zip(part_owners(m), m.parts)):
         d = max(0.0, e - s)
+        if t >= length - 0.05:
+            break
         what = (shot_of(sheets, a, s, e) or V.Shot(s, e)).what or ""
-        out.append({"t0": round(t, 2), "t1": round(t + d, 2), "stage": stages[i] if i < len(stages) else "", "what": what[:120]})
+        out.append({"t0": round(t, 2), "t1": round(min(t + d, length), 2), "stage": stages[i] if i < len(stages) else "", "what": what[:120]})
         t += d
     return out[:24]
 
@@ -2177,6 +2181,7 @@ def import_items(spec: dict[str, Any], work: Path, download: Downloader, upload:
             "uses_ai_images": False,
             "event_group": "e1",
             "voice_script": None,
+            "shot_list": [],
             "words_pending": False,
         })
     editor = str(spec.get("editor") or "editor")
