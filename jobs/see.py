@@ -44,6 +44,7 @@ HAZARDS = ("face", "house_number", "street_sign", "plate", "written_name")
 UNSURE = "unsure"
 # Under this the model's answer for a shot is not trusted: the shot is "unsure" (never guessed).
 CONFIDENCE_FLOOR = 0.5
+VISION_PAUSE_S = float(os.environ.get("VISION_PAUSE_S", "20"))
 # Free vision models, best first (checked 22 Oct 2026 on openrouter.ai/api/v1/models: free, image
 # input). "openrouter/free" routes a picture to whichever free vision model is up. A 429 / error
 # moves on to the next; VISION_MODELS (comma list) overrides for a run.
@@ -185,7 +186,12 @@ def ask_vision(key: str | None, system: str, text: str, image: Path, kind: str, 
     Returns (answer, model) or (None, "") when none did."""
     if not key or not image or not image.exists():
         return None, ""
-    for model in vision_models():
+    # Free models answer bursts with 429s (23 Oct 2026 live run: 2 of 9 videos and 5 of 12 critic checks
+    # found every model busy). A second round after a pause, before giving up to the backup.
+    for model in [*vision_models(), *(["__pause__"] + vision_models()[:2])]:
+        if model == "__pause__":
+            time.sleep(VISION_PAUSE_S)
+            continue
         payload = {
             "model": model,
             "max_tokens": max_tokens,
@@ -198,10 +204,10 @@ def ask_vision(key: str | None, system: str, text: str, image: Path, kind: str, 
             if not m:
                 raise ValueError("no json")
             return json.loads(m.group(0)), model
-        except Exception:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
             CALLS["failed"] = CALLS.get("failed", 0) + 1
-            log("see.model", ok=False, kind=kind)
-            time.sleep(2)
+            log("see.model", ok=False, kind=kind, code=getattr(e, "code", None) if isinstance(getattr(e, "code", None), int) else type(e).__name__)
+            time.sleep(3)
     return None, ""
 
 
@@ -335,13 +341,18 @@ def _local_classifier() -> Any:
             log("see.local.install", ok=False)
             _CLIP = False
             return None
+        # Installed while this process runs: the import system's directory caches must be refreshed, or
+        # the new packages are not found (23 Oct 2026 live run: "see.local.ready ok false" after a good install).
+        import importlib
+
+        importlib.invalidate_caches()
     try:
         from transformers import pipeline  # type: ignore
 
         _CLIP = pipeline("zero-shot-image-classification", model=LOCAL_MODEL, device=-1)
         log("see.local.ready", ok=True)
-    except Exception:  # noqa: BLE001
-        log("see.local.ready", ok=False)
+    except Exception as e:  # noqa: BLE001
+        log("see.local.ready", ok=False, error=type(e).__name__)
         _CLIP = False
     return _CLIP or None
 

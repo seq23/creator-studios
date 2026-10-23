@@ -32,6 +32,8 @@ SHAPES = ("transformation", "walkthrough", "talking", "montage")
 # Where the clips go: every visual shape is cut as a montage (15-45 s), talking keeps the speech recipes.
 SHAPE_RECIPE = {"transformation": "montage", "walkthrough": "montage", "montage": "montage"}
 MAX_CLIP_S = 44.0
+# The Worker keeps at most 8 parts per clip (worker/jobs/cut.ts MAX_PARTS); a plan never has more.
+MAX_PARTS = 8
 TALKING_SHARE = 0.4
 WALK_MIN_S = 6.0
 
@@ -276,7 +278,7 @@ def _piece(aid: str, s: Shot, length: float, offset: float = 0.0) -> Part:
 
 def _fit(parts: list[Part]) -> list[Part]:
     out, total = [], 0.0
-    for p in parts:
+    for p in parts[:MAX_PARTS]:
         if total + p.length > MAX_CLIP_S:
             left = MAX_CLIP_S - total
             if left >= 1.5:
@@ -394,7 +396,8 @@ COPY_SYSTEM = (
     "on screen in each shot and its state (before = empty or unfinished, in_progress, after = the finished result). Write ONLY about "
     "what is listed. Never mention any service other than the clip's service. Call something finished, a reveal or an after ONLY if a "
     "shot's state is after; say before or empty ONLY if a shot's state is before. Never write people's names, addresses or prices. "
-    "Never mention automation, software or how the video was made. hook and hook_alt: on-screen text, max 8 words each. caption: "
+    "Never mention automation, software or how the video was made. Every clip's hook must be different from every other clip's "
+    "and describe that clip's own shots; do not reuse lines from the voice examples. hook and hook_alt: on-screen text, max 8 words each. caption: "
     "max 150 characters in their voice, ending with one call to action from their list. 3-5 hashtags. Answer JSON only: "
     "{\"items\":[{\"n\":int,\"hook\":str,\"hook_alt\":str,\"caption\":str,\"hashtags\":[str]}]}."
 )
@@ -432,6 +435,7 @@ def apply_copy(plans: list[Plan], answer: Any, profile: dict[str, str] | None, s
                 items[it["n"]] = it
     fell = 0
     own = {h.lower().lstrip("#") for h in profile_hashtags(profile)}
+    used: set[str] = set()
     for i, pl in enumerate(plans):
         g = pl.ground(services)
         base = neutral_copy(pl, profile, services, i)
@@ -442,11 +446,16 @@ def apply_copy(plans: list[Plan], answer: Any, profile: dict[str, str] | None, s
             if not pl.service and v:
                 # Nothing sure: the model's words are kept only when they name no service at all.
                 ok = ok and not any(t in banned_tokens(None, services, "") for t in tokens(v))
+            # A dump's clips never all say the same thing: a hook already on another clip is not used again.
+            if ok and k in ("hook", "hook_alt") and v.lower().rstrip(".!") in used:
+                ok = False
             if ok:
                 setattr(pl, k, v)
             else:
                 setattr(pl, k, base[k])
                 fell += 1
+            if k in ("hook", "hook_alt") and getattr(pl, k):
+                used.add(getattr(pl, k).lower().rstrip(".!"))
         tags = [str(h) if str(h).startswith("#") else f"#{h}" for h in (it.get("hashtags") or [])]
         tags = [t for t in tags if hashtag_ok(t, g, own)]
         merged: list[str] = []

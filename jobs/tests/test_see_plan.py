@@ -157,6 +157,23 @@ class GroundedTest(unittest.TestCase):
         self.assertNotEqual(plans[1].hook_alt, "Added automatically")
         self.assertGreaterEqual(fell, 3)
 
+    def test_a_hook_is_never_repeated_across_the_dump(self):
+        f, svc, sheets = decor_dump()
+        plans = P.plan_clips(sheets, "transformation", svc, 3)[:3]
+        same = {"n": 0, "hook": "Walk in to this.", "hook_alt": "Come home to this.", "caption": "Message us to book your date.", "hashtags": []}
+        answer = json.dumps({"items": [{**same, "n": i} for i in range(len(plans))]})
+        P.write_copy("key", plans, f["profile"], f["services"], "m", lambda _k, _p: answer)
+        self.assertEqual(plans[0].hook, "Walk in to this.")
+        self.assertEqual(sum(1 for pl in plans if pl.hook == "Walk in to this."), 1)
+        self.assertEqual(sum(1 for pl in plans if pl.hook_alt == "Come home to this."), 1)
+
+    def test_a_plan_never_has_more_parts_than_the_worker_keeps(self):
+        f = FIX["event-decor"]
+        svc = f["services"][0]
+        sheets = [sheet(f"b{i}", 8, shot(0, 8, "before", V.UNSURE, f"bare {i}")) for i in range(3)] + [sheet(f"g{i}", 8, shot(0, 8, "in_progress", svc, f"work {i}")) for i in range(3)] + [sheet(f"a{i}", 12, shot(0, 12, "after", svc, f"done {i}")) for i in range(6)]
+        for pl in P.plan_clips(sheets, "transformation", svc, 12):
+            self.assertLessEqual(len(pl.parts), P.MAX_PARTS)
+
     def test_no_model_means_neutral_grounded_copy(self):
         f, svc, sheets = decor_dump()
         plans = P.plan_clips(sheets, "transformation", svc, 3)
