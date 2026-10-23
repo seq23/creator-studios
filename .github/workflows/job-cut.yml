@@ -22,6 +22,7 @@ on:
       - jobs/selftest_cut.py
       - jobs/music/**
       - .github/scripts/apt-install.sh
+      - .github/scripts/ffmpeg-static.sh
       - .github/workflows/job-cut.yml
   workflow_dispatch:
 
@@ -61,7 +62,7 @@ jobs:
           key: vlm-qwen2-vl-2b-instruct-v1
       - name: System tools
         # tesseract: the watermark check (whose video is this?). libgles2 + libegl1: MediaPipe's Linux wheel loads GLES/EGL even for CPU face detection
-        run: bash .github/scripts/apt-install.sh ffmpeg libgles2 libegl1 tesseract-ocr tesseract-ocr-eng
+        run: bash .github/scripts/ffmpeg-static.sh && bash .github/scripts/apt-install.sh libgles2 libegl1 tesseract-ocr tesseract-ocr-eng
       - run: pip install -q -r jobs/requirements.txt
       - name: Run
         run: python3 jobs/cut.py
@@ -105,7 +106,7 @@ jobs:
           path: ~/.cache/huggingface
           key: whisper-${{ env.WHISPER_MODEL }}-v1
       - name: System tools (ffmpeg with libass; GLES/EGL for MediaPipe; espeak-ng for a spoken sample)
-        run: bash .github/scripts/apt-install.sh ffmpeg libgles2 libegl1 espeak-ng
+        run: bash .github/scripts/ffmpeg-static.sh && bash .github/scripts/apt-install.sh libgles2 libegl1 espeak-ng
       - name: Pipeline self-test (synthetic footage, no secrets; the Looks run in selftest-looks)
         run: python3 jobs/selftest_cut.py --require-heavy --skip-looks
 
@@ -127,6 +128,6 @@ jobs:
         with:
           python-version: "3.12"
       - name: System tools (ffmpeg with libass)
-        run: bash .github/scripts/apt-install.sh ffmpeg
+        run: bash .github/scripts/ffmpeg-static.sh
       - name: Every Look (${{ matrix.kind }}), rendered and checked
         run: python3 jobs/selftest_cut.py --looks-only --looks-kind ${{ matrix.kind }} --require-libass
