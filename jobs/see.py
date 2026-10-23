@@ -27,13 +27,13 @@ import os
 import re
 import subprocess
 import sys
-import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import json_object_in, log, openrouter_content  # noqa: E402
+import ai as A  # noqa: E402  (the model ladder: OpenRouter free within budget, then the local model)
+from common import log  # noqa: E402
 
 FRAME_STEP = 2.0
 MAX_CELLS = 30
@@ -44,7 +44,6 @@ HAZARDS = ("face", "house_number", "street_sign", "plate", "written_name")
 UNSURE = "unsure"
 # Under this the model's answer for a shot is not trusted: the shot is "unsure" (never guessed).
 CONFIDENCE_FLOOR = 0.5
-VISION_PAUSE_S = float(os.environ.get("VISION_PAUSE_S", "20"))
 # Free vision models, best first (checked 22 Oct 2026 on openrouter.ai/api/v1/models: free, image
 # input). "openrouter/free" routes a picture to whichever free vision model is up. A 429 / error
 # moves on to the next; VISION_MODELS (comma list) overrides for a run.
@@ -103,7 +102,9 @@ class ShotSheet:
             return None
         shots = [clean_shot(s, duration, services) for s in d["shots"] if isinstance(s, dict)]
         shots = [s for s in shots if s and s.length > 0]
-        return ShotSheet(asset_id, duration, shots, "cached") if shots else None
+        src = str(d.get("source") or "")
+        # Keep where it came from ("vision:<model>", "local", "local_vlm:<model>"); older rows said "cached".
+        return ShotSheet(asset_id, duration, shots, src if src and src != "none" else "cached") if shots else None
 
     def shot_at(self, t: float) -> Shot | None:
         return next((s for s in self.shots if s.start - 0.01 <= t < s.end + 0.01), None)
@@ -185,39 +186,27 @@ def vision_models() -> list[str]:
     return env or list(VISION_MODELS)
 
 
-def ask_vision(key: str | None, system: str, text: str, image: Path, kind: str, max_tokens: int = 3000) -> tuple[dict[str, Any] | None, str]:
-    """One picture + one question to the first free vision model that answers with JSON.
-    Returns (answer, model) or (None, "") when none did."""
-    if not key or not image or not image.exists() or QUOTA_OUT["out"]:
+def ask_vision(key: str | None, system: str, text: str, image: Path, kind: str, max_tokens: int = 3000, local: bool = True) -> tuple[dict[str, Any] | None, str]:
+    """One picture + one question, down the model ladder (jobs/ai.py): a free OpenRouter vision
+    model within the job's budget, else (local=True, VISION_LOCAL=1) the local open model on the
+    runner. Returns (answer, "<provider>:<model>") or (None, "") when neither answered with JSON."""
+    if not image or not image.exists():
         return None, ""
-    codes: list[Any] = []
-    # Free models answer bursts with 429s (23 Oct 2026 live run: 2 of 9 videos and 5 of 12 critic checks
-    # found every model busy). A second round after a pause, before giving up to the backup.
-    for model in [*vision_models(), *(["__pause__"] + vision_models()[:2])]:
-        if model == "__pause__":
-            time.sleep(VISION_PAUSE_S)
-            continue
-        payload = {
-            "model": model,
-            "max_tokens": max_tokens,
-            "messages": [{"role": "system", "content": system}, {"role": "user", "content": [{"type": "text", "text": text}, image_part(image)]}],
-        }
-        try:
-            CALLS[kind] = CALLS.get(kind, 0) + 1
-            content, _raw = openrouter_content(key, payload, timeout=150, usable=json_object_in)
-            m = re.search(r"\{.*\}", content or "", re.S)
-            if not m:
-                raise ValueError("no json")
-            return json.loads(m.group(0)), model
-        except Exception as e:  # noqa: BLE001
-            CALLS["failed"] = CALLS.get("failed", 0) + 1
-            code = getattr(e, "code", None) if isinstance(getattr(e, "code", None), int) else type(e).__name__
-            codes.append(code)
-            log("see.model", ok=False, kind=kind, code=code)
-            time.sleep(3)
-    if codes and all(c == 429 for c in codes):
-        QUOTA_OUT["out"] = True
-        log("see.quota_out", kind=kind)
+    CALLS[kind] = CALLS.get(kind, 0) + 1
+
+    def payload(model: str) -> dict[str, Any]:
+        return {"model": model, "max_tokens": max_tokens, "messages": [{"role": "system", "content": system}, {"role": "user", "content": [{"type": "text", "text": text}, image_part(image)]}]}
+
+    content, model = A.ask_openrouter(key, payload, vision_models(), kind)
+    QUOTA_OUT["out"] = A.STATE["quota_out"]
+    answer = A.first_json(content) if content else None
+    if answer is not None:
+        return answer, f"openrouter:{model}"
+    if local:
+        answer = A.first_json(A.ask_local_vlm(system, text, image, kind, max_tokens))
+        if answer is not None:
+            return answer, f"local_vlm:{A.LOCAL_VLM.split('/')[-1]}"
+    CALLS["failed"] = CALLS.get("failed", 0) + 1
     return None, ""
 
 
@@ -458,3 +447,165 @@ def see_video(key: str | None, video: Path, asset_id: str, duration: float, serv
     sheet = sheet or unsure_sheet(asset_id, duration)
     log("see.sheet", source=sheet.source.split(":")[0], shots=len(sheet.shots), sure=sum(1 for s in sheet.shots if s.sure))
     return sheet
+
+
+# ---------------------------------------------------------------- several videos, one call (quota fix)
+
+# One picture holds up to BATCH_VIDEOS videos, BATCH_CELLS frames each, every video under its own
+# heading: 9 videos cost 3 calls instead of 9 (jobs/ai.py budgets the account's 50 a day).
+BATCH_VIDEOS = 3
+BATCH_CELLS = 12
+LABEL_W = 240
+
+
+def labelled_grid(groups: list[tuple[str, list[Path]]], out: Path, cols: int = 6) -> Path | None:
+    """Each group under a heading ("VIDEO 1", "CLIP 2"), its frames in rows of `cols`, every cell
+    numbered from 1 within its group. The only picture the model sees for a batch."""
+    try:
+        from PIL import Image, ImageDraw, ImageFont  # type: ignore
+    except Exception:  # noqa: BLE001
+        return None
+    cells: list[list[Any]] = []
+    for _title, frames in groups:
+        imgs = []
+        for f in frames:
+            try:
+                im = Image.open(f).convert("RGB")
+                im = im.resize((LABEL_W, max(1, int(im.height * LABEL_W / max(1, im.width)))))
+                imgs.append(im)
+            except Exception:  # noqa: BLE001
+                continue
+        cells.append(imgs)
+    if not any(cells):
+        return None
+    ch = max(im.height for g in cells for im in g)
+    head, pad = 44, 6
+    width = cols * (LABEL_W + pad) + pad
+    height = sum(head + math.ceil(len(g) / cols) * (ch + pad) for g in cells if g) + pad
+    sheet = Image.new("RGB", (width, height), (255, 255, 255))
+    d = ImageDraw.Draw(sheet)
+    try:
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 30)
+        small = ImageFont.truetype("DejaVuSans-Bold.ttf", 22)
+    except OSError:
+        font = ImageFont.load_default()
+        small = font
+    y = pad
+    for (title, _f), g in zip(groups, cells):
+        if not g:
+            continue
+        d.rectangle([0, y, width, y + head - 4], fill=(20, 20, 20))
+        d.text((12, y + 4), title, fill=(255, 255, 255), font=font)
+        y += head
+        for i, im in enumerate(g):
+            x = pad + (i % cols) * (LABEL_W + pad)
+            yy = y + (i // cols) * (ch + pad)
+            sheet.paste(im, (x, yy))
+            d.rectangle([x, yy, x + 34, yy + 28], fill=(255, 230, 0))
+            d.text((x + 4, yy + 2), str(i + 1), fill=(0, 0, 0), font=small)
+        y += math.ceil(len(g) / cols) * (ch + pad)
+    sheet.save(out, quality=82)
+    return out if out.exists() else None
+
+
+SHEET_BATCH_SYSTEM = SHEET_SYSTEM.replace(
+    "You look at a grid of frames taken from ONE phone video, in time order (left to right, then top to bottom). ",
+    "You look at frames from SEVERAL phone videos. Each video's frames sit under its own black heading (VIDEO 1, VIDEO 2, ...), "
+    "in time order (left to right, then top to bottom); the yellow number on a frame is its number within that video. "
+    "Never mix frames of different videos in one shot. ",
+).replace(
+    "Answer JSON only: {\"shots\":[",
+    "Answer JSON only: {\"videos\":[{\"video\":int,\"shots\":[",
+).replace("\"confidence\":0..1}]}. Frames are numbered from 1.", "\"confidence\":0..1}]}]}. Frames are numbered from 1 within each video.")
+
+
+def batch_prompt(services: list[str], batch: list[dict[str, Any]], looks: dict[str, str] | None = None) -> str:
+    return json.dumps(
+        {
+            "services": services,
+            **({"what_each_service_looks_like": looks} if looks else {}),
+            "videos": [{"video": i + 1, "frames": len(b["times"]), "frame_seconds": b["times"], "owner_note_about_this_upload": (b.get("notes") or "")[:300]} for i, b in enumerate(batch)],
+            "rule": "notes and descriptions may help you pick the service; the state comes only from what you see",
+        }
+    )
+
+
+def parse_batch(answer: Any, batch: list[dict[str, Any]], services: list[str], source: str) -> dict[str, ShotSheet]:
+    """{"videos":[{"video":n,"shots":[...]}]} → a sheet per video that the answer covers."""
+    out: dict[str, ShotSheet] = {}
+    if not isinstance(answer, dict) or not isinstance(answer.get("videos"), list):
+        return out
+    for v in answer["videos"]:
+        if not isinstance(v, dict):
+            continue
+        try:
+            n = int(v.get("video"))
+        except (TypeError, ValueError):
+            continue
+        if not 1 <= n <= len(batch):
+            continue
+        b = batch[n - 1]
+        sh = parse_sheet({"shots": v.get("shots")}, b["asset_id"], b["duration"], b["times"], services, source)
+        if sh:
+            out[b["asset_id"]] = sh
+    return out
+
+
+def see_videos(key: str | None, items: list[dict[str, Any]], services: list[str], work: Path, cached: dict[str, Any] | None = None, looks: dict[str, str] | None = None) -> dict[str, ShotSheet]:
+    """Shot sheets for a dump. items: {asset_id, video, duration, notes}. The saved sheet when there
+    is one (never looked at again); else up to BATCH_VIDEOS videos per free-model call; a video the
+    batch did not cover gets its own picture down the ladder (OpenRouter if budget is left, else the
+    local open model), then the CLIP backup, then "unsure". Never raises."""
+    cached = cached or {}
+    out: dict[str, ShotSheet] = {}
+    todo: list[dict[str, Any]] = []
+    for it in items:
+        sh = ShotSheet.from_json(cached.get(it["asset_id"]), it["asset_id"], it["duration"], services) if cached.get(it["asset_id"]) else None
+        if sh:
+            out[it["asset_id"]] = sh
+            log("see.sheet", source="cached", shots=len(sh.shots))
+            continue
+        try:
+            frames, times = extract_frames(it["video"], it["duration"], work / f"see_{it['asset_id']}", max_cells=BATCH_CELLS)
+        except Exception:  # noqa: BLE001
+            frames, times = [], []
+        todo.append({**it, "frames": frames, "times": times})
+    for i in range(0, len(todo), BATCH_VIDEOS):
+        batch = [b for b in todo[i : i + BATCH_VIDEOS] if b["frames"]]
+        if len(batch) < 2 or not key:
+            continue
+        grid = labelled_grid([(f"VIDEO {j + 1}", b["frames"]) for j, b in enumerate(batch)], work / f"see_batch_{i}.jpg")
+        if not grid:
+            continue
+        answer, model = ask_vision(key, SHEET_BATCH_SYSTEM, batch_prompt(services, batch, looks), grid, "vision", max_tokens=4000, local=False)
+        got = parse_batch(answer, batch, services, f"vision:{model}") if answer else {}
+        out.update(got)
+        log("see.batch", videos=len(batch), covered=len(got))
+    for b in todo:
+        if b["asset_id"] in out:
+            log("see.sheet", source=out[b["asset_id"]].source.split(":")[0], shots=len(out[b["asset_id"]].shots), sure=sum(1 for s in out[b["asset_id"]].shots if s.sure))
+            continue
+        sheet = None
+        try:
+            if b["frames"]:
+                grid = contact_sheet(b["frames"], work / f"see_{b['asset_id']}.jpg")
+                if grid:
+                    prompt = json.loads(sheet_prompt(services, b["times"], b.get("notes") or ""))
+                    if looks:
+                        prompt["what_each_service_looks_like"] = looks
+                    answer, model = ask_vision(key, SHEET_SYSTEM, json.dumps(prompt), grid, "vision")
+                    sheet = parse_sheet(answer, b["asset_id"], b["duration"], b["times"], services, f"vision:{model}") if answer else None
+            if not sheet:
+                sheet = local_sheet(b["asset_id"], b["duration"], b["frames"], b["times"], services)
+        except Exception:  # noqa: BLE001
+            sheet = None
+        sheet = sheet or unsure_sheet(b["asset_id"], b["duration"])
+        out[b["asset_id"]] = sheet
+        log("see.sheet", source=sheet.source.split(":")[0], shots=len(sheet.shots), sure=sum(1 for s in sheet.shots if s.sure))
+    return out
+
+
+def worth_saving(sheet: ShotSheet) -> bool:
+    """Only a sheet a vision model made is saved for re-plans; the CLIP backup's guess is made again
+    for free next time, so a later run with quota left can look properly."""
+    return sheet.source.startswith("vision:") or sheet.source == "cached"

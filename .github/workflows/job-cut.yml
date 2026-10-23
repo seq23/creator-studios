@@ -54,6 +54,11 @@ jobs:
         with:
           path: ~/.cache/huggingface
           key: whisper-${{ env.WHISPER_MODEL }}-v1
+      - name: Local vision model cache (jobs/ai.py: the $0 backup when the free quota is used up)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vlm
+          key: vlm-qwen2-vl-2b-instruct-v1
       - name: System tools
         # tesseract: the watermark check (whose video is this?). libgles2 + libegl1: MediaPipe's Linux wheel loads GLES/EGL even for CPU face detection
         run: bash .github/scripts/apt-install.sh ffmpeg libgles2 libegl1 tesseract-ocr tesseract-ocr-eng

@@ -23,6 +23,7 @@ from typing import Any
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import ai as A  # noqa: E402
 import plan as P  # noqa: E402
 import see as V  # noqa: E402
 from common import log  # noqa: E402
@@ -114,11 +115,14 @@ def draw(dest: Path, seconds: int, bg: tuple[int, int, int], words: str, kind: s
 def score_business(slug: str, fixture: dict[str, Any], key: str | None, work: Path) -> dict[str, Any]:
     spec = SCENES[slug]
     services = fixture["services"]
-    sheets = []
+    items = []
     for name, secs, bg, words, kind in spec["clips"]:
         mp4 = work / f"{slug}_{name}.mp4"
         draw(mp4, secs, bg, words, kind)
-        sheets.append(V.see_video(key, mp4, f"{slug}_{name}", float(secs), services, "", work))
+        items.append({"asset_id": f"{slug}_{name}", "video": mp4, "duration": float(secs), "notes": ""})
+    # The same path a dump takes: one batched call for the business's clips, the local model as backup.
+    got = V.see_videos(key, items, services, work, {}, P.service_looks(fixture.get("profile"), services))
+    sheets = [got[it["asset_id"]] for it in items]
     film = [s for s, c in zip(sheets, spec["clips"]) if c[0] != "chatter"]
     service, sure = P.dump_service(film, None, services)
     shape, _ = P.choose_shape(film, service, {s.asset_id: False for s in film})
@@ -153,6 +157,7 @@ def main() -> int:
     for slug, r in results.items():
         log("golden.business", slug=slug, shape=r["shape"], source=",".join(r["sources"]), **r["metrics"])
     log("golden.score", score=total, checks=len(flat), vision_calls=V.CALLS.get("vision", 0), failed_calls=V.CALLS.get("failed", 0))
+    log("ai.calls", **A.report())
     if "--write-baseline" in sys.argv:
         BASELINE.parent.mkdir(parents=True, exist_ok=True)
         BASELINE.write_text(json.dumps({"_why": "jobs/golden.py: the last accepted golden-set score; a drop of more than 0.15, or a passing check turning to a fail, fails the weekly job.", "score": total, "passing": {s: [k for k, v in r["metrics"].items() if v] for s, r in results.items()}}, indent=2) + "\n")

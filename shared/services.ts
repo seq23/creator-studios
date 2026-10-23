@@ -24,7 +24,8 @@ function splitList(text: string): string[] {
 }
 
 /**
- * The service labels, in the profile's own words: an explicit "services" section when the profile
+ * The service labels, in the profile's own words: the labels of "What each service looks like"
+ * (two or more "Service: …" lines, layer 1); else an explicit "services" section when the profile
  * has one; else the list after the first colon of "who" (e.g. "…: A, B, C and D."); else the content
  * themes (the part before a colon). At most 8, no repeats.
  */
@@ -34,7 +35,15 @@ export function servicesOf(profile: Record<string, string> | null | undefined): 
   const add = (xs: string[]) => {
     for (const x of xs) if (out.length < MAX_SERVICES && !out.some((o) => o.toLowerCase() === x.toLowerCase())) out.push(x);
   };
-  if (profile.services?.trim()) add(splitList(profile.services));
+  // Layer 1: "What each service looks like" names the services itself, one "Service: …" line each.
+  const looks = (profile.service_looks ?? "")
+    .split(/\n/)
+    .map((l) => l.replace(/^[\s\d.)•*\-–]+/, ""))
+    .filter((l) => l.includes(":"))
+    .map((l) => clean(l.slice(0, l.indexOf(":"))))
+    .filter((s) => s.length >= 3 && s.split(" ").length <= 5 && !/^(all|any|everything)$/i.test(s));
+  if (looks.length >= 2) add(looks);
+  if (!out.length && profile.services?.trim()) add(splitList(profile.services));
   if (!out.length && profile.who) {
     const i = profile.who.indexOf(":");
     if (i >= 0) {

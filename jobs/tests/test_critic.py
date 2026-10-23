@@ -93,3 +93,36 @@ class RecutTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RoundsTest(unittest.TestCase):
+    """The batched critic (quota fix, 23 Oct 2026): one vision pass per round for every clip the rules
+    passed, one batched re-cut per round, the same bound of 2 re-cuts, then hidden with the reason."""
+
+    def test_rounds_batch_the_model_and_stay_bounded(self):
+        renders, vision_calls, recut_calls = [], [], []
+        out = C.critic_rounds(
+            ["ok", "bad", "rulebad", "dead"],
+            lambda m: None if m == "dead" else renders.append(m) or f"r:{m}",
+            lambda m, r: ["before_as_finished"] if m.startswith("rulebad") else [],
+            lambda pairs: vision_calls.append([m for m, _r in pairs]) or [(["text_mismatch"] if m.startswith("bad") else []) for m, _r in pairs],
+            lambda reqs: recut_calls.append([(m, a) for m, _r, a in reqs]) or [f"{m}+" for m, _r, _a in reqs],
+        )
+        self.assertEqual(len(vision_calls), 3)  # one batched pass per round (first + 2 re-cut rounds)
+        self.assertEqual(vision_calls[0], ["ok", "bad"])  # the rules' failure never reaches the model
+        self.assertEqual(len(recut_calls), 2)  # one batched re-cut per round
+        self.assertEqual(recut_calls[0], [("bad", 0), ("rulebad", 0)])
+        ok, bad, rulebad, dead = out
+        self.assertEqual((ok.hidden_reason, ok.recuts), (None, 0))
+        self.assertEqual((bad.recuts, bad.hidden_reason), (2, C.REASON_WORDS["text_mismatch"]))
+        self.assertEqual((rulebad.recuts, rulebad.hidden_reason), (2, C.REASON_WORDS["before_as_finished"]))
+        self.assertIsNone(dead)
+        self.assertNotIn("dead", renders)
+
+    def test_no_model_answer_lets_the_rules_decide(self):
+        out = C.critic_rounds(["a"], lambda m: m, lambda m, r: [], lambda pairs: [None for _ in pairs], lambda reqs: [None for _ in reqs])
+        self.assertEqual((out[0].verdict.ok, out[0].verdict.source), (True, "rules"))
+
+    def test_batch_verdicts_parse_per_clip(self):
+        got = C.parse_batch_verdicts({"clips": [{"clip": 2, "text_matches_picture": False}, {"clip": 1, "text_matches_picture": True, "privacy_hazard": False}, {"clip": 9}]}, 3)
+        self.assertEqual(got, [[], ["text_mismatch"], None])

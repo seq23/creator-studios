@@ -144,6 +144,77 @@ def grounded_cta(profile: dict[str, str] | None, g: Ground) -> str:
     return ""
 
 
+# ---------------------------------------------------------------- know the business (layer 1)
+
+# Words that name a story shape in the Brand Profile's "Which video shapes fit" section. Shape words
+# only: the services themselves always come from the profile.
+SHAPE_NAMES = {
+    "transformation": ("before and after", "before & after", "before/after", "before-and-after", "transformation", "reveal"),
+    "walkthrough": ("walk-through", "walkthrough", "walk through", "tour", "slow look"),
+    "talking": ("talking to camera", "talking to the camera", "talking", "to camera", "speaking"),
+    "montage": ("close-ups", "close-up", "close ups", "close up", "closeups", "details", "montage"),
+}
+
+
+def _profile_lines(text: str) -> list[tuple[str, str]]:
+    """'Label: rest' lines (bullets and numbers stripped); a line with no colon has an empty label."""
+    out = []
+    for raw in re.split(r"\n|\s\|\s", text or ""):
+        line = re.sub(r"^[\s\-•*\d.)]+", "", raw).strip()
+        if not line:
+            continue
+        label, sep, rest = line.partition(":")
+        out.append((label.strip(), rest.strip()) if sep and len(label) <= 60 else ("", line))
+    return out
+
+
+def _overlap(label: str, service: str) -> float:
+    a, b = set(tokens(label)), set(tokens(service))
+    if label.strip().lower() == service.lower():
+        return 1.0
+    return len(a & b) / len(a | b) if a and b else 0.0
+
+
+def _service_of_label(label: str, services: list[str]) -> str | None:
+    """The service a profile line's label names: the closest by shared words, at least half."""
+    best = max(services, key=lambda s: _overlap(label, s), default=None) if label else None
+    return best if best and _overlap(label, best) >= 0.5 else None
+
+
+def _matches_service(label: str, service: str) -> bool:
+    return _overlap(label, service) >= 0.5
+
+
+def service_looks(profile: dict[str, str] | None, services: list[str]) -> dict[str, str]:
+    """{service: what it looks like}, from the profile's "What each service looks like" section."""
+    out: dict[str, str] = {}
+    for label, rest in _profile_lines((profile or {}).get("service_looks", "")):
+        svc = _service_of_label(label, services)
+        if svc and rest and svc not in out:
+            out[svc] = rest[:300]
+    return out
+
+
+def shapes_in(text: str) -> list[str]:
+    t = (text or "").lower()
+    found = [(min(t.find(w) for w in words if w in t), shape) for shape, words in SHAPE_NAMES.items() if any(w in t for w in words)]
+    return [shape for _i, shape in sorted(found)]
+
+
+def shapes_fit(profile: dict[str, str] | None, service: str | None) -> list[str] | None:
+    """The shapes the profile says fit this service, best first (its own line wins over a general
+    line). None when the profile does not say."""
+    general: list[str] = []
+    for label, rest in _profile_lines((profile or {}).get("video_shapes", "")):
+        if label and service and _matches_service(label, service):
+            own = shapes_in(rest)
+            if own:
+                return own
+        elif not label or label.lower() in ("all", "any", "every service", "everything"):
+            general += [x for x in shapes_in(rest) if x not in general]
+    return general or None
+
+
 # ---------------------------------------------------------------- the dump: service + shape
 
 def dump_service(sheets: list[ShotSheet], override: str | None = None, services: list[str] | None = None) -> tuple[str | None, bool]:
@@ -195,8 +266,10 @@ def pools(sheets: list[ShotSheet], service: str | None) -> dict[str, list[tuple[
     return out
 
 
-def choose_shape(sheets: list[ShotSheet], service: str | None, muted: dict[str, bool] | None = None, override: str | None = None) -> tuple[str, str | None]:
-    """(shape, why_not): the story shape, and a plain reason when her pick cannot be made."""
+def choose_shape(sheets: list[ShotSheet], service: str | None, muted: dict[str, bool] | None = None, override: str | None = None, fit: list[str] | None = None) -> tuple[str, str | None]:
+    """(shape, why_not): the story shape, and a plain reason when her pick cannot be made. `fit`
+    (the Brand Profile's shapes for this service, best first) decides among the shapes the footage
+    allows; her own pick ("Change") still wins."""
     p = pools(sheets, service)
     both = bool(p["before"]) and bool(p["after"])
     total = sum(sh.duration for sh in sheets) or 1.0
@@ -207,6 +280,15 @@ def choose_shape(sheets: list[ShotSheet], service: str | None, muted: dict[str, 
         else "walkthrough" if any(s.length >= WALK_MIN_S and s.steady for _a, s in p["after"])
         else "montage"
     )
+    if fit:
+        possible = {
+            "transformation": both,
+            "talking": talk > 0,
+            "walkthrough": any(s.length >= WALK_MIN_S and s.steady for _a, s in p["after"]),
+            "montage": bool(p["after"] or p["other"]),
+        }
+        # Her profile's order wins among the shapes this footage can make.
+        natural = next((x for x in fit if possible.get(x)), natural)
     if override in SHAPES and override != natural:
         if override == "transformation" and not both:
             return natural, "we couldn't find both a before shot and a finished shot in these videos"
@@ -415,6 +497,7 @@ def copy_prompt(plans: list[Plan], profile: dict[str, str] | None, feedback: dic
                 {
                     "n": i,
                     "service": pl.service or "not sure (do not name a service)",
+                    **({"what_this_service_looks_like": service_looks(profile, [pl.service]).get(pl.service, "")} if pl.service else {}),
                     "shape": pl.shape,
                     "shots": [{"state": p.state, "what": p.what or "not sure what this shows"} for p in pl.parts],
                     **({"last_try_was_rejected_because": feedback[i]} if feedback and i in feedback else {}),

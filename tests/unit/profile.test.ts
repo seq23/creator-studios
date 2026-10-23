@@ -1,20 +1,21 @@
-// Brand Profile drafting (section 5): nine fixed sections, tolerant parsing, realistic fake.
+// Brand Profile drafting (section 5): eleven fixed sections (nine + layer 1), tolerant parsing, realistic fake.
 import { describe, expect, it } from "vitest";
 import { BRAND_PROFILE_SECTIONS } from "@shared/constants";
 import { cleanSections, FAKE_PROFILE, filledCount, parseProfileAnswer, PROFILE_SYSTEM, SECTION_MAX_CHARS } from "@worker/domain/profile";
 import { UNREADABLE_SENTENCE } from "@worker/jobs/extract";
 
 describe("brand profile", () => {
-  it("the prompt names all nine sections", () => {
+  it("the prompt names all eleven sections", () => {
     for (const s of BRAND_PROFILE_SECTIONS) expect(PROFILE_SYSTEM).toContain(`"${s.key}"`);
   });
   it("the fake profile fills every section and is a niche-neutral Sample Creator", () => {
-    expect(filledCount(FAKE_PROFILE)).toBe(9);
+    expect(filledCount(FAKE_PROFILE)).toBe(11);
+    expect(BRAND_PROFILE_SECTIONS.length).toBe(11); // nine + layer 1 (what each service looks like, which shapes fit)
     expect(FAKE_PROFILE.who).toMatch(/^Sample Creator makes short, practical videos/);
     expect(FAKE_PROFILE.themes).toMatch(/How-tos/);
     expect(Object.values(FAKE_PROFILE).join("\n")).not.toMatch(/Table & Gather|host|table|brunch|candle|dinner/i);
   });
-  it("keeps only the nine keys, turns lists into bullets and bounds length", () => {
+  it("keeps only the eleven keys, turns lists into bullets and bounds length", () => {
     const s = cleanSections({ who: "  Sam  ", themes: ["Yachts", "Galas"], extra: "dropped", voice: "x".repeat(SECTION_MAX_CHARS + 50) });
     expect(Object.keys(s).sort()).toEqual(BRAND_PROFILE_SECTIONS.map((x) => x.key).sort());
     expect(s.who).toBe("Sam");

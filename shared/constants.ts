@@ -139,6 +139,11 @@ export const BRAND_PROFILE_SECTIONS = [
   { key: "off_limits", label: "Off-limits topics" },
   { key: "deal_fit", label: "Brand-deal fit" },
   { key: "ctas", label: "Calls to action" },
+  // Studio intelligence layer 1 (owner's plan 22 Oct 2026): the shot sheet and the planner read these.
+  // One line per service, "Service: what it looks like" (and what its before looks like).
+  { key: "service_looks", label: "What each service looks like" },
+  // "Service: before and after, walk-through" lines (best first); "All: close-ups" for every service.
+  { key: "video_shapes", label: "Which video shapes fit" },
 ] as const;
 export type BrandProfileKey = (typeof BRAND_PROFILE_SECTIONS)[number]["key"];
 

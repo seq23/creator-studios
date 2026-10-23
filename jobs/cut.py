@@ -44,11 +44,12 @@ from pathlib import Path
 from typing import Any, Callable
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import WORK, Job, download_input, json_object_in, log, openrouter_content, run, upload_output  # noqa: E402
+from common import WORK, Job, download_input, log, run, upload_output  # noqa: E402
 import looks as L  # noqa: E402
 import plan as P  # noqa: E402  (layer 4: plan the story from the shot sheet)
 import see as V  # noqa: E402  (layer 2: see the footage, a shot sheet per video)
 import critic as C  # noqa: E402  (layer 6: check its own work, re-cut or hide)
+import ai as A  # noqa: E402  (the model ladder; calls counted per provider)
 import copy
 
 OUT_W, OUT_H = 1080, 1920
@@ -498,7 +499,7 @@ def llm_moments(asset: dict[str, Any], duration: float, transcript: Transcript, 
     payload = {"model": OPENROUTER_MODEL, "max_tokens": 2500, "response_format": {"type": "json_object"}, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
     for attempt in range(2):
         try:
-            text, _ = openrouter_content(key, payload, timeout=120, usable=json_object_in)
+            text = or_text(key, payload, 120)
             m = re.search(r"\{.*\}", text, re.S)
             items = json.loads(m.group(0) if m else text).get("moments", [])
             out: list[Moment] = []
@@ -782,7 +783,7 @@ def llm_copy(asset: dict[str, Any], spec: dict[str, Any], n: int) -> list[dict[s
     payload = {"model": OPENROUTER_MODEL, "max_tokens": 1500, "response_format": {"type": "json_object"}, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
     for attempt in range(2):
         try:
-            text, _ = openrouter_content(key, payload, timeout=90, usable=json_object_in)
+            text = or_text(key, payload, 90)
             m = re.search(r"\{.*\}", text, re.S)
             items = [it for it in json.loads(m.group(0) if m else text).get("items", []) if isinstance(it, dict) and str(it.get("hook", "")).strip()]
             log("copy.model", ok=True, items=len(items))
@@ -1064,9 +1065,17 @@ Progress = Callable[[str, int, int], None]
 SHAPE_WORDS = {"transformation": "before and after", "walkthrough": "a walk-through", "talking": "talking to camera", "montage": "close-ups"}
 
 
-def ask_text(key: str, payload: dict[str, Any]) -> str:
-    text, _ = openrouter_content(key, payload, timeout=120, usable=json_object_in)
+def or_text(key: str | None, payload: dict[str, Any], timeout: float = 120) -> str:
+    """A text answer from OpenRouter's free models within the job's budget (jobs/ai.py), counted
+    per provider. Raises when none came (the callers fall back to their rules)."""
+    text, _m = A.ask_openrouter(key, lambda model: {**payload, "model": model}, [str(payload.get("model") or OPENROUTER_MODEL)], "text", timeout=timeout)
+    if text is None:
+        raise RuntimeError("no answer")
     return text
+
+
+def ask_text(key: str, payload: dict[str, Any]) -> str:
+    return or_text(key, payload, 120)
 
 
 def plan_moment(pl: "P.Plan") -> Moment:
@@ -1155,8 +1164,52 @@ def critique_moment(m: Moment, rendered: Any, key: str | None, srcs: dict[str, S
     return C.Verdict(not found, found, "vision")
 
 
-def recut_moment(m: Moment, reasons: list[str], attempt: int, key: str | None, srcs: dict[str, Source], sheets: dict[str, "V.ShotSheet"], services: list[str], profile: dict[str, Any]) -> Moment | None:
-    """The clip again, with the critic's reasons acted on. None = it cannot be fixed (it is hidden)."""
+def critic_rules(m: Moment, srcs: dict[str, Source], sheets: dict[str, "V.ShotSheet"], services: list[str]) -> list[str]:
+    """The critic checks that need no model (jobs/critic.py rules_check), for one clip."""
+    said = clip_said(m, srcs)
+    to_camera = any((shot_of(sheets, a, s, e) or V.Shot(s, e)).people == "to_camera" for a, (s, e) in zip(part_owners(m), m.parts))
+    no_sheet = all(shot_of(sheets, a, s, e) is None for a, (s, e) in zip(part_owners(m), m.parts))
+    return C.rules_check(m.hook, m.hook_alt, m.caption, moment_ground(m, srcs, services), m.part_states or [], m.shape, said, to_camera or no_sheet)
+
+
+def critic_item(m: Moment, rendered: Any, srcs: dict[str, Source], sheets: dict[str, "V.ShotSheet"]) -> dict[str, Any]:
+    """What the batched critic gets for one finished clip."""
+    plan_text = [{"state": st, "what": (shot_of(sheets, a, s, e) or V.Shot(s, e)).what} for a, (s, e), st in zip(part_owners(m), m.parts, m.part_states or [V.UNSURE] * len(m.parts))]
+    return {"mp4": rendered.mp4, "duration": rendered.duration, "hook": m.hook, "caption": m.caption, "said": clip_said(m, srcs), "plan_text": plan_text}
+
+
+_ROUND = {"n": 0}
+
+
+def critic_round(_pairs: Any) -> int:
+    _ROUND["n"] += 1
+    return _ROUND["n"]
+
+
+def recut_batch(reqs: list[tuple[tuple[int, Moment], list[str], int]], key: str | None, srcs: dict[str, Source], sheets: dict[str, "V.ShotSheet"], services: list[str], profile: dict[str, Any]) -> list[tuple[int, Moment] | None]:
+    """A round's re-cuts together: the shots fixed per clip (no model), then ONE text call re-writes
+    the words of every first re-cut (the reasons fed back); later attempts take the neutral lines."""
+    out: list[tuple[int, Moment] | None] = []
+    plans: list[tuple[int, Moment, "P.Plan", list[str]]] = []
+    for (k, m), reasons, attempt in reqs:
+        got = recut_moment(m, reasons, attempt, None, srcs, sheets, services, profile, write=False)
+        if got is None:
+            out.append(None)
+            continue
+        n, pl = got
+        if attempt == 0 and key:
+            plans.append((len(out), n, pl, reasons))
+        out.append((k, n))
+    if plans and key:
+        P.write_copy(key, [pl for _i, _n, pl, _r in plans], profile, services, OPENROUTER_MODEL, ask_text, feedback={j: "; ".join(C.REASON_WORDS.get(r, r) for r in rs) for j, (_i, _n, _pl, rs) in enumerate(plans)})
+        for _i, n, pl, _r in plans:
+            n.hook, n.hook_alt, n.caption, n.hashtags = pl.hook, pl.hook_alt, pl.caption, list(pl.hashtags)
+    return out
+
+
+def recut_moment(m: Moment, reasons: list[str], attempt: int, key: str | None, srcs: dict[str, Source], sheets: dict[str, "V.ShotSheet"], services: list[str], profile: dict[str, Any], write: bool = True) -> Any:
+    """The clip again, with the critic's reasons acted on. None = it cannot be fixed (it is hidden).
+    write=False returns (moment, plan) with the neutral words in place, for recut_batch to re-write."""
     n = copy.copy(m)
     owners, parts = part_owners(m), list(m.parts)
     states = list(m.part_states or [V.UNSURE] * len(parts))
@@ -1192,14 +1245,14 @@ def recut_moment(m: Moment, reasons: list[str], attempt: int, key: str | None, s
             whats.append(w)
     n.on_screen = " · ".join(whats)[:400]
     pl = P.Plan(n.shape or "unsure", n.service, [P.Part(a, s, e, st, (shot_of(sheets, a, s, e) or V.Shot(s, e)).what) for a, (s, e), st in zip(owners, n.parts, n.part_states)])
-    if attempt == 0 and key:
+    if write and attempt == 0 and key:
         P.write_copy(key, [pl], profile, services, OPENROUTER_MODEL, ask_text, feedback={0: "; ".join(C.REASON_WORDS.get(r, r) for r in reasons)})
     else:
         base = P.neutral_copy(pl, profile, services, attempt)
         pl.hook, pl.hook_alt, pl.caption, pl.hashtags = base["hook"], base["hook_alt"], base["caption"], base["hashtags"]
     n.hook, n.hook_alt, n.caption, n.hashtags = pl.hook, pl.hook_alt, pl.caption, list(pl.hashtags)
     n.recuts = m.recuts + 1
-    return n
+    return n if write else (n, pl)
 
 
 def mixed_speech(m: Moment, srcs: dict[str, Source]) -> float:
@@ -1265,8 +1318,10 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
     services = [str(x)[:60] for x in (spec.get("services") or []) if str(x).strip()][:12]
     override = spec.get("plan_override") if isinstance(spec.get("plan_override"), dict) else {}
     cached = spec.get("shot_sheets") if isinstance(spec.get("shot_sheets"), dict) else {}
+    service_looks = P.service_looks(spec.get("brand_profile"), services)
     sheets: dict[str, V.ShotSheet] = {}
     srcs: dict[str, Source] = {}
+    heard: dict[str, tuple[Transcript, list[tuple[float, float]], bool]] = {}
     for i, (a, norm, info, wav) in enumerate(prepared):
         # 3. transcribe
         progress("Listening", i, len(prepared))
@@ -1280,10 +1335,14 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
             # Camera sound off: nothing it heard is used, not for captions, not for picking moments.
             tr, runs = Transcript(engine="muted"), []
         log("cut.camera", n=i, keep=keep, why=why)
-        # 3b. SEE: one picture grid, one free vision call (or the saved sheet on a re-plan)
-        progress("Looking at your videos", i, len(prepared))
-        sheet = V.see_video(key, norm, a["id"], info["duration"], services, " ".join(x for x in (spec.get("notes", ""), a.get("file_note") or "") if x), work, cached.get(a["id"]))
-        sheets[a["id"]] = sheet
+        heard[a["id"]] = (tr, runs, keep)
+    # 3b. SEE: the saved sheet, else up to 3 videos per free vision call, else the local model (jobs/see.py)
+    progress("Looking at your videos", 0, len(prepared))
+    sheets.update(V.see_videos(key, [{"asset_id": a["id"], "video": norm, "duration": info["duration"], "notes": " ".join(x for x in (spec.get("notes", ""), a.get("file_note") or "") if x)} for a, norm, info, _w in prepared], services, work, cached, service_looks))
+    progress("Looking at your videos", len(prepared), len(prepared))
+    for a, norm, info, wav in prepared:
+        tr, runs, keep = heard[a["id"]]
+        sheet = sheets[a["id"]]
         if keep and sheet.source != "none":
             # Only someone talking to the camera becomes captions; background talk never does.
             words = P.keep_to_camera(tr.words, sheet)
@@ -1295,10 +1354,11 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
     engine["vision"] = (seen[0].source.split(":")[0] if seen else "none")
     # 4. PLAN: the service, the shape, the shots in each clip (jobs/plan.py)
     service, sure = P.dump_service(sheet_list, override.get("service"), services)
-    shape, why_not = P.choose_shape(sheet_list, service, {aid: s_.muted for aid, s_ in srcs.items()}, override.get("shape"))
+    profile = spec.get("brand_profile") or {}
+    # Layer 1: the Brand Profile says which shapes fit this service; the footage says which are possible.
+    shape, why_not = P.choose_shape(sheet_list, service, {aid: s_.muted for aid, s_ in srcs.items()}, override.get("shape"), P.shapes_fit(profile, service))
     if why_not:
         steer_report.append({"what": SHAPE_WORDS.get(str(override.get("shape")), "that kind of video"), "why": why_not})
-    profile = spec.get("brand_profile") or {}
     moments: list[tuple[Moment, Source]] = []
     if seen and shape != "talking" and door != "recycle":
         plans = P.plan_clips(sheet_list, shape, service, target if spec.get("mode") != "again" else 3)
@@ -1361,8 +1421,8 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
     clips: list[dict[str, Any]] = []
     looks_used: dict[str, int] = {}
     critic_stats = {"checked": 0, "recuts": 0, "hidden": 0}
+    ctx: list[dict[str, Any]] = []
     for k, (m, src) in enumerate(moments):
-        progress("Cutting clips", k, len(moments))
         asset = next((x for x in assets if x["id"] == m.asset_id), None)
         a_steer = (asset or {}).get("steer") or {}
         rot = [r for r in (a_steer.get("rotation") or []) if r in L.LOOKS] or rotation
@@ -1371,40 +1431,61 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
             rot = [r for r in rot if L.look_options(r)["layout"] in ("fill", "blur_fill")] or [r for r in L.LOOK_IDS if L.look_options(r)["layout"] == "fill"][:1] or rot
         look_id = rot[k % len(rot)]
         opts = look_opts.get(f"{m.asset_id}:{look_id}") or look_opts.get(look_id) or L.look_options(look_id)
-        clip_id = ids[k]
-        layout = None
         cells = None
+        layout = None
         voice = 0
         voice_src = src
-        try:
-            if opts["layout"] == "grid" and not m.part_assets:
-                others = [(ids[x], om, osrc) for x, (om, osrc) in enumerate(moments) if x != k and not om.part_assets]
+        if opts["layout"] == "grid" and not m.part_assets:
+            others = [(ids[x], om, osrc) for x, (om, osrc) in enumerate(moments) if x != k and not om.part_assets]
+            try:
                 cells, layout = grid_cells(k, m, src, others, len(L.cells_of(opts)), mediapipe)
+            except subprocess.CalledProcessError:
+                log("cut.grid.failed", n=k, look=look_id)
+                cells, layout = None, None
+                opts = L.look_options(next((r for r in L.LOOK_IDS if L.look_options(r)["layout"] == "fill"), look_id))
+            if layout:
                 voice = layout["voice"]
                 if voice > 0 and layout["cells"][voice]["kind"] == "clip":
                     voice_src = next(osrc for cid, _om, osrc in others if cid == layout["cells"][voice]["clip_id"])
-            songs = {"music": a_steer["music"]} if "music" in a_steer else spec
-            if src.muted:
-                # No sound of its own: always a music bed (her songs, else the built-in library), never silent.
-                opts = {**opts, "music": True, "mute": True}
-            song = music_key(songs, k, src.muted) if opts.get("music") else None
-            music_file = music_for(songs, k, work, download, music_cache, src.muted) if song else None
-            # 6. CHECK: render, the critic looks at the finished clip, re-cut with its reason at most twice, else hidden.
-            checked = C.critic_loop(
-                m,
-                lambda mm: render_moment(mm, srcs.get(mm.asset_id, src), opts, brand, work, clip_id, mediapipe, cells=None if mm.part_assets else cells, voice=voice, voice_src=voice_src, music=music_file, srcs=srcs),
-                lambda mm, rr: critique_moment(mm, rr, key, srcs, sheets, services, work, f"{k}_{mm.recuts}"),
-                lambda mm, reasons, attempt: recut_moment(mm, reasons, attempt, key, srcs, sheets, services, profile),
-            )
-            r, m = checked.rendered, checked.moment
-            m.hidden_reason = checked.hidden_reason
-            src = srcs.get(m.asset_id, src)
-            critic_stats["checked"] += 1
-            critic_stats["recuts"] += checked.recuts
-            critic_stats["hidden"] += 1 if checked.hidden_reason else 0
+        songs = {"music": a_steer["music"]} if "music" in a_steer else spec
+        if src.muted:
+            # No sound of its own: always a music bed (her songs, else the built-in library), never silent.
+            opts = {**opts, "music": True, "mute": True}
+        song = music_key(songs, k, src.muted) if opts.get("music") else None
+        music_file = music_for(songs, k, work, download, music_cache, src.muted) if song else None
+        ctx.append({"look_id": look_id, "opts": opts, "cells": cells, "layout": layout, "voice": voice, "voice_src": voice_src, "song": song, "music": music_file, "src": src})
+
+    def render_k(item: tuple[int, Moment]) -> Any:
+        k, mm = item
+        c = ctx[k]
+        progress("Cutting clips", k, len(moments))
+        try:
+            return render_moment(mm, srcs.get(mm.asset_id, c["src"]), c["opts"], brand, work, ids[k], mediapipe, cells=None if mm.part_assets else c["cells"], voice=c["voice"], voice_src=c["voice_src"], music=c["music"], srcs=srcs)
         except subprocess.CalledProcessError:
-            log("cut.render.failed", n=k, look=look_id)
+            log("cut.render.failed", n=k, look=c["look_id"])
+            return None
+
+    # 6. CHECK: render every clip, the critic looks at them in batches (rules first), re-cuts the failures
+    # with their reasons (one batched re-write per round), at most twice; still failing = hidden with the reason.
+    checked_all = C.critic_rounds(
+        list(enumerate(m for m, _s in moments)),
+        render_k,
+        lambda item, rr: critic_rules(item[1], srcs, sheets, services),
+        lambda pairs: C.vision_check_batch(key, [critic_item(item[1], rr, srcs, sheets) for item, rr in pairs], work, f"r{critic_round(pairs)}"),
+        lambda reqs: recut_batch(reqs, key, srcs, sheets, services, profile),
+    )
+    for k, checked in enumerate(checked_all):
+        if checked is None:
             continue
+        c = ctx[k]
+        look_id, opts, cells, layout, voice, voice_src, song = c["look_id"], c["opts"], c["cells"], c["layout"], c["voice"], c["voice_src"], c["song"]
+        clip_id = ids[k]
+        r, m = checked.rendered, checked.moment[1]
+        m.hidden_reason = checked.hidden_reason
+        src = srcs.get(m.asset_id, c["src"])
+        critic_stats["checked"] += 1
+        critic_stats["recuts"] += checked.recuts
+        critic_stats["hidden"] += 1 if checked.hidden_reason else 0
         if any(s.cx is not None for s in (cells or [src.seg(m.parts[0][0], m.parts[0][1], mediapipe)])):
             engine["crop"] = "face"
         engine["subtitles"] = r.subtitles if engine["subtitles"] in ("none", "hook-only") else engine["subtitles"]
@@ -1451,6 +1532,7 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         upload(jpg, c["cover_r2_key"], "image/jpeg")
     progress("Saving clips", len(clips), len(clips))
     log("cut.done", clips=len(clips), looks=len(looks_used), transcript=engine["transcript"], picker=engine["picker"], crop=engine["crop"], subtitles=engine["subtitles"], vision=engine.get("vision"), vision_calls=V.CALLS.get("vision", 0), text_calls=V.CALLS.get("text", 0), critic_calls=V.CALLS.get("critic", 0), recuts=critic_stats["recuts"], hidden=critic_stats["hidden"])
+    log("ai.calls", **A.report())
     return {
         "clips": clips,
         "engine": engine,
@@ -1460,8 +1542,8 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         "steer_report": steer_report,
         "camera": camera,
         "looks_like": looks_like,
-        "shot_sheets": {aid: sh.to_json() for aid, sh in sheets.items() if sh.source != "none"},
-        "calls": dict(V.CALLS),
+        "shot_sheets": {aid: sh.to_json() for aid, sh in sheets.items() if V.worth_saving(sh)},
+        "calls": {**dict(V.CALLS), **{f"by_{k}": v for k, v in A.report().items()}},
         "critic": critic_stats,
     }
 

@@ -1,4 +1,4 @@
-// Brand Profile (BUILD_PLAN.md section 5): the nine fixed sections, the drafting prompt, the
+// Brand Profile (BUILD_PLAN.md section 5): the eleven fixed sections (nine + layer 1), the drafting prompt, the
 // parser for the model's answer, and the stand-in profile used with fake services.
 import { BRAND_PROFILE_SECTIONS, type BrandProfileKey } from "@shared/constants";
 import type { BrandProfileSections } from "@shared/types";
@@ -13,7 +13,7 @@ export function emptySections(): BrandProfileSections {
   return Object.fromEntries(PROFILE_KEYS.map((k) => [k, ""])) as BrandProfileSections;
 }
 
-/** Keep only the nine keys, as trimmed strings of bounded length. */
+/** Keep only the eleven keys, as trimmed strings of bounded length. */
 export function cleanSections(x: unknown): BrandProfileSections {
   const out = emptySections();
   if (!x || typeof x !== "object") return out;
@@ -47,7 +47,9 @@ Answer with ONE JSON object and nothing else. Keys (all strings, plain words, sh
 ${BRAND_PROFILE_SECTIONS.map((s) => `  "${s.key}": ${s.label}`).join("\n")}
 Rules: use only what the documents say or clearly imply; never invent numbers, names or partners.
 If the documents say nothing about a section, write "Not in your docs yet." for it.
-"themes" lists 3 to 5 themes. "do_dont" has "Do:" and "Don't:" lines. "off_limits" is what she never posts about.`;
+"themes" lists 3 to 5 themes. "do_dont" has "Do:" and "Don't:" lines. "off_limits" is what she never posts about.
+"service_looks" has one line per service: "<service>: what it looks like finished; what it looks like before".
+"video_shapes" has one line per service: "<service>: before and after, walk-through, talking to camera or close-ups" (best first).`;
 
 export function profileUserPrompt(docs: { n: number; text: string }[]): string {
   return docs.map((d) => `--- Document ${d.n} ---\n${d.text}`).join("\n\n");
@@ -67,4 +69,6 @@ export const FAKE_PROFILE: BrandProfileSections = {
   off_limits: "Politics, religion debates, gossip, other people's private details, anything that embarrasses a viewer.",
   deal_fit: "Brands whose products show up in the videos already, tools and services the audience asks about, local makers. Not a fit: gambling, anything off-brand for a warm, practical creator.",
   ctas: "• \"Save this for later.\"\n• \"Follow for the next one.\"\n• \"Send this to a friend who needs it.\"\n• \"Tell me what you'd try first.\"",
+  service_looks: "How-tos: hands at work up close, then the finished result held up to the camera.",
+  video_shapes: "How-tos: before and after, close-ups\nAll: talking to camera",
 };
