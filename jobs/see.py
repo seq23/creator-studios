@@ -72,6 +72,9 @@ class Shot:
     steady: bool = True
     service: str = UNSURE
     confidence: float = 0.0
+    # Studio fix (jobs/stages.py): the editor's stage when the model gave one (arrival, prep, team,
+    # process, finished, detail); "" = worked out from the state and the words.
+    stage: str = ""
 
     @property
     def length(self) -> float:
@@ -231,10 +234,12 @@ SHEET_SYSTEM = (
     "people: 'none', 'to_camera' (someone facing and talking to the camera), 'working' (someone doing the work, not addressing the camera), "
     "'others' (guests, customers, passers-by); privacy: any of 'face' (the face of someone other than a person working or talking to camera), "
     "'house_number', 'street_sign', 'plate', 'written_name'; quality: sharp, bright, steady (true/false); "
-    "service: exactly one label from the services list, or 'unsure'; confidence 0..1 for service and state. "
+    "service: exactly one label from the services list, or 'unsure'; confidence 0..1 for service and state; "
+    "stage: 'arrival' (the space before anything is done), 'prep' (materials laid out, unloading, getting ready), 'team' (people doing the work), "
+    "'process' (the work happening), 'finished' (the finished result, wide), 'detail' (a close-up of the finished result), or ''. "
     "Judge the state from the picture only. A test pattern, black frames or a screen recording is state 'unsure', service 'unsure'. "
     "Answer JSON only: {\"shots\":[{\"frames\":[first,last],\"what\":str,\"subject\":str,\"state\":str,\"people\":str,\"privacy\":[str],"
-    "\"sharp\":bool,\"bright\":bool,\"steady\":bool,\"service\":str,\"confidence\":0..1}]}. Frames are numbered from 1."
+    "\"sharp\":bool,\"bright\":bool,\"steady\":bool,\"service\":str,\"confidence\":0..1,\"stage\":str}]}. Frames are numbered from 1."
 )
 
 
@@ -286,6 +291,8 @@ def _shot_fields(shot: Shot, s: dict[str, Any], services: list[str]) -> Shot:
     shot.privacy = sorted({str(h).strip().lower() for h in (s.get("privacy") or []) if str(h).strip().lower() in HAZARDS})
     for q in ("sharp", "bright", "steady"):
         setattr(shot, q, s.get(q) is not False)
+    stage = str(s.get("stage", "") or "").strip().lower()
+    shot.stage = stage if stage in ("arrival", "prep", "team", "process", "finished", "detail") else ""
     svc = str(s.get("service", UNSURE)).strip()
     match = next((x for x in services if x.lower() == svc.lower()), None)
     if not match and svc.lower() not in ("", UNSURE):
@@ -544,7 +551,7 @@ SHEET_BATCH_SYSTEM = SHEET_SYSTEM.replace(
 ).replace(
     "Answer JSON only: {\"shots\":[",
     "Answer JSON only: {\"videos\":[{\"video\":int,\"shots\":[",
-).replace("\"confidence\":0..1}]}. Frames are numbered from 1.", "\"confidence\":0..1}]}]}. Frames are numbered from 1 within each video.")
+).replace("\"stage\":str}]}. Frames are numbered from 1.", "\"stage\":str}]}]}. Frames are numbered from 1 within each video.")
 
 
 def batch_prompt(services: list[str], batch: list[dict[str, Any]], looks: dict[str, str] | None = None) -> str:

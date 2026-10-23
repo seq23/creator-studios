@@ -1,0 +1,585 @@
+{
+ "_why": "The golden playbook set (owner's studio fix, 23 Oct 2026): real-style synthetic dumps across the six fixture businesses (tests/fixtures/businesses), with prep, process, finished and photo-only events. jobs/tests/test_studio_fix.py plans each with the real planner (jobs/clipmaker.py) and checks the playbook: every clip ends on a hero held 2 s, follows its type's template, no picture repeats in a clip or a grid, no two clips share most shots, one event per clip, and at least `min_clips` distinct clips with the types in `types_all`. A drop below the expectations fails loudly with the business's name. jobs/golden.py runs the same set every week.",
+ "businesses": {
+  "event-decor": {
+   "uploads": [
+    {
+     "id": "d_before",
+     "photo": false,
+     "name": "d_before.mp4",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       8,
+       "before",
+       "none",
+       "an empty bare doorway"
+      ]
+     ]
+    },
+    {
+     "id": "d_unload",
+     "photo": false,
+     "name": "d_unload.mp4",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       8,
+       "in_progress",
+       "none",
+       "boxes of supplies being unloaded"
+      ],
+      [
+       8,
+       16,
+       "in_progress",
+       "working",
+       "two people building the frame"
+      ]
+     ]
+    },
+    {
+     "id": "d_build",
+     "photo": false,
+     "name": "d_build.mp4",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       10,
+       "in_progress",
+       "none",
+       "the arch being assembled"
+      ],
+      [
+       10,
+       18,
+       "in_progress",
+       "working",
+       "a person adding the last pieces"
+      ]
+     ]
+    },
+    {
+     "id": "d_after",
+     "photo": false,
+     "name": "d_after.mp4",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       12,
+       "after",
+       "none",
+       "the finished arch over the doorway, slow walk in"
+      ],
+      [
+       12,
+       18,
+       "after",
+       "none",
+       "close-up detail of the finished arch"
+      ]
+     ]
+    },
+    {
+     "id": "d_final",
+     "photo": true,
+     "name": "porch-final.jpg",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       6,
+       "after",
+       "none",
+       "the finished arch, polished photo"
+      ]
+     ]
+    },
+    {
+     "id": "d_detail1",
+     "photo": true,
+     "name": "d_detail1.jpg",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       6,
+       "after",
+       "none",
+       "close-up detail of the finished arch"
+      ]
+     ]
+    },
+    {
+     "id": "d_detail2",
+     "photo": true,
+     "name": "d_detail2.jpg",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       6,
+       "after",
+       "none",
+       "detail of the arch's top"
+      ]
+     ]
+    },
+    {
+     "id": "p_party1",
+     "photo": true,
+     "name": "p_party1.jpg",
+     "date": "2026-09-01",
+     "shots": [
+      [
+       0,
+       6,
+       "after",
+       "none",
+       "a different party's finished table"
+      ]
+     ]
+    },
+    {
+     "id": "p_party2",
+     "photo": true,
+     "name": "p_party2.jpg",
+     "date": "2026-09-01",
+     "shots": [
+      [
+       0,
+       6,
+       "after",
+       "none",
+       "the same other party, wide"
+      ]
+     ]
+    },
+    {
+     "id": "p_party3",
+     "photo": true,
+     "name": "p_party3.jpg",
+     "date": "2026-09-01",
+     "shots": [
+      [
+       0,
+       6,
+       "after",
+       "none",
+       "the other party, close-up detail"
+      ]
+     ]
+    },
+    {
+     "id": "p_party4",
+     "photo": true,
+     "name": "p_party4.jpg",
+     "date": "2026-09-01",
+     "shots": [
+      [
+       0,
+       6,
+       "after",
+       "none",
+       "the other party's centerpiece"
+      ]
+     ]
+    }
+   ],
+   "expect": {
+    "min_clips": 6,
+    "types_all": [
+     "payoff_first",
+     "photo_slideshow",
+     "moving_photo"
+    ],
+    "events": 2
+   }
+  },
+  "hair-salon": {
+   "uploads": [
+    {
+     "id": "h_before",
+     "photo": false,
+     "name": "h_before.mp4",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       6,
+       "before",
+       "none",
+       "frizzy, unstyled hair from the back"
+      ]
+     ]
+    },
+    {
+     "id": "h_work",
+     "photo": false,
+     "name": "h_work.mp4",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       10,
+       "in_progress",
+       "working",
+       "a stylist working through the hair"
+      ],
+      [
+       10,
+       18,
+       "in_progress",
+       "none",
+       "the press passing through a section"
+      ]
+     ]
+    },
+    {
+     "id": "h_after",
+     "photo": false,
+     "name": "h_after.mp4",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       10,
+       "after",
+       "none",
+       "the finished sleek hair, a slow turn"
+      ],
+      [
+       10,
+       16,
+       "after",
+       "none",
+       "close-up detail of the shine"
+      ]
+     ]
+    },
+    {
+     "id": "h_new",
+     "photo": true,
+     "name": "client-new.jpg",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       6,
+       "after",
+       "none",
+       "the finished style, front"
+      ]
+     ]
+    }
+   ],
+   "expect": {
+    "min_clips": 3,
+    "types_all": [
+     "payoff_first"
+    ],
+    "events": 1
+   }
+  },
+  "car-detailer": {
+   "uploads": [
+    {
+     "id": "c_prep",
+     "photo": false,
+     "name": "c_prep.mp4",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       8,
+       "in_progress",
+       "none",
+       "supplies and tools laid out by the car"
+      ],
+      [
+       8,
+       14,
+       "in_progress",
+       "none",
+       "pads and bottles getting ready"
+      ]
+     ]
+    },
+    {
+     "id": "c_team",
+     "photo": false,
+     "name": "c_team.mp4",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       10,
+       "in_progress",
+       "working",
+       "two people polishing the hood"
+      ],
+      [
+       10,
+       18,
+       "in_progress",
+       "working",
+       "a person wiping the door"
+      ]
+     ]
+    },
+    {
+     "id": "c_after",
+     "photo": false,
+     "name": "c_after.mp4",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       12,
+       "after",
+       "none",
+       "the finished glossy hood, slow walk around"
+      ],
+      [
+       12,
+       18,
+       "after",
+       "none",
+       "close-up detail of the gloss"
+      ]
+     ]
+    }
+   ],
+   "expect": {
+    "min_clips": 3,
+    "types_all": [
+     "team_working",
+     "pov_walk_in"
+    ],
+    "events": 1
+   }
+  },
+  "talking-head": {
+   "uploads": [
+    {
+     "id": "t_talk",
+     "photo": false,
+     "name": "t_talk.mp4",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       20,
+       "n/a",
+       "to_camera",
+       "a woman talking to the camera"
+      ]
+     ]
+    },
+    {
+     "id": "t_desk",
+     "photo": false,
+     "name": "t_desk.mp4",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       8,
+       "after",
+       "none",
+       "the finished desk setup, wide"
+      ],
+      [
+       8,
+       14,
+       "after",
+       "none",
+       "close-up detail of the notebook"
+      ]
+     ]
+    }
+   ],
+   "expect": {
+    "min_clips": 1,
+    "types_all": [],
+    "events": 1
+   }
+  },
+  "landscaper": {
+   "uploads": [
+    {
+     "id": "l_before",
+     "photo": false,
+     "name": "l_before.mp4",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       8,
+       "before",
+       "none",
+       "long, uneven grass in a yard"
+      ]
+     ]
+    },
+    {
+     "id": "l_mow",
+     "photo": false,
+     "name": "l_mow.mp4",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       10,
+       "in_progress",
+       "working",
+       "a person mowing in stripes"
+      ],
+      [
+       10,
+       16,
+       "in_progress",
+       "none",
+       "the edger cutting along the path"
+      ]
+     ]
+    },
+    {
+     "id": "l_after",
+     "photo": false,
+     "name": "l_after.mp4",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       12,
+       "after",
+       "none",
+       "the freshly cut striped lawn, slow walk"
+      ],
+      [
+       12,
+       18,
+       "after",
+       "none",
+       "close-up detail of the clean edge"
+      ]
+     ]
+    },
+    {
+     "id": "l_after_photo",
+     "photo": true,
+     "name": "yard-after.jpg",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       6,
+       "after",
+       "none",
+       "the finished lawn from the porch"
+      ]
+     ]
+    }
+   ],
+   "expect": {
+    "min_clips": 3,
+    "types_all": [
+     "payoff_first",
+     "team_working"
+    ],
+    "events": 1
+   }
+  },
+  "bakery": {
+   "uploads": [
+    {
+     "id": "b_cake",
+     "photo": true,
+     "name": "cake-final.jpg",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       6,
+       "after",
+       "none",
+       "a tall frosted layer cake on a stand"
+      ]
+     ]
+    },
+    {
+     "id": "b_detail1",
+     "photo": true,
+     "name": "b_detail1.jpg",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       6,
+       "after",
+       "none",
+       "close-up detail of the piped frosting"
+      ]
+     ]
+    },
+    {
+     "id": "b_detail2",
+     "photo": true,
+     "name": "b_detail2.jpg",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       6,
+       "after",
+       "none",
+       "detail of the cake's top"
+      ]
+     ]
+    },
+    {
+     "id": "b_slice",
+     "photo": true,
+     "name": "b_slice.jpg",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       6,
+       "after",
+       "none",
+       "a slice of the finished cake"
+      ]
+     ]
+    },
+    {
+     "id": "b_box",
+     "photo": true,
+     "name": "b_box.jpg",
+     "date": "2026-10-20",
+     "shots": [
+      [
+       0,
+       6,
+       "after",
+       "none",
+       "the finished cake boxed"
+      ]
+     ]
+    }
+   ],
+   "expect": {
+    "min_clips": 2,
+    "types_all": [
+     "photo_slideshow"
+    ],
+    "events": 1
+   }
+  }
+ }
+}

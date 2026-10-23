@@ -40,10 +40,14 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import cut  # noqa: E402
 import looks as L  # noqa: E402
+import playbook as PB  # noqa: E402
+import script_clean as SCL  # noqa: E402
 from common import log  # noqa: E402
 
 FIXTURE = HERE.parent / "tests" / "unit" / "fixtures" / "cut-result.sample.json"
-CLIP_KEYS = {"id", "asset_id", "start_s", "end_s", "recipe", "hook_text", "hook_alt", "caption", "hashtags", "platforms", "score", "r2_key", "cover_r2_key", "look", "parts", "layout", "music", "speech", "muted", "shape", "service", "on_screen", "part_assets", "hidden_reason"}
+CLIP_KEYS = {"id", "asset_id", "start_s", "end_s", "recipe", "hook_text", "hook_alt", "caption", "hashtags", "platforms", "score", "r2_key", "cover_r2_key", "look", "parts", "layout", "music", "speech", "muted", "shape", "service", "on_screen", "part_assets", "hidden_reason",
+             # studio fix (the contract with the Worker): type, real score's reasons, hero, files, AI pictures, event, voice script, words pending
+             "clip_type", "score_reasons", "hero_asset_id", "files_used", "uses_ai_images", "event_group", "voice_script", "words_pending"}
 STAGES = {"Getting your videos", "Listening", "Looking at your videos", "Finding the best moments", "Cutting clips", "Saving clips"}
 
 
@@ -99,6 +103,22 @@ def make_sample(path: Path, seconds: int, size: str, pad: str | None, speech: Pa
     )
 
 
+def make_scene(path: Path, seconds: int, color: str, box: tuple[int, int, int, int]) -> None:
+    """A synthetic shot that is its own picture: a flat colour and a box where no other scene has one."""
+    x, y, w, h = box
+    cut.ffmpeg([
+        "-f", "lavfi", "-i", f"color=c={color}:s=1080x1920:r=30:d={seconds},drawbox=x={x}:y={y}:w={w}:h={h}:color=0x202020:t=fill,drawbox=x={(x + 300) % 900}:y={(y + 700) % 1700}:w=120:h=120:color=0xf0f0f0:t=fill",
+        "-f", "lavfi", "-i", f"aevalsrc='0.3*sin(2*PI*330*t)':s=48000:d={seconds}",
+        "-t", str(seconds), "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", str(path),
+    ])
+
+
+def make_photo(path: Path, color: str, box: tuple[int, int, int, int]) -> None:
+    """A synthetic photo with no camera EXIF (so it counts as an AI picture)."""
+    x, y, w, h = box
+    cut.ffmpeg(["-f", "lavfi", "-i", f"color=c={color}:s=1200x1600,drawbox=x={x}:y={y}:w={w}:h={h}:color=0x303030:t=fill,drawbox=x=80:y=80:w=200:h=200:color=0xffffff:t=fill", "-frames:v", "1", str(path)])
+
+
 def loudness(path: Path) -> float | None:
     proc = subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", "-i", str(path), "-af", "ebur128", "-f", "null", "-"], capture_output=True, text=True)
     found = re.findall(r"I:\s+(-?[\d.]+) LUFS", proc.stderr)
@@ -146,15 +166,22 @@ def check(result: dict, spec: dict, out: Path, problems: list[str]) -> None:
             problems.append("asset id not in spec")
         if not (c["r2_key"].startswith(prefix) and c["r2_key"].endswith(".mp4") and c["cover_r2_key"].endswith(".jpg")):
             problems.append("r2 key shape")
-        if not 0 <= c["score"] <= 1:
+        # Studio fix: the score is 0..100 from real checks, with plain reasons (never the old shape bonus).
+        if not (isinstance(c["score"], int) and 0 <= c["score"] <= 100) or not c["score_reasons"] or not all(isinstance(x, str) and x for x in c["score_reasons"]):
             problems.append("score range")
+        if c["clip_type"] not in PB.TYPES:
+            problems.append("clip type not in the playbook")
+        if c["words_pending"] != (c["caption"] == "") or (c["words_pending"] and c["hook_text"]):
+            problems.append("words pending but stock words shipped (or no words and not pending)")
+        if c["voice_script"] and SCL.is_reasoning(c["voice_script"]):
+            problems.append("a voice-over script is reasoning-shaped")
         b = cut.DEFAULT_RECIPES[c["recipe"]]
         body = c["end_s"] - c["start_s"]
         if not (3 <= body <= b["maxS"] + 1):
             problems.append(f"{c['recipe']} length {body:.1f}s outside 3..{b['maxS'] + 1}")
         if spec["door"] == "recycle" and c["recipe"] != "recycle":
             problems.append("recycle door made a non-recycle clip")
-        if not c["hook_text"]:
+        if not c["hook_text"] and not c["words_pending"]:
             problems.append("empty hook")
         if not (isinstance(c["speech"], float) and 0.0 <= c["speech"] <= 1.0):
             problems.append("clip has no talking share (speech)")
@@ -326,7 +353,6 @@ def check_looks(tmp: Path, problems: list[str], write_thumbs: bool) -> None:
     src = cut.Source(work / "norm.mp4", info, tr, runs, None)
     brand = L.Branding(handle="@samplestudio", cta="Follow for more real days")
     m = cut.Moment("ast_look", "hook_first", 2.0, 2.0 + LOOK_SECONDS - 2.0, [(8.0, 10.0), (2.0, 2.0 + LOOK_SECONDS - 2.0)], hook="You need to hear this part")
-    others = [(f"clp_look{i:08d}", cut.Moment("ast_look", "talking_head", 4.0 * i, 4.0 * i + 8.0, [(4.0 * i, 4.0 * i + 8.0)]), src) for i in range(1, 8)]
     libass = cut.ffmpeg_has_filter("subtitles")
     hashes: dict[str, list[int]] = {}
     kind = sys.argv[sys.argv.index("--looks-kind") + 1] if "--looks-kind" in sys.argv else "all"
@@ -336,16 +362,24 @@ def check_looks(tmp: Path, problems: list[str], write_thumbs: bool) -> None:
         # grid always differ (the grid's gutters are checked from the pixels), so each job compares its own.
         if kind != "all" and (opts["layout"] == "grid") != (kind == "grid"):
             continue
-        cells, voice = None, 0
+        cells, voice, ending = None, 0, None
         if opts["layout"] == "grid":
-            cells, lay = cut.grid_cells(0, m, src, others, len(L.cells_of(opts)), False)
-            voice = lay["voice"]
-            if len(lay["cells"]) != len(L.cells_of(opts)) or lay["cells"][0] != {"kind": "self"}:
-                problems.append(f"{lid}: grid cells not filled")
+            # Studio fix: a grid's cells are the clip's own DIFFERENT shots (here: different stretches of
+            # the footage), then the clip's hero full frame (never the same picture in two cells).
+            gm = cut.Moment("ast_look", "montage", 0.0, 40.0, [(4.0 * i, 4.0 * i + 4.0) for i in range(len(L.cells_of(opts)))] + [(34.0, 37.0)])
+            gm.part_keys = [f"ast_look@{4.0 * i:.2f}" for i in range(len(L.cells_of(opts)))] + ["ast_look@34.00"]
+            gm.part_stages = ["process"] * len(L.cells_of(opts)) + ["hero"]
+            gm.hero_asset_id, gm.hook = "ast_look", m.hook
+            if not cut.look_fits(opts, gm, len(cut.grid_body(gm))):
+                problems.append(f"{lid}: a grid of different shots was refused")
+            cells, lay, ending = cut.grid_from_parts(gm, cut.grid_body(gm)[: len(L.cells_of(opts))], {"ast_look": src}, {}, False)
+            if len(lay["cells"]) != len(L.cells_of(opts)) or len({(c["start"], c["end"]) for c in lay["cells"]}) != len(lay["cells"]) or not lay.get("ending"):
+                problems.append(f"{lid}: grid cells are not all different shots with a hero ending")
         try:
-            r = cut.render_moment(m, src, opts, brand, work, f"look_{lid}", False, cells=cells, voice=voice)
-            bare_opts = {**opts, "captions": "none", "hook": "none"}
-            bare = cut.render_moment(m, src, bare_opts, brand, work, f"bare_{lid}", False, cells=cells, voice=voice)
+            r = cut.render_moment(m, src, opts, brand, work, f"look_{lid}", False, cells=cells, voice=voice, ending=ending)
+            # The comparison render: no words and no end call to action, so each one is measured.
+            bare_opts = {**opts, "captions": "none", "hook": "none", "end_card": False}
+            bare = cut.render_moment(m, src, bare_opts, brand, work, f"bare_{lid}", False, cells=cells, voice=voice, ending=ending)
         except subprocess.CalledProcessError:
             problems.append(f"{lid}: render failed")
             continue
@@ -366,14 +400,22 @@ def check_looks(tmp: Path, problems: list[str], write_thumbs: bool) -> None:
                 problems.append(f"{lid}: captions not burned ({d:.1f})")
             if opts["captions"] == "none" and d > 2:
                 problems.append(f"{lid}: text burned where the look has none ({d:.1f})")
-            h = band_diff(L.frame_gray(r.mp4, 1.0, 108, 192), L.frame_gray(bare.mp4, 1.0, 108, 192), 15, 33, 108)
+            # The hook is big and centred in the safe area (studio fix): rows around HOOK_Y.
+            hy = L.HOOK_Y // 10
+            h = band_diff(L.frame_gray(r.mp4, 1.0, 108, 192), L.frame_gray(bare.mp4, 1.0, 108, 192), hy - 8, hy + 8, 108)
             if (opts["hook"] == "top_bold") != (h >= 4):
                 problems.append(f"{lid}: hook text {'missing' if opts['hook'] == 'top_bold' else 'burned'} ({h:.1f})")
-        if opts["end_card"]:
-            card = L.frame_rgb(r.mp4, r.duration - 0.25)
-            corners = [rgb_at(card, 40, 40), rgb_at(card, L.OUT_W - 40, L.OUT_H - 60), rgb_at(card, 40, L.OUT_H // 2)]
-            if not all(near_paper(px) for px in corners):
-                problems.append(f"{lid}: no end card")
+        # Studio fix (owner, 23 Oct 2026: "every clip ending on a near-blank card"): the end is footage,
+        # never a blank card, and (with libass) a big call to action sits in the safe area over it.
+        end = L.frame_rgb(r.mp4, r.duration - 0.25)
+        corners = [rgb_at(end, 40, 40), rgb_at(end, L.OUT_W - 40, L.OUT_H - 60), rgb_at(end, 40, L.OUT_H // 2)]
+        if all(near_paper(px) for px in corners):
+            problems.append(f"{lid}: ends on a blank card")
+        if opts["end_card"] and libass:
+            cy = L.CTA_Y // 10
+            e = band_diff(L.frame_gray(r.mp4, r.duration - 0.25, 108, 192), L.frame_gray(bare.mp4, r.duration - 0.25, 108, 192), cy - 6, cy + 18, 108)
+            if e < 4:
+                problems.append(f"{lid}: no call to action on the end ({e:.1f})")
         if opts["layout"] == "grid":
             problems.extend(grid_problems(opts, L.frame_rgb(bare.mp4, mid)))  # text off: the gutters are bare
         hashes[lid] = [L.dhash(L.frame_gray(r.mp4, t, 55, 96)) for t in (1.0, mid, r.duration - 2.0)]
@@ -493,11 +535,20 @@ def check_steer(tmp: Path, problems: list[str], heavy: dict) -> None:
     grid = {**base, "rotation": ["grid_eight"], "looks": {"grid_eight": {"punch_in": True, "music": False}}, "music": [song], "target_clips": {"min": 3, "max": 3},
             "steer": {"rotation": ["grid_eight"], "count": None, "include": [], "avoid": [], "allowed_recipes": list(cut.RECIPE_ORDER)}}
     r = cut.cut_dump(grid, work / "w1", download, upload, FakeJob().progress, heavy)
+    # Studio fix (owner, 23 Oct 2026: "Grid-of-four showing the same roses in 3 of 4 cells"): a grid is
+    # made only from as many DIFFERENT shots as it has cells. One unseen video has no 8 different shots,
+    # so the grid is skipped (a full-frame look instead) and she is told why, never a repeated picture.
     for c in r["clips"]:
-        if c["look"] != "grid_eight" or not c["layout"] or len(c["layout"]["cells"]) != 8:
-            problems.append("steer: a clip was not the 2x4 grid she asked for")
+        if c["look"] == "grid_eight":
+            cells = (c["layout"] or {}).get("cells") or []
+            if len(cells) != 8 or len({(x.get("asset_id"), x.get("start")) for x in cells}) != 8 or any(x.get("kind") != "part" for x in cells):
+                problems.append("steer: a grid repeats a picture (cells are not 8 different shots)")
+        elif L.LOOKS[c["look"]]["layout"] == "grid" or c["layout"]:
+            problems.append("steer: another grid in place of the one she asked for")
         if c["music"] is not None:
             problems.append("steer: music under a clip after \"no music\"")
+    if any(c["look"] != "grid_eight" for c in r["clips"]) and not any("different shots" in x.get("why", "") for x in r.get("steer_report") or []):
+        problems.append("steer: the 2x4 grid she asked for was skipped without telling her why")
     short = {k: {"minS": 8, "maxS": min(v["maxS"], 20)} for k, v in cut.DEFAULT_RECIPES.items()}
     tune = {**base, "dump_id": "dmp_steer2", "output_prefix": "clips/dmp_steer2/", "rotation": ["clean"], "looks": {"clean": {"music": True}}, "music": [song], "recipes": short,
             "target_clips": {"min": 2, "max": 2}, "steer": {"rotation": ["clean"], "count": 2, "include": [], "avoid": [], "allowed_recipes": list(cut.RECIPE_ORDER)}}
@@ -537,8 +588,13 @@ def check_planned(tmp: Path, problems: list[str], heavy: dict) -> None:
     work = tmp / "planned"
     src = work / "src"
     src.mkdir(parents=True, exist_ok=True)
-    make_sample(src / "before.mp4", 12, "720x1280", None)
+    # Distinct scenes (a different picture each), so "the same picture twice" is measurable.
+    make_scene(src / "before.mp4", 8, "0xd8d0c4", (120, 300, 300, 500))
+    make_scene(src / "prep.mp4", 8, "0x6f8fa8", (600, 200, 380, 900))
+    make_scene(src / "team.mp4", 8, "0x8a6f5a", (100, 1200, 800, 500))
+    make_scene(src / "process.mp4", 8, "0x4f7a52", (400, 700, 500, 300))
     make_sample(src / "after.mp4", 16, "720x1280", None)
+    make_photo(src / "final-look.jpg", "0xc89b7b", (200, 400, 600, 900))
     out = work / "r2"
 
     def download(key: str, dest: Path) -> Path:
@@ -551,31 +607,62 @@ def check_planned(tmp: Path, problems: list[str], heavy: dict) -> None:
         shutil.copy(path, dst)
 
     services = ["alpha work", "beta work"]
+
+    def one(aid: str, dur: float, *shots: V.Shot) -> dict:
+        return V.ShotSheet(aid, dur, list(shots), "vision:selftest").to_json()
+
     sheets = {
-        "ast_before": V.ShotSheet("ast_before", 12.0, [V.Shot(0.0, 12.0, what="an empty bare corner", subject="corner", state="before", service="unsure", confidence=0.9)], "vision:selftest").to_json(),
-        "ast_after": V.ShotSheet("ast_after", 16.0, [V.Shot(0.0, 8.0, what="the finished corner, wide", state="after", service="alpha work", confidence=0.9), V.Shot(8.0, 16.0, what="the finished corner, close", state="after", service="alpha work", confidence=0.9)], "vision:selftest").to_json(),
+        "ast_before": one("ast_before", 8.0, V.Shot(0.0, 8.0, what="an empty bare corner", subject="corner", state="before", service="unsure", confidence=0.9)),
+        "ast_prep": one("ast_prep", 8.0, V.Shot(0.0, 8.0, what="boxes of supplies being unloaded", subject="supplies", state="in_progress", service="alpha work", confidence=0.9)),
+        "ast_team": one("ast_team", 8.0, V.Shot(0.0, 8.0, what="two people doing the work", subject="team", state="in_progress", people="working", service="alpha work", confidence=0.9)),
+        "ast_process": one("ast_process", 8.0, V.Shot(0.0, 8.0, what="the work being put together", subject="work", state="in_progress", service="alpha work", confidence=0.9)),
+        "ast_photo": one("ast_photo", 6.0, V.Shot(0.0, 6.0, what="the finished corner, a photo", state="after", service="alpha work", confidence=0.9)),
+        "ast_after": one("ast_after", 16.0, V.Shot(0.0, 8.0, what="the finished corner, wide", state="after", service="alpha work", confidence=0.9), V.Shot(8.0, 16.0, what="the finished corner, close", state="after", service="alpha work", confidence=0.9)),
     }
     all_p = ["tiktok", "instagram", "youtube"]
-    spec = spec_for("new", "dmp_planned", [{"id": "ast_before", "r2_key": "before.mp4", "allowed_platforms": all_p, "file_note": None}, {"id": "ast_after", "r2_key": "after.mp4", "allowed_platforms": all_p, "file_note": None}])
-    spec.update({"services": services, "shot_sheets": sheets, "camera": "off", "rotation": ["clean", "grid_four"], "target_clips": {"min": 3, "max": 4},
+    names = {"ast_before": "before.mp4", "ast_prep": "prep.mp4", "ast_team": "team.mp4", "ast_process": "process.mp4", "ast_after": "after.mp4"}
+    spec = spec_for("new", "dmp_planned", [{"id": aid, "r2_key": f, "mime_type": "video/mp4", "allowed_platforms": all_p, "file_note": None} for aid, f in names.items()]
+                    + [{"id": "ast_photo", "r2_key": "final-look.jpg", "mime_type": "image/jpeg", "file_name": "final-look.jpg", "allowed_platforms": all_p, "file_note": None}])
+    spec.update({"services": services, "shot_sheets": sheets, "camera": "off", "rotation": ["grid_four", "side_by_side", "clean"], "target_clips": {"min": 3, "max": 4},
+                 "studio_rules": {"cta_phrases": ["Book your date", "Request a quote"], "cta_link": "https://example.com/request", "ai_note": "ai_images", "clip_target": {"min": 4, "max": 12}, "bar": 0, "place_words": ["Riverton"], "prices": False},
                  "brand_profile": {"ctas": "Book your beta work.\nMessage us to book your date.", "do_dont": "#SampleStudio"}})
     r = cut.cut_dump(spec, work / "w1", download, upload, FakeJob().progress, heavy)
     ll = r.get("looks_like") or {}
     if ll != {"service": "alpha work", "shape": "transformation", "camera": "off", "sure": True}:
         problems.append(f"planned: the plain line is wrong ({ll})")
-    trans = [c for c in r["clips"] if c.get("shape") == "transformation"]
+    clips = r["clips"]
+    # As many DISTINCT cuts as the footage holds, up to the studio's target (4..12 here). These six
+    # uploads hold three (payoff-first, walk-in, moving photo); every other type would reuse most of
+    # their shots, so fewer than 4 are made and she is told why.
+    if not 3 <= len(clips) <= 12:
+        problems.append(f"planned: {len(clips)} clips from footage that holds 3 distinct cuts (target 4..12)")
+    if len(clips) < 4 and not any("different cuts" in x.get("why", "") for x in r.get("steer_report") or []):
+        problems.append("planned: fewer clips than the target and she was not told why")
+    trans = [c for c in clips if c.get("shape") == "transformation"]
     if not trans:
         problems.append("planned: no before -> after clip from a before video and an after video")
     for c in trans:
-        if not c.get("part_assets") or c["part_assets"][0] != "ast_before" or c["part_assets"][-1] != "ast_after":
-            problems.append("planned: a before -> after clip does not start on the before video and end on the reveal")
-        want = sum(e - s for s, e in c["parts"])
-        got = cut.probe(out / c["r2_key"])["duration"]
-        if abs(got - want) > 2.5:
-            problems.append(f"planned: a joined clip plays {got:.1f}s, its parts add to {want:.1f}s")
-        if c["asset_id"] != "ast_after":
+        pa = c.get("part_assets") or []
+        # Payoff first (the playbook): a flash of the finished result, then the before, ending on the reveal.
+        if len(pa) < 3 or pa[1] != "ast_before" or c["parts"][0][1] - c["parts"][0][0] > 1.6 or pa[-1] != c["hero_asset_id"]:
+            problems.append("planned: a before -> after clip does not flash the payoff, show the before, and end on the reveal")
+        if c["asset_id"] != pa[-1]:
             problems.append("planned: a joined clip's video is not the reveal's")
-    for c in r["clips"]:
+    grids = [c for c in clips if c["layout"]]
+    if not grids:
+        problems.append("planned: clips of different shots made no grid (side by side or four)")
+    for c in grids:
+        cells = c["layout"]["cells"]
+        if len({x["asset_id"] for x in cells}) != len(cells) or not c["layout"].get("ending"):
+            problems.append("planned: a grid repeats a picture or has no hero ending")
+    for c in clips:
+        if not c["hero_asset_id"] or (c.get("part_assets") or [c["asset_id"]])[-1] != c["hero_asset_id"] or c["parts"][-1][1] - c["parts"][-1][0] < 1.99:
+            problems.append("planned: a clip does not end on its hero, held 2 s")
+        if not c["layout"]:
+            want = sum(e - s for s, e in c["parts"])
+            got = cut.probe(out / c["r2_key"])["duration"]
+            if abs(got - want) > 2.5:
+                problems.append(f"planned: a joined clip plays {got:.1f}s, its parts add to {want:.1f}s")
         if c.get("shape") != "transformation" and "ast_before" in (c.get("part_assets") or [c["asset_id"]]):
             problems.append("planned: a before shot is in a clip that is not a before -> after")
         text = " ".join([c["hook_text"], c.get("hook_alt") or "", c["caption"]]).lower()
@@ -583,6 +670,17 @@ def check_planned(tmp: Path, problems: list[str], heavy: dict) -> None:
             problems.append("planned: a clip's words name another service or mention automation")
         if not c.get("on_screen"):
             problems.append("planned: a clip does not say what is on screen (the voice over needs it)")
+        if c["uses_ai_images"] != ("ast_photo" in c["files_used"]):
+            problems.append("planned: a photo with no camera EXIF is not marked as an AI picture (or a video is)")
+    sigs = [frozenset((pa, round(p[0], 1)) for pa, p in zip(c.get("part_assets") or [c["asset_id"]] * len(c["parts"]), c["parts"][:-1])) for c in clips]
+    for i in range(len(sigs)):
+        for j in range(i):
+            if sigs[i] and sigs[j] and len(sigs[i] & sigs[j]) / min(len(sigs[i]), len(sigs[j])) >= 0.5:
+                problems.append("planned: two clips share most of their shots")
+    if r.get("asset_roles", {}).get("ast_photo") != "hero":
+        problems.append("planned: a photo named final is not the hero")
+    if (r.get("clip_counts") or {}).get("distinct") != len([c for c in clips if not c["hidden_reason"]]):
+        problems.append("planned: clip_counts do not count the distinct clips")
     if r.get("calls", {}).get("vision", 0) != 0:
         problems.append("planned: saved shot sheets were looked at again")
 
@@ -733,8 +831,10 @@ def main() -> int:
             used = {c["look"] for c in result["clips"]}
             if len(result["clips"]) >= 3 and len(used) < 3:
                 problems.append(f"{spec['door']}: {len(result['clips'])} clips but only {len(used)} looks")
-            if spec["door"] == "new" and not any(c["layout"] for c in result["clips"]):
-                problems.append("a real dump rendered no grid look")
+            # Studio fix: a grid only from the clip's own DIFFERENT shots (never a repeated picture). This
+            # dump is unseen speech-picked footage with no distinct shots, so no grid at all.
+            if any(c["layout"] for c in result["clips"]):
+                problems.append("a grid look on footage without enough different shots (a repeated picture)")
             log("selftest.run", door=spec["door"], clips=len(result["clips"]), looks=len(used), transcript=result["engine"]["transcript"], picker=result["engine"]["picker"], crop=result["engine"]["crop"], subtitles=result["engine"]["subtitles"])
             if spec["door"] == "new":
                 fixture_result = {"dump_id": spec["dump_id"], "assets": [{"id": a["id"], "r2_key": f"raw/{spec['dump_id']}/{a['id']}", "allowed_platforms": a["allowed_platforms"]} for a in spec["assets"]], "result": result}

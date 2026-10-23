@@ -18,6 +18,12 @@ on:
       - jobs/see.py
       - jobs/plan.py
       - jobs/critic.py
+      - jobs/stages.py
+      - jobs/clipmaker.py
+      - jobs/playbook.py
+      - jobs/playbook.json
+      - jobs/script_clean.py
+      - jobs/script_rules.json
       - shared/grounded.json
       - jobs/selftest_cut.py
       - jobs/music/**

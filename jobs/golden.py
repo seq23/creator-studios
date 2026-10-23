@@ -7,6 +7,9 @@ else the local backup) and the real planner (jobs/plan.py). Scored:
   * before/after:  a before -> after appears exactly when both states were filmed, starting on the
                    before and ending on the reveal;
   * caption noise: background chatter (nobody talking to the camera) gives no captions.
+First the playbook set (jobs/golden_playbook.py, jobs/golden/playbook_fixtures.json): six businesses'
+dumps with prep, process, finished and photo-only events, planned by type; every clip must end on a
+hero, follow its template, repeat no picture and mix no events (no model needed).
 The score is compared with jobs/golden/baseline.json: a drop of more than ALLOWED_DROP on the total,
 or any metric of a business going from pass to fail, exits 1 with the names (fails loudly).
 Run: python3 jobs/golden.py [--write-baseline]   (needs OPENROUTER_API_KEY or VISION_LOCAL=1)
@@ -24,6 +27,7 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import ai as A  # noqa: E402
+import golden_playbook as GP  # noqa: E402
 import plan as P  # noqa: E402
 import see as V  # noqa: E402
 from common import log  # noqa: E402
@@ -198,6 +202,15 @@ def loud(lines: list[str]) -> None:
 
 
 def main() -> int:
+    # The playbook set first (studio fix, 23 Oct 2026): no model needed, so it always runs. Every clip
+    # ends on a hero, follows its type, repeats no picture, mixes no events; a drop fails loudly.
+    pb_problems, pb_stats = GP.run_all()
+    for slug, st in pb_stats.items():
+        log("golden.playbook", slug=slug, clips=st["clips"], types=",".join(st["types"]))
+    if pb_problems:
+        log("golden.playbook.DROP", problems=len(pb_problems))
+        loud([f"playbook: {p}" for p in pb_problems])
+        return 1
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key and os.environ.get("VISION_LOCAL") != "1":
         log("golden.stop", why="no_key_no_local_model")

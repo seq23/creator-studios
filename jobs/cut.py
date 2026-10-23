@@ -52,7 +52,12 @@ import critic as C  # noqa: E402  (layer 6: check its own work, re-cut or hide)
 import ai as A  # noqa: E402  (the model ladder; calls counted per provider)
 import hear as H  # noqa: E402  (layer 3: talking to camera / chatter / music / silence)
 import protect as PR  # noqa: E402  (layer 5: blur faces and house numbers, the never-list, real prices only)
+import stages as ST  # noqa: E402  (studio fix: stages, heroes, sharp seconds, duplicates, events, photos)
+import playbook as PB  # noqa: E402  (studio fix: the clip-type library + research playbook)
+import clipmaker as CM  # noqa: E402  (studio fix: clips by type, hero endings, the real score, the words)
+import script_clean as SCL  # noqa: E402  (studio fix: no reasoning, markdown or repeats in any words)
 import copy
+import dataclasses
 
 OUT_W, OUT_H = 1080, 1920
 FPS = 30
@@ -173,6 +178,32 @@ def normalize(src: Path, dst: Path, window: tuple[float, float] | None = None) -
     return out
 
 
+PHOTO_SECONDS = 6.0
+
+
+def photo_video(src: Path, dst: Path, seconds: float = PHOTO_SECONDS) -> dict[str, Any]:
+    """A photo as a slow-pan video (studio fix: photos are first-class inputs to video clips): the
+    picture fills 9:16 and moves a gentle 8 % zoom over `seconds`, with a silent track. From here on
+    it is a shot like any other (seen, planned, cut, scored)."""
+    frames = int(seconds * FPS)
+    vf = (
+        f"scale={OUT_W + 108}:{OUT_H + 192}:force_original_aspect_ratio=increase,crop={OUT_W + 108}:{OUT_H + 192},"
+        f"zoompan=z='1+0.08*on/{frames}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={OUT_W}x{OUT_H}:fps={FPS},format=yuv420p,setsar=1"
+    )
+    ffmpeg([
+        "-loop", "1", "-framerate", str(FPS), "-t", f"{seconds:.2f}", "-i", str(src),
+        "-f", "lavfi", "-t", f"{seconds:.2f}", "-i", "anullsrc=r=48000:cl=stereo",
+        "-map", "0:v:0", "-map", "1:a:0", "-vf", vf, "-frames:v", str(frames),
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-c:a", "aac", "-ar", "48000", "-ac", "2", "-b:a", "128k",
+        "-shortest", "-movflags", "+faststart", str(dst),
+    ])
+    out = probe(dst)
+    if not out["has_video"] or out["duration"] <= 0:
+        raise NoUsableMoments("photo could not be read")
+    out["had_audio"] = False
+    return out
+
+
 def extract_wav(src: Path, dst: Path) -> None:
     ffmpeg(["-i", str(src), "-vn", "-ac", "1", "-ar", "16000", str(dst)])
 
@@ -275,6 +306,15 @@ class Moment:
     # The shot sheet's state of each part (before / in_progress / after / n/a / unsure); None = nobody looked.
     part_states: list[str] | None = None
     recuts: int = 0
+    # Studio fix (jobs/clipmaker.py): the clip type, its event, the hero it ends on, each part's stage
+    # and shot, the voice-over script, and words_pending (no AI words came: nothing stock ships).
+    clip_type: str = ""
+    event_group: str = ""
+    hero_asset_id: str = ""
+    part_stages: list[str] | None = None
+    part_keys: list[str] | None = None
+    voice: str = ""
+    words_pending: bool = False
 
 
 def coverage(runs: list[tuple[float, float]], s: float, e: float) -> float:
@@ -710,33 +750,6 @@ def inset_for(src: Source, m: "Moment", mediapipe: bool) -> L.Seg:
     return src.seg(line[0], line[1], mediapipe)
 
 
-def grid_cells(k: int, m: "Moment", src: Source, others: list[tuple[str, "Moment", Source]], n: int, mediapipe: bool) -> tuple[list[L.Seg], dict[str, Any]]:
-    """Cells for a grid Look: this moment first, then the dump's other moments (clip k+1, k+2 …,
-    each a same-length stretch of its own video), then this moment closer (zooms) when the dump
-    has fewer moments than cells. The voice is the cell with the clearest speech."""
-    length = m.end - m.start
-    cells = [src.seg(m.start, m.end, mediapipe)]
-    layout: list[dict[str, Any]] = [{"kind": "self"}]
-    speech = [coverage(src.runs, m.start, m.end)]
-    for j in range(len(others)):
-        if len(cells) >= n:
-            break
-        cid, om, osrc = others[(k + j) % len(others)]
-        s, e = osrc.window(om.start, length)
-        cells.append(osrc.seg(s, e, mediapipe))
-        layout.append({"kind": "clip", "clip_id": cid})
-        speech.append(coverage(osrc.runs, s, e))
-    zooms = [1.35, 1.7, 2.1]
-    z = 0
-    while len(cells) < n:
-        cells.append(src.seg(m.start, m.end, mediapipe, zooms[z % len(zooms)]))
-        layout.append({"kind": "zoom", "zoom": zooms[z % len(zooms)]})
-        speech.append(speech[0] * 0.99)  # the same sound as cell 0: never preferred over it
-        z += 1
-    voice = max(range(len(speech)), key=lambda i: (speech[i], -i))
-    return cells, {"cells": layout, "voice": voice}
-
-
 def speech_share(src: "Source", stretches: list[tuple[float, float]]) -> float:
     """How much of a clip has her talking (0..1): her words' time when there is a transcript, else
     the non-silent stretches. The Worker voices over a clip automatically only under 15%
@@ -878,7 +891,14 @@ def music_for(spec: dict[str, Any], k: int, work: Path, download: "Downloader", 
     return cache[key]
 
 
-def render_moment(m: "Moment", src: Source, opts: dict[str, Any], brand: L.Branding, work: Path, clip_id: str, mediapipe: bool, *, cells: list[L.Seg] | None = None, voice: int = 0, voice_src: Source | None = None, music: Path | None = None, srcs: dict[str, Source] | None = None) -> L.Rendered:
+def render_moment(m: "Moment", src: Source, opts: dict[str, Any], brand: L.Branding, work: Path, clip_id: str, mediapipe: bool, *, cells: list[L.Seg] | None = None, voice: int = 0, voice_src: Source | None = None, music: Path | None = None, srcs: dict[str, Source] | None = None, ending: L.Seg | None = None) -> L.Rendered:
+    if cells and ending is not None:
+        # A grid of the clip's own distinct shots, then its hero full frame (studio fix). Cell 0 is the
+        # voice; its words are the captions (none when the camera sound is off).
+        vs = voice_src or src
+        c0 = cells[0]
+        words = [] if opts.get("mute") or m.captions_off or vs.path != c0.path else [Word(round(w.start - c0.start, 3), round(w.end - c0.start, 3), w.text) for w in vs.transcript.words_in(c0.start, c0.end)]
+        return L.render_look(opts, [c0], words, m.hook, brand, work, clip_id, cells=cells, voice=0, inset=None, music=music if opts.get("music") else None, ending=ending)
     if m.part_assets and srcs:
         # A planned clip joining shots of several videos (before -> after): each part from its own video.
         psrc = [srcs.get(a, src) for a in m.part_assets]
@@ -1120,13 +1140,19 @@ def plan_moment(pl: "P.Plan") -> Moment:
     names each part's own video when they differ."""
     aid = pl.parts[-1].asset_id
     parts = [(p.start, p.end) for p in pl.parts]
-    mixed = any(p.asset_id != aid for p in pl.parts)
+    # Several videos, or one video's shots out of time order (a payoff flash, then the story): each part
+    # is named with its video and the clip's length is the parts' sum.
+    mixed = any(p.asset_id != aid for p in pl.parts) or not in_order(parts)
     start = pl.parts[-1].start if mixed else min(s for s, _e in parts)
     end = round(start + pl.length, 2) if mixed else max(e for _s, e in parts)
     m = Moment(aid, pl.recipe, round(start, 2), round(end, 2), parts, hook=pl.hook, hook_alt=pl.hook_alt, caption=pl.caption, hashtags=list(pl.hashtags))
     m.shape, m.service, m.on_screen, m.plan_score = pl.shape, pl.service, pl.on_screen, pl.score
-    m.part_assets = [p.asset_id for p in pl.parts] if mixed or len({p.asset_id for p in pl.parts}) > 1 else None
+    m.part_assets = [p.asset_id for p in pl.parts] if mixed else None
     m.part_states = [p.state for p in pl.parts]
+    m.clip_type, m.event_group, m.hero_asset_id = pl.clip_type, pl.event_group, pl.hero_asset_id
+    m.part_stages = [p.stage for p in pl.parts]
+    m.part_keys = [p.key for p in pl.parts]
+    m.voice, m.words_pending = pl.voice, pl.words_pending
     return m
 
 
@@ -1270,11 +1296,13 @@ def recut_moment(m: Moment, reasons: list[str], attempt: int, key: str | None, s
         return None
     n.parts = [parts[i] for i in keep]
     n.part_states = [states[i] for i in keep]
+    n.part_stages = [m.part_stages[i] for i in keep] if m.part_stages else None
+    n.part_keys = [m.part_keys[i] for i in keep] if m.part_keys else None
     owners = [owners[i] for i in keep]
     if sum(e - s for s, e in n.parts) < 3:
         return None
     n.asset_id = owners[-1]
-    n.part_assets = owners if len(set(owners)) > 1 else None
+    n.part_assets = owners if len(set(owners)) > 1 or not in_order(n.parts) else None
     if n.part_assets:
         n.start = n.parts[-1][0]
         n.end = round(n.start + sum(e - s for s, e in n.parts), 2)
@@ -1312,6 +1340,206 @@ def clip_score(m: Moment, src: Source, recipes: dict[str, Any]) -> float:
     return m.plan_score if m.plan_score is not None else score_moment(m, src.transcript, src.runs, recipes)
 
 
+def moment_spans(m: Moment) -> list[tuple[str, float, float]]:
+    return [(a, s, e) for a, (s, e) in zip(part_owners(m), m.parts)][:-1] or [(a, s, e) for a, (s, e) in zip(part_owners(m), m.parts)]
+
+
+def shared_share(a: Moment, b: Moment) -> float:
+    """How much of the shorter clip's body (its hero ending aside) is footage the other one also uses."""
+    sa, sb = moment_spans(a), moment_spans(b)
+    def length(xs: list[tuple[str, float, float]]) -> float:
+        return sum(e - s for _a, s, e in xs) or 1e-6
+    common = sum(max(0.0, min(e1, e2) - max(s1, s2)) for a1, s1, e1 in sa for a2, s2, e2 in sb if a1 == a2)
+    return common / min(length(sa), length(sb))
+
+
+def distinct_moments(moments: list[tuple[Moment, Source]]) -> list[tuple[Moment, Source]]:
+    out: list[tuple[Moment, Source]] = []
+    for m, src in moments:
+        if any(shared_share(m, o) >= 0.5 for o, _s in out):
+            log("cut.duplicate_dropped", clip_type=m.clip_type or "")
+            continue
+        out.append((m, src))
+    return out
+
+
+def in_order(parts: list[tuple[float, float]]) -> bool:
+    return all(b[0] >= a[1] - 0.01 for a, b in zip(parts, parts[1:]))
+
+
+def grid_body(m: Moment) -> list[int]:
+    """The parts a grid may tile: the clip's own distinct shots, not its payoff flash or hero ending."""
+    keys = m.part_keys or []
+    stages = m.part_stages or []
+    out, seen = [], set()
+    for i in range(len(m.parts) - 1):
+        k = keys[i] if i < len(keys) else ""
+        if not k or (i < len(stages) and stages[i] == "flash") or k in seen:
+            continue
+        seen.add(k)
+        out.append(i)
+    return out
+
+
+def look_fits(opts: dict[str, Any], m: Moment, distinct: int) -> bool:
+    """Never a repeat in one frame: a grid or side-by-side only with at least as many distinct shots
+    as cells (and a hero to end on); an inset (it replays a line) only on a talk-to-camera clip."""
+    if opts["layout"] == "grid":
+        return bool(m.hero_asset_id) and distinct >= len(L.cells_of(opts))
+    if opts["layout"] == "pip":
+        return m.clip_type == "talk_to_camera" and not m.part_assets
+    return True
+
+
+def grid_from_parts(m: Moment, idx: list[int], srcs: dict[str, Source], by_key: dict[str, "ST.Look"], mediapipe: bool) -> tuple[list[L.Seg], dict[str, Any], L.Seg]:
+    """Cells = the clip's own distinct shots (each a few seconds of its own shot), then its hero."""
+    owners = part_owners(m)
+    keys = m.part_keys or [""] * len(m.parts)
+    cells, lay = [], []
+    for i in idx:
+        s, e = m.parts[i]
+        lk = by_key.get(keys[i])
+        e2 = min(lk.end, s + 4.0) if lk else e
+        cells.append(srcs[owners[i]].seg(s, max(e, e2), mediapipe))
+        lay.append({"kind": "part", "asset_id": owners[i], "start": round(s, 2), "end": round(max(e, e2), 2)})
+    hs, he = m.parts[-1]
+    ending = srcs[owners[-1]].seg(hs, he, mediapipe)
+    return cells, {"cells": lay, "voice": 0, "ending": {"asset_id": owners[-1], "start": round(hs, 2), "end": round(he, 2)}}, ending
+
+
+def clip_body_keys(m: Moment) -> set[str]:
+    keys, stages = m.part_keys or [], m.part_stages or []
+    return {keys[i] for i in range(min(len(keys), len(m.parts)) - 1) if keys[i] and (i >= len(stages) or stages[i] != "flash")}
+
+
+def score_facts(m: Moment, k: int, bodies: dict[int, set[str]], tracks: dict[str, list[float]], by_key: dict[str, "ST.Look"], rules_s: dict[str, Any], opts: dict[str, Any]) -> dict[str, Any]:
+    """What the score reads about one finished clip (jobs/clipmaker.py score_clip)."""
+    owners = part_owners(m)
+    keys = m.part_keys or [""] * len(m.parts)
+    stages = m.part_stages or [""] * len(m.parts)
+    parts = [{"stage": stages[i] if i < len(stages) else "", "start": s, "end": e, "quality": ST.span_quality(tracks.get(owners[i], []), s, e), "key": keys[i] if i < len(keys) else ""} for i, (s, e) in enumerate(m.parts)]
+    mine = clip_body_keys(m)
+    overlap = max([CM._overlap(mine, b) for j, b in bodies.items() if j != k] or [0.0])
+    repeats = False
+    for i in range(len(parts)):
+        for j in range(i):
+            if parts[i]["key"] and parts[i]["key"] == parts[j]["key"] and parts[j]["stage"] != "flash" and parts[i]["start"] < parts[j]["end"] and parts[j]["start"] < parts[i]["end"]:
+                repeats = True
+            a, b = by_key.get(parts[i]["key"]), by_key.get(parts[j]["key"])
+            if a and b and a.key != b.key and parts[j]["stage"] != "flash" and ST.same_picture(a.hash, b.hash):
+                repeats = True
+    return {
+        "clip_type": m.clip_type or "finished_walkthrough", "parts": parts, "hook": m.hook, "caption": f"{m.caption} {rules_s['cta_link']}" if rules_s["cta_link"] else m.caption,
+        "words_pending": m.words_pending, "cta_link": rules_s["cta_link"], "cta_phrases": rules_s["cta_phrases"], "end_card": bool(opts.get("end_card")),
+        "overlap": overlap, "repeats": repeats,
+    }
+
+
+def improve_moment(m: Moment, tracks: dict[str, list[float]], pb: dict[str, Any]) -> Moment | None:
+    """The one re-cut for a clip under the bar: blurry or shaky shots out, the template's length,
+    the alternative hook when the hook is hard to read. None when nothing can be improved."""
+    n = copy.copy(m)
+    owners = part_owners(m)
+    keep = [i for i, (s, e) in enumerate(m.parts) if i == len(m.parts) - 1 or ST.span_quality(tracks.get(owners[i], []), s, e) >= ST.GOOD]
+    t = PB.template(pb, m.clip_type or "finished_walkthrough")
+    while len(keep) > 2 and sum(m.parts[i][1] - m.parts[i][0] for i in keep) > t["length_s"][1]:
+        keep.pop(-2)
+    changed = len(keep) != len(m.parts)
+
+    def pick(xs: list[Any] | None) -> list[Any] | None:
+        return [xs[i] for i in keep] if xs else xs
+
+    n.parts = [m.parts[i] for i in keep]
+    n.part_states, n.part_stages, n.part_keys = pick(m.part_states), pick(m.part_stages), pick(m.part_keys)
+    own = [owners[i] for i in keep]
+    n.part_assets = own if len(set(own)) > 1 or not in_order(n.parts) else None
+    n.asset_id = own[-1]
+    if n.part_assets:
+        n.start = n.parts[-1][0]
+        n.end = round(n.start + sum(e - s for s, e in n.parts), 2)
+    else:
+        n.start, n.end = min(s for s, _ in n.parts), max(e for _, e in n.parts)
+    if m.hook and not CM._readable_hook(m.hook) and CM._readable_hook(m.hook_alt):
+        n.hook, n.hook_alt = m.hook_alt, m.hook
+        changed = True
+    if not changed or sum(e - s for s, e in n.parts) < 3:
+        return None
+    n.recuts = m.recuts + 1
+    return n
+
+
+def copy_extra(rules_s: dict[str, Any], pb: dict[str, Any], n: int) -> dict[str, Any]:
+    """What the copy writer reads from the studio's rules and the playbook (studio fix)."""
+    every = int(pb.get("send_line_every") or 3)
+    return {
+        "playbook": PB.prompt_lines(pb),
+        **({"place_words": rules_s["place_words"]} if rules_s["place_words"] else {}),
+        **({"cta_phrases": rules_s["cta_phrases"]} if rules_s["cta_phrases"] else {}),
+        **({"no_prices": True} if not rules_s["prices"] else {}),
+        "send_line_clips": [i for i in range(n) if i % every == 1],
+    }
+
+
+def add_hero_ending(m: Moment, looks: list["ST.Look"], tracks: dict[str, list[float]], hold: float, i: int) -> bool:
+    """A speech-picked clip ends on its event's hero too (held >= 2 s), unless it already does."""
+    part = CM.hero_ending_part(looks, m.event_group, tracks, hold, i)
+    if part is None:
+        return False
+    owners = part_owners(m)
+    if owners and owners[-1] == part.asset_id and m.parts[-1][0] < part.end and part.start < m.parts[-1][1]:
+        # The clip's last stretch already runs through the hero shot: when its last `hold` seconds are
+        # inside that shot and sharp, it already ends on the hero; else it is cut to end on the hero window.
+        ls, le = m.parts[-1]
+        hl = next((x for x in looks if x.key == part.key), None)
+        tail_ok = hl is not None and hl.start - 0.01 <= le - hold and le <= hl.end + 0.01 and ST.span_quality(tracks.get(part.asset_id, []), le - hold, le) >= ST.GOOD
+        if not tail_ok:
+            if part.end - ls < hold:
+                return False
+            le = min(le, part.end)
+        m.parts = [*m.parts[:-1], (ls, round(le, 2))]
+        n = len(m.parts)
+        m.part_stages = [*((m.part_stages or [""] * n)[: n - 1]), "hero"]
+        m.part_keys = [*((m.part_keys or [""] * n)[: n - 1]), part.key]
+        m.hero_asset_id = part.asset_id
+        if m.part_assets:
+            m.end = round(m.start + sum(e - s for s, e in m.parts), 2)
+        else:
+            m.start, m.end = min(s for s, _ in m.parts), max(e for _, e in m.parts)
+        return True
+    n_before = len(m.parts)
+    m.parts = [*m.parts, (part.start, part.end)]
+    owners = [*owners, part.asset_id]
+    m.part_assets = owners if len(set(owners)) > 1 or not in_order(m.parts) else None
+    m.part_states = [*(m.part_states or [V.UNSURE] * n_before), "after"]
+    m.part_stages = [*(m.part_stages or [""] * n_before), "hero"]
+    m.part_keys = [*(m.part_keys or [""] * n_before), part.key]
+    m.hero_asset_id = part.asset_id
+    if m.part_assets:
+        m.asset_id = owners[-1]
+        m.start = m.parts[-1][0]
+        m.end = round(m.start + sum(e - s for s, e in m.parts), 2)
+    else:
+        m.start, m.end = min(s for s, _ in m.parts), max(e for _, e in m.parts)
+    return True
+
+
+def brand_for(spec: dict[str, Any], work: Path, download: "Downloader") -> L.Branding:
+    """Her branding plus, from the studio's rules, the request link under the call to action, and the
+    studio's own logo when the spec names one (spec.branding.logo_r2_key)."""
+    sb = dict(spec.get("branding") or {})
+    if sb.get("logo_r2_key"):
+        try:
+            sb["logo_path"] = str(download(str(sb["logo_r2_key"]), work / "studio_logo"))
+        except Exception:  # noqa: BLE001  no logo is fine: the end still carries the call to action
+            log("cut.logo.missing")
+    rs = CM.studio_rules(spec, spec.get("brand_profile"))
+    if rs["cta_link"] and not sb.get("link"):
+        sb["link"] = rs["cta_link"]
+    if rs["cta_phrases"] and spec.get("cta_turn") is not None:
+        sb["cta"] = CM.cta_phrase(rs, int(spec.get("cta_turn") or 0))
+    return L.branding_from(sb, work)
+
+
 def rotation_of(spec: dict[str, Any]) -> tuple[list[str], dict[str, dict[str, Any]]]:
     """The Worker sends the rotation (worker/domain/looks.ts rotationFor: her enabled Looks,
     shuffled per dump, singles and grids two to one) and each Look resolved with her Settings >
@@ -1329,10 +1557,13 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
     recipes = {**DEFAULT_RECIPES, **(spec.get("recipes") or {})}
     door = spec.get("door", "new")
     prefix = spec["output_prefix"]
-    target = int((spec.get("target_clips") or {}).get("max") or 20)
+    # Studio fix: the studio's rules (clip target, bar, CTA, AI note, place words) and the playbook.
+    rules_s = CM.studio_rules(spec, spec.get("brand_profile"))
+    pb = PB.load(spec)
+    target = rules_s["clip_target"]["max"]
     engine = {"transcript": "none", "picker": "fallback", "crop": "center", "subtitles": "none"}
     mediapipe = heavy.get("mediapipe", False)
-    brand = L.branding_from(spec.get("branding"), work)
+    brand = brand_for(spec, work, download)
     rotation, look_opts = rotation_of(spec)
     for a in assets:  # a video's own note may ask for looks the dump doesn't
         for lid, o in ((a.get("steer") or {}).get("looks") or {}).items():
@@ -1345,11 +1576,25 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
     # 1-2. download + normalize (+ whose video it is)
     prepared = []
     marks: list[dict[str, Any]] = []
+    meta: dict[str, dict[str, Any]] = {}  # studio fix: photo, file name, hero name, date, AI picture, track, hashes, event
     for i, a in enumerate(assets):
         progress("Getting your videos", i, len(assets))
         raw = download(a["r2_key"], work / f"raw_{i}")
         norm = work / f"norm_{i}.mp4"
-        info = normalize(raw, norm)
+        photo = ST.is_photo(a)
+        name = ST.file_name(a)
+        try:
+            # Photos are first-class: each becomes a slow-pan shot (jobs/stages.py).
+            exif = ST.read_exif(raw) if photo else {"camera": None, "date": None}
+            info = photo_video(raw, norm) if photo else normalize(raw, norm)
+        except (NoUsableMoments, subprocess.CalledProcessError):
+            raw.unlink(missing_ok=True)
+            if len(assets) == 1:
+                raise
+            log("cut.asset.unreadable", n=i, photo=photo)  # one unreadable upload never stops the rest
+            continue
+        from_camera = a["exif_camera"] if isinstance(a.get("exif_camera"), bool) else exif.get("camera")
+        meta[a["id"]] = {"photo": photo, "name": name, "name_hero": ST.name_is_hero(name), "date": exif.get("date") or ST.media_date(raw) or ST.date_from_name(name), "ai_image": bool(photo and not from_camera)}
         raw.unlink(missing_ok=True)
         wav = work / f"audio_{i}.wav"
         extract_wav(norm, wav)
@@ -1357,7 +1602,9 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         if mark:
             marks.append(mark)
         prepared.append((a, norm, info, wav))
-    log("cut.prepared", assets=len(prepared))
+    if not prepared:
+        raise NoUsableMoments("no readable uploads")
+    log("cut.prepared", assets=len(prepared), photos=sum(1 for x in meta.values() if x["photo"]))
 
     total_dur = sum(p[2]["duration"] for p in prepared) or 1.0
     key = spec.get("llm_key") or os.environ.get("OPENROUTER_API_KEY")
@@ -1408,6 +1655,15 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
             unsafe.add(a["id"])  # the finder could not run on a strict studio: its clips are hidden, never shown unchecked
         srcs[a["id"]] = Source(safe, info, tr, runs, detect_bars(norm, info["duration"]), muted=not keep)
     sheet_list = [sheets[a["id"]] for a, *_ in prepared]
+    # Studio fix, SEEING: per-second sharpness/steadiness, a picture hash per shot, events, stages, heroes.
+    tracks: dict[str, list[float]] = {}
+    for a, norm, info, _w in prepared:
+        tracks[a["id"]] = ST.quality_track(norm, info["duration"])
+        meta[a["id"]]["track"] = tracks[a["id"]]
+        meta[a["id"]]["hashes"] = {(s_.start, s_.end): ST.frame_hash(norm, (s_.start + s_.end) / 2) for s_ in sheets[a["id"]].shots}
+    events = ST.event_groups([{"id": aid, "date": x["date"], "name": x["name"]} for aid, x in meta.items()])
+    for aid, x in meta.items():
+        x["event"] = events.get(aid, "e1")
     # Saved as the model saw them, before her answers are applied (her answers live on the dump).
     saved_sheets = {aid: sh.to_json() for aid, sh in sheets.items() if V.worth_saving(sh)}
     # Layer 7: the videos she tapped as "a before" are cut as before shots.
@@ -1431,20 +1687,35 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
     if why_not:
         steer_report.append({"what": SHAPE_WORDS.get(str(override.get("shape")), "that kind of video"), "why": why_not})
     moments: list[tuple[Moment, Source]] = []
-    if seen and shape != "talking" and door != "recycle":
-        plans = P.plan_clips(sheet_list, shape, service, P.careful_quota(target, memory) if spec.get("mode") != "again" else 3, hers)
+    looks = ST.build_looks({aid: sh for aid, sh in sheets.items() if aid in meta}, meta)
+    by_key = {lk.key: lk for lk in looks}
+    photos_in = any(x["photo"] for x in meta.values())
+    if (seen or photos_in) and door != "recycle":
+        # Studio fix: clips by TYPE from the playbook, each ending on its event's hero, distinct cuts,
+        # as many as the footage gives up to the studio's clip target (jobs/clipmaker.py).
+        quota = P.careful_quota(target, memory) if spec.get("mode") != "again" else 3
+        plans = CM.plan_typed(looks, pb, {"min": rules_s["clip_target"]["min"], "max": quota}, service, tracks, {aid for aid, s_ in srcs.items() if not s_.muted})
+        if not plans and seen and shape != "talking":
+            # Nothing typed could be made (no hero view at all): the earlier planner, so the dump still gets clips.
+            plans = P.plan_clips(sheet_list, shape, service, quota, hers)
         if memory.get("approach") == "careful" and len(plans) > 1:
             # Layer 9, careful: only the strongest plans (at least one).
             plans = [pl for pl in plans if pl.score >= 0.7] or plans[:1]
         if avoid_windows:
             plans.sort(key=lambda pl: sum(avoid_overlap(Moment(pt.asset_id, "montage", pt.start, pt.end, [(pt.start, pt.end)]), avoid_windows) for pt in pl.parts))
             plans = plans[:1]
-        P.write_copy(key, plans, profile, services, OPENROUTER_MODEL, ask_text, feedback={0: spec.get("change_request")} if spec.get("change_request") and plans else None, guard=text_ok, rules=PR.copy_rules(rules), memory=memory)
-        for pl in plans:
-            moments.append((plan_moment(pl), srcs[pl.parts[-1].asset_id]))
+        P.write_copy(key, plans, profile, services, OPENROUTER_MODEL, ask_text, feedback={0: spec.get("change_request")} if spec.get("change_request") and plans else None, guard=text_ok, rules=PR.copy_rules(rules), memory=memory, extra=copy_extra(rules_s, pb, len(plans)))
+        for j, pl in enumerate(plans):
+            pm = plan_moment(pl)
+            if not pm.clip_type:
+                # The earlier planner's clip: typed by its shape, and it ends on the hero too.
+                pm.clip_type = {"transformation": "payoff_first", "walkthrough": "finished_walkthrough"}.get(pl.shape, "finished_walkthrough")
+                pm.event_group = meta.get(pm.asset_id, {}).get("event", "e1")
+                add_hero_ending(pm, looks, tracks, float(pb.get("hero_hold_s", 2.0)), j)
+            moments.append((pm, srcs[pm.asset_id]))
         if plans:
             engine["picker"] = "shot-sheet"
-    if not moments:
+    if not moments or shape == "talking":
         for i, (a, norm, info, wav) in enumerate(prepared):
             src = srcs[a["id"]]
             tr, runs = src.transcript, src.runs
@@ -1477,9 +1748,21 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
                 fill_copy(m, tr, spec, j)
                 ground_speech_moment(m, sheets.get(a["id"]), src, service if sure else None, shape, services, profile, j)
                 guard_moment(m, text_ok, profile, services, j)
+                # Studio fix: its type, its event, its words checked, and it ends on the hero too.
+                m.clip_type = "talk_to_camera" if src.transcript.words_in(m.start, m.end) else "finished_walkthrough"
+                m.event_group = meta.get(a["id"], {}).get("event", "e1")
+                m.hook, m.hook_alt, m.caption = SCL.clean_line(m.hook, 120), SCL.clean_line(m.hook_alt, 120), SCL.clean_line(m.caption, 300)
+                m.words_pending = CM.is_stock(m.hook, m.caption)
+                if door != "recycle":
+                    add_hero_ending(m, looks, tracks, float(pb.get("hero_hold_s", 2.0)), j)
                 moments.append((m, src))
     if not moments:
         raise NoUsableMoments("no moments")
+    # Distinct cuts only: a moment that shares most of its footage with one already made is dropped
+    # (a look or a re-pick never counts as another clip).
+    moments = distinct_moments(moments)
+    if len(moments) < rules_s["clip_target"]["min"] and not (spec.get("steer") or {}).get("count"):
+        steer_report.append({"what": f"{rules_s['clip_target']['min']} clips", "why": f"these videos hold {len(moments)} different cuts; the same cut is never made again in another look"})
     looks_like = P.looks_like(service, sure, shape, camera)
     # How many: her number, the moments she asked to include first, then the strongest.
     want = (spec.get("steer") or {}).get("count")
@@ -1490,52 +1773,60 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         steer_report.append({"what": f"{int(want)} clips", "why": f"we found {len(moments)} good moments in these videos, so {len(moments)} were made"})
     log("cut.picked", moments=len(moments))
 
-    # 5-7. render: clip k takes rotation[k], so a dump's clips never all look alike
+    # 5-7. render: clip k takes rotation[k], so a dump's clips never all look alike. A look is only
+    # used where it never repeats a picture in one frame: a grid / side-by-side needs at least as many
+    # distinct shots as cells (else that look is skipped), an inset only on a talk-to-camera clip.
     ids = [new_clip_id() for _ in moments]
     music_cache: dict[str, Path] = {}
     clips: list[dict[str, Any]] = []
     looks_used: dict[str, int] = {}
-    critic_stats = {"checked": 0, "recuts": 0, "hidden": 0}
+    critic_stats = {"checked": 0, "recuts": 0, "hidden": 0, "under_bar": 0, "bar_recuts": 0}
     ctx: list[dict[str, Any]] = []
+    skipped_looks: set[str] = set()
     for k, (m, src) in enumerate(moments):
+        if m.words_pending:
+            m.hook = ""  # no AI words came: nothing stock is burned in (the clip waits for its words)
         asset = next((x for x in assets if x["id"] == m.asset_id), None)
         a_steer = (asset or {}).get("steer") or {}
         rot = [r for r in (a_steer.get("rotation") or []) if r in L.LOOKS] or rotation
-        if m.part_assets:
-            # Shots of several videos play one after another: a full-frame Look (a grid or an inset would mix them).
-            rot = [r for r in rot if L.look_options(r)["layout"] in ("fill", "blur_fill")] or [r for r in L.LOOK_IDS if L.look_options(r)["layout"] == "fill"][:1] or rot
-        look_id = rot[k % len(rot)]
+        body = grid_body(m)
+        turn = rot[k % len(rot):] + rot[: k % len(rot)]
+        fitting = [r for r in turn if look_fits(L.look_options(r), m, len(body))]
+        for r in turn:
+            if r not in fitting and r not in skipped_looks:
+                skipped_looks.add(r)
+                lo = L.look_options(r)
+                why = f"these videos don't have {len(L.cells_of(lo))} different shots for one clip, and a look never repeats a picture" if lo["layout"] == "grid" else "the small replay box only goes on a clip where someone talks to the camera"
+                steer_report.append({"what": str(L.LOOKS[r].get("name") or r), "why": why})
+        look_id = fitting[0] if fitting else next(r for r in L.LOOK_IDS if L.look_options(r)["layout"] == "fill")
         opts = look_opts.get(f"{m.asset_id}:{look_id}") or look_opts.get(look_id) or L.look_options(look_id)
+        if not look_fits(opts, m, len(body)):
+            look_id = next(r for r in L.LOOK_IDS if L.look_options(r)["layout"] == "fill")
+            opts = look_opts.get(look_id) or L.look_options(look_id)
         cells = None
         layout = None
+        ending = None
         voice = 0
         voice_src = src
-        if opts["layout"] == "grid" and not m.part_assets:
-            others = [(ids[x], om, osrc) for x, (om, osrc) in enumerate(moments) if x != k and not om.part_assets]
-            try:
-                cells, layout = grid_cells(k, m, src, others, len(L.cells_of(opts)), mediapipe)
-            except subprocess.CalledProcessError:
-                log("cut.grid.failed", n=k, look=look_id)
-                cells, layout = None, None
-                opts = L.look_options(next((r for r in L.LOOK_IDS if L.look_options(r)["layout"] == "fill"), look_id))
-            if layout:
-                voice = layout["voice"]
-                if voice > 0 and layout["cells"][voice]["kind"] == "clip":
-                    voice_src = next(osrc for cid, _om, osrc in others if cid == layout["cells"][voice]["clip_id"])
+        if opts["layout"] == "grid":
+            n_cells = len(L.cells_of(opts))
+            cells, layout, ending = grid_from_parts(m, body[:n_cells], srcs, by_key, mediapipe)
+            voice_src = srcs[layout["cells"][0]["asset_id"]]
         songs = {"music": a_steer["music"]} if "music" in a_steer else spec
-        if src.muted:
+        if src.muted or (m.part_assets and all(srcs[x].muted for x in m.part_assets if x in srcs)):
             # No sound of its own: always a music bed (her songs, else the built-in library), never silent.
             opts = {**opts, "music": True, "mute": True}
         song = music_key(songs, k, src.muted) if opts.get("music") else None
         music_file = music_for(songs, k, work, download, music_cache, src.muted) if song else None
-        ctx.append({"look_id": look_id, "opts": opts, "cells": cells, "layout": layout, "voice": voice, "voice_src": voice_src, "song": song, "music": music_file, "src": src})
+        kbrand = dataclasses.replace(brand, cta=CM.cta_phrase(rules_s, k) or brand.cta)
+        ctx.append({"look_id": look_id, "opts": opts, "cells": cells, "layout": layout, "ending": ending, "voice": voice, "voice_src": voice_src, "song": song, "music": music_file, "src": src, "brand": kbrand})
 
     def render_k(item: tuple[int, Moment]) -> Any:
         k, mm = item
         c = ctx[k]
         progress("Cutting clips", k, len(moments))
         try:
-            return render_moment(mm, srcs.get(mm.asset_id, c["src"]), c["opts"], brand, work, ids[k], mediapipe, cells=None if mm.part_assets else c["cells"], voice=c["voice"], voice_src=c["voice_src"], music=c["music"], srcs=srcs)
+            return render_moment(mm, srcs.get(mm.asset_id, c["src"]), c["opts"], c["brand"], work, ids[k], mediapipe, cells=c["cells"], voice=c["voice"], voice_src=c["voice_src"], music=c["music"], srcs=srcs, ending=c["ending"])
         except subprocess.CalledProcessError:
             log("cut.render.failed", n=k, look=c["look_id"])
             return None
@@ -1549,25 +1840,48 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         lambda pairs: C.vision_check_batch(key, [critic_item(item[1], rr, srcs, sheets) for item, rr in pairs], work, f"r{critic_round(pairs)}", memory),
         lambda reqs: recut_batch(reqs, key, srcs, sheets, services, profile, text_ok, PR.copy_rules(rules), memory),
     )
-    for k, checked in enumerate(checked_all):
-        if checked is None:
-            continue
+    # 6b. SCORE (studio fix): 0..100 from real checks; under the studio's bar -> re-cut once -> still
+    # under -> hidden with the reason. Overlap is measured against every other clip of the dump.
+    done = [(k, ch) for k, ch in enumerate(checked_all) if ch is not None]
+    bodies = {k: clip_body_keys(ch.moment[1]) for k, ch in done}
+    bar = rules_s["bar"]
+    scored: dict[int, tuple[Any, Moment, int, list[str]]] = {}
+    for k, ch in done:
+        r, m = ch.rendered, ch.moment[1]
+        sc, why = CM.score_clip(score_facts(m, k, bodies, tracks, by_key, rules_s, ctx[k]["opts"]), pb)
+        if bar and sc < bar and not ch.hidden_reason:
+            critic_stats["under_bar"] += 1
+            better = improve_moment(m, tracks, pb)
+            if better is not None:
+                critic_stats["bar_recuts"] += 1
+                r2 = render_k((k, better))
+                if r2 is not None:
+                    sc2, why2 = CM.score_clip(score_facts(better, k, bodies, tracks, by_key, rules_s, ctx[k]["opts"]), pb)
+                    if sc2 > sc:
+                        r, m, sc, why = r2, better, sc2, why2
+            if sc < bar:
+                m.hidden_reason = f"scored {sc}/100, under your bar of {bar}: {why[0][:1].lower() + why[0][1:] if why else 'not good enough yet'}"
+        scored[k] = (r, m, sc, why)
+    for k, checked in done:
         c = ctx[k]
         look_id, opts, cells, layout, voice, voice_src, song = c["look_id"], c["opts"], c["cells"], c["layout"], c["voice"], c["voice_src"], c["song"]
         clip_id = ids[k]
-        r, m = checked.rendered, checked.moment[1]
-        m.hidden_reason = checked.hidden_reason
+        r, m, sc, why = scored[k]
+        m.hidden_reason = m.hidden_reason or checked.hidden_reason
         if not m.hidden_reason and any(a in unsafe for a in part_owners(m)):
             m.hidden_reason = C.REASON_WORDS["privacy"]
         src = srcs.get(m.asset_id, c["src"])
         critic_stats["checked"] += 1
         critic_stats["recuts"] += checked.recuts
-        critic_stats["hidden"] += 1 if checked.hidden_reason else 0
+        critic_stats["hidden"] += 1 if m.hidden_reason else 0
         if any(s.cx is not None for s in (cells or [src.seg(m.parts[0][0], m.parts[0][1], mediapipe)])):
             engine["crop"] = "face"
         engine["subtitles"] = r.subtitles if engine["subtitles"] in ("none", "hook-only") else engine["subtitles"]
         looks_used[look_id] = looks_used.get(look_id, 0) + 1
         allowed = next((a.get("allowed_platforms") for a in assets if a["id"] == m.asset_id), None) or ["tiktok", "instagram", "youtube"]
+        used = list(dict.fromkeys(part_owners(m)))
+        ai_imgs = any(meta.get(x, {}).get("ai_image") for x in used)
+        words = CM.final_words(m, rules_s, pb, k, ai_imgs)
         clips.append(
             {
                 "id": clip_id,
@@ -1575,12 +1889,12 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
                 "start_s": m.start,
                 "end_s": m.end,
                 "recipe": m.recipe,
-                "hook_text": m.hook[:200],
-                "hook_alt": (m.hook_alt or None) and m.hook_alt[:200],
-                "caption": m.caption[:2200],
-                "hashtags": m.hashtags,
+                "hook_text": words["hook_text"][:200],
+                "hook_alt": (words["hook_alt"] or None) and words["hook_alt"][:200],
+                "caption": words["caption"][:2200],
+                "hashtags": words["hashtags"],
                 "platforms": allowed,
-                "score": clip_score(m, src, recipes),
+                "score": sc,
                 "r2_key": f"{prefix}{clip_id}.mp4",
                 "cover_r2_key": f"{prefix}{clip_id}.jpg",
                 "look": look_id,
@@ -1595,6 +1909,16 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
                 "on_screen": m.on_screen[:400],
                 "part_assets": m.part_assets,
                 "hidden_reason": m.hidden_reason,
+                # Studio fix (contract): its type, the real score's reasons, the hero it ends on, the files
+                # it uses, whether any is an AI picture, its event, the voice-over script, words pending.
+                "clip_type": m.clip_type or "finished_walkthrough",
+                "score_reasons": why,
+                "hero_asset_id": m.hero_asset_id or None,
+                "files_used": used,
+                "uses_ai_images": ai_imgs,
+                "event_group": m.event_group or "e1",
+                "voice_script": (SCL.clean_script(m.voice, words["caption"], rules_s["cta_phrases"]) or None) if not words["words_pending"] else None,
+                "words_pending": words["words_pending"],
                 "_files": (r.mp4, r.cover),
             }
         )
@@ -1622,6 +1946,9 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         "shot_sheets": saved_sheets,
         "calls": {**dict(V.CALLS), **{f"by_{k}": v for k, v in A.report().items()}},
         "critic": critic_stats,
+        # Studio fix (contract): what each upload is (its stage) and how many distinct clips, by type.
+        "asset_roles": ST.asset_roles(looks),
+        "clip_counts": {**CM.counts([c["clip_type"] for c in clips if not c["hidden_reason"]]), "hidden": sum(1 for c in clips if c["hidden_reason"]), "target": rules_s["clip_target"]},
         "sound_labels": sound_labels,
     }
 
@@ -1634,7 +1961,7 @@ def rerender_clip(spec: dict[str, Any], work: Path, download: Downloader, upload
     stretches it needs. The old file stays live until the Worker swaps in this one."""
     work.mkdir(parents=True, exist_ok=True)
     mediapipe = heavy.get("mediapipe", False)
-    brand = L.branding_from(spec.get("branding"), work)
+    brand = brand_for(spec, work, download)
     look_id = str(spec.get("look_id") or "clean")
     opts = L.look_options(look_id, spec.get("look"))
     muted = bool(spec.get("muted"))
@@ -1642,7 +1969,7 @@ def rerender_clip(spec: dict[str, Any], work: Path, download: Downloader, upload
         # A clip cut with the camera sound off stays that way in every new look: music, never silence.
         opts = {**opts, "music": True, "mute": True}
     wanted: dict[str, list[tuple[float, float]]] = {}
-    stretches = [*(spec.get("parts") or []), *(spec.get("cells") or []), *([spec["inset"]] if spec.get("inset") else [])]
+    stretches = [*(spec.get("parts") or []), *(spec.get("cells") or []), *([spec["inset"]] if spec.get("inset") else []), *([spec["ending"]] if spec.get("ending") else [])]
     for p in stretches:
         wanted.setdefault(str(p["src"]), []).append((float(p["start"]), float(p["end"])))
     if not wanted:
@@ -1684,7 +2011,9 @@ def rerender_clip(spec: dict[str, Any], work: Path, download: Downloader, upload
     progress("Cutting clips", 0, 1)
     k = int(spec.get("music_turn") or 0)
     song = music_key(spec, k, muted) if opts.get("music") else None
-    r = render_moment(m, main_src, opts, brand, work, str(spec["clip_id"]), mediapipe, cells=cells, voice=voice, voice_src=voice_src, music=music_for(spec, k, work, download, {}, muted) if song else None)
+    # A grid made from the clip's own shots ends on its hero (layout.ending, studio fix).
+    ending = seg(spec["ending"])[0] if cells and spec.get("ending") else None
+    r = render_moment(m, main_src, opts, brand, work, str(spec["clip_id"]), mediapipe, cells=cells, voice=voice if ending is None else 0, voice_src=voice_src, music=music_for(spec, k, work, download, {}, muted) if song else None, ending=ending)
     progress("Saving clips", 0, 1)
     upload(r.mp4, str(spec["output_key"]), "video/mp4")
     upload(r.cover, str(spec["output_cover_key"]), "image/jpeg")
@@ -1806,7 +2135,8 @@ def import_items(spec: dict[str, Any], work: Path, download: Downloader, upload:
             "caption": title,
             "hashtags": [],
             "platforms": it.get("platforms") or ["tiktok", "instagram", "youtube"],
-            "score": round(max(0.5, 0.8 - 0.04 * k), 3),
+            # 0..100 like every clip (studio fix); nobody checked an editor's finished cut, so it says so.
+            "score": int(round(100 * max(0.5, 0.8 - 0.04 * k))),
             "r2_key": it["output_key"],
             "cover_r2_key": it["output_cover_key"],
             "look": None,
@@ -1821,6 +2151,14 @@ def import_items(spec: dict[str, Any], work: Path, download: Downloader, upload:
             "on_screen": "",
             "part_assets": None,
             "hidden_reason": None,
+            "clip_type": "imported",
+            "score_reasons": ["Cut in your connected editor, so it was not checked here"],
+            "hero_asset_id": None,
+            "files_used": [it.get("asset_id")] if it.get("asset_id") else [],
+            "uses_ai_images": False,
+            "event_group": "e1",
+            "voice_script": None,
+            "words_pending": False,
         })
     editor = str(spec.get("editor") or "editor")
     return {"clips": clips, "engine": {"transcript": editor, "picker": editor, "crop": editor, "subtitles": editor}}
