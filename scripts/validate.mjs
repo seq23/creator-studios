@@ -57,6 +57,8 @@ export const REGISTER = {
   "youtube-direct": "full videos go straight to her own YouTube channel (owner, 26 Sep 2026): a refresh token in a public repo's job, a deleted video, an upload past YouTube's daily allowance, a Calendar move YouTube never hears about, or a failure shape nobody tested is a video she loses or a light that lies",
   // studio fix A
   "studio-engine-contract": "the Oct 22 cut read a model's thinking aloud, tiled one picture into a grid, ended every clip on a near-blank card and scored a shape bonus (owner, 23 Oct 2026): each fix and every contract field must stay wired into the clip engine",
+  // studio fix A+B
+  "studio-fix-ab": "the clip engine and the Worker were built apart (23 Oct 2026): a 0..100 score stored as 0..1, a words-pending clip dropped for having no hook, an own-shot grid thrown away, a re-render with no hero ending or link; both sides must read one list and every cross-dependency must stay wired",
 };
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");

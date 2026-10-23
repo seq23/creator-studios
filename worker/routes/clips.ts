@@ -19,6 +19,7 @@
 // Nothing reaches the Calendar without approval (worker/domain/approval.ts decides every move).
 // Every decision is an event, so the learning loop reads one table.
 import { cleanLooksLike, type LooksLike } from "@shared/looksLike";
+import { clipTypeLabel } from "@shared/clipWords";
 import { Hono, type Context } from "hono";
 import type { Env, Vars } from "../env";
 import { requireUser } from "../lib/auth";
@@ -155,6 +156,8 @@ export interface ReviewClip extends ClipRow {
   label: string;
   /** The engine's clip type (from the library), its 0..100 score and the plain reasons. */
   clip_type: string | null;
+  /** Its label from the clip-type library (jobs/playbook.json), "From your editor" for an import. */
+  clip_type_label: string | null;
   score_100: number;
   score_reasons: string[];
   /** Its words are still being written: shown, and Approve waits. */
@@ -344,7 +347,8 @@ function toView(r: ClipDb): ReviewClip {
     code: clipCode(r.number, r.version ?? 1),
     label: clipLabel(r.dump_created_at, r.number, r.version ?? 1, TZ.zone),
     clip_type: r.clip_type,
-    score_100: Math.round((Number(r.score) || 0) * 100),
+    score_100: Math.round(Number(r.score) || 0),
+    clip_type_label: clipTypeLabel(r.clip_type),
     score_reasons: parseJson<string[]>(r.score_reasons, []),
     words_pending: !!r.words_pending,
     uses_ai_images: !!r.uses_ai_images,
@@ -356,7 +360,7 @@ function toView(r: ClipDb): ReviewClip {
         look_name: lookById(x.look)?.name ?? null,
         media_url: x.token ? `/media/${x.token}${x.mv ? `?v=${x.mv}` : ""}` : "",
         cover_url: x.token && x.cover ? `/media/${x.token}?cover=1${x.mv ? `&v=${x.mv}` : ""}` : null,
-        score_100: Math.round((Number(x.score) || 0) * 100),
+        score_100: Math.round(Number(x.score) || 0),
       })),
     versions: Number(r.versions) || 0,
     fixes: parseJson<string[]>(r.again_fixes, []),
@@ -398,7 +402,7 @@ const CLIP_SELECT = `SELECT c.id, c.asset_id, c.dump_id, c.start_s, c.end_s, c.r
   a.file_name AS source_file, a.source_owner, a.source_note,
   (SELECT n.mix_status FROM narrations n WHERE n.clip_id = c.id AND n.mix_status IS NOT NULL ORDER BY n.created_at DESC LIMIT 1) AS voice_mix,
   (SELECT n.id FROM narrations n WHERE n.clip_id = c.id AND n.mix_status IS NOT NULL ORDER BY n.created_at DESC LIMIT 1) AS voice_nid,
-  (SELECT n.script FROM narrations n WHERE n.clip_id = c.id AND n.mix_status IS NOT NULL ORDER BY n.created_at DESC LIMIT 1) AS voice_script,
+  COALESCE((SELECT n.script FROM narrations n WHERE n.clip_id = c.id AND n.mix_status IS NOT NULL ORDER BY n.created_at DESC LIMIT 1), c.voice_script) AS voice_script,
   (SELECT n.auto FROM narrations n WHERE n.clip_id = c.id AND n.mix_status IS NOT NULL ORDER BY n.created_at DESC LIMIT 1) AS voice_auto,
   c.full_video, c.youtube, c.file_deleted_at, c.keep_until, c.delete_warned_at,
   c.number, c.version, c.clip_type, c.score_reasons, c.words_pending, c.uses_ai_images, c.again_fixes,
@@ -999,8 +1003,13 @@ async function rerender(c: Ctx, id: string, look: unknown, layoutInput: unknown,
   let layout: GridLayout | null = null;
   if (row && isLookId(look) && isGridLook(look)) {
     if (layoutInput !== undefined) {
-      layout = cleanGridLayout(look, layoutInput);
+      // The clip's own shots ("part" cells) and its hero ending must be files of this clip's dump.
+      const { results: own } = await c.env.DB.prepare("SELECT id FROM assets WHERE dump_id = ?").bind(row.dump_id).all<{ id: string }>();
+      layout = cleanGridLayout(look, layoutInput, new Set(own.map((a) => a.id)));
       if (!layout) return fail(c, 422, `Pick something for all ${cellCount(look)} cells, with this clip in at least one of them.`, "looks-and-styles");
+      // Her new picks keep the hero ending the engine gave the grid (every clip ends on its hero).
+      const saved = parseJson<GridLayout | null>(row.layout, null);
+      if (!layout.ending && saved?.ending) layout = { ...layout, ending: saved.ending };
       for (const cell of layout.cells) {
         if (cell.kind !== "clip") continue;
         const other = await c.env.DB.prepare("SELECT dump_id, status FROM clips WHERE id = ?").bind(cell.clip_id).first<{ dump_id: string; status: ClipStatus }>();

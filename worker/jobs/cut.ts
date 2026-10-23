@@ -68,6 +68,7 @@ import type { StudioRules } from "@shared/studioRules";
 import { readStudioRules } from "../lib/studioRules";
 import { latestPlaybook, type NichePlaybook } from "../lib/niche";
 import { cleanFixes, type FixKey } from "@shared/fixes";
+import { cleanScript, ctaTurnFor } from "@shared/clipWords";
 import { clipCode } from "@shared/clipNumber";
 import { keepVersion } from "../lib/clipVersions";
 
@@ -92,7 +93,8 @@ export async function renderContext(env: Env): Promise<{ editing: ReturnType<typ
     editing,
     own: stored,
     music: editing.music ? tracks.map((t) => ({ r2_key: t.r2_key })) : [],
-    branding: brandingFor(profile ? parseJson<Record<string, string>>(profile.sections, {}) : null, channels),
+    // The studio's end-card logo (Settings → Your clips) rides in the branding the clip engine reads.
+    branding: { ...brandingFor(profile ? parseJson<Record<string, string>>(profile.sections, {}) : null, channels), logo_r2_key: (await readStudioRules(env)).logo_r2_key },
   };
 }
 
@@ -218,6 +220,12 @@ export interface RerenderSpec {
   muted: boolean;
   output_key: string;
   output_cover_key: string;
+  /** A grid made from the clip's own shots ends on its hero, full frame (layout.ending). */
+  ending: RerenderStretch | null;
+  /** Which call to action the end card says: the same turn of the studio's phrases as the caption. */
+  cta_turn: number | null;
+  /** The studio's rules (the end card's call to action and link come from here). */
+  studio_rules: StudioRules;
 }
 
 /** Platforms a recycled asset may go to: the cooldown per platform from its known past post. */
@@ -454,6 +462,7 @@ interface ClipSourceDb {
   end_s: number;
   recipe: Recipe;
   hook_text: string;
+  caption: string;
   r2_key: string;
   parts: string | null;
   part_assets: string | null;
@@ -468,7 +477,7 @@ interface ClipSourceDb {
   asset_duration: number | null;
 }
 
-const CLIP_SOURCE_SQL = `SELECT c.id, c.dump_id, c.asset_id, c.start_s, c.end_s, c.recipe, c.hook_text, c.r2_key, c.parts, c.part_assets, c.layout, c.pending_look, c.pending_layout, c.pending_music, c.music, c.muted,
+const CLIP_SOURCE_SQL = `SELECT c.id, c.dump_id, c.asset_id, c.start_s, c.end_s, c.recipe, c.hook_text, c.caption, c.r2_key, c.parts, c.part_assets, c.layout, c.pending_look, c.pending_layout, c.pending_music, c.music, c.muted,
   c.media_version, a.r2_key AS raw_key, a.raw_deleted_at, a.duration_s AS asset_duration FROM clips c JOIN assets a ON a.id = c.asset_id`;
 
 /** The file names a re-render writes: the clip's id and the next version, inside its dump's folder. */
@@ -506,6 +515,13 @@ async function partSources(env: Env, clip: Pick<ClipSourceDb, "raw_key" | "part_
   return out;
 }
 
+/** A stretch of one of this dump's uploads (a grid's own-shot cell, its hero ending), read from the raw file. */
+async function dumpStretch(env: Env, dumpId: string, st: { asset_id: string; start: number; end: number }): Promise<RerenderStretch> {
+  const a = await env.DB.prepare("SELECT r2_key, raw_deleted_at FROM assets WHERE id = ? AND dump_id = ?").bind(st.asset_id, dumpId).first<{ r2_key: string; raw_deleted_at: string | null }>();
+  if (!a || a.raw_deleted_at) throw new Error("clip source cleared");
+  return { src: a.r2_key, start: st.start, end: st.end };
+}
+
 async function buildRerenderSpec(env: Env, jobId: string, dumpId: string, clipId: string): Promise<RerenderSpec> {
   const clip = await env.DB.prepare(`${CLIP_SOURCE_SQL} WHERE c.id = ? AND c.dump_id = ?`).bind(clipId, dumpId).first<ClipSourceDb & { muted: number }>();
   if (!clip || !clip.pending_look || !isLookId(clip.pending_look)) throw new Error("clip has no pending look");
@@ -523,6 +539,7 @@ async function buildRerenderSpec(env: Env, jobId: string, dumpId: string, clipId
   const parts = clipParts(clip);
   let cells: RerenderStretch[] | null = null;
   let voice = 0;
+  let ending: RerenderStretch | null = null;
   if (isGridLook(clip.pending_look)) {
     const layout = parseJson<GridLayout | null>(clip.pending_layout, null) ?? defaultGridLayout(clip.pending_look, []);
     const length = clip.end_s - clip.start_s;
@@ -531,6 +548,7 @@ async function buildRerenderSpec(env: Env, jobId: string, dumpId: string, clipId
     for (const cell of layout.cells) {
       if (cell.kind === "self") cells.push(self);
       else if (cell.kind === "zoom") cells.push({ ...self, zoom: cell.zoom });
+      else if (cell.kind === "part") cells.push(await dumpStretch(env, dumpId, cell));
       else {
         const other = await env.DB.prepare(`${CLIP_SOURCE_SQL} WHERE c.id = ? AND c.status != 'deleted'`).bind(cell.clip_id).first<ClipSourceDb>();
         const stretch = other ? clipSource(other, length) : { ...self, zoom: 1.35 };
@@ -539,7 +557,9 @@ async function buildRerenderSpec(env: Env, jobId: string, dumpId: string, clipId
       }
     }
     voice = layout.voice;
+    if (layout.ending) ending = await dumpStretch(env, dumpId, layout.ending);
   }
+  const rules = await readStudioRules(env);
   const keys = rerenderKeys(dumpId, clipId, clip.media_version + 1);
   return {
     job_id: jobId,
@@ -560,6 +580,9 @@ async function buildRerenderSpec(env: Env, jobId: string, dumpId: string, clipId
     muted: !!clip.muted,
     output_key: keys.mp4,
     output_cover_key: keys.jpg,
+    ending,
+    cta_turn: ctaTurnFor(clip.caption ?? "", rules),
+    studio_rules: rules,
   };
 }
 
@@ -615,6 +638,8 @@ export interface CutResultClip {
   words_pending?: boolean | null;
   /** This is the same cut as another clip in a different look: shown as a style of that one. */
   style_of?: string | null;
+  /** The engine's voice-over script (jobs/script_clean.py), spoken by the automatic voice over first. */
+  voice_script?: string | null;
 }
 
 export interface CutResult {
@@ -695,6 +720,7 @@ export interface CleanClip {
   event_group: string | null;
   words_pending: boolean;
   style_of: string | null;
+  voice_script: string | null;
 }
 
 export class CutResultError extends Error {
@@ -767,7 +793,8 @@ export function parseCutResult(
       c.r2_key.endsWith(".mp4") &&
       !ctx.rawKeys.has(c.r2_key) &&
       (c.cover_r2_key == null || (typeof c.cover_r2_key === "string" && c.cover_r2_key.startsWith(prefix) && c.cover_r2_key.endsWith(".jpg"))) &&
-      str(c.hook_text, 200).length > 0;
+      // A clip whose words are still being written (words_pending) comes with none; the words pass adds them.
+      (str(c.hook_text, 200).length > 0 || c.words_pending === true);
     if (!ok) {
       dropped++;
       continue;
@@ -780,10 +807,12 @@ export function parseCutResult(
       continue;
     }
     ids.add(c.id!);
-    // The engine's 0..100 score (studio fix) or an older 0..1 one; stored 0..1, shown as 0..100.
+    // The engine's 0..100 score (studio fix) or an older 0..1 one; stored as an integer 0..100 either way.
     const hundred = isHundredScale(c, score);
-    const s = Math.max(0, Math.min(1, hundred ? score / 100 : score));
-    const bar = hundred ? (ctx.bar ?? QUALITY_BAR * 100) / 100 : QUALITY_BAR;
+    const s = Math.round(Math.max(0, Math.min(100, hundred ? score : score * 100)));
+    const bar = hundred ? (ctx.bar ?? QUALITY_BAR) : QUALITY_BAR;
+    // An editor's finished cut was never scored here (clip_type "imported"): the bar does not hide it.
+    const imported = c.clip_type === "imported";
     const reasons = cleanReasons(c.score_reasons);
     const used = Array.isArray(c.files_used) ? [...new Set(c.files_used.map(String).filter((a) => ctx.allowed.has(a)))].slice(0, 60) : [];
     const alt = str(c.hook_alt, 200);
@@ -793,8 +822,9 @@ export function parseCutResult(
     const partAssets = Array.isArray(c.part_assets) && c.part_assets.length === parts.length && c.part_assets.every((a) => typeof a === "string" && ctx.allowed.has(a)) ? (c.part_assets as string[]) : null;
     // Layer 5, checked again here (the Worker never trusts the job): words that break the studio's rules hide the clip.
     const broke = ctx.rules && [c.hook_text, c.hook_alt, c.caption].some((t) => typeof t === "string" && textProblems(t, ctx.rules!).length > 0);
-    const under = s < bar;
-    const hiddenReason = str(c.hidden_reason, 200) || (broke ? RULES_HIDDEN : null) || (under && hundred ? underBarReason(Math.round(s * 100), Math.round(bar * 100), reasons) : null);
+    const under = !imported && s < bar;
+    const hiddenReason = str(c.hidden_reason, 200) || (broke ? RULES_HIDDEN : null) || (under && hundred ? underBarReason(s, bar, reasons) : null);
+    const caption = str(c.caption, 2200);
     clips.push({
       id: c.id!,
       asset_id: String(c.asset_id),
@@ -803,16 +833,17 @@ export function parseCutResult(
       recipe,
       hook_text: str(c.hook_text, 200),
       hook_alt: alt || null,
-      caption: str(c.caption, 2200),
+      caption,
       hashtags: normalizeHashtags(c.hashtags),
       platforms,
-      score: Math.round(s * 1000) / 1000,
+      score: s,
       hidden: under || !!hiddenReason,
       r2_key: c.r2_key!,
       cover_r2_key: c.cover_r2_key ?? null,
       look,
       parts,
-      layout: look && isGridLook(look) ? (cleanGridLayout(look, c.layout) ?? defaultGridLayout(look, [])) : null,
+      // A grid from the clip's own shots (cells {kind:"part", asset_id, start, end} + layout.ending, the hero).
+      layout: look && isGridLook(look) ? (cleanGridLayout(look, c.layout, ctx.allowed) ?? defaultGridLayout(look, [])) : null,
       music: songKey(c.music),
       // A muted clip has no talking of its own (automatic voice over applies), whatever the job said.
       speech: c.muted === true ? 0 : typeof c.speech === "number" && Number.isFinite(c.speech) && c.speech >= 0 && c.speech <= 1 ? Math.round(c.speech * 1000) / 1000 : null,
@@ -830,6 +861,8 @@ export function parseCutResult(
       event_group: str(c.event_group, 80) || null,
       words_pending: c.words_pending === true,
       style_of: typeof c.style_of === "string" && /^clp_[a-z0-9]{8,32}$/.test(c.style_of) ? c.style_of : null,
+      // Checked again here (the Worker never trusts the job): reasoning-shaped text is never spoken.
+      voice_script: c.words_pending === true ? null : cleanScript(str(c.voice_script, 1500), caption) || null,
     });
   }
   return { clips: groupStyles(clips), dropped };
@@ -948,13 +981,13 @@ export async function applyDumpClips(env: Env, jobId: string, dumpId: string, re
     stmts.push(
       env.DB.prepare(
         `INSERT INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, hook_text, hook_alt, caption, hashtags, platforms, score, r2_key, cover_r2_key, media_token, status, hidden, look, parts, layout, edited_with, music, speech, muted, shape, service, on_screen, part_assets, hidden_reason,
-           number, version, clip_type, score_reasons, hero_asset_id, files_used, uses_ai_images, event_group, words_pending, style_of)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           number, version, clip_type, score_reasons, hero_asset_id, files_used, uses_ai_images, event_group, words_pending, style_of, voice_script)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         c.id, c.asset_id, dumpId, c.start_s, c.end_s, c.recipe, c.hook_text, c.hook_alt, c.caption, c.hashtags, JSON.stringify(c.platforms), c.score, c.r2_key, c.cover_r2_key, mediaToken(), c.hidden ? 1 : 0,
         opts.editor ? null : c.look, JSON.stringify(c.parts), opts.editor ? null : c.layout ? JSON.stringify(c.layout) : null, opts.editor ?? null, c.music, c.speech, c.muted ? 1 : 0,
         c.shape, c.service, c.on_screen, c.part_assets ? JSON.stringify(c.part_assets) : null, c.hidden_reason,
-        numbers.get(c.id) ?? null, c.clip_type, JSON.stringify(c.score_reasons), c.hero_asset_id, JSON.stringify(c.files_used), c.uses_ai_images ? 1 : 0, c.event_group, c.words_pending ? 1 : 0, c.style_of,
+        numbers.get(c.id) ?? null, c.clip_type, JSON.stringify(c.score_reasons), c.hero_asset_id, JSON.stringify(c.files_used), c.uses_ai_images ? 1 : 0, c.event_group, c.words_pending ? 1 : 0, c.style_of, c.voice_script,
       ),
     );
   }
@@ -1150,10 +1183,10 @@ async function applyAgain(env: Env, jobId: string, dumpId: string, clipId: strin
     `UPDATE clips SET asset_id = ?, start_s = ?, end_s = ?, recipe = ?, hook_text = ?, hook_alt = ?, caption = ?, hashtags = ?, score = ?, r2_key = ?, cover_r2_key = ?, look = ?, parts = ?, layout = ?,
        music = ?, speech = ?, muted = ?, shape = ?, service = ?, on_screen = ?, part_assets = ?, hidden_reason = ?, hidden = ?, pending_look = NULL, pending_layout = NULL, pending_music = NULL, rerender_job_id = NULL, rerender_error = NULL, media_version = media_version + 1, edited_with = NULL,
        version = (SELECT COALESCE(MAX(v.version), 0) FROM clip_versions v WHERE v.clip_id = clips.id) + 1,
-       clip_type = ?, score_reasons = ?, hero_asset_id = ?, files_used = ?, uses_ai_images = ?, event_group = ?, words_pending = ? WHERE id = ?`,
+       clip_type = ?, score_reasons = ?, hero_asset_id = ?, files_used = ?, uses_ai_images = ?, event_group = ?, words_pending = ?, voice_script = ?, words_tries = 0, words_tried_at = NULL WHERE id = ?`,
   )
     .bind(fresh.asset_id, fresh.start_s, fresh.end_s, fresh.recipe, fresh.hook_text, fresh.hook_alt, fresh.caption, fresh.hashtags, fresh.score, fresh.r2_key, fresh.cover_r2_key, fresh.look, JSON.stringify(fresh.parts), fresh.layout ? JSON.stringify(fresh.layout) : null, fresh.music, fresh.speech, fresh.muted ? 1 : 0, fresh.shape, fresh.service, fresh.on_screen, fresh.part_assets ? JSON.stringify(fresh.part_assets) : null, fresh.hidden_reason, fresh.hidden ? 1 : 0,
-      fresh.clip_type, JSON.stringify(fresh.score_reasons), fresh.hero_asset_id, JSON.stringify(fresh.files_used), fresh.uses_ai_images ? 1 : 0, fresh.event_group, fresh.words_pending ? 1 : 0, clipId)
+      fresh.clip_type, JSON.stringify(fresh.score_reasons), fresh.hero_asset_id, JSON.stringify(fresh.files_used), fresh.uses_ai_images ? 1 : 0, fresh.event_group, fresh.words_pending ? 1 : 0, fresh.voice_script, clipId)
     .run();
   // A voice over made for the old moment no longer fits: it goes; a new one is made for a clip with no talking.
   await removeVoiceOver(env, clipId);
@@ -1211,7 +1244,8 @@ const FAKE_RECIPES: Recipe[] = ["talking_head", "hook_first", "story", "montage"
 /** 0..100, as the studio-fix engine scores; two of every twelve under a bar of 70, with their reasons. */
 const FAKE_SCORES = [92, 86, 81, 78, 75, 72, 71, 74, 48, 40, 79, 73];
 const FAKE_REASONS: Record<number, string[]> = { 48: ["ends on a blurry shot"], 40: ["the hook is small and hard to read", "the same shot twice"] };
-const FAKE_TYPES = ["payoff-first before→after", "POV walk-in reveal", "set up with me", "finished walk-through", "photo-moment details", "photo slideshow"];
+/** Ids from the clip-type library (jobs/playbook.json), exactly as the engine sends them. */
+const FAKE_TYPES = ["payoff_first", "pov_walk_in", "set_up_with_me", "finished_walkthrough", "photo_details", "photo_slideshow"];
 
 /** The engine's final caption layout (shared/postText.ts): body, CTA + link, hashtags, then "—" and Made with AI where it applies. */
 export function fakeFinalCaption(body: string, tags: string, rules: StudioRules, i: number, aiMade: boolean): string {
@@ -1241,7 +1275,7 @@ async function fakeRun(env: Env, jobId: string, refId: string | null, options: R
     const muted = spec.camera === "off";
     const start = (spec.avoid_windows[0]?.end ?? 0) + 1;
     return {
-      again: { id, asset_id: spec.assets[0]!.id, start_s: start, end_s: start + 20, recipe: "montage", hook_text: spec.change_request ? "A fresh take" : "Another take", hook_alt: null, caption: "Another version.", hashtags: "#creator", platforms: spec.assets[0]!.allowed_platforms, score: 76, score_reasons: spec.fixes.length ? spec.fixes.map((f) => `fixed: ${f.replace(/_/g, " ")}`) : ["a fresh moment"], clip_type: "finished walk-through", r2_key: key, cover_r2_key: cover, look: spec.rotation[0], parts: [[start, start + 20]], layout: null, music: muted ? "library/bright-morning" : null, speech: muted ? 0 : 0.6, muted },
+      again: { id, asset_id: spec.assets[0]!.id, start_s: start, end_s: start + 20, recipe: "montage", hook_text: spec.change_request ? "A fresh take" : "Another take", hook_alt: null, caption: "Another version.", hashtags: "#creator", platforms: spec.assets[0]!.allowed_platforms, score: 76, score_reasons: spec.fixes.length ? spec.fixes.map((f) => `fixed: ${f.replace(/_/g, " ")}`) : ["a fresh moment"], clip_type: "finished_walkthrough", r2_key: key, cover_r2_key: cover, look: spec.rotation[0], parts: [[start, start + 20]], layout: null, music: muted ? "library/bright-morning" : null, speech: muted ? 0 : 0.6, muted },
     };
   }
   if (ref.clipId) {
@@ -1297,6 +1331,7 @@ async function fakeRun(env: Env, jobId: string, refId: string | null, options: R
       files_used: used,
       uses_ai_images: aiImages,
       event_group: "event-1",
+      voice_script: recipe === "montage" ? "Watch this one come together, start to finish." : null,
       r2_key: key,
       cover_r2_key: cover,
       look,

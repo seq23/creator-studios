@@ -48,7 +48,7 @@ export async function listVersions(env: Env, clipId: string): Promise<VersionVie
       id: v.id,
       version: v.version,
       code: clipCode(clip?.number ?? null, v.version),
-      score: Math.round((Number(v.score) || 0) * 100),
+      score: Math.round(Number(v.score) || 0),
       score_reasons: parseJson<string[]>(typeof snap.score_reasons === "string" ? snap.score_reasons : null, []),
       hook_text: String(snap.hook_text ?? ""),
       media_url: `/api/clips/${clipId}/versions/${v.id}/media`,

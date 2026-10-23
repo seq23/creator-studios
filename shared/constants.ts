@@ -64,8 +64,8 @@ export const RECIPES = {
 } as const;
 export type Recipe = keyof typeof RECIPES;
 
-/** Quality bar: clips scoring under this are hidden by default in Review. */
-export const QUALITY_BAR = 0.45;
+/** Quality bar (0..100, the scale every score is stored on): clips scoring under this are hidden by default in Review. A studio's own bar (studio_rules.bar) wins for the clip engine's results. */
+export const QUALITY_BAR = 45;
 
 /** Launch posting slots (section 10b), in the audience's local time. day: 0 = Sunday. */
 export interface Slot {

@@ -126,7 +126,7 @@ export async function applyFullResult(env: Env, jobId: string, dumpId: string, r
   await env.DB.batch([
     env.DB.prepare(
       `INSERT OR REPLACE INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, hook_text, caption, hashtags, platforms, score, r2_key, cover_r2_key, media_token, status, full_video, youtube)
-       VALUES (?, ?, ?, 0, ?, 'story', ?, ?, '', '["youtube"]', 1, ?, ?, ?, 'draft', 1, ?)`,
+       VALUES (?, ?, ?, 0, ?, 'story', ?, ?, '', '["youtube"]', 100, ?, ?, ?, 'draft', 1, ?)`,
     ).bind(clipId, a.id, dumpId, p.duration, d.title, composeDescription(d.body, chapters, d.tags), fullVideoKey(dumpId, clipId), p.thumbs[0].key, mediaToken(), JSON.stringify(details)),
     env.DB.prepare("UPDATE dumps SET status = 'ready', clips_made = 1, ready_at = ?, error_summary = NULL WHERE id = ?").bind(at, dumpId),
     // The copy is the video now: the upload goes at once, so it is stored once.

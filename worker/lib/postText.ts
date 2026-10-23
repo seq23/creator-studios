@@ -16,16 +16,19 @@ export interface ClipForPost {
   number?: number | null;
   version?: number | null;
   dump_created_at?: string | null;
+  /** The engine's clip type: set (and not "imported") = the caption is final, sent as written. */
+  clip_type?: string | null;
 }
 
 /** SQL columns the post loaders add so clipPostText has what it needs (c = clips). */
-export const POST_TEXT_COLUMNS = "c.uses_ai_images, c.number, c.version, (SELECT d.created_at FROM dumps d WHERE d.id = c.dump_id) AS dump_created_at";
+export const POST_TEXT_COLUMNS = "c.clip_type, c.uses_ai_images, c.number, c.version, (SELECT d.created_at FROM dumps d WHERE d.id = c.dump_id) AS dump_created_at";
 
 export async function clipPostText(env: Env, row: ClipForPost, source: TrackSource): Promise<{ text: string; link: string | null; aiMade: boolean }> {
   const rules = await readStudioRules(env);
   const aiMade = row.ai_voice > 0 || rules.ai_note === "all" || !!row.uses_ai_images;
   const tag = clipTag(row.dump_created_at ?? "", row.number ?? null, row.version ?? 1, env.AUDIENCE_TIMEZONE);
   const campaign = studioSlug(env);
-  const text = postText({ caption: row.caption, hashtags: row.hashtags, aiMade, link: rules.cta_link, source, campaign, tag });
+  const final = !!row.clip_type && row.clip_type !== "imported";
+  const text = postText({ caption: row.caption, hashtags: row.hashtags, aiMade, link: rules.cta_link, source, campaign, tag, final });
   return { text, link: rules.cta_link ? trackedLink(rules.cta_link, source, campaign, tag) : null, aiMade };
 }

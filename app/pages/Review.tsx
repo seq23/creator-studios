@@ -65,6 +65,7 @@ export interface ReviewClip extends ClipRow {
   code?: string;
   label?: string;
   clip_type?: string | null;
+  clip_type_label?: string | null;
   score_100?: number;
   score_reasons?: string[];
   words_pending?: boolean;
@@ -585,7 +586,7 @@ function ClipCard(props: {
   if (c.full_video) return <FullVideoCardShell {...props} />;
   const styles = c.styles ?? [];
   const shown = styles.find((s) => s.id === watching) ?? null;
-  const score = c.score_100 ?? Math.round(c.score * 100);
+  const score = c.score_100 ?? Math.round(c.score);
   const reason = c.score_reasons?.[0];
   const working = busy || !!c.pending_look || !!c.editing_note || !c.source_available;
   return (
@@ -619,7 +620,7 @@ function ClipCard(props: {
             · Score {score}
             {reason ? `: ${reason}` : ""}
           </span>
-          {c.clip_type ? <span className="pill" data-clip-type>{sentence(c.clip_type)}</span> : <span className="pill">{RECIPES[c.recipe]?.label ?? c.recipe}</span>}
+          {c.clip_type ? <span className="pill" data-clip-type>{c.clip_type_label ?? sentence(c.clip_type)}</span> : <span className="pill">{RECIPES[c.recipe]?.label ?? c.recipe}</span>}
           {c.words_pending ? (
             <span className="pill warn" data-words-pending>
               Words still being written · Approve opens when they are in
@@ -1041,7 +1042,7 @@ function CompareModal({ clip, onClose, onKept }: { clip: ReviewClip; onClose: ()
       <div className="compare-list" data-compare-list>
         <div className="compare-item">
           <div className="set-label">
-            {clip.code ?? "This one"} · now · Score {clip.score_100 ?? Math.round(clip.score * 100)}
+            {clip.code ?? "This one"} · now · Score {clip.score_100 ?? Math.round(clip.score)}
           </div>
           <video src={clip.media_url} poster={clip.cover_url ?? undefined} controls playsInline preload="none" aria-label="Play the current version" />
           <p className="hint">{clip.score_reasons?.[0] ?? clip.hook_text}</p>

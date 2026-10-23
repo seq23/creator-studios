@@ -1594,7 +1594,9 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
             log("cut.asset.unreadable", n=i, photo=photo)  # one unreadable upload never stops the rest
             continue
         from_camera = a["exif_camera"] if isinstance(a.get("exif_camera"), bool) else exif.get("camera")
-        meta[a["id"]] = {"photo": photo, "name": name, "name_hero": ST.name_is_hero(name), "date": exif.get("date") or ST.media_date(raw) or ST.date_from_name(name), "ai_image": bool(photo and not from_camera)}
+        # The Worker read the camera date at upload (spec.assets[].taken_at); it wins when given.
+        taken = str(a.get("taken_at") or "")[:10] if re.match(r"^\d{4}-\d{2}-\d{2}", str(a.get("taken_at") or "")) else None
+        meta[a["id"]] = {"photo": photo, "name": name, "name_hero": ST.name_is_hero(name), "date": taken or exif.get("date") or ST.media_date(raw) or ST.date_from_name(name), "ai_image": bool(photo and not from_camera)}
         raw.unlink(missing_ok=True)
         wav = work / f"audio_{i}.wav"
         extract_wav(norm, wav)
@@ -1701,9 +1703,10 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         if memory.get("approach") == "careful" and len(plans) > 1:
             # Layer 9, careful: only the strongest plans (at least one).
             plans = [pl for pl in plans if pl.score >= 0.7] or plans[:1]
-        if avoid_windows:
-            plans.sort(key=lambda pl: sum(avoid_overlap(Moment(pt.asset_id, "montage", pt.start, pt.end, [(pt.start, pt.end)]), avoid_windows) for pt in pl.parts))
-            plans = plans[:1]
+        fixes = CM.clean_fixes(spec.get("fixes"))
+        if avoid_windows or fixes:
+            # Try another version: away from the version she has, doing what her one-tap fixes ask (spec.fixes).
+            plans = CM.apply_fixes(plans, fixes, by_key, pb, lambda pt: avoid_overlap(Moment(pt.asset_id, "montage", pt.start, pt.end, [(pt.start, pt.end)]), avoid_windows))[:1]
         P.write_copy(key, plans, profile, services, OPENROUTER_MODEL, ask_text, feedback={0: spec.get("change_request")} if spec.get("change_request") and plans else None, guard=text_ok, rules=PR.copy_rules(rules), memory=memory, extra=copy_extra(rules_s, pb, len(plans)))
         for j, pl in enumerate(plans):
             pm = plan_moment(pl)

@@ -53,12 +53,17 @@ export interface PostTextInput {
   campaign: string;
   /** "clip-1022-5b" (shared/clipNumber.ts clipTag). */
   tag: string;
+  /**
+   * The clip engine wrote this caption in the final layout (a clip with a clip type from the
+   * library): it goes out exactly as written, never with hashtags added; only its link is swapped.
+   */
+  final?: boolean;
 }
 
 /** The exact text a platform receives. Pure. */
 export function postText(p: PostTextInput): string {
   const caption = String(p.caption ?? "").replace(/\r/g, "").trim();
-  let text = isFinalCaption(caption) ? caption : [caption, String(p.hashtags ?? "").trim()].filter(Boolean).join("\n\n");
+  let text = p.final || isFinalCaption(caption) ? caption : [caption, String(p.hashtags ?? "").trim()].filter(Boolean).join("\n\n");
   if (p.aiMade && !/made with ai/i.test(text)) text = text ? `${text}${AI_NOTE_TAIL}` : AI_NOTE_TAIL.trim();
   return p.link ? swapLink(text, p.link, trackedLink(p.link, p.source, p.campaign, p.tag)) : text;
 }

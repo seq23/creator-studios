@@ -481,3 +481,51 @@ def final_words(m: Any, rules: dict[str, Any], pb: dict[str, Any], k: int, uses_
         "hashtags": tags,
         "words_pending": False,
     }
+
+
+# ---------------------------------------------------------------- her one-tap fixes (Review)
+
+# The keys are the interface with the Worker (shared/fixes.ts FIXES): Try another version sends
+# spec.fixes, a list of these, with the same words in change_request. Guard: jobs/tests/test_studio_fix.py
+# and the validator studio-engine-contract (the two lists must match).
+FIX_KEYS = ("end_on_finished", "less_blur", "different_opening", "shorter", "photo_ending")
+
+
+def clean_fixes(v: Any) -> list[str]:
+    asked = {str(x) for x in (v if isinstance(v, list) else [])}
+    return [k for k in FIX_KEYS if k in asked]
+
+
+def apply_fixes(plans: list[P.Plan], fixes: list[str], by_key: dict[str, S.Look], pb: dict[str, Any], overlap: Any) -> list[P.Plan]:
+    """Order (and, for "shorter", trim) the re-plans so the first one does what she tapped:
+    end_on_finished: the longest-held hero ending; less_blur: the sharpest weakest shot;
+    different_opening: an opening away from the version she has (overlap(part) -> 0..1);
+    shorter: cut from the middle to the type's shortest length (the hero ending is kept);
+    photo_ending: a clip that ends on a photo. Every plan still ends on its hero."""
+    fx = set(clean_fixes(fixes))
+    out: list[P.Plan] = []
+    for pl in plans:
+        if "shorter" in fx and pl.parts:
+            t = PB.template(pb, pl.clip_type or "finished_walkthrough")
+            want = max(float(t["length_s"][0]), min(pl.length * 0.6, float(t["length_s"][1])))
+            parts = _trim(pl.parts, want)
+            if parts and parts[-1].stage == "hero":
+                pl.parts = parts
+        out.append(pl)
+
+    def quality(p: P.Part) -> float:
+        lk = by_key.get(p.key)
+        return float(lk.quality) if lk is not None else 0.0
+
+    def key(pl: P.Plan) -> tuple:
+        last = pl.parts[-1] if pl.parts else None
+        return (
+            0 if ("photo_ending" not in fx or (last is not None and last.photo)) else 1,
+            -(last.length if last is not None and "end_on_finished" in fx else 0.0),
+            -(min((quality(p) for p in pl.parts), default=0.0) if "less_blur" in fx else 0.0),
+            overlap(pl.parts[0]) if pl.parts and "different_opening" in fx else 0.0,
+            pl.length if "shorter" in fx else 0.0,
+            sum(overlap(p) for p in pl.parts),
+        )
+
+    return sorted(out, key=key)

@@ -266,8 +266,9 @@ export function yearSql(now = new Date(), { before = false, sample = false } = {
     let made = 0;
     for (let k = 0; k < n; k++) {
       const cid = `${id}_c${String(k).padStart(2, "0")}`;
-      const score = Math.round((0.36 + r() * 0.62) * 100) / 100;
-      const hidden = score < 0.45 ? 1 : 0;
+      // 0..100, the scale every score is stored on (migration 0028); the default bar is 45 (shared/constants.ts QUALITY_BAR).
+      const score = Math.round((0.36 + r() * 0.62) * 100);
+      const hidden = score < 45 ? 1 : 0;
       const created = ready;
       const age = T - created;
       const x = r();

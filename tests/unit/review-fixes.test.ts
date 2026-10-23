@@ -28,7 +28,8 @@ const ctx = { dumpId: "dmp_s", allowed: new Map([["ast_s", ["tiktok" as const]],
 describe("the engine's result fields", () => {
   it("0..100 score with reasons; under the studio's bar it is hidden with the reason", () => {
     const r = parseCutResult({ clips: [clip("clp_aaaaaaaa01", { score: 48, score_reasons: ["ends on a blurry shot"], clip_type: "POV walk-in reveal" })] }, ctx);
-    expect(r.clips[0]).toMatchObject({ score: 0.48, hidden: true, clip_type: "POV walk-in reveal", score_reasons: ["ends on a blurry shot"] });
+    expect(r.clips[0]).toMatchObject({ score: 48, hidden: true, clip_type: "POV walk-in reveal", score_reasons: ["ends on a blurry shot"] });
+    expect(Number.isInteger(r.clips[0].score)).toBe(true);
     expect(r.clips[0].hidden_reason).toBe(underBarReason(48, 70, ["ends on a blurry shot"]));
     expect(r.clips[0].hidden_reason).toBe("it scored 48, under this studio's bar of 70: ends on a blurry shot");
     // At the bar it shows; the engine's own reason wins when it gives one.
