@@ -289,7 +289,7 @@ def _shot_fields(shot: Shot, s: dict[str, Any], services: list[str]) -> Shot:
     svc = str(s.get("service", UNSURE)).strip()
     match = next((x for x in services if x.lower() == svc.lower()), None)
     if not match and svc.lower() not in ("", UNSURE):
-        # A small model may echo a label loosely ("balloon garland" for "balloon garlands"): the
+        # A small model may echo a label loosely (a singular for a plural): the
         # one service whose words it carries, never a guess between two.
         hits = [x for x in services if set(re.findall(r"[a-z]+", x.lower())) <= set(re.findall(r"[a-z]+", svc.lower() + "s")) or svc.lower().rstrip("s") in x.lower()]
         match = hits[0] if len(hits) == 1 else None
