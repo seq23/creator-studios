@@ -4,6 +4,7 @@
 // the 1st (retrying the 2nd and 3rd), its "draft ready" email goes out on the next hourly run
 // after the research job lands, and the weekly adjustment runs in the Monday lane. Rule 0: a lane never exits having done nothing
 // silently. Each lane records a health row so Settings shows "last run".
+import { reapStuckJobs } from "./reapJobs";
 import type { Env } from "../env";
 import { setHealth } from "../lib/db";
 import { readSettings } from "../routes/settings";
@@ -38,6 +39,8 @@ export async function runCron(env: Env, cron: string): Promise<void> {
   try {
     if (lane === "buffer-sync") {
       await bufferSync(env);
+      const reaped = await reapStuckJobs(env);
+      if (reaped) log.warn("cron.jobs_reaped", { reaped });
       // Full videos straight to her channel (Connect YouTube): uploads due, Calendar moves, read-backs.
       await youtubeDirectSync(env);
       // Photo posts (per studio, studios/<slug>.json photoPosts): heads-ups, Skip honoured, due posts out.

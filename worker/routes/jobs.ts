@@ -203,6 +203,8 @@ jobs.post("/:id/callback", async (c) => {
   const job = await loadSignedJob(c, text);
   if (job instanceof Response) return job;
   if (job.status === "done") return c.json({ ok: true, already: true });
+  // Already failed (the hourly reaper, or a second failure report): its failure was handled once.
+  if (job.status === "failed") return c.json({ ok: true, already: true });
   const body = parseJson<{ ok?: boolean; safe_error?: string; result?: unknown }>(text, {});
   const handler = JOB_HANDLERS[job.type];
   if (!handler) return fail(c, 422, "This job type has no handler yet.");
