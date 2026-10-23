@@ -190,7 +190,7 @@ brain.post("/profile/lock", async (c) => {
   // approved every dump waiting for setup goes now.
   const research = await researchAfterLock(c.env, c.get("fake"), c.get("user").email);
   const sent = await sendWaitingDumps(c.env, c.get("user").email);
-  return c.json({ ok: true, version: cur.version, researchStarted: !!(research && research.ok && !research.already), sent: sent.length });
+  return c.json({ ok: true, version: cur.version, researchStarted: !!(research && research.ok && !research.already), researchJobId: research && research.ok ? research.jobId : null, sent: sent.length });
 });
 
 brain.post("/profile/unlock", async (c) => {
