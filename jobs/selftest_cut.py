@@ -623,9 +623,11 @@ def check_protect(tmp: Path, problems: list[str], samples: Path, heavy: dict[str
     still = tmp / "protect.png"
     img.save(still)
     src = tmp / "protect.mp4"
-    cut.ffmpeg(["-loop", "1", "-i", str(still), "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "3", "-r", "30", "-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-shortest", str(src)])
+    cut.ffmpeg(["-loop", "1", "-i", str(still), "-t", "3", "-r", "30", "-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset", "ultrafast", str(src)])
+    info = cut.probe(src)
+    log("selftest.protect.video", seconds=round(info["duration"], 2), width=info["width"], height=info["height"])
     rules = PR.rules_from({"content_rules": {"blockFaces": True, "blockAddresses": True, "ownerFace": "show"}})
-    out, ok, boxes = PR.protect_video(src, {"duration": 3.0, "width": 1080, "height": 1920}, rules, None, tmp, "selftest", cut.mp_faces(heavy["mediapipe"]))
+    out, ok, boxes = PR.protect_video(src, info, rules, None, tmp, "selftest", cut.mp_faces(heavy["mediapipe"]))
     if not ok:
         problems.append("protect: the face or number finder did not run in the cut's environment")
     if boxes < (2 if portrait.exists() else 1):

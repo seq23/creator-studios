@@ -221,6 +221,7 @@ def privacy_regions(video: Path, duration: float, rules: Rules, sheet: Any, work
             out.append((round(max(0.0, t - HOLD_S), 2), round(min(duration, t + HOLD_S), 2), b))
         t += SAMPLE_S
         i += 1
+    log("protect.regions", frames=i, found=len(out), ok=ok)
     return merge_regions(out), ok
 
 
