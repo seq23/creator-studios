@@ -1543,6 +1543,12 @@ def import_items(spec: dict[str, Any], work: Path, download: Downloader, upload:
             "music": None,  # the editor's own audio; no song of hers is added
             "speech": None,  # not measured: never voiced over automatically
             "muted": False,  # the editor's own sound stays
+            # Nobody looked at an editor's finished clip: no shape, no service, nothing hidden.
+            "shape": None,
+            "service": None,
+            "on_screen": "",
+            "part_assets": None,
+            "hidden_reason": None,
         })
     editor = str(spec.get("editor") or "editor")
     return {"clips": clips, "engine": {"transcript": editor, "picker": editor, "crop": editor, "subtitles": editor}}
