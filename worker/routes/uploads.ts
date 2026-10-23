@@ -15,6 +15,7 @@ import { MAX_EDIT_BYTES } from "../domain/editors";
 import { packPhotoKey, photoConfig } from "../lib/photoPosts";
 import { isPhoto, PACK_MAX_PHOTOS, PHOTO_MAX_BYTES } from "@shared/photoPosts";
 import { EXIF_SCAN_BYTES, readExif } from "@shared/exif";
+import { addFilesRefusal } from "../domain/startOver";
 
 /** The stored type of a photo: iPhone Safari may send none for a HEIC, so the name decides. */
 const photoMime = (mime: string, name: string) => (mime && mime !== "application/octet-stream" ? mime.toLowerCase() : /\.png$/i.test(name) ? "image/png" : /\.jpe?g$/i.test(name) ? "image/jpeg" : "image/heic");
@@ -96,9 +97,10 @@ uploads.post("/start", async (c) => {
 
   if (kind === "video") {
     if (!parent) return fail(c, 400, "Pick a dump first.");
-    const dump = await c.env.DB.prepare("SELECT id, status FROM dumps WHERE id = ?").bind(parent).first<{ id: string; status: string }>();
-    if (!dump) return fail(c, 404, "That dump no longer exists.");
-    if (dump.status !== "uploading") return fail(c, 409, "That dump was already sent for cutting. Start a new one.");
+    // A finished dump takes more files for its next Start over (domain/startOver.ts addFilesRefusal).
+    const dump = await c.env.DB.prepare("SELECT id, status, kind FROM dumps WHERE id = ?").bind(parent).first<{ id: string; status: string; kind: string }>();
+    const refusal = addFilesRefusal(dump);
+    if (refusal) return fail(c, refusal.status, refusal.error, "review-and-approve-clips");
     if (body.contentHash) {
       const dup = await c.env.DB.prepare("SELECT id FROM assets WHERE content_hash = ? AND upload_status = 'uploaded' LIMIT 1").bind(body.contentHash).first();
       if (dup) return fail(c, 409, isPhoto(body.mimeType, body.fileName) ? "You already uploaded this exact photo before." : "You already uploaded this exact video before. Recycled videos need a new file only if it changed.");
