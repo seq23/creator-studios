@@ -23,6 +23,10 @@ export const ALLOWED = Object.freeze({
   hadiyah: ["OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM", "FIRECRAWL_API_KEY", "HUNTER_API_KEY"],
   // Owner's word 22 Oct 2026 ("Yes, same as Hadiyah"): Porch & Party Studio's email and AI writing.
   sample1: ["OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM"],
+  // Owner's word 23 Oct 2026 ("One codebase"): Sheila's and Mercedes' studios joined the shared code;
+  // only their studio email runs on a host Resend sender, everything else is their own.
+  sheila: ["RESEND_API_KEY", "STUDIO_EMAIL_FROM"],
+  mercedes: ["RESEND_API_KEY", "STUDIO_EMAIL_FROM"],
 });
 
 const READERS_ALLOWED = new Set(["worker/lib/hostKeys.ts", "worker/lib/practice.ts", "worker/env.ts"]);
