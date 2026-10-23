@@ -35,7 +35,7 @@ jobs:
           path: ~/.cache/huggingface
           key: whisper-${{ env.WHISPER_MODEL }}-v1
       - name: System tools
-        run: bash .github/scripts/apt-install.sh ffmpeg
+        run: bash .github/scripts/ffmpeg-static.sh
       - run: pip install -q -r jobs/requirements.txt
       - name: Run
         run: python3 jobs/fullvideo.py

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # A static ffmpeg on a GitHub runner without apt (the runners' apt mirror hung 7 Oct and 22 Oct 2026,
 # and FedericoCarboni/setup-ffmpeg broke upstream 22 Oct 2026): the BtbN GPL build from GitHub
-# releases (libx264, freetype for drawtext), put on PATH. Falls back to the bounded apt installer.
+# releases (libx264, libass for burned captions, freetype for drawtext), put on PATH. Falls back to the bounded
+# apt installer. 23 Oct 2026: the apt install of ffmpeg itself timed out three times (5 min each) and killed a
+# live cut, so every job that needs ffmpeg takes this static build; apt keeps only the small packages.
 set -uo pipefail
 URL=https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz
 if curl -fsSL --retry 3 --max-time 180 -o /tmp/ffmpeg.tar.xz "$URL" && mkdir -p /tmp/ffmpeg && tar -xJf /tmp/ffmpeg.tar.xz -C /tmp/ffmpeg --strip-components=1; then
