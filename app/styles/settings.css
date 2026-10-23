@@ -134,3 +134,12 @@
   font-size: var(--text-sm);
   color: var(--text-soft);
 }
+
+/* Settings → Your clips: the end-card logo preview (studio fix). */
+.rules-logo {
+  display: block;
+  max-width: 160px;
+  max-height: 80px;
+  object-fit: contain;
+  margin: var(--space-2xs) 0;
+}

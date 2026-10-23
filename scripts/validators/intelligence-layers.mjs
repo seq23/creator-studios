@@ -15,7 +15,12 @@ const LAYERS = [
   ["5 protect", "jobs/cut.py", /PR\.protect_video\(/, "faces and house numbers are blurred"],
   ["5 protect", "jobs/cut.py", /P\.write_copy\(key, plans,[^\n]*guard=text_ok/, "the never-list and prices guard the words"],
   ["5 protect", "worker/jobs/cut.ts", /content_rules: contentRules\(env\)/, "the cut spec carries the rules"],
-  ["5 protect", "worker/crons/buffer-sync.ts", /withAiLabel\(/, "an AI voice over is labelled"],
+  // Studio fix (23 Oct 2026): both Buffer paths build the text through clipPostText, which labels an AI voice
+  // over, an AI picture, or every clip where the studio says so, after the "—" line (shared/postText.ts).
+  ["5 protect", "worker/crons/buffer-sync.ts", /text: \(await clipPostText\(env, p, p\.platform\)\)\.text/, "a retried post is labelled"],
+  ["5 protect", "worker/crons/buffer-sync.ts", /const \{ text, link \} = await clipPostText\(env, row, row\.platform\)/, "a loaded post is labelled"],
+  ["5 protect", "worker/lib/postText.ts", /const aiMade = row\.ai_voice > 0 \|\| rules\.ai_note === "all" \|\| !!row\.uses_ai_images;/, "an AI voice over, an AI picture or the studio's every-clip rule is labelled"],
+  ["5 protect", "shared/postText.ts", /export const AI_NOTE_TAIL = "\\n\\n—\\nMade with AI";/, "the note sits after the — line"],
   ["6 critic", "jobs/cut.py", /C\.critic_rounds\(/, "the critic checks and re-cuts"],
   ["7 plain line + questions", "app/components/LooksLikeLine.tsx", /\/api\/dumps\/\$\{dumpId\}\/answer/, "one-tap answers"],
   ["7 plain line + questions", "jobs/cut.py", /P\.mark_before\(/, "her before answer reaches the cut"],

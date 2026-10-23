@@ -4,7 +4,7 @@
 import { post } from "./api";
 import { UPLOAD_PART_SIZE } from "@shared/constants";
 
-export type UploadKind = "video" | "brand_doc" | "research_upload" | "voice_sample" | "kit_photo" | "music" | "edit" | "photo";
+export type UploadKind = "video" | "brand_doc" | "research_upload" | "voice_sample" | "kit_photo" | "music" | "edit" | "photo" | "logo";
 
 export interface UploadHandle {
   id: string;
@@ -64,7 +64,7 @@ export async function uploadFile(
   const fp = fingerprint(file, kind, parentId);
   let saved = loadSaved(fp);
   if (!saved) {
-    const contentHash = kind === "video" ? await hashHead(file) : undefined;
+    const contentHash = kind === "video" ? await hashHead(file) : undefined; // a dump's videos and photos alike
     const started = await post<{ id: string; key: string; uploadId: string; partSize: number }>("/api/uploads/start", {
       kind,
       parentId: parentId ?? undefined,
