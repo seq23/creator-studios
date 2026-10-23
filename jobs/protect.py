@@ -183,7 +183,7 @@ def privacy_regions(video: Path, duration: float, rules: Rules, sheet: Any, work
     out: list[tuple[float, float, tuple[int, int, int, int]]] = []
     ok = True
     failed: set[str] = set()
-    seen = {"faces": 0, "numbers": 0}
+    seen = {"faces": 0, "numbers": 0, "digit_words": 0, "longest_run": 0}
     work.mkdir(parents=True, exist_ok=True)
     t = SAMPLE_S / 2
     i = 0
@@ -214,6 +214,8 @@ def privacy_regions(video: Path, duration: float, rules: Rules, sheet: Any, work
             try:
                 flagged = shot is not None and bool(SIGN_HAZARDS & set(shot.privacy or []))
                 for box, txt in find_numbers(img):
+                    seen["digit_words"] += 1
+                    seen["longest_run"] = max(seen["longest_run"], max((len(m) for m in re.findall(r"\d+", txt)), default=0))
                     if NUMBER_RUN.search(txt) or (flagged and ANY_DIGIT.search(txt)):
                         seen["numbers"] += 1
                         boxes.append(box)
@@ -226,7 +228,7 @@ def privacy_regions(video: Path, duration: float, rules: Rules, sheet: Any, work
             out.append((round(max(0.0, t - HOLD_S), 2), round(min(duration, t + HOLD_S), 2), b))
         t += SAMPLE_S
         i += 1
-    log("protect.regions", frames=i, found=len(out), faces=seen["faces"], numbers=seen["numbers"], ok=ok)
+    log("protect.regions", frames=i, found=len(out), faces=seen["faces"], numbers=seen["numbers"], digit_words=seen["digit_words"], longest_run=seen["longest_run"], ok=ok)
     return merge_regions(out), ok
 
 
