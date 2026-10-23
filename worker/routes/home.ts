@@ -20,6 +20,7 @@ import { premiumState } from "../lib/premiumVoice";
 import { fullVideoCards } from "../lib/fullVideo";
 import { clipFileAction } from "../domain/tidy";
 import { log } from "../lib/log";
+import { PROFILE_IN_USE } from "../lib/profileInUse";
 
 export const home = new Hono<{ Bindings: Env; Variables: Vars }>();
 home.use("*", requireUser);
@@ -78,7 +79,7 @@ home.get("/", async (c) => {
   const waitingNew = (await db.prepare("SELECT COUNT(*) AS n FROM clips WHERE status = 'draft' AND hidden = 0 AND created_at >= ?").bind(weekAgo).first<{ n: number }>())?.n ?? 0;
   const cutting = (await db.prepare("SELECT COUNT(*) AS n FROM dumps WHERE status IN ('queued','cutting')").first<{ n: number }>())?.n ?? 0;
   const briefDraft = await db.prepare("SELECT version FROM research_briefs WHERE status = 'draft' AND archived_at IS NULL ORDER BY version DESC LIMIT 1").first<{ version: number }>();
-  const profileLocked = await db.prepare("SELECT version FROM brand_profile WHERE locked = 1 LIMIT 1").first();
+  const profileLocked = await db.prepare(`SELECT version FROM brand_profile ${PROFILE_IN_USE}`).first();
 
   // "Needs you": the most urgent first, one on Home at a time; each dismissable (a new brief, a
   // worse light, another batch of drafts, another video comes back).

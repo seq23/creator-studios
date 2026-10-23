@@ -14,7 +14,7 @@ The research brief says when to post, what hooks work and what to film next, wit
 <!-- route: /brain -->
 <!-- target: #sec-audience -->
 
-The research starts from your locked profile in **Client Brain**.
+The research starts by itself the moment you lock your profile in **Client Brain**.
 
 ## Tap Refresh research
 
@@ -22,7 +22,9 @@ The research starts from your locked profile in **Client Brain**.
 <!-- route: /research -->
 <!-- target: role=button[name="Refresh research"] -->
 
-Open **Research** and tap **Refresh research**. It takes 5 to 10 minutes; you can leave the page.
+Your first brief starts by itself. For a fresh one later, tap **Refresh research** (5 to 10 minutes).
+
+Dumped videos before approving? They wait, saved, and start cutting when you tap **Approve**.
 
 ## Jump to any section
 

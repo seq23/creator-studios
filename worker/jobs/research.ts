@@ -17,6 +17,7 @@ import { readSettings } from "../routes/settings";
 import { loadObservations } from "./metrics";
 import { buildFakeBrief } from "./research_fake";
 import { themeList } from "../routes/mediakit";
+import { PROFILE_IN_USE } from "../lib/profileInUse";
 
 export const RESEARCH_SYSTEM = `You write a Research Brief for a short-form video creator. Answer with ONE JSON object only.
 Keys: "audience": Claim[], "themes": [{"title": string, "claims": Claim[]}] (3 to 5 themes), "hooks": Claim[] (hook formulas in her voice),
@@ -54,7 +55,7 @@ async function herData(env: Env) {
 }
 
 async function buildSpec(env: Env, jobId: string) {
-  const profile = await env.DB.prepare("SELECT sections FROM brand_profile WHERE locked = 1 ORDER BY version DESC LIMIT 1").first<{ sections: string }>();
+  const profile = await env.DB.prepare(`SELECT sections FROM brand_profile ${PROFILE_IN_USE}`).first<{ sections: string }>();
   const { results: uploads } = await env.DB.prepare("SELECT id, file_name, r2_key FROM research_uploads ORDER BY uploaded_at DESC LIMIT 10").all<{ id: string; file_name: string; r2_key: string }>();
   const present: typeof uploads = [];
   for (const u of uploads) if (await env.FILES.head(u.r2_key)) present.push(u);

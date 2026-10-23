@@ -12,6 +12,7 @@ import { parseJson, recordEvent, setHealth } from "./db";
 import { log } from "./log";
 import { emailFrame, sendEmail } from "../services/email";
 import { dispatchJob } from "../services/github";
+import { PROFILE_IN_USE } from "./profileInUse";
 
 export interface NichePlaybook {
   updated_at: string;
@@ -84,7 +85,7 @@ export function nicheDue(o: { now: Date; lastPlaybookAt: string | null; lastJob:
 
 /** Daily lane: start the monthly niche research when it is due. */
 export async function monthlyNicheRefresh(env: Env, now = new Date()): Promise<{ dispatched: boolean; note: string }> {
-  const profile = await env.DB.prepare("SELECT version FROM brand_profile WHERE locked = 1 LIMIT 1").first();
+  const profile = await env.DB.prepare(`SELECT version FROM brand_profile ${PROFILE_IN_USE}`).first();
   const last = await env.DB.prepare("SELECT created_at FROM niche_playbooks ORDER BY created_at DESC LIMIT 1").first<{ created_at: string }>();
   const job = await env.DB.prepare("SELECT status, created_at FROM jobs WHERE type = 'niche' ORDER BY created_at DESC LIMIT 1").first<{ status: string; created_at: string }>();
   const d = nicheDue({ now, lastPlaybookAt: last?.created_at ?? null, lastJob: job ?? null, profileLocked: !!profile });

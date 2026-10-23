@@ -24,6 +24,8 @@ interface BrainData {
   docs: (BrandDocRow & { char_count: number | null })[];
   profile: BrandProfileView | null;
   versions: Version[];
+  /** The version every AI step reads: the locked one, or while unlocked the one locked last. */
+  inUse: { version: number; locked_at: string | null } | null;
   job: { id: string; status: string; ref_id: string | null; safe_error: string | null } | null;
   totalChars: number;
 }
@@ -104,6 +106,18 @@ export function ClientBrain() {
     reload();
   }
 
+  /** Lock: the research starts by itself, and dumps waiting for setup go once the brief is approved. */
+  async function lockProfile() {
+    const r = await post<{ researchStarted?: boolean; sent?: number }>("/api/brain/profile/lock");
+    toast.ok(
+      r.sent
+        ? `Locked. Your waiting ${r.sent === 1 ? "dump is" : "dumps are"} being cut now.`
+        : r.researchStarted
+          ? "Locked. Your Research Brief is being written now (usually 5 to 10 minutes). Approve it on Research and your clips start by themselves."
+          : "Locked. Research, clips and captions now use this profile.",
+    );
+  }
+
   async function act(name: string, fn: () => Promise<unknown>, okText?: string) {
     setBusy(name);
     try {
@@ -128,7 +142,7 @@ export function ClientBrain() {
     <div className="page">
       <PageHead title="Client Brain" lede="Everything the AI knows about you. Add docs any time.">
         {next === "lock" ? (
-          <button className="btn" data-primary disabled={dirty || busy === "lock"} title={dirty ? "Save your changes first" : undefined} onClick={() => act("lock", () => post("/api/brain/profile/lock"), "Locked. Research, clips and captions now use this profile.")}>
+          <button className="btn" data-primary disabled={dirty || busy === "lock"} title={dirty ? "Save your changes first" : undefined} onClick={() => act("lock", lockProfile)}>
             Lock profile
           </button>
         ) : next === "draft" ? (
@@ -242,7 +256,7 @@ export function ClientBrain() {
               <>
                 <div className="btn-row">
                   {locked ? (
-                    <button className="btn quiet" disabled={busy === "unlock"} onClick={() => act("unlock", () => post("/api/brain/profile/unlock"), "Unlocked. The AI waits for you to lock it again.")}>
+                    <button className="btn quiet" disabled={busy === "unlock"} onClick={() => act("unlock", () => post("/api/brain/profile/unlock"), "Unlocked. Your clips keep using the version you locked until you lock again.")}>
                       Unlock to edit
                     </button>
                   ) : (
@@ -287,7 +301,11 @@ export function ClientBrain() {
                   ))}
                 </div>
                 <Notice tone={locked ? "ok" : "info"}>
-                  <span>{locked ? "The locked profile is used by research, clip picking, captions and voice over scripts." : "Save your changes, then press Lock profile at the top when it sounds like you. Until it’s locked, no clips are cut."}</span>
+                  <span>{locked
+                      ? "The locked profile is used by research, clip picking, captions and voice over scripts."
+                      : data?.inUse?.locked_at
+                        ? `Your clips keep using the version you locked on ${fmtDate(data.inUse.locked_at)} until you lock again. Save your changes, then press Lock profile at the top.`
+                        : "Save your changes, then press Lock profile at the top when it sounds like you. Until it’s locked, no clips are cut."}</span>
                 </Notice>
               </>
             )}

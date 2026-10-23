@@ -9,6 +9,7 @@ import { log } from "../lib/log";
 import { servicesOf } from "@shared/services";
 import { readStudioRules } from "../lib/studioRules";
 import { NICHE_HEALTH, storePlaybook } from "../lib/niche";
+import { PROFILE_IN_USE } from "../lib/profileInUse";
 
 export interface NicheSpec {
   job_id: string;
@@ -24,7 +25,7 @@ export interface NicheSpec {
 }
 
 async function buildSpec(env: Env, jobId: string): Promise<NicheSpec> {
-  const row = await env.DB.prepare("SELECT sections FROM brand_profile WHERE locked = 1 ORDER BY version DESC LIMIT 1").first<{ sections: string }>();
+  const row = await env.DB.prepare(`SELECT sections FROM brand_profile ${PROFILE_IN_USE}`).first<{ sections: string }>();
   const sections = row ? parseJson<Record<string, string>>(row.sections, {}) : {};
   const cut = (k: string) => String(sections[k] ?? "").slice(0, 1200);
   const rules = await readStudioRules(env);

@@ -23,6 +23,9 @@ import { parseJson, recordEvent } from "../lib/db";
 import { fail, readJson } from "../lib/http";
 import { nowIso } from "../lib/ids";
 import { log } from "../lib/log";
+import { PROFILE_IN_USE } from "../lib/profileInUse";
+import { researchAfterLock } from "../lib/setupWait";
+import { sendWaitingDumps } from "./dumps";
 import { dispatchJob } from "../services/github";
 import { getLlm } from "../services/openrouter";
 import type { BrandDocRow, BrandProfileView } from "@shared/types";
@@ -61,6 +64,7 @@ brain.get("/", async (c) => {
   return c.json({
     docs,
     profile: cur ? toView(cur) : null,
+    inUse: (await c.env.DB.prepare(`SELECT version, locked_at FROM brand_profile ${PROFILE_IN_USE}`).first<{ version: number; locked_at: string | null }>()) ?? null,
     versions: versions.map((v) => ({ ...v, locked: !!v.locked })),
     job,
     totalChars: docs.filter((d) => d.extract_status === "done").reduce((s, d) => s + (d.char_count ?? 0), 0),
@@ -177,15 +181,21 @@ brain.post("/profile/lock", async (c) => {
   if (!cur) return fail(c, 409, "Draft your profile first, then lock it.", "upload-brand-docs");
   if (filledCount(cleanSections(parseJson(cur.sections, {}))) < 3) return fail(c, 422, "Fill in at least a few sections before locking.", "upload-brand-docs");
   await c.env.DB.batch([
-    c.env.DB.prepare("UPDATE brand_profile SET locked = 0, locked_at = NULL WHERE version != ?").bind(cur.version),
+    // locked_at stays on older versions as history (lib/profileInUse.ts); only this one is locked.
+    c.env.DB.prepare("UPDATE brand_profile SET locked = 0 WHERE version != ?").bind(cur.version),
     c.env.DB.prepare("UPDATE brand_profile SET locked = 1, locked_at = ? WHERE version = ?").bind(nowIso(), cur.version),
   ]);
   await recordEvent(c.env.DB, "profile.locked", String(cur.version), {}, c.get("user").email);
-  return c.json({ ok: true, version: cur.version });
+  // Setup runs by itself: the research starts (no Refresh to press), and if the brief is already
+  // approved every dump waiting for setup goes now.
+  const research = await researchAfterLock(c.env, c.get("fake"), c.get("user").email);
+  const sent = await sendWaitingDumps(c.env, c.get("user").email);
+  return c.json({ ok: true, version: cur.version, researchStarted: !!(research && research.ok && !research.already), sent: sent.length });
 });
 
 brain.post("/profile/unlock", async (c) => {
-  await c.env.DB.prepare("UPDATE brand_profile SET locked = 0, locked_at = NULL WHERE locked = 1").run();
+  // locked_at is kept: while she edits, the clips keep using the version she locked last.
+  await c.env.DB.prepare("UPDATE brand_profile SET locked = 0 WHERE locked = 1").run();
   await recordEvent(c.env.DB, "profile.unlocked", null, {}, c.get("user").email);
   return c.json({ ok: true });
 });

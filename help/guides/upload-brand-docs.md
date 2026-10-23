@@ -46,7 +46,7 @@ Read each section and change anything that doesn't sound like you.
 <!-- route: /brain -->
 <!-- target: role=button[name="Unlock to edit"] -->
 
-Tap **Lock profile**. From then on research, clips and captions use it. **Unlock to edit** changes it later.
+Tap **Lock profile**. From then on research, clips and captions use it. **Unlock to edit** changes it later; while it is unlocked, your clips keep using the version you locked last, until you lock again.
 
 ## Go back to an older version
 

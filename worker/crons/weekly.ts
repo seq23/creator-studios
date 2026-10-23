@@ -13,10 +13,11 @@ import { emailFrame, sendEmail } from "../services/email";
 import { dispatchJob } from "../services/github";
 import { dueDealItems } from "../routes/deals";
 import { instagramReminderLine, refreshPublicStats } from "../lib/publicStats";
+import { PROFILE_IN_USE } from "../lib/profileInUse";
 
 export async function weekly(env: Env): Promise<void> {
   const s = await readSettings(env);
-  const profileLocked = await env.DB.prepare("SELECT version FROM brand_profile WHERE locked = 1 LIMIT 1").first();
+  const profileLocked = await env.DB.prepare(`SELECT version FROM brand_profile ${PROFILE_IN_USE}`).first();
 
   // No-login stats: always, before anything else (the recap below reads them).
   const pub = await refreshPublicStats(env, { force: true });

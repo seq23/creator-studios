@@ -106,3 +106,33 @@
   cursor: not-allowed;
 }
 .dump-space.warn { color: var(--warning-ink); }
+
+/* Setup checklist (components/SetupChecklist.tsx): one step per line, 44 px targets on a phone. */
+.setup-steps {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-2xs) 0;
+  display: grid;
+  gap: var(--space-2xs);
+}
+.setup-steps li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  min-height: 44px;
+}
+.setup-steps .btn {
+  min-height: 44px;
+}
+.setup-mark {
+  flex: none;
+  width: 1.5em;
+  text-align: center;
+  font-weight: 700;
+}
+.setup-steps li[data-done] .setup-mark {
+  color: var(--success);
+}
+.setup-note {
+  display: block;
+}
