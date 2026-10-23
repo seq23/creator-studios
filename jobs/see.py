@@ -192,6 +192,8 @@ def ask_vision(key: str | None, system: str, text: str, image: Path, kind: str, 
     runner. Returns (answer, "<provider>:<model>") or (None, "") when neither answered with JSON."""
     if not image or not image.exists():
         return None, ""
+    if not key and not (local and os.environ.get("VISION_LOCAL") == "1"):
+        return None, ""  # nobody to ask: not a call
     CALLS[kind] = CALLS.get(kind, 0) + 1
 
     def payload(model: str) -> dict[str, Any]:
