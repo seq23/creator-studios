@@ -397,6 +397,14 @@ def cta_phrase(rules: dict[str, Any], k: int) -> str:
     return a
 
 
+def cta_card(rules: dict[str, Any], k: int) -> str:
+    """The call to action ON the end card: one of her phrases, rotating, never two combined. A
+    combined "Get in touch with us or book your date" wrapped to three lines and ran under the
+    link (23 Oct 2026, nine clips of one dump); the combined line stays in the caption."""
+    ph = rules.get("cta_phrases") or []
+    return ph[k % len(ph)].rstrip(".!") if ph else ""
+
+
 def cta_line(rules: dict[str, Any], k: int) -> str:
     phrase = cta_phrase(rules, k)
     link = rules.get("cta_link") or ""

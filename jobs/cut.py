@@ -1581,7 +1581,7 @@ def brand_for(spec: dict[str, Any], work: Path, download: "Downloader") -> L.Bra
     if rs["cta_link"] and not sb.get("link"):
         sb["link"] = rs["cta_link"]
     if rs["cta_phrases"] and spec.get("cta_turn") is not None:
-        sb["cta"] = CM.cta_phrase(rs, int(spec.get("cta_turn") or 0))
+        sb["cta"] = CM.cta_card(rs, int(spec.get("cta_turn") or 0))
     return L.branding_from(sb, work)
 
 
@@ -1866,7 +1866,7 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
             opts = {**opts, "music": True, "mute": True}
         song = music_key(songs, k, src.muted) if opts.get("music") else None
         music_file = music_for(songs, k, work, download, music_cache, src.muted) if song else None
-        kbrand = dataclasses.replace(brand, cta=CM.cta_phrase(rules_s, k) or brand.cta)
+        kbrand = dataclasses.replace(brand, cta=CM.cta_card(rules_s, k) or brand.cta)
         ctx.append({"look_id": look_id, "opts": opts, "cells": cells, "layout": layout, "ending": ending, "voice": voice, "voice_src": voice_src, "song": song, "music": music_file, "src": src, "brand": kbrand})
 
     def render_k(item: tuple[int, Moment]) -> Any:

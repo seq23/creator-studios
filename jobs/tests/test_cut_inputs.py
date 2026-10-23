@@ -103,3 +103,31 @@ class Steadiness(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+import clipmaker as CM  # noqa: E402
+import looks as L  # noqa: E402
+
+
+class EndCard(unittest.TestCase):
+    RULES = {"cta_phrases": ["Book your date", "Request a quote", "Get in touch with us"], "cta_link": "https://example.com/request"}
+
+    def test_the_card_says_one_phrase_and_the_caption_may_combine(self):
+        for k in range(9):
+            card = CM.cta_card(self.RULES, k)
+            self.assertIn(card, self.RULES["cta_phrases"])
+            self.assertNotIn(" or ", card)
+        self.assertIn(" or ", CM.cta_phrase(self.RULES, 2))  # the caption still rotates a combined line
+
+    def test_the_call_to_action_box_never_reaches_the_link(self):
+        line_h = 1.2
+        link_top = L.LINK_Y - L.LINK_SIZE * line_h / 2 - 16
+        for text in [*self.RULES["cta_phrases"], "Get in touch with us or book your date"]:
+            n = L.card_lines(text)
+            bottom = L.card_y(text) + n * L.CTA_SIZE * line_h / 2 + 24
+            self.assertLess(bottom, link_top, (text, n))
+            top = L.card_y(text) - n * L.CTA_SIZE * line_h / 2 - 24
+            self.assertLessEqual(L.logo_y(text) + L.LOGO_H, top, text)  # the logo sits above, never on it
+            self.assertGreaterEqual(L.logo_y(text), L.SAFE["y0"], text)
+        self.assertEqual(L.card_lines("Get in touch with us or book your date"), 3)  # the real failure wraps to three
+        self.assertEqual(L.card_lines("Book your date"), 1)
