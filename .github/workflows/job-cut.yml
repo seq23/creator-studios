@@ -69,7 +69,7 @@ jobs:
       - name: System tools
         # tesseract: the watermark check (whose video is this?). libgles2 + libegl1: MediaPipe's Linux wheel loads GLES/EGL even for CPU face detection
         run: bash .github/scripts/ffmpeg-static.sh && bash .github/scripts/apt-install.sh libgles2 libegl1 tesseract-ocr tesseract-ocr-eng
-      - run: pip install -q -r jobs/requirements.txt
+      - run: pip install -q -r jobs/requirements.txt pillow pillow-heif  # pillow-heif: iPhone HEIC photos (the static ffmpeg has no HEIF reader; jobs/cut.py heif_as_jpeg)
       - name: "Local vision model's packages, before anything imports the Hugging Face hub (jobs/ai.py)"
         # 23 Oct 2026: installed mid-job after faster-whisper had loaded an older huggingface_hub, the
         # local model failed with ImportError; installed here, everything resolves together.

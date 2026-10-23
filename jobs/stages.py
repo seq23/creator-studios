@@ -93,15 +93,28 @@ def blur_amount(f: bytes, w: int = QW, h: int = QH) -> float:
     return max(0.0, min(1.0, (df - dv) / df))
 
 
-def shift(a: bytes, b: bytes, w: int = QW, h: int = QH, r: int = 6) -> float:
-    """How far the whole picture moved between two frames (px of the measuring frame)."""
+# A moved picture must match clearly better than the unmoved one (cost at most this share of it) to
+# count as a measured shift. A walk-in, a fast pan or a dim, grainy room matches about as badly at
+# every offset, and the "best" offset is then noise at the edge of the search: reading that as a
+# jump marked whole handheld reveal videos as shake (23 Oct 2026, every second of a 35 s walk-through).
+SHIFT_SURE = 0.7
+
+
+def shift(a: bytes, b: bytes, w: int = QW, h: int = QH, r: int = 6) -> float | None:
+    """How far the whole picture moved between two frames (px of the measuring frame), or None when
+    no offset inside the search matches clearly better than none (motion the search cannot measure)."""
     best, bd = 0.0, None
+    d0 = None
     pts = [(x, y) for y in range(r + 2, h - r - 2, 4) for x in range(r + 2, w - r - 2, 4)]
     for dy in range(-r, r + 1, 2):
         for dx in range(-r, r + 1, 2):
             d = sum(abs(a[y * w + x] - b[(y + dy) * w + x + dx]) for x, y in pts)
+            if dx == 0 and dy == 0:
+                d0 = d
             if bd is None or d < bd:
                 bd, best = d, (dx * dx + dy * dy) ** 0.5
+    if best and d0 and bd is not None and bd > SHIFT_SURE * d0:
+        return None
     return best
 
 
@@ -120,9 +133,15 @@ def frame_scores(frames: list[bytes]) -> list[tuple[float, float]]:
     for i, f in enumerate(frames):
         b = blur_amount(f)
         sharp = 1.0 - max(0.0, min(1.0, (b - 0.35) / 0.35))
-        jit = abs(shifts[i] - shifts[i - 1]) if i else 0.0
-        # A smooth pan or walk-in moves steadily (kept); a jittery, jumping picture is shake.
-        steady = 1.0 - max(0.0, min(1.0, (2.0 * jit + 0.5 * shifts[i] - 2.5) / 5.0))
+        cur, prev = shifts[i], (shifts[i - 1] if i else 0.0)
+        if cur is None:
+            # Motion the search cannot measure (a walk-in, a fast pan): never called shake on its
+            # own; real shake smears the frame, and the sharpness above catches that.
+            steady = 1.0
+        else:
+            jit = abs(cur - prev) if prev is not None else 0.0
+            # A smooth pan or walk-in moves steadily (kept); a jittery, jumping picture is shake.
+            steady = 1.0 - max(0.0, min(1.0, (2.0 * jit + 0.5 * cur - 2.5) / 5.0))
         out.append((sharp, steady))
     return out
 
