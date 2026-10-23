@@ -257,7 +257,34 @@ def numbers_with_text(img: Any) -> list[tuple[tuple[int, int, int, int], str]]:
                     continue
                 x, y, w, h = (int(int(v) / scale) for v in f[6:10])
                 out.append(((x, y, x + w, y + h), f[11]))
-    return out
+    return join_digit_runs(out)
+
+
+def join_digit_runs(words: list[tuple[tuple[int, int, int, int], str]]) -> list[tuple[tuple[int, int, int, int], str]]:
+    """Digits read one by one (tesseract on large or spaced numerals, 23 Oct 2026 runner: "4521" came
+    back as four words) are joined into one run when they sit on one line, side by side. The joined
+    runs are added; the single words stay."""
+    digits = sorted((w for w in words if ANY_DIGIT.search(w[1])), key=lambda w: (w[0][0]))
+    used: set[int] = set()
+    joined: list[tuple[tuple[int, int, int, int], str]] = []
+    for i, (b, t) in enumerate(digits):
+        if i in used:
+            continue
+        box, text = b, t
+        for j in range(i + 1, len(digits)):
+            if j in used:
+                continue
+            nb, nt = digits[j]
+            h = max(1, min(box[3] - box[1], nb[3] - nb[1]))
+            same_line = min(box[3], nb[3]) - max(box[1], nb[1]) >= 0.5 * h
+            close = 0 <= nb[0] - box[2] <= 0.8 * h
+            if same_line and close:
+                box = (box[0], min(box[1], nb[1]), nb[2], max(box[3], nb[3]))
+                text += nt
+                used.add(j)
+        if text != t:
+            joined.append((box, text))
+    return words + joined
 
 
 def merge_regions(regions: list[tuple[float, float, tuple[int, int, int, int]]]) -> list[tuple[float, float, tuple[int, int, int, int]]]:
