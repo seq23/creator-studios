@@ -126,7 +126,7 @@ test("Review pages its clips with the true count; ?tab= opens the right tab", as
   await expect(page.locator("[data-clip-id]")).toHaveCount(12);
   await page.getByRole("button", { name: "Show more" }).click();
   await expect(page.locator("[data-clip-id]")).toHaveCount(24);
-  await page.getByRole("searchbox", { name: "Search hooks, captions and hashtags" }).fill("checklist");
+  await page.getByRole("searchbox", { name: "Search by clip number (like 5 or 5b) or by words" }).fill("checklist");
   const checklist = Number(sql<{ n: number }>("SELECT COUNT(*) AS n FROM clips WHERE status = 'approved' AND (hook_text LIKE '%checklist%' OR caption LIKE '%checklist%' OR hashtags LIKE '%checklist%')")[0].n);
   await expect(page.locator("[data-count]")).toHaveText(`Showing ${Math.min(12, checklist)} of ${checklist} clips`);
 });

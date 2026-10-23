@@ -4,7 +4,7 @@
 // select several. Tabs: New / Approved / Rejected (kept 7 days). Phone first: one column, big
 // Approve / Reject buttons; desktop: a grid.
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import type { ClipRow } from "@shared/types";
 import { PLATFORMS, PLATFORM_LABEL, RECIPES, REJECT_REASONS, type Platform, type Recipe } from "@shared/constants";
 import { del, get, patch, post } from "../lib/api";
@@ -18,6 +18,7 @@ import { maxWords } from "@shared/autoVoice";
 import { FullVideoBody, type FullVideo } from "../components/FullVideoCard";
 import { LooksLikeLine } from "../components/LooksLikeLine";
 import type { LooksLike } from "@shared/looksLike";
+import { FIXES, FIX_KEYS, type FixKey } from "@shared/fixes";
 import "../styles/review.css";
 
 type Tab = "new" | "approved" | "rejected";
@@ -58,6 +59,21 @@ export interface ReviewClip extends ClipRow {
   file_cleared: boolean;
   /** An unapproved draft cleared on this date unless she approves it or taps Keep. */
   clears_on: string | null;
+  // ---- studio fix (worker/routes/clips.ts ReviewClip) ----
+  number?: number | null;
+  version?: number;
+  code?: string;
+  label?: string;
+  clip_type?: string | null;
+  score_100?: number;
+  score_reasons?: string[];
+  words_pending?: boolean;
+  uses_ai_images?: boolean;
+  styles?: { id: string; look: string | null; look_name: string | null; media_url: string; cover_url: string | null; score_100: number }[];
+  versions?: number;
+  fixes?: string[];
+  sends?: number | null;
+  saves?: number | null;
 }
 interface ReviewGroup {
   /** held_note: "Looks like someone else's video" (worker/domain/sourceCheck.ts), or null. */
@@ -114,6 +130,7 @@ export function Review() {
   const [musicFor, setMusicFor] = useState<ReviewClip | null>(null);
   const [voiceFor, setVoiceFor] = useState<ReviewClip | null>(null);
   const [anotherFor, setAnotherFor] = useState<ReviewClip | null>(null);
+  const [comparing, setComparing] = useState<ReviewClip | null>(null);
   const [startOver, setStartOver] = useState<{ dumpId: string; clips: number } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -199,6 +216,22 @@ export function Review() {
   const restore = (id: string) => run(() => post(`/api/clips/${id}/restore`), "Moved back to New.");
   const remove = (id: string) => run(() => del(`/api/clips/${id}`), "Deleted for good.");
 
+  /** A one-tap fix: the clip is made again with that fix; the current one stays until then and is kept to compare. */
+  async function fix(c: ReviewClip, key: FixKey) {
+    await run(async () => {
+      const r = await post<{ clip: ReviewClip | null }>(`/api/clips/${c.id}/fix`, { fixes: [key] });
+      if (r.clip) replaceClip(r.clip);
+    }, `Making clip ${c.code || ""} again: ${FIXES[key].label.toLowerCase()}. A few minutes. The one you have stays, and you can compare them after.`.replace("clip  ", "clip "));
+  }
+
+  /** Pick another style of the same clip: it becomes the clip, the old one becomes a style. */
+  async function pickStyle(c: ReviewClip, styleId: string) {
+    await run(async () => {
+      const r = await post<{ clip: ReviewClip | null }>(`/api/clips/${c.id}/style`, { style_id: styleId });
+      if (r.clip) list.reload();
+    }, "Style picked. That look is the clip now.");
+  }
+
   async function togglePlatform(c: ReviewClip, p: Platform) {
     const next = c.platforms.includes(p) ? c.platforms.filter((x) => x !== p) : PLATFORMS.filter((x) => x === p || c.platforms.includes(x));
     if (!next.length) {
@@ -276,7 +309,7 @@ export function Review() {
         {tab === "new" ? <Switch checked={showHidden} onChange={setShowHidden} label={`Show hidden (under the quality bar)${counts.hidden ? ` · ${counts.hidden}` : ""}`} /> : null}
       </div>
       <div className="list-tools">
-        <SearchBox value={q} onChange={setQ} label="Search hooks, captions and hashtags" />
+        <SearchBox value={q} onChange={setQ} label="Search by clip number (like 5 or 5b) or by words" />
       </div>
 
       {tab === "rejected" && visible.length > 0 ? <p className="hint">Rejected clips are removed for good 7 days after you reject them. Changed your mind? Approve or move one back.</p> : null}
@@ -307,6 +340,13 @@ export function Review() {
           <h2 className="review-group-head">
             Dump: {fmtDate(g.dump.created_at)} · {g.dump.door === "new" ? "New videos" : g.dump.door === "youtube" ? "Full video for YouTube" : "Old posts"} <span className="hint">· {plural(g.clips.length, "clip")} · best first</span>
           </h2>
+          {g.dump.door !== "youtube" ? (
+            <p className="review-files-link">
+              <Link to={`/dump/${g.dump.id}/files`} data-files-link>
+                See what you dumped: every photo and video, and which clips used it →
+              </Link>
+            </p>
+          ) : null}
           {g.dump.door !== "youtube" ? <LooksLikeLine dumpId={g.dump.id} looksLike={g.dump.looks_like} canChange={tab === "new"} onChanged={list.reload} /> : null}
           {g.dump.held_note ? <HeldNotice dumpId={g.dump.id} note={g.dump.held_note} onDone={list.reload} /> : null}
           {tab === "new" && g.dump.door !== "youtube" ? (
@@ -349,6 +389,9 @@ export function Review() {
                   }, "Voice over removed. The clip plays with its own sound.")
                 }
                 onDelete={() => setDeleting(c)}
+                onFix={(k) => fix(c, k)}
+                onStyle={(id) => pickStyle(c, id)}
+                onCompare={() => setComparing(c)}
                 onPlatform={(p) => togglePlatform(c, p)}
                 onFullChanged={(u) => (u && typeof u === "object" && "id" in u ? replaceClip(u as ReviewClip) : list.reload())}
               />
@@ -494,6 +537,17 @@ export function Review() {
           }}
         />
       ) : null}
+      {comparing ? (
+        <CompareModal
+          clip={comparing}
+          onClose={() => setComparing(null)}
+          onKept={(updated) => {
+            if (updated) replaceClip(updated);
+            setComparing(null);
+            after(`Kept clip ${updated?.code ?? ""}. The other versions stay here to compare.`);
+          }}
+        />
+      ) : null}
       <HelpButton guide="review-and-approve-clips" />
     </div>
   );
@@ -520,14 +574,31 @@ function ClipCard(props: {
   onPlatform: (p: Platform) => void;
   onFullChanged: (u: unknown) => void;
   onKeep?: () => void;
+  onFix?: (k: FixKey) => void;
+  onStyle?: (styleId: string) => void;
+  onCompare?: () => void;
 }) {
   const { clip: c, tab, busy } = props;
   const seconds = c.end_s - c.start_s;
+  // Styles of this clip: tap one to watch it here; "Use this style" makes it the clip.
+  const [watching, setWatching] = useState<string | null>(null);
   if (c.full_video) return <FullVideoCardShell {...props} />;
+  const styles = c.styles ?? [];
+  const shown = styles.find((s) => s.id === watching) ?? null;
+  const score = c.score_100 ?? Math.round(c.score * 100);
+  const reason = c.score_reasons?.[0];
+  const working = busy || !!c.pending_look || !!c.editing_note || !c.source_available;
   return (
-    <article className={`clip-card${props.selected ? " selected" : ""}${c.hidden ? " is-hidden" : ""}`} data-clip-id={c.id} aria-label={`Clip: ${c.hook_text}`}>
+    <article className={`clip-card${props.selected ? " selected" : ""}${c.hidden ? " is-hidden" : ""}`} data-clip-id={c.id} data-clip-code={c.code ?? ""} aria-label={`${c.label ? `${c.label}: ` : "Clip: "}${c.hook_text}`}>
+      {c.label ? (
+        <div className="clip-number" data-clip-label>
+          {c.label}
+        </div>
+      ) : null}
       <div className="clip-media">
-        {c.media_url ? (
+        {shown ? (
+          <video key={shown.id} src={shown.media_url} poster={shown.cover_url ?? undefined} controls playsInline preload="metadata" aria-label={`Play the ${shown.look_name ?? "other"} style`} />
+        ) : c.media_url ? (
           <video src={c.media_url} poster={c.cover_url ?? undefined} controls playsInline preload="none" aria-label="Play this clip" />
         ) : c.file_cleared && c.cover_url ? (
           <div className="clip-cleared">
@@ -544,8 +615,26 @@ function ClipCard(props: {
       <div className="clip-body">
         <div className="clip-meta">
           <span className="nums">{fmtSeconds(seconds)}</span>
-          <span>· Score {Math.round(c.score * 100)}</span>
-          <span className="pill">{RECIPES[c.recipe]?.label ?? c.recipe}</span>
+          <span data-score>
+            · Score {score}
+            {reason ? `: ${reason}` : ""}
+          </span>
+          {c.clip_type ? <span className="pill" data-clip-type>{sentence(c.clip_type)}</span> : <span className="pill">{RECIPES[c.recipe]?.label ?? c.recipe}</span>}
+          {c.words_pending ? (
+            <span className="pill warn" data-words-pending>
+              Words still being written · Approve opens when they are in
+            </span>
+          ) : null}
+          {c.uses_ai_images ? (
+            <span className="pill" data-ai-picture>
+              Uses an AI picture · caption says Made with AI
+            </span>
+          ) : null}
+          {c.sends != null || c.saves != null ? (
+            <span className="pill ok" data-sends>
+              Sent on {c.sends ?? 0} times · Saved {c.saves ?? 0} times
+            </span>
+          ) : null}
           {c.door === "recycle" ? <span className="pill">Recycled</span> : null}
           {c.hidden ? <span className="pill warn">Under the quality bar</span> : null}
           {c.hidden && c.hidden_reason ? (
@@ -619,6 +708,24 @@ function ClipCard(props: {
           ) : null}
         </div>
         {c.rerender_error ? <p className="hint look-error">{c.rerender_error}</p> : null}
+        {styles.length ? (
+          <div className="clip-styles" role="group" aria-label="Styles of this clip" data-styles>
+            <span className="hint">Styles of this clip (tap to watch):</span>
+            <button type="button" className={`steer-chip${!shown ? " on" : ""}`} aria-pressed={!shown} onClick={() => setWatching(null)}>
+              {c.look_name ?? "This one"} · {score}
+            </button>
+            {styles.map((s) => (
+              <button key={s.id} type="button" className={`steer-chip${shown?.id === s.id ? " on" : ""}`} aria-pressed={shown?.id === s.id} onClick={() => setWatching(s.id)}>
+                {s.look_name ?? "Another look"} · {s.score_100}
+              </button>
+            ))}
+            {shown && tab === "new" && props.onStyle ? (
+              <button type="button" className="btn small" disabled={busy} onClick={() => props.onStyle!(shown.id)}>
+                Use this style
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div className="clip-hook">{c.hook_text}</div>
         {c.caption ? <p className="clip-caption">{c.caption}</p> : null}
         {c.hashtags ? <p className="clip-tags hint">{c.hashtags}</p> : null}
@@ -641,7 +748,7 @@ function ClipCard(props: {
               <button className="btn quiet" disabled={busy} onClick={props.onReject}>
                 Reject
               </button>
-              <button className="btn" disabled={busy} onClick={props.onApprove}>
+              <button className="btn" disabled={busy || !!c.words_pending} onClick={props.onApprove}>
                 Approve
               </button>
             </>
@@ -665,6 +772,21 @@ function ClipCard(props: {
             </>
           )}
         </div>
+        {tab === "new" && props.onFix ? (
+          <div className="clip-fixes" role="group" aria-label="Make this clip better" data-fixes>
+            <span className="hint">Make it better (one tap, a few minutes):</span>
+            {FIX_KEYS.map((k) => (
+              <button key={k} type="button" className="btn quiet small" disabled={working} onClick={() => props.onFix!(k)} data-fix={k}>
+                {FIXES[k].label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {(c.versions ?? 0) > 0 && props.onCompare ? (
+          <button type="button" className="btn quiet small clip-compare" onClick={props.onCompare} data-compare>
+            Compare versions ({(c.versions ?? 0) + 1}) and keep the best
+          </button>
+        ) : null}
         <div className="clip-links">
           {tab !== "rejected" ? (
             <button className="link-btn" onClick={props.onEdit}>
@@ -892,6 +1014,55 @@ function MusicModal({ clip, onClose, onQueued }: { clip: ReviewClip; onClose: ()
       <div className="btn-row">
         <button className="btn quiet" onClick={onClose}>
           Keep it as it is
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+/** Compare versions: this clip and every earlier version, each playable; Keep this one puts it back. */
+function CompareModal({ clip, onClose, onKept }: { clip: ReviewClip; onClose: () => void; onKept: (updated: ReviewClip | null) => void }) {
+  const versions = useLoad(() => get<{ versions: { id: string; code: string; score: number; score_reasons: string[]; hook_text: string; media_url: string; cover_url: string | null }[] }>(`/api/clips/${clip.id}/versions`), [clip.id]);
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  async function keep(id: string) {
+    setBusy(true);
+    try {
+      const r = await post<{ clip: ReviewClip | null }>(`/api/clips/${clip.id}/versions/${id}/keep`);
+      onKept(r.clip);
+    } catch (e) {
+      toast.bad(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={`Compare versions of clip ${clip.code ?? ""}`.trim()} onClose={onClose}>
+      <div className="compare-list" data-compare-list>
+        <div className="compare-item">
+          <div className="set-label">
+            {clip.code ?? "This one"} · now · Score {clip.score_100 ?? Math.round(clip.score * 100)}
+          </div>
+          <video src={clip.media_url} poster={clip.cover_url ?? undefined} controls playsInline preload="none" aria-label="Play the current version" />
+          <p className="hint">{clip.score_reasons?.[0] ?? clip.hook_text}</p>
+          <span className="pill ok">In use</span>
+        </div>
+        {versions.data?.versions.map((v) => (
+          <div key={v.id} className="compare-item">
+            <div className="set-label">
+              {v.code} · Score {v.score}
+            </div>
+            <video src={v.media_url} poster={v.cover_url ?? undefined} controls playsInline preload="none" aria-label={`Play version ${v.code}`} />
+            <p className="hint">{v.score_reasons[0] ?? v.hook_text}</p>
+            <button type="button" className="btn small" disabled={busy} onClick={() => keep(v.id)}>
+              Keep this one ({v.code})
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="btn-row">
+        <button type="button" className="btn quiet" onClick={onClose}>
+          ✕ Close
         </button>
       </div>
     </Modal>
