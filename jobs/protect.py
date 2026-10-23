@@ -145,7 +145,8 @@ def copy_rules(rules: Rules) -> dict[str, Any]:
 def _frame(video: Path, t: float, out: Path) -> Any:
     from PIL import Image  # type: ignore
 
-    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-ss", f"{t:.2f}", "-i", str(video), "-frames:v", "1", str(out)], capture_output=True, timeout=120, check=True)
+    # 8-bit RGB explicitly: a static ffmpeg build may write a 16-bit PNG, which reads back washed out.
+    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-ss", f"{t:.2f}", "-i", str(video), "-frames:v", "1", "-pix_fmt", "rgb24", str(out)], capture_output=True, timeout=120, check=True)
     return Image.open(out).convert("RGB")
 
 
@@ -182,6 +183,7 @@ def privacy_regions(video: Path, duration: float, rules: Rules, sheet: Any, work
     out: list[tuple[float, float, tuple[int, int, int, int]]] = []
     ok = True
     failed: set[str] = set()
+    seen = {"faces": 0, "numbers": 0}
     work.mkdir(parents=True, exist_ok=True)
     t = SAMPLE_S / 2
     i = 0
@@ -200,7 +202,9 @@ def privacy_regions(video: Path, duration: float, rules: Rules, sheet: Any, work
         boxes: list[tuple[int, int, int, int]] = []
         if rules.block_faces and not owner_only(shot, rules) and not (shot is not None and shot.people == "none" and "face" not in shot.privacy):
             try:
-                boxes += find_faces(img)
+                got = find_faces(img)
+                seen["faces"] += len(got)
+                boxes += got
             except Exception as e:  # noqa: BLE001
                 if "faces" not in failed:
                     log("protect.finder", ok=False, which="faces", error=type(e).__name__, detail=str(e)[:160])
@@ -211,6 +215,7 @@ def privacy_regions(video: Path, duration: float, rules: Rules, sheet: Any, work
                 flagged = shot is not None and bool(SIGN_HAZARDS & set(shot.privacy or []))
                 for box, txt in find_numbers(img):
                     if NUMBER_RUN.search(txt) or (flagged and ANY_DIGIT.search(txt)):
+                        seen["numbers"] += 1
                         boxes.append(box)
             except Exception as e:  # noqa: BLE001
                 if "numbers" not in failed:
@@ -221,7 +226,7 @@ def privacy_regions(video: Path, duration: float, rules: Rules, sheet: Any, work
             out.append((round(max(0.0, t - HOLD_S), 2), round(min(duration, t + HOLD_S), 2), b))
         t += SAMPLE_S
         i += 1
-    log("protect.regions", frames=i, found=len(out), ok=ok)
+    log("protect.regions", frames=i, found=len(out), faces=seen["faces"], numbers=seen["numbers"], ok=ok)
     return merge_regions(out), ok
 
 
