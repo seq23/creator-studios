@@ -626,6 +626,8 @@ def check_protect(tmp: Path, problems: list[str], samples: Path, heavy: dict[str
     cut.ffmpeg(["-loop", "1", "-i", str(still), "-t", "3", "-r", "30", "-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset", "ultrafast", str(src)])
     info = cut.probe(src)
     log("selftest.protect.video", seconds=round(info["duration"], 2), width=info["width"], height=info["height"])
+    finder = cut.mp_faces(heavy["mediapipe"])
+    log("selftest.protect.finders", faces_on_still=len(finder(img)) if finder else -1, numbers_on_still=len(PR.numbers_with_text(img)))
     rules = PR.rules_from({"content_rules": {"blockFaces": True, "blockAddresses": True, "ownerFace": "show"}})
     out, ok, boxes = PR.protect_video(src, info, rules, None, tmp, "selftest", cut.mp_faces(heavy["mediapipe"]))
     if not ok:
