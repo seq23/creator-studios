@@ -464,3 +464,18 @@ class LocalModelSheetTest(unittest.TestCase):
     def test_no_local_model_without_the_switch(self):
         os.environ.pop("VISION_LOCAL", None)
         self.assertIsNone(V.local_vlm_sheet({"asset_id": "a", "duration": 5.0, "frames": [], "times": []}, [], None, Path("/tmp")))
+
+
+class HerServiceTest(unittest.TestCase):
+    def test_her_service_takes_finished_shots_with_no_service_of_their_own(self):
+        # Saved sheets labelled with an old service list read back as "unsure"; her pick names the dump.
+        a = V.ShotSheet("a", 6.0, [V.Shot(0, 6, what="an empty corner", state="before", confidence=0.9)], "vision:x")
+        b = V.ShotSheet("b", 8.0, [V.Shot(0, 8, what="the finished corner", state="after", service=V.UNSURE, confidence=0.9)], "vision:x")
+        self.assertEqual(P.pools([a, b], "alpha work")["after"], [])
+        self.assertEqual(len(P.pools([a, b], "alpha work", hers=True)["after"]), 1)
+        self.assertEqual(P.choose_shape([a, b], "alpha work", hers=True)[0], "transformation")
+        plans = P.plan_clips([a, b], "transformation", "alpha work", 4, hers=True)
+        self.assertTrue(plans and plans[0].parts[-1].state == "after")
+        # A finished shot of ANOTHER service is still never used.
+        c = V.ShotSheet("c", 8.0, [V.Shot(0, 8, state="after", service="beta work", confidence=0.9)], "vision:x")
+        self.assertEqual(P.pools([c], "alpha work", hers=True)["after"], [])

@@ -64,6 +64,12 @@ jobs:
         # tesseract: the watermark check (whose video is this?). libgles2 + libegl1: MediaPipe's Linux wheel loads GLES/EGL even for CPU face detection
         run: bash .github/scripts/ffmpeg-static.sh && bash .github/scripts/apt-install.sh libgles2 libegl1 tesseract-ocr tesseract-ocr-eng
       - run: pip install -q -r jobs/requirements.txt
+      - name: "Local vision model's packages, before anything imports the Hugging Face hub (jobs/ai.py)"
+        # 23 Oct 2026: installed mid-job after faster-whisper had loaded an older huggingface_hub, the
+        # local model failed with ImportError; installed here, everything resolves together.
+        run: |
+          pip install -q torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install -q "transformers>=4.45,<5" accelerate pillow
       - name: Run
         run: python3 jobs/cut.py
         env:
@@ -106,7 +112,7 @@ jobs:
           path: ~/.cache/huggingface
           key: whisper-${{ env.WHISPER_MODEL }}-v1
       - name: System tools (ffmpeg with libass; GLES/EGL for MediaPipe; espeak-ng for a spoken sample)
-        run: bash .github/scripts/ffmpeg-static.sh && bash .github/scripts/apt-install.sh libgles2 libegl1 espeak-ng
+        run: bash .github/scripts/ffmpeg-static.sh && bash .github/scripts/apt-install.sh libgles2 libegl1 espeak-ng tesseract-ocr tesseract-ocr-eng
       - name: Pipeline self-test (synthetic footage, no secrets; the Looks run in selftest-looks)
         run: python3 jobs/selftest_cut.py --require-heavy --skip-looks
 

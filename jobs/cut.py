@@ -1389,17 +1389,19 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
     engine["vision"] = (seen[0].source.split(":")[0] if seen else "none")
     # 4. PLAN: the service, the shape, the shots in each clip (jobs/plan.py)
     service, sure = P.dump_service(sheet_list, override.get("service"), services)
+    # She named the service herself: every finished shot with no service of its own counts as it.
+    hers = bool(override.get("service") and override.get("service") != "unsure" and sure)
     if not override.get("service"):
         # Layer 8: a service she has corrected twice is read as what she said it is.
         service = P.relabel(service, memory, services)
     profile = spec.get("brand_profile") or {}
     # Layer 1: the Brand Profile says which shapes fit this service; the footage says which are possible.
-    shape, why_not = P.choose_shape(sheet_list, service, {aid: s_.muted for aid, s_ in srcs.items()}, override.get("shape"), P.combined_fit(P.shapes_fit(profile, service), memory))
+    shape, why_not = P.choose_shape(sheet_list, service, {aid: s_.muted for aid, s_ in srcs.items()}, override.get("shape"), P.combined_fit(P.shapes_fit(profile, service), memory), hers)
     if why_not:
         steer_report.append({"what": SHAPE_WORDS.get(str(override.get("shape")), "that kind of video"), "why": why_not})
     moments: list[tuple[Moment, Source]] = []
     if seen and shape != "talking" and door != "recycle":
-        plans = P.plan_clips(sheet_list, shape, service, P.careful_quota(target, memory) if spec.get("mode") != "again" else 3)
+        plans = P.plan_clips(sheet_list, shape, service, P.careful_quota(target, memory) if spec.get("mode") != "again" else 3, hers)
         if memory.get("approach") == "careful" and len(plans) > 1:
             # Layer 9, careful: only the strongest plans (at least one).
             plans = [pl for pl in plans if pl.score >= 0.7] or plans[:1]

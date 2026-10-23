@@ -176,7 +176,8 @@ def privacy_regions(video: Path, duration: float, rules: Rules, sheet: Any, work
         return [], True
     try:
         find_faces, find_numbers = finders or _finders()
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        log("protect.finder", ok=False, which="load", error=type(e).__name__, detail=str(e)[:160])
         return [], False
     out: list[tuple[float, float, tuple[int, int, int, int]]] = []
     ok = True
@@ -196,7 +197,9 @@ def privacy_regions(video: Path, duration: float, rules: Rules, sheet: Any, work
         if rules.block_faces and not owner_only(shot, rules) and not (shot is not None and shot.people == "none" and "face" not in shot.privacy):
             try:
                 boxes += find_faces(img)
-            except Exception:  # noqa: BLE001
+            except Exception as e:  # noqa: BLE001
+                if ok:
+                    log("protect.finder", ok=False, which="faces", error=type(e).__name__, detail=str(e)[:160])
                 ok = False
         if rules.block_addresses:
             try:
@@ -204,7 +207,9 @@ def privacy_regions(video: Path, duration: float, rules: Rules, sheet: Any, work
                 for box, txt in find_numbers(img):
                     if NUMBER_RUN.search(txt) or (flagged and ANY_DIGIT.search(txt)):
                         boxes.append(box)
-            except Exception:  # noqa: BLE001
+            except Exception as e:  # noqa: BLE001
+                if ok:
+                    log("protect.finder", ok=False, which="numbers", error=type(e).__name__, detail=str(e)[:160])
                 ok = False
         for b in boxes:
             out.append((round(max(0.0, t - HOLD_S), 2), round(min(duration, t + HOLD_S), 2), b))
@@ -274,12 +279,23 @@ def blur_filter(regions: list[tuple[float, float, tuple[int, int, int, int]]], w
     return chain.rstrip(";"), last
 
 
+BLUR_PASS = 6
+
+
 def blur_video(video: Path, regions: list[tuple[float, float, tuple[int, int, int, int]]], width: int, height: int, dst: Path) -> Path:
+    """Every region blurred while on screen, at most BLUR_PASS overlays per ffmpeg pass (one pass with
+    dozens of overlays failed on the live runner, 23 Oct 2026). Raises with ffmpeg's last line."""
     if not regions:
         return video
-    chain, last = blur_filter(regions, width, height)
-    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", str(video), "-filter_complex", chain, "-map", last, "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "copy", str(dst)], capture_output=True, timeout=1800, check=True)
-    return dst
+    src = video
+    for i in range(0, len(regions), BLUR_PASS):
+        chain, last = blur_filter(regions[i : i + BLUR_PASS], width, height)
+        out = dst.with_name(f"{dst.stem}_{i // BLUR_PASS}{dst.suffix}")
+        r = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", str(src), "-filter_complex", chain, "-map", last, "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-pix_fmt", "yuv420p", "-c:a", "copy", str(out)], capture_output=True, text=True, timeout=1800)
+        if r.returncode != 0:
+            raise RuntimeError((r.stderr or "ffmpeg failed").strip().splitlines()[-1] if (r.stderr or "").strip() else "ffmpeg failed")
+        src = out
+    return src
 
 
 def protect_video(video: Path, info: dict[str, Any], rules: Rules, sheet: Any, work: Path, tag: str) -> tuple[Path, bool, int]:
@@ -289,7 +305,8 @@ def protect_video(video: Path, info: dict[str, Any], rules: Rules, sheet: Any, w
     regions, ok = privacy_regions(video, float(info.get("duration") or 0), rules, sheet, work / f"protect_{tag}")
     try:
         out = blur_video(video, regions, int(info.get("width") or 1080), int(info.get("height") or 1920), work / f"safe_{tag}.mp4")
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        log("protect.video", n=tag, ok=False, boxes=len(regions), error=type(e).__name__, detail=str(e)[:160])
         return video, False, 0
     log("protect.video", n=tag, ok=ok, boxes=len(regions))
     return out, ok, len(regions)
