@@ -32,7 +32,7 @@ import { PLATFORMS, RECIPES, REJECT_REASONS, REJECTED_RETENTION_DAYS, type Platf
 import type { ClipRow } from "@shared/types";
 import { cellCount, cleanGridLayout, defaultGridLayout, editingFromStored, isGridLook, isLookId, LOOK_IDS, lookById, ZOOMS, type GridLayout, type LookId, type StoredEditing } from "../domain/looks";
 import { tracksOf } from "../lib/steerStore";
-import { draftScript, voiceReady, redoVoiceOver, removeVoiceOver } from "../lib/autoVoice";
+import { clipForScript, draftScript, voiceReady, redoVoiceOver, removeVoiceOver } from "../lib/autoVoice";
 import { maxWords } from "../domain/autoVoice";
 import { dispatchJob } from "../services/github";
 import { checkEdit, editorName, isHandoffApp, HANDOFF } from "../domain/editors";
@@ -1094,7 +1094,8 @@ clips.post("/:id/voice-over/remove", async (c) => {
 
 /** Add voice over (Review): a script to start from, fitted to the clip, and whether her voice is saved yet. */
 clips.post("/:id/voice-over/draft", async (c) => {
-  const clip = await c.env.DB.prepare("SELECT id, hook_text, caption, start_s, end_s, speech FROM clips WHERE id = ? AND status != 'deleted'").bind(c.req.param("id")).first<{ id: string; hook_text: string; caption: string; start_s: number; end_s: number; speech: number | null }>();
+  // The clip's shots and the dump's notes for the voice reach the script (Follow-on V).
+  const clip = await clipForScript(c.env, c.req.param("id"));
   if (!clip) return fail(c, 404, "That clip is gone.");
   return c.json({ script: await draftScript(c.env, clip), has_voice: await voiceReady(c.env) });
 });

@@ -23,7 +23,7 @@ export function Settings() {
   const s = useLoad(() => get<SettingsShape>("/api/settings"));
   const health = useLoad(() => get<HealthItem[]>("/api/settings/health"));
   // "Record your voice first" under Automatic voice overs: the server says when it is on but her voice isn't saved.
-  const voiceState = useLoad(() => get<{ auto: "on" | "needs_voice" | "off" }>("/api/voice"));
+  const voiceState = useLoad(() => get<{ auto: "on" | "needs_voice" | "off"; hasSample?: boolean }>("/api/voice"));
   const [draft, setDraft] = useState<SettingsShape | null>(null);
   const [emails, setEmails] = useState("");
   const [helper, setHelper] = useState("");
@@ -168,7 +168,7 @@ export function Settings() {
 
         <div className="settings-col">
           <ClipRulesCard owner={owner} />
-          <SoundCard sound={draft.sound} owner={owner} onSave={save} />
+          <SoundCard sound={draft.sound} owner={owner} onSave={save} hasSample={!!voiceState.data?.hasSample} />
           <EditingCard owner={owner} />
           <StorageSection owner={owner} />
           <HealthSection health={health.data} onChange={(rows) => health.setData(rows)} />

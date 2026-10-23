@@ -3,11 +3,13 @@
 // the choices. Plain words, big targets; every choice is always shown.
 import { Link } from "react-router-dom";
 import type { SettingsShape } from "@shared/types";
-import { CAMERA_HINT, CAMERA_LABEL, CAMERA_SOUNDS, STOCK_VOICES, type SoundSettings } from "@shared/sound";
+import { CAMERA_HINT, CAMERA_LABEL, CAMERA_SOUNDS, STOCK_VOICES, voiceInUse, voiceInUseLine, type SoundSettings } from "@shared/sound";
 import { Card } from "./ui";
 import "../styles/steer.css";
 
-export function SoundCard({ sound, owner, onSave }: { sound: SoundSettings; owner: boolean; onSave: (partial: Partial<SettingsShape>) => void }) {
+export function SoundCard({ sound, owner, onSave, hasSample = false }: { sound: SoundSettings; owner: boolean; onSave: (partial: Partial<SettingsShape>) => void; hasSample?: boolean }) {
+  // Which voice speaks right now, and why, in one plain sentence (Follow-on V).
+  const inUse = voiceInUse(sound, hasSample);
   const set = (patch: Partial<SoundSettings>) => owner && onSave({ sound: { ...sound, ...patch } });
   return (
     <section className="section" id="sound">
@@ -29,6 +31,9 @@ export function SoundCard({ sound, owner, onSave }: { sound: SoundSettings; owne
       <Card>
         <div className="set-label">Voice for voice overs</div>
         <div className="hint">Clips with no talking can get a short voice over. Every voice over is labelled “Made with AI” when it posts.</div>
+        <p className="voice-in-use" data-voice-in-use={inUse.why}>
+          <strong>Voice in use now:</strong> {voiceInUseLine(inUse)}
+        </p>
         <div className="steer-chips" role="radiogroup" aria-label="Voice for voice overs">
           <button type="button" role="radio" aria-checked={sound.voice_source === "stock"} className={`steer-chip${sound.voice_source === "stock" ? " on" : ""}`} disabled={!owner} onClick={() => set({ voice_source: "stock" })}>
             A studio voice
@@ -59,7 +64,7 @@ export function SoundCard({ sound, owner, onSave }: { sound: SoundSettings; owne
           </div>
         ) : (
           <p className="hint">
-            Your own voice, from the recording on <Link to="/voice#voice-steps">Voice overs</Link>. Until it is saved, no voice overs are made.
+            Your own voice, from the recording on <Link to="/voice#voice-steps">Voice overs</Link>. Until it is saved, the studio voice speaks instead, so voice overs never wait.
           </p>
         )}
       </Card>

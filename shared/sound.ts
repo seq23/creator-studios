@@ -51,7 +51,47 @@ export interface SoundSettings {
   stock_voice: string;
 }
 
-export const SOUND_DEFAULT: SoundSettings = { camera: "keep", voice_source: "mine", stock_voice: STOCK_VOICES[0].id };
+/**
+ * The stock voice used until she records her own (owner, 23 Oct 2026: "stock af_heart until a
+ * consented voice sample exists, then switch automatically"). Named, never "the first in the list".
+ */
+export const DEFAULT_STOCK_VOICE = "af_heart";
+
+/**
+ * Plain defaults: keep the camera sound; voice overs in her own voice once she has recorded it, and
+ * in the stock voice af_heart until then (voiceInUse). A studio's registry or Settings change these.
+ */
+export const SOUND_DEFAULT: SoundSettings = { camera: "keep", voice_source: "mine", stock_voice: DEFAULT_STOCK_VOICE };
+
+export interface VoiceInUse {
+  /** "stock": a studio voice speaks; "mine": her own recorded voice. */
+  speaks: "stock" | "mine";
+  /** The stock voice's id when one speaks, else null. */
+  stock_voice: string | null;
+  /** Why, in plain words (the Sound screen shows it). */
+  why: "picked_stock" | "no_recording_yet" | "recorded";
+}
+
+/**
+ * Which voice the voice overs use right now, and why. A studio voice when she picked one; her own
+ * voice when she chose it AND a consented recording exists; otherwise (her voice chosen, nothing
+ * recorded yet) the stock voice, so voice overs never wait on a recording, switching to hers by
+ * itself once it exists. Pure; pinned in tests/unit/voice-follow-on.test.ts.
+ */
+export function voiceInUse(sound: SoundSettings, hasSample: boolean): VoiceInUse {
+  if (sound.voice_source === "stock") return { speaks: "stock", stock_voice: sound.stock_voice, why: "picked_stock" };
+  if (hasSample) return { speaks: "mine", stock_voice: null, why: "recorded" };
+  return { speaks: "stock", stock_voice: sound.stock_voice || DEFAULT_STOCK_VOICE, why: "no_recording_yet" };
+}
+
+/** The Sound screen's sentence for voiceInUse, in plain words. Pure. */
+export function voiceInUseLine(v: VoiceInUse): string {
+  // "Voice 1: warm, a woman" → "Voice 1", the name the Sound screen's list shows first.
+  const name = (STOCK_VOICES.find((s) => s.id === v.stock_voice)?.label ?? "Voice 1").split(":")[0].trim();
+  if (v.why === "recorded") return "Voice overs use your own recorded voice.";
+  if (v.why === "picked_stock") return `Voice overs use the studio voice you picked (${name}).`;
+  return `Voice overs use a studio voice (${name}) because you have not recorded your voice yet. Once you record it, your own voice takes over by itself.`;
+}
 
 /** A studio's defaults from its registry var, then anything saved in Settings on top; anything odd is dropped. Pure. */
 export function soundSettings(registry: string | undefined | null, saved: unknown): SoundSettings {

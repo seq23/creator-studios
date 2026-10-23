@@ -226,12 +226,15 @@ describe("Review: voice over for the whole dump, another version with notes, sta
     expect((await call("POST", "/api/dumps/dmp_cs/voice-all")).json.clips).toBe(0);
   });
 
-  it("Add voice over to all clips with her own voice chosen and none recorded: a plain refusal", async () => {
+  it("Add voice over to all clips with her own voice chosen and none recorded: the stock voice af_heart speaks until she records (Follow-on V)", async () => {
     await call("PATCH", "/api/settings", { sound: { voice_source: "mine" } });
     await cutOnce();
     const r = await call("POST", "/api/dumps/dmp_cs/voice-all");
-    expect(r.status).toBe(409);
-    expect(String(r.json.error)).toMatch(/Pick a voice first/);
+    expect(r.status).toBe(200);
+    const vj = lastJob("voice");
+    const spec = (await voiceJob.buildSpec(env, vj.id, vj.ref_id)) as { stock_voice: string | null; sample_key: string | null };
+    expect(spec.stock_voice).toBe("af_heart");
+    expect(spec.sample_key).toBeNull();
   });
 
   it("Try another version with notes re-cuts the clip in place; the current file plays until then", async () => {

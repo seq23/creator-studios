@@ -29,6 +29,8 @@ import type { Features } from "@shared/types";
 import { readSound } from "../routes/settings";
 import { cleanScript } from "@shared/clipWords";
 import { readStudioRules } from "./studioRules";
+import { voiceInUse } from "@shared/sound";
+import { cleanVoiceNotes, shotLines, shotScript, shotsOf } from "@shared/voiceShots";
 
 export const AUTO_BATCH_PREFIX = "auto/";
 
@@ -37,17 +39,18 @@ export async function autoVoiceOn(env: Env): Promise<boolean> {
 }
 
 /**
- * A voice the voice overs can use: the stock voice when the studio uses one (Settings → Sound,
- * shared/sound.ts), else her own recorded sample.
+ * A voice the voice overs can use. Always one since Follow-on V (owner, 23 Oct 2026): the stock
+ * voice she picked, her own consented recording, or (her voice chosen, nothing recorded yet) the
+ * stock voice af_heart until her recording exists (shared/sound.ts voiceInUse).
  */
 export async function voiceReady(env: Env): Promise<boolean> {
-  return (await readSound(env)).voice_source === "stock" || (await hasVoiceSample(env));
+  const v = voiceInUse(await readSound(env), await hasVoiceSample(env));
+  return v.speaks === "mine" || !!v.stock_voice;
 }
 
-/** The stock voice's id when voice overs use one, else null (her own recorded voice). */
+/** The stock voice's id when voice overs use one (picked, or no recording yet), else null (her own recorded voice). */
 export async function stockVoice(env: Env): Promise<string | null> {
-  const s = await readSound(env);
-  return s.voice_source === "stock" ? s.stock_voice : null;
+  return voiceInUse(await readSound(env), await hasVoiceSample(env)).stock_voice;
 }
 
 export async function hasVoiceSample(env: Env): Promise<boolean> {
@@ -67,34 +70,56 @@ interface TargetClip {
   shape?: string | null;
   /** The clip engine's own script for this clip (jobs/script_clean.py), spoken first when it passes. */
   voice_script?: string | null;
+  /** Follow-on V: the clip's shots on its timeline (jobs/cut.py shot_list), its parts, the dump's notes for the voice. */
+  shot_list?: string | null;
+  parts?: string | null;
+  voice_notes?: string | null;
 }
+
+/** The columns draftScript reads, for the clip queries below (c = clips, d = dumps). */
+const SCRIPT_COLS = "c.id, c.hook_text, c.caption, c.start_s, c.end_s, c.speech, c.on_screen, c.shape, c.voice_script, c.shot_list, c.parts, d.voice_notes";
 
 /**
  * A script for one clip with no talking, in her voice, fitted to the clip. Never empty.
- * The clip engine's voice_script comes first; every script, the engine's or drafted here, passes
- * jobs/script_rules.json (shared/clipWords.ts cleanScript): reasoning-shaped text is never spoken,
- * no sentence twice, the call to action once, the caption never read back.
+ * Follow-on V (owner, 23 Oct 2026): the script follows the clip's shots, in order and timed
+ * (shared/voiceShots.ts), and never reads the caption back. The clip engine's voice_script comes
+ * first, unless she wrote notes for the voice on the dump: then the script is written fresh with
+ * them (the engine never saw them). Every script passes jobs/script_rules.json (shared/clipWords.ts
+ * cleanScript): reasoning-shaped text is never spoken, no sentence twice, the call to action once.
  */
 export async function draftScript(env: Env, clip: TargetClip): Promise<string> {
   const seconds = clip.end_s - clip.start_s;
   const ctas = (await readStudioRules(env)).cta_phrases;
+  const notes = cleanVoiceNotes(clip.voice_notes);
   const own = clip.voice_script ? cleanScript(clip.voice_script, clip.caption, ctas, maxWords(seconds)) : "";
-  if (own.length >= 10) return fitScript(own, seconds);
+  if (own.length >= 10 && !notes) return fitScript(own, seconds);
   const profile = await lockedProfile(env);
   const cta = (profile?.ctas ?? "").split("\n").map((l) => l.replace(/^[\s\-•]+/, "").trim()).find(Boolean) ?? null;
+  const shots = shotsOf(clip);
   // Grounded (studio intelligence layer 4): no sentence mentions automation, none claims a finished
   // result or a "before" the picture does not show (shared/grounded.ts, one word list with the cutter).
   const ground = clip.shape ? { hasAfter: clip.shape === "transformation" || clip.shape === "walkthrough", hasBefore: clip.shape === "transformation" } : { hasAfter: true, hasBefore: true };
-  const starter = groundScript(starterScript(clip, cta, seconds), ground) || fitScript(cta ? `${cta.replace(/[.!]*$/, "")}.` : "Take a look.", seconds);
+  // No AI: the engine's script when it passed, else the shots in order (never the caption).
+  const fromShots = cleanScript(groundScript(shotScript(shots, clip.hook_text, cta), ground), clip.caption, ctas, maxWords(seconds));
+  const starter =
+    (own.length >= 10 ? fitScript(own, seconds) : "") ||
+    (fromShots.length >= 10 ? fitScript(fromShots, seconds) : "") ||
+    groundScript(starterScript(clip, cta, seconds), ground) ||
+    fitScript(cta ? `${cta.replace(/[.!]*$/, "")}.` : "Take a look.", seconds);
   if (fakeServices(env)) return starter;
   const llm = await getLlm(env);
   const r = await llm.complete({
-    system: `You write a voice-over for a ${Math.round(seconds)}-second vertical video with no talking in it (b-roll, montage, product shots), for the creator ${kitName(env)}, spoken in her own voice. At most ${maxWords(seconds)} words. Her voice: ${profile?.voice || "warm and direct"}. Do: ${profile?.do_dont || ""}. Never mention: ${profile?.off_limits || "nothing listed"}. End with one call to action from: ${profile?.ctas || "follow for more"}. Describe only what is on screen; never mention automation, software or how the video was made. Reply with the script only, plain spoken sentences.`,
-    user: `On-screen hook: ${clip.hook_text}\nCaption: ${clip.caption}${clip.on_screen ? `\nOn screen, in order: ${clip.on_screen}` : ""}`,
+    system: `You write a voice-over for a ${Math.round(seconds)}-second vertical video with no talking in it (b-roll, montage, product shots), for the creator ${kitName(env)}, spoken in her own voice. At most ${maxWords(seconds)} words. Her voice: ${profile?.voice || "warm and direct"}. Do: ${profile?.do_dont || ""}. Never mention: ${profile?.off_limits || "nothing listed"}. End with one call to action from: ${profile?.ctas || "follow for more"}. Describe only what is on screen, following the shots in order and in time (each line is one shot: its seconds, its stage, what it shows); say each part while it is on screen. Never repeat the caption or the on-screen hook word for word. Never mention automation, software or how the video was made. Reply with the script only, plain spoken sentences.`,
+    user: `Shots, in order:\n${shotLines(shots)}\nOn-screen hook (do not read it out): ${clip.hook_text}\nCaption (do not repeat it): ${clip.caption}${notes ? `\nNotes for the voice from her (use them; they never override what the shots show): ${notes}` : ""}`,
     maxTokens: 300,
   });
   const text = r.ok ? cleanScript(groundScript(r.text.trim().replace(/^["“]|["”]$/g, ""), ground), clip.caption, ctas, maxWords(seconds)) : "";
   return text.length >= 10 ? fitScript(text, seconds) : starter;
+}
+
+/** One clip with everything draftScript reads (its shots, the dump's notes for the voice), or null. */
+export async function clipForScript(env: Env, clipId: string): Promise<TargetClip | null> {
+  return env.DB.prepare(`SELECT ${SCRIPT_COLS} FROM clips c LEFT JOIN dumps d ON d.id = c.dump_id WHERE c.id = ? AND c.status != 'deleted'`).bind(clipId).first<TargetClip>();
 }
 
 /** Make the voice overs for these clips and start ONE voice job run for all of them. */
@@ -160,7 +185,7 @@ export async function autoVoiceDump(env: Env, dumpId: string): Promise<{ state: 
     return { state: [plans.dump, ...plans.assets.values()].includes("needs_voice") ? "needs_voice" : "off", clips: 0 };
   }
   const { results } = await env.DB.prepare(
-    "SELECT c.id, c.asset_id, c.hook_text, c.caption, c.start_s, c.end_s, c.speech, c.on_screen, c.shape, c.voice_script FROM clips c WHERE c.dump_id = ? AND c.status IN ('draft', 'approved') AND c.words_pending = 0 AND NOT EXISTS (SELECT 1 FROM narrations n WHERE n.clip_id = c.id)",
+    `SELECT c.asset_id, ${SCRIPT_COLS} FROM clips c JOIN dumps d ON d.id = c.dump_id WHERE c.dump_id = ? AND c.status IN ('draft', 'approved') AND c.words_pending = 0 AND NOT EXISTS (SELECT 1 FROM narrations n WHERE n.clip_id = c.id)`,
   )
     .bind(dumpId)
     .all<TargetClip & { asset_id: string }>();
@@ -181,7 +206,7 @@ export async function autoVoiceDump(env: Env, dumpId: string): Promise<{ state: 
  */
 export async function voiceAllInDump(env: Env, dumpId: string): Promise<{ clips: number; started: boolean }> {
   const { results } = await env.DB.prepare(
-    "SELECT c.id, c.hook_text, c.caption, c.start_s, c.end_s, c.speech, c.on_screen, c.shape, c.voice_script FROM clips c WHERE c.dump_id = ? AND c.status IN ('draft', 'approved') AND c.full_video = 0 AND c.words_pending = 0 AND NOT EXISTS (SELECT 1 FROM narrations n WHERE n.clip_id = c.id)",
+    `SELECT ${SCRIPT_COLS} FROM clips c JOIN dumps d ON d.id = c.dump_id WHERE c.dump_id = ? AND c.status IN ('draft', 'approved') AND c.full_video = 0 AND c.words_pending = 0 AND NOT EXISTS (SELECT 1 FROM narrations n WHERE n.clip_id = c.id)`,
   )
     .bind(dumpId)
     .all<TargetClip>();

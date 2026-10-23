@@ -1,5 +1,6 @@
 // Dump: two doors, notes, the Dump button (section 7). A dump is created before the files
 // upload, files attach to it, and Dump flips it to queued and starts the cut job.
+import { cleanVoiceNotes } from "@shared/voiceShots";
 import { Hono, type Context } from "hono";
 import type { Env, Vars } from "../env";
 import { requireUser } from "../lib/auth";
@@ -40,6 +41,7 @@ interface DumpDb {
   door: "new" | "recycle";
   kind: string;
   notes: string;
+  voice_notes: string | null;
   status: DumpSummary["status"];
   error_summary: string | null;
   clips_made: number;
@@ -59,7 +61,7 @@ interface DumpDb {
   plan_override: string | null;
 }
 
-const SELECT = `SELECT d.id, d.door, d.kind, d.notes, d.status, d.error_summary, d.clips_made, d.created_at, d.ready_at, d.steer, d.steer_notes, d.not_followed, d.tried, d.archived_at, d.looks_like, d.plan_override,
+const SELECT = `SELECT d.id, d.door, d.kind, d.notes, d.voice_notes, d.status, d.error_summary, d.clips_made, d.created_at, d.ready_at, d.steer, d.steer_notes, d.not_followed, d.tried, d.archived_at, d.looks_like, d.plan_override,
   (SELECT COUNT(*) FROM assets a WHERE a.dump_id = d.id AND a.upload_status != 'aborted') AS files,
   (SELECT j.progress FROM jobs j WHERE j.ref_id = d.id AND j.type = 'cut' ORDER BY j.created_at DESC LIMIT 1) AS progress,
   (SELECT a.source_note FROM assets a WHERE a.dump_id = d.id AND a.source_owner = 'other' LIMIT 1) AS held_note,
@@ -72,7 +74,7 @@ function view(r: DumpDb): DumpSummary {
   // A connected editor is cutting it (Who edits > Cutting): say who, in her words.
   const name = editorDef(editor)?.name;
   const progress = name && r.status === "cutting" ? { step: editor_status === "importing" ? `Bringing your clips back from ${name}` : `${name} is cutting your videos`, done: 0, total: 1 } : parseJson(r.progress, null);
-  return { ...rest, door: kind === "full_video" ? "youtube" : r.door, progress, steer: parseJson(steer, {}), understood: readUnderstood(steer_notes), not_followed: parseJson<NotFollowed[]>(not_followed, []), looks_like: cleanLooksLike(parseJson(looks_like, null)), plan_override: parseJson<PlanOverride>(plan_override, {}) };
+  return { ...rest, voice_notes: r.voice_notes ?? "", door: kind === "full_video" ? "youtube" : r.door, progress, steer: parseJson(steer, {}), understood: readUnderstood(steer_notes), not_followed: parseJson<NotFollowed[]>(not_followed, []), looks_like: cleanLooksLike(parseJson(looks_like, null)), plan_override: parseJson<PlanOverride>(plan_override, {}) };
 }
 
 /** While Dump is open it asks the connected editors how they are doing (throttled per job). */
@@ -170,8 +172,14 @@ dumps.post("/understand", async (c) => {
 
 /** Notes, the chips she tapped (steer; {} = Surprise me) and the reading of the note she saw. */
 dumps.patch("/:id", async (c) => {
-  const body = await readJson<{ notes?: string; steer?: unknown; understood?: unknown; door?: string }>(c);
+  const body = await readJson<{ notes?: string; steer?: unknown; understood?: unknown; door?: string; voice_notes?: string }>(c);
   const id = c.req.param("id");
+  // Notes for the voice (Follow-on V): read by the voice-over script writer whenever voice overs are
+  // made for this dump's clips, so they can change after Dump too (worker/lib/autoVoice.ts draftScript).
+  if (body?.voice_notes !== undefined) {
+    const v = cleanVoiceNotes(body.voice_notes);
+    await c.env.DB.prepare("UPDATE dumps SET voice_notes = ? WHERE id = ?").bind(v || null, id).run();
+  }
   // She can change which videos these are (new or old posts) until she presses Dump.
   const cols = doorColumns(body?.door);
   if (cols) await c.env.DB.prepare("UPDATE dumps SET door = ?, kind = ? WHERE id = ? AND status = 'uploading'").bind(cols.door, cols.kind, id).run();

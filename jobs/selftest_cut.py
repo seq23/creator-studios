@@ -47,7 +47,9 @@ from common import log  # noqa: E402
 FIXTURE = HERE.parent / "tests" / "unit" / "fixtures" / "cut-result.sample.json"
 CLIP_KEYS = {"id", "asset_id", "start_s", "end_s", "recipe", "hook_text", "hook_alt", "caption", "hashtags", "platforms", "score", "r2_key", "cover_r2_key", "look", "parts", "layout", "music", "speech", "muted", "shape", "service", "on_screen", "part_assets", "hidden_reason",
              # studio fix (the contract with the Worker): type, real score's reasons, hero, files, AI pictures, event, voice script, words pending
-             "clip_type", "score_reasons", "hero_asset_id", "files_used", "uses_ai_images", "event_group", "voice_script", "words_pending"}
+             "clip_type", "score_reasons", "hero_asset_id", "files_used", "uses_ai_images", "event_group", "voice_script", "words_pending",
+             # Follow-on V: the clip's shots on its own timeline, for the voice-over script
+             "shot_list"}
 STAGES = {"Getting your videos", "Listening", "Looking at your videos", "Finding the best moments", "Cutting clips", "Saving clips"}
 
 
@@ -157,6 +159,10 @@ def check(result: dict, spec: dict, out: Path, problems: list[str]) -> None:
         n = len(problems)
         if set(c) != CLIP_KEYS:
             problems.append(f"clip keys {sorted(set(c) ^ CLIP_KEYS)}")
+        # Follow-on V: the shot list runs in order on the clip's own timeline, inside the clip.
+        sl = c.get("shot_list")
+        if not isinstance(sl, list) or any(not (isinstance(x, dict) and 0 <= x["t0"] < x["t1"]) for x in sl) or any(a["t1"] > b["t0"] + 0.01 for a, b in zip(sl, sl[1:])) or (sl and sl[-1]["t1"] > c["end_s"] - c["start_s"] + 0.5):
+            problems.append("shot_list out of order or outside the clip")
         # No camera choice in the spec keeps the camera sound (jobs/cut.py camera_mode): never muted by default.
         if c.get("muted") is not False:
             problems.append("muted without camera sound off")

@@ -18,6 +18,8 @@ from typing import Any
 
 from common import WORK, Job, download_input, log, run, upload_output
 import script_clean as SCL  # the words are cleaned before they are spoken (studio fix, 23 Oct 2026)
+import vo_words as VW  # the words the voice says, burned on screen (Follow-on V, 23 Oct 2026)
+from looks import has_filter
 
 import json
 import urllib.request
@@ -65,16 +67,45 @@ def has_audio(path: Path) -> bool:
     return bool(out.stdout.strip())
 
 
-def mix_command(clip: Path, voice: Path, out: Path, clip_has_audio: bool) -> list[str]:
-    """Her voice over on top, the clip's own sound at a quarter underneath; the video stream is
-    copied untouched and the result is exactly as long as the clip."""
+def duration_of(path: Path) -> float:
+    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)], capture_output=True, text=True, check=True)
+    try:
+        return float(out.stdout.strip())
+    except ValueError:
+        return 0.0
+
+
+def words_file(script: str, timings: list[tuple[float, float, str]] | None, voice: Path, clip: Path, work: Path, name: str) -> tuple[Path | None, int]:
+    """The ASS file with the voice over's words (jobs/vo_words.py): the engine's own sentence
+    timings, else estimated from the voice's length. (None, 0) when there is nothing to show or this
+    ffmpeg cannot burn text (local machines only; the runner's static ffmpeg has libass)."""
+    if not timings:
+        timings = VW.estimate_timings(script, duration_of(voice))
+    cues = VW.phrase_cues(timings, duration_of(clip))
+    ass = VW.build_vo_ass(cues)
+    if ass is None or not has_filter("subtitles"):
+        return None, 0
+    path = work / f"{name}_words.ass"
+    path.write_text(ass, encoding="utf-8")
+    return path, len(cues)
+
+
+def mix_command(clip: Path, voice: Path, out: Path, clip_has_audio: bool, words: Path | None = None) -> list[str]:
+    """Her voice over on top, the clip's own sound at a quarter underneath; the result is exactly as
+    long as the clip. With `words`, the voice over's words are burned in their band (the video is
+    re-encoded once); without, the video stream is copied untouched."""
     if clip_has_audio:
         graph = "[0:a]volume=0.25[bg];[1:a]apad[vo];[bg][vo]amix=inputs=2:duration=first:normalize=0[a]"
         tail = []
     else:
         graph = "[1:a]apad[a]"
         tail = ["-shortest"]
-    return ["ffmpeg", "-y", "-loglevel", "error", "-i", str(clip), "-i", str(voice), "-filter_complex", graph, "-map", "0:v:0", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", *tail, str(out)]
+    if words is not None:
+        graph += f";[0:v]subtitles=filename='{words.resolve()}'[v]"
+        video = ["-map", "[v]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"]
+    else:
+        video = ["-map", "0:v:0", "-c:v", "copy"]
+    return ["ffmpeg", "-y", "-loglevel", "error", "-i", str(clip), "-i", str(voice), "-filter_complex", graph, *video[:2], "-map", "[a]", *video[2:], "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", *tail, str(out)]
 
 
 def mix(job: Job, spec: dict[str, Any]) -> dict[str, Any]:
@@ -87,12 +118,13 @@ def mix(job: Job, spec: dict[str, Any]) -> dict[str, Any]:
     voice = download_input(voice_key, work / ("voice" + Path(voice_key).suffix))
     out = work / "voiced.mp4"
     with_sound = has_audio(clip)
-    subprocess.run(mix_command(clip, voice, out, with_sound), check=True)
+    words, n_words = words_file(str(spec.get("script") or ""), None, voice, clip, work, "mix")
+    subprocess.run(mix_command(clip, voice, out, with_sound, words), check=True)
     key = str(spec["output_key"])
     job.progress("adding your voice over", 1, 2)
     upload_output(out, key, "video/mp4")
-    log("voice.mix.done", clip_audio=with_sound, bytes=out.stat().st_size)
-    return {"mode": "mix", "r2_key": key, "bytes": out.stat().st_size}
+    log("voice.mix.done", clip_audio=with_sound, bytes=out.stat().st_size, words=n_words)
+    return {"mode": "mix", "r2_key": key, "bytes": out.stat().st_size, "words": n_words}
 
 
 class Stock:
@@ -169,36 +201,59 @@ def load_model(spec: dict[str, Any], work: Path) -> tuple[Any, bool]:
     return model, loaded
 
 
-def speak(model: Any, script: str, out_mp3: Path, on_sentence: Any = None) -> float:
-    """The script in her voice, sentence by sentence (a steady CPU run), as an mp3. Returns seconds."""
+Timings = list[tuple[float, float, str]]
+
+
+def speak(model: Any, script: str, out_mp3: Path, on_sentence: Any = None) -> tuple[float, Timings]:
+    """The script in her voice, one sentence at a time (a steady CPU run), as an mp3. Returns the
+    seconds and each sentence's exact start and end (the on-screen words follow them)."""
     if isinstance(model, Stock):
         return speak_stock(model, script, out_mp3, on_sentence)
     import torch  # noqa: E402
     import torchaudio  # noqa: E402
 
-    parts = [p.strip() for p in script.replace("\n", " ").split(". ") if p.strip()]
+    parts = VW.split_sentences(script)
     chunks: list[Any] = []
+    timings: Timings = []
+    t = 0.0
     for i, p in enumerate(parts):
-        chunks.append(model.generate(p if p.endswith((".", "!", "?")) else p + "."))
+        chunk = model.generate(p)
+        chunks.append(chunk)
+        d = chunk.shape[-1] / model.sr
+        timings.append((round(t, 3), round(t + d, 3), p))
+        t += d
         if on_sentence:
             on_sentence(i + 1, len(parts))
     wav = torch.cat(chunks, dim=-1)
     out_wav = out_mp3.with_suffix(".wav")
     torchaudio.save(str(out_wav), wav, model.sr)
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(out_wav), "-codec:a", "libmp3lame", "-q:a", "3", str(out_mp3)], check=True)
-    return wav.shape[-1] / model.sr
+    return wav.shape[-1] / model.sr, timings
 
 
-def speak_stock(model: Stock, script: str, out_mp3: Path, on_sentence: Any = None) -> float:
+def speak_stock(model: Stock, script: str, out_mp3: Path, on_sentence: Any = None) -> tuple[float, Timings]:
+    """The stock voice, one sentence at a time (so each sentence's timing is exact), joined."""
+    import numpy as np  # noqa: E402  (installed with kokoro-onnx)
     import soundfile as sf  # noqa: E402
 
-    samples, sr = model.k.create(script.replace("\n", " "), voice=model.voice, speed=1.0, lang="en-us")
-    if on_sentence:
-        on_sentence(1, 1)
+    parts = VW.split_sentences(script)
+    pieces: list[Any] = []
+    timings: Timings = []
+    sr = 24000
+    t = 0.0
+    for i, p in enumerate(parts):
+        piece, sr = model.k.create(p, voice=model.voice, speed=1.0, lang="en-us")
+        pieces.append(piece)
+        d = len(piece) / sr
+        timings.append((round(t, 3), round(t + d, 3), p))
+        t += d
+        if on_sentence:
+            on_sentence(i + 1, len(parts))
+    samples = np.concatenate(pieces) if pieces else np.zeros(1, dtype="float32")
     out_wav = out_mp3.with_suffix(".wav")
     sf.write(str(out_wav), samples, sr)
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(out_wav), "-codec:a", "libmp3lame", "-q:a", "3", str(out_mp3)], check=True)
-    return len(samples) / sr
+    return len(samples) / sr, timings
 
 
 def batch(job: Job, spec: dict[str, Any]) -> dict[str, Any]:
@@ -220,6 +275,8 @@ def batch(job: Job, spec: dict[str, Any]) -> dict[str, Any]:
         try:
             voice_path = work / f"{nid}.mp3"
             seconds = None
+            timings = None
+            script = str(it.get("script") or "")
             if it.get("speak"):
                 script = SCL.clean_script(str(it.get("script") or ""), str(it.get("caption") or ""), it.get("ctas") or [])
                 if not script:
@@ -227,15 +284,17 @@ def batch(job: Job, spec: dict[str, Any]) -> dict[str, Any]:
                     log("voice.batch.script_rejected", n=k)
                     results.append({"narration_id": nid, "ok": False, "reason": "script_rejected"})
                     continue
-                seconds = speak(model, script, voice_path)
+                seconds, timings = speak(model, script, voice_path)
                 upload_output(voice_path, str(it["narration_key"]), "audio/mpeg")
             else:
                 download_input(str(it["narration_key"]), voice_path)
             clip = download_input(str(it["clip_key"]), work / f"{nid}_clip.mp4")
             out = work / f"{nid}_voiced.mp4"
-            subprocess.run(mix_command(clip, voice_path, out, has_audio(clip)), check=True)
+            # The words on screen: the engine's sentence timings, else estimated from the voice's length.
+            words, n_words = words_file(script, timings, voice_path, clip, work, nid)
+            subprocess.run(mix_command(clip, voice_path, out, has_audio(clip), words), check=True)
             upload_output(out, str(it["output_key"]), "video/mp4")
-            results.append({"narration_id": nid, "ok": True, "narration_key": it["narration_key"], "mixed_key": it["output_key"], "duration_s": round(seconds, 1) if seconds else None})
+            results.append({"narration_id": nid, "ok": True, "narration_key": it["narration_key"], "mixed_key": it["output_key"], "duration_s": round(seconds, 1) if seconds else None, "words": n_words})
         except Exception:  # noqa: BLE001  one clip failing never stops the rest
             log("voice.batch.item_failed", n=k)
             results.append({"narration_id": nid, "ok": False})
@@ -260,7 +319,7 @@ def main(job: Job, spec: dict[str, Any]) -> dict[str, Any]:
     model = load_voice(spec, work)
     job.progress("speaking", 2, 4)
     out_mp3 = work / "narration.mp3"
-    seconds = speak(model, script, out_mp3, lambda n, of: (job.progress("speaking", 2, 4), log("voice.sentence", n=n, of=of)))
+    seconds, _timings = speak(model, script, out_mp3, lambda n, of: (job.progress("speaking", 2, 4), log("voice.sentence", n=n, of=of)))
     job.progress("saving", 3, 4)
     key = str(spec["output_key"])
     upload_output(out_mp3, key, "audio/mpeg")
