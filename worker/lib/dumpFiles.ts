@@ -37,6 +37,8 @@ export interface DumpFile {
   size_bytes: number;
   /** Her own screens only (signed in): the original while it is kept, else null. */
   view_url: string | null;
+  /** A still for a video's tile: the cover of the first clip that used it (light on a phone's data). */
+  poster_url: string | null;
   role: string | null;
   role_label: string | null;
   /** A camera took it (EXIF); false = treated as an AI picture. Null = not read yet. */
@@ -71,15 +73,17 @@ export async function dumpFiles(env: Env, dumpId: string): Promise<DumpFilesView
     .bind(dumpId)
     .all<{ id: string; file_name: string; mime_type: string; size_bytes: number; role: string | null; exif_camera: number | null; taken_at: string | null; raw_deleted_at: string | null }>();
   const { results: clips } = await env.DB.prepare(
-    "SELECT id, asset_id, part_assets, files_used, hero_asset_id, number, version, status, style_of FROM clips WHERE dump_id = ? AND status != 'deleted' AND style_of IS NULL ORDER BY number, id",
+    "SELECT id, asset_id, part_assets, files_used, hero_asset_id, number, version, status, style_of, cover_r2_key FROM clips WHERE dump_id = ? AND status != 'deleted' AND style_of IS NULL ORDER BY number, id",
   )
     .bind(dumpId)
-    .all<{ id: string; asset_id: string; part_assets: string | null; files_used: string | null; hero_asset_id: string | null; number: number | null; version: number; status: string; style_of: string | null }>();
+    .all<{ id: string; asset_id: string; part_assets: string | null; files_used: string | null; hero_asset_id: string | null; number: number | null; version: number; status: string; style_of: string | null; cover_r2_key: string | null }>();
+  const posters = new Map<string, string>();
   const tz = env.AUDIENCE_TIMEZONE || "America/New_York";
   const uses = new Map<string, DumpFileUse[]>();
   for (const c of clips) {
     const ids = new Set<string>([c.asset_id, ...parseJson<string[]>(c.part_assets, []), ...parseJson<string[]>(c.files_used, [])]);
     for (const id of ids) {
+      if (c.cover_r2_key && !posters.has(id)) posters.set(id, `/api/clips/${c.id}/cover`);
       const list = uses.get(id) ?? [];
       list.push({ clip_id: c.id, code: clipCode(c.number, c.version) || "–", label: clipLabel(dump.created_at, c.number, c.version, tz), status: c.status, hero: c.hero_asset_id === id });
       uses.set(id, list);
@@ -92,6 +96,7 @@ export async function dumpFiles(env: Env, dumpId: string): Promise<DumpFilesView
     kind: a.mime_type.startsWith("image/") ? "photo" : "video",
     size_bytes: a.size_bytes,
     view_url: a.raw_deleted_at ? null : `/api/dumps/${dumpId}/files/${a.id}/view`,
+    poster_url: a.mime_type.startsWith("image/") ? null : (posters.get(a.id) ?? null),
     role: a.role,
     role_label: roleLabel(a.role),
     camera: a.exif_camera === null ? null : a.exif_camera === 1,

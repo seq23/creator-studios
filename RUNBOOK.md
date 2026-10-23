@@ -149,6 +149,15 @@ Every cut logs `ai.calls` per provider. Ruled out 23 Oct 2026: Workers AI (the a
 neurons were already used that day by other Workers; more is billed), Hugging Face (no credits left,
 the account cannot pay), GitHub Models (no longer answers).
 
+## Niche research (monthly, $0)
+
+The daily lane starts `job-niche` (jobs/niche_research.py) once a month per studio, as soon as its
+Brand Profile is locked: free web search (common.Web) and at most 2 free AI calls
+(`OPENROUTER_JOB_BUDGET=2`), else the baseline playbook with the studio's own words. The result is
+stored in `niche_playbooks`, sent once as a short note (email kind `niche_note`; Porch & Party's goes
+only to NOTIFY_EMAIL) and shown on the Brand page. Health light: "What's working in your niche". A
+failed run retries after 3 days; the clips use the last playbook meanwhile.
+
 ## Deploy pipeline
 
 `check.yml` on every PR and push (merge gate, under 5 min) → on a green `check` of a push to main,

@@ -258,6 +258,18 @@
       "screen": "dump"
     },
     {
+      "slug": "what-i-dumped",
+      "title": "See what you dumped and which clips used it",
+      "group": "everyday",
+      "screen": "dump"
+    },
+    {
+      "slug": "your-clips",
+      "title": "Your clips: what they ask, where they send people, how many",
+      "group": "everyday",
+      "screen": "settings"
+    },
+    {
       "slug": "recycle-old-videos",
       "title": "Recycle old videos",
       "group": "everyday",

@@ -309,7 +309,7 @@ export function Review() {
         {tab === "new" ? <Switch checked={showHidden} onChange={setShowHidden} label={`Show hidden (under the quality bar)${counts.hidden ? ` · ${counts.hidden}` : ""}`} /> : null}
       </div>
       <div className="list-tools">
-        <SearchBox value={q} onChange={setQ} label="Search by clip number (like 5 or 5b) or by words" />
+        <SearchBox value={q} onChange={setQ} label="Clip number (like 5) or words" />
       </div>
 
       {tab === "rejected" && visible.length > 0 ? <p className="hint">Rejected clips are removed for good 7 days after you reject them. Changed your mind? Approve or move one back.</p> : null}

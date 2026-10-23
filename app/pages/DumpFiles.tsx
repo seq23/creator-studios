@@ -22,6 +22,7 @@ interface DumpFile {
   kind: "photo" | "video";
   size_bytes: number;
   view_url: string | null;
+  poster_url: string | null;
   role: string | null;
   role_label: string | null;
   camera: boolean | null;
@@ -82,6 +83,8 @@ export function DumpFiles() {
                     <span className="file-gone">Cleared</span>
                   ) : f.kind === "photo" ? (
                     <img src={f.view_url} alt="" loading="lazy" />
+                  ) : f.poster_url ? (
+                    <img src={f.poster_url} alt="" loading="lazy" />
                   ) : (
                     <video src={`${f.view_url}#t=0.5`} preload="metadata" muted playsInline />
                   )}

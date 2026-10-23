@@ -88,3 +88,12 @@ INSERT INTO social_posts (id, pack_id, item_kind, platform, caption, scheduled_a
   ('demo_spo_1', 'demo_pck_1', 'reel', 'facebook', 'Fall front steps, ready for guests.', '2030-10-03T16:00:00.000Z', 'scheduled', NULL),
   ('demo_spo_2', 'demo_pck_1', 'reel', 'instagram', 'Swipe through the details.', '2030-10-03T16:00:00.000Z', 'scheduled', NULL),
   ('demo_spo_3', 'demo_pck_1', 'carousel', 'pinterest', 'Fall front steps, ready for guests.', '2030-10-04T16:00:00.000Z', 'waiting', 'connect:pinterest');
+
+-- Studio fix (23 Oct 2026): clip numbers, the engine's scores with reasons and kinds of clip, a
+-- photo in the fall dump that ends the clips, and what each file was (What I dumped, Review).
+INSERT INTO assets (id, dump_id, file_name, mime_type, size_bytes, r2_key, upload_status, exif_camera, role) VALUES ('demo_ast_2p', 'demo_dump_2', 'fall-finished.jpg', 'image/png', 420000, 'covers/demo/cinematic.png', 'uploaded', 1, 'hero');
+UPDATE assets SET role = 'process', exif_camera = 1 WHERE id = 'demo_ast_2';
+UPDATE dumps SET clip_seq = 3, clip_counts = '{"distinct":3,"styles":0,"by_type":{}}' WHERE id = 'demo_dump_2';
+UPDATE clips SET number = 1, clip_type = 'payoff-first before→after', score_reasons = '["ends on the finished room, held 2 seconds"]', files_used = '["demo_ast_2","demo_ast_2p"]', hero_asset_id = 'demo_ast_2p' WHERE id = 'demo_new_1';
+UPDATE clips SET number = 2, clip_type = 'set up with me', score_reasons = '["sharp and steady all the way through"]', files_used = '["demo_ast_2","demo_ast_2p"]', hero_asset_id = 'demo_ast_2p' WHERE id = 'demo_new_2';
+UPDATE clips SET number = 3, clip_type = 'talk to camera', score_reasons = '["clear talking, ends on a close-up"]', files_used = '["demo_ast_2"]' WHERE id = 'demo_new_3';

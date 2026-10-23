@@ -83,7 +83,7 @@ test("Review: clip numbers, the score with its reason, a one-tap fix makes 1b, C
   await expect(page.locator(`[data-dump-id="${dumpId}"] [data-clip-code="1"]`)).toBeVisible();
 
   // Search by number.
-  await page.getByRole("searchbox", { name: /Search by clip number/ }).fill("1b");
+  await page.getByRole("searchbox", { name: "Clip number (like 5) or words" }).fill("1b");
   await expect(page.locator(`[data-dump-id="${dumpId}"] [data-clip-code]`)).toHaveCount(0);
 });
 
