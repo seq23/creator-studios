@@ -181,10 +181,36 @@ def normalize(src: Path, dst: Path, window: tuple[float, float] | None = None) -
 PHOTO_SECONDS = 6.0
 
 
+HEIF_BRANDS = (b"heic", b"heix", b"heim", b"heis", b"hevc", b"hevx", b"mif1", b"msf1", b"avif")
+
+
+def is_heif(path: Path) -> bool:
+    """An iPhone HEIC (or AVIF) picture, by its ftyp box: the upload's name is not kept on disk."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(32)
+    except OSError:
+        return False
+    return len(head) >= 12 and head[4:8] == b"ftyp" and any(b in head[8:32] for b in HEIF_BRANDS)
+
+
+def heif_as_jpeg(src: Path) -> Path:
+    """An iPhone HEIC as a full-size JPEG, turned the right way up, for ffmpeg builds with no HEIF
+    reader (the job runner's: 15 of 15 iPhone photos in one dump were "unreadable", 23 Oct 2026).
+    Uses pillow-heif, as the photo-pack job does (jobs/photopack.py open_photo)."""
+    from photopack import open_photo
+
+    out = src.with_name(src.name + ".jpg")
+    open_photo(src).save(out, "JPEG", quality=95)
+    return out
+
+
 def photo_video(src: Path, dst: Path, seconds: float = PHOTO_SECONDS) -> dict[str, Any]:
     """A photo as a slow-pan video (studio fix: photos are first-class inputs to video clips): the
     picture fills 9:16 and moves a gentle 8 % zoom over `seconds`, with a silent track. From here on
     it is a shot like any other (seen, planned, cut, scored)."""
+    if is_heif(src):
+        src = heif_as_jpeg(src)
     frames = int(seconds * FPS)
     vf = (
         f"scale={OUT_W + 108}:{OUT_H + 192}:force_original_aspect_ratio=increase,crop={OUT_W + 108}:{OUT_H + 192},"

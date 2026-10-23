@@ -42,4 +42,4 @@ jobs:
         run: bash .github/scripts/ffmpeg-static.sh
       - name: Python job tests (web search + page reading, keyless and Firecrawl; the voice batch; the full video kept whole; photo motion fallback)
         # pillow: the photo maker's motion tests build a test photo (jobs/tests/test_photopack_motion.py).
-        run: python3 -m pip install -q --user --break-system-packages pillow && python3 -m unittest discover -s jobs/tests -v
+        run: python3 -m pip install -q --user --break-system-packages pillow pillow-heif && python3 -m unittest discover -s jobs/tests -v
