@@ -434,7 +434,7 @@ class LocalModelSheetTest(unittest.TestCase):
 
         self.assertEqual(V.segments(12.0), [(0.0, 12.0)])
         self.assertEqual(V.segments(46.0), [(0.0, 15.33), (15.33, 30.67), (30.67, 46.0)])
-        answers = iter(['{"what":"an empty room","state":"before","people":"none","service":"unsure","confidence":0.8}',
+        answers = iter(['{"what":"an empty room","state":"before","people":"none","service":"unsure"}',
                         '{"what":"the finished room","state":"after","people":"none","service":"alpha work","confidence":0.9}',
                         '{"what":"the finished room, close","state":"after","people":"none","service":"alpha work","confidence":0.7}'])
         old = A.ask_local_vlm, V.contact_sheet, os.environ.get("VISION_LOCAL")
@@ -458,6 +458,7 @@ class LocalModelSheetTest(unittest.TestCase):
         self.assertTrue(sh.source.startswith("vision:local_vlm:"))
         self.assertEqual([(s.state, s.service) for s in sh.shots], [("before", V.UNSURE), ("after", "alpha work")])
         self.assertEqual((sh.shots[1].start, sh.shots[1].end), (15.33, 46.0))
+        self.assertEqual(sh.shots[0].confidence, V.LOCAL_DEFAULT_CONFIDENCE)  # no confidence given: fairly sure, not unsure
         self.assertTrue(V.worth_saving(sh))
 
     def test_no_local_model_without_the_switch(self):

@@ -175,7 +175,16 @@ def score_business(slug: str, fixture: dict[str, Any], key: str | None, work: Pa
     if chatter:
         words = [Word(1.0, 1.5, "what's"), Word(1.5, 2.0, "wrong")]
         m["caption_noise"] = P.keep_to_camera(words, chatter[0]) == [] and chatter[0].source != "none"
-    return {"metrics": m, "service": service, "shape": shape, "sources": sorted({s.source.split(":")[0] for s in sheets})}
+    # Which model read this business's clips: the free OpenRouter model, or the $0 backup (the local
+    # open model, then CLIP) when the day's free quota was used. Each is held to its own baseline.
+    provider = "openrouter" if any(s.source.startswith("vision:openrouter") for s in sheets) else "backup"
+    return {"metrics": m, "service": service, "shape": shape, "sources": sorted({s.source.split(":")[0] for s in sheets}), "provider": provider}
+
+
+def baseline_for(base: dict[str, Any], provider: str) -> dict[str, Any]:
+    """The free model's baseline (the top level) or the backup's ("backup"); a missing backup
+    baseline holds the backup to the free model's (strict)."""
+    return base.get("backup", base) if provider == "backup" else base
 
 
 def loud(lines: list[str]) -> None:
@@ -204,7 +213,7 @@ def main() -> int:
     flat = [v for r in results.values() for v in r["metrics"].values()]
     total = round(sum(flat) / len(flat), 3) if flat else 0.0
     for slug, r in results.items():
-        log("golden.business", slug=slug, shape=r["shape"], source=",".join(r["sources"]), **r["metrics"])
+        log("golden.business", slug=slug, shape=r["shape"], source=",".join(r["sources"]), provider=r["provider"], **r["metrics"])
     log("golden.score", score=total, checks=len(flat), vision_calls=V.CALLS.get("vision", 0), failed_calls=V.CALLS.get("failed", 0))
     log("ai.calls", **A.report())
     missing = [s for s in base_slugs() if s not in results]
@@ -212,16 +221,25 @@ def main() -> int:
         loud([f"the baseline has {s}, the run did not score it" for s in missing])
         return 1
     if "--write-baseline" in sys.argv:
+        # Writes the baseline of the provider that scored this run (both kept in one file).
         BASELINE.parent.mkdir(parents=True, exist_ok=True)
-        BASELINE.write_text(json.dumps({"_why": "jobs/golden.py: the last accepted golden-set score; a drop of more than 0.15, or a passing check turning to a fail, fails the weekly job.", "score": total, "passing": {s: [k for k, v in r["metrics"].items() if v] for s, r in results.items()}}, indent=2) + "\n")
+        base = json.loads(BASELINE.read_text()) if BASELINE.exists() else {}
+        entry = {"score": total, "passing": {s: [k for k, v in r["metrics"].items() if v] for s, r in results.items()}}
+        if all(r["provider"] == "backup" for r in results.values()):
+            base["backup"] = entry
+        else:
+            base.update(entry)
+        base.setdefault("_why", "jobs/golden.py: the last accepted golden-set score per provider; a drop of more than 0.15, or a passing check turning to a fail, fails the weekly job.")
+        BASELINE.write_text(json.dumps(base, indent=2) + "\n")
         return 0
     base = json.loads(BASELINE.read_text()) if BASELINE.exists() else {"score": 0, "passing": {}}
-    lost = [f"{s}:{k}" for s, ks in base.get("passing", {}).items() for k in ks if not results.get(s, {}).get("metrics", {}).get(k)]
-    if total < float(base.get("score", 0)) - ALLOWED_DROP or lost:
+    lost = [f"{s}:{k}" for s, r in results.items() for k in baseline_for(base, r["provider"]).get("passing", {}).get(s, []) if not r["metrics"].get(k)]
+    expected = sum(len(baseline_for(base, r["provider"]).get("passing", {}).get(s, [])) for s, r in results.items()) / max(1, len(flat))
+    if total < round(expected, 3) - ALLOWED_DROP or lost:
         for item in lost:
             log("golden.lost", check=item)
-        log("golden.DROP", score=total, baseline=float(base.get("score", 0)), lost=len(lost))
-        loud([f"score {total} against the baseline {float(base.get('score', 0))}", *[f"lost: {x}" for x in lost]])
+        log("golden.DROP", score=total, baseline=round(expected, 3), lost=len(lost))
+        loud([f"score {total} against the baseline {round(expected, 3)} (providers: {', '.join(sorted({r['provider'] for r in results.values()}))})", *[f"lost: {x}" for x in lost]])
         return 1
     return 0
 

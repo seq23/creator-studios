@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const wf = readFileSync(".github/workflows/golden-set.yml", "utf8");
 const golden = readFileSync("jobs/golden.py", "utf8");
-const baseline = JSON.parse(readFileSync("jobs/golden/baseline.json", "utf8")) as { score: number; passing: Record<string, string[]> };
+const baseline = JSON.parse(readFileSync("jobs/golden/baseline.json", "utf8")) as { score: number; passing: Record<string, string[]>; backup?: { score: number; passing: Record<string, string[]> } };
 const fixtures = readdirSync("tests/fixtures/businesses").filter((f) => f.endsWith(".json")).map((f) => f.replace(/\.json$/, ""));
 
 describe("golden set", () => {
@@ -20,7 +20,12 @@ describe("golden set", () => {
     for (const slug of fixtures) expect(golden, slug).toContain(`"${slug}": {`);
     expect(Object.keys(baseline.passing).sort()).toEqual([...fixtures].sort());
     for (const k of ["job_type", "before_after", "caption_noise"]) expect(Object.values(baseline.passing).flat()).toContain(k);
-    expect(golden).toMatch(/if total < float\(base\.get\("score", 0\)\) - ALLOWED_DROP or lost:[\s\S]{0,200}golden\.DROP[^\n]*\n\s*loud\([^\n]*\n\s*return 1/);
+    expect(golden).toMatch(/if total < round\(expected, 3\) - ALLOWED_DROP or lost:[\s\S]{0,200}golden\.DROP[^\n]*\n\s*loud\([^\n]*\n\s*return 1/);
+    // Each provider is held to its own baseline (the free model, or the $0 backup when the day's quota is used),
+    // and both baselines cover every fixture business.
+    expect(golden).toContain('baseline_for(base, r["provider"]).get("passing", {}).get(s, [])');
+    const backup = (baseline as unknown as { backup?: { passing: Record<string, string[]> } }).backup;
+    expect(Object.keys(backup?.passing ?? {}).sort()).toEqual([...fixtures].sort());
     // Layer 9: six unlike businesses at least, the same six in fixtures, scenes and baseline; a drop is an error annotation.
     expect(fixtures.length).toBeGreaterThanOrEqual(6);
     expect(golden).toContain("if sorted(fixtures) != sorted(SCENES) or len(SCENES) < 6:");

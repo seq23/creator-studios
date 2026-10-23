@@ -638,6 +638,7 @@ def worth_saving(sheet: ShotSheet) -> bool:
 # video gets one flat answer: a video up to SEGMENT_S long is one stretch, a longer one up to 3.
 SEGMENT_S = 20.0
 LOCAL_CELLS = 6
+LOCAL_DEFAULT_CONFIDENCE = 0.7
 LOCAL_SYSTEM = (
     "You see frames from one short phone video, in time order. Describe only what you can see. "
     "Answer JSON only, with exactly these keys: "
@@ -678,6 +679,10 @@ def local_vlm_sheet(b: dict[str, Any], services: list[str], looks: dict[str, str
         answer = A.first_json(A.ask_local_vlm(LOCAL_SYSTEM, text, grid, "vision", 400))
         if answer is None:
             return None
+        if not confidence_of(answer.get("confidence")):
+            # The small model often leaves confidence out (23 Oct 2026 golden run: 5 of 11 answers),
+            # which would make a clear "before" unsure. Its answer counts as fairly sure.
+            answer["confidence"] = LOCAL_DEFAULT_CONFIDENCE
         sh = _shot_fields(Shot(s0, s1), answer, services)
         # Enums and numbers only (never the words): how the local model read this stretch.
         log("see.local.answer", state=sh.state, people=sh.people, service=sh.service != UNSURE, confidence=round(sh.confidence, 2), raw_state=str(answer.get("state", ""))[:12] in STATES)
