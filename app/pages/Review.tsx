@@ -114,8 +114,8 @@ export function Review() {
   // ?tab= opens a tab (Home's "Copy the tags in Review" goes to Approved; day 358 found it ignored).
   const [params] = useSearchParams();
   const [tab, setTab] = useState<Tab>(() => (["new", "approved", "rejected"].includes(params.get("tab") ?? "") ? (params.get("tab") as Tab) : "new"));
-  const [search, setSearch] = useState("");
-  const [q, setQ] = useState("");
+  const [search, setSearch] = useState(() => params.get("q") ?? "");
+  const [q, setQ] = useState(() => params.get("q") ?? "");
   const [moreBusy, setMoreBusy] = useState(false);
   const [door, setDoor] = useState("");
   const [recipe, setRecipe] = useState("");

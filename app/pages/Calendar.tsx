@@ -13,7 +13,7 @@ import { Icon } from "../components/Icon";
 import { CalendarHistory } from "../components/CalendarHistory";
 import "../styles/calendar.css";
 
-type PoolClip = Pick<ClipRow, "id" | "hook_text" | "cover_url" | "recipe" | "door" | "platforms" | "score">;
+type PoolClip = Pick<ClipRow, "id" | "hook_text" | "cover_url" | "recipe" | "door" | "platforms" | "score"> & { clip_label?: string };
 type View = "week" | "month";
 
 const SHORT: Record<Platform, string> = { tiktok: "TikTok", instagram: "Instagram", youtube: "YouTube" };
@@ -302,6 +302,7 @@ export function Calendar() {
               <div className="grow">
                 <div className="title">{c.hook_text || "Untitled clip"}</div>
                 <div className="meta">
+                  {c.clip_label ? <span data-clip-label>{c.clip_label} · </span> : null}
                   {c.door === "recycle" ? "Recycled" : "New"} · {RECIPES[c.recipe]?.label ?? c.recipe}
                 </div>
               </div>
@@ -363,7 +364,10 @@ function PostCard({ p, tz, onOpen }: { p: PostRow; tz: string; onOpen: () => voi
               {SHORT[p.platform]}
             </span>
           </span>
-          <span className="cal-hook">{p.hook_text || "Untitled clip"}</span>
+          <span className="cal-hook">
+            {p.clip_label ? <span className="cal-num" data-clip-label>{p.clip_label.replace(/^.* · /, "")} · </span> : null}
+            {p.hook_text || "Untitled clip"}
+          </span>
           <span className={`cal-status ${p.status}`}>
             {p.status === "posted" ? <Icon name="check" size="sm" /> : null}
             {STATUS_TEXT[p.status]}
@@ -407,7 +411,9 @@ function PostActions({ p, tz, today, others, onClose, onMove, onDone }: { p: Pos
 
   return (
     <Modal title={`${PLATFORM_LABEL[p.platform]} · ${dayLabel(current)} ${timeIn(p.scheduled_at, tz)}`} onClose={onClose}>
-      <p className="soft">“{p.hook_text || "Untitled clip"}” · {STATUS_TEXT[p.status]}</p>
+      <p className="soft">
+        {p.clip_label ? `${p.clip_label} · ` : ""}“{p.hook_text || "Untitled clip"}” · {STATUS_TEXT[p.status]}
+      </p>
       {p.error && p.status === "failed" ? <div className="notice bad">{p.error}</div> : null}
       {posted ? (
         <p className="hint">This one already went out, so it stays where it is.</p>

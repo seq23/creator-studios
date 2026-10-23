@@ -10,6 +10,7 @@ import { uploadFile } from "../lib/upload";
 import { fmtBytes, fmtDate, plural } from "../lib/format";
 import { Card, Empty, HelpButton, Modal, Notice, PageHead, Skeleton, useLoad, useToast } from "../components/ui";
 import { Icon } from "../components/Icon";
+import { NicheCard } from "../components/NicheCard";
 import "../styles/brain.css";
 
 interface Version {
@@ -145,6 +146,8 @@ export function ClientBrain() {
 
       {data ? (
         <div className="brain-split">
+          <NicheCard />
+
           <section className="section" aria-labelledby="docs-h">
             <h2 id="docs-h">Your brand docs</h2>
             <div

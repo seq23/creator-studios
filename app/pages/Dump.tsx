@@ -129,10 +129,13 @@ export function Dump() {
   }
 
   async function addFiles(files: FileList | File[]) {
-    // Photos picked here go to a new photo set on Photos (one photo becomes a few posts there).
+    // New footage: photos and videos go into the SAME dump, full quality (studio fix, 23 Oct 2026):
+    // the clip engine uses the photos inside clips (endings, details, slideshows). Old posts and the
+    // full-video door take videos only; photos picked there go to a new set on Photos as before.
     const photos = Array.from(files).filter((f) => isPhoto(f.type, f.name));
-    if (photos.length) void sendPhotos(photos);
-    const list = Array.from(files).filter((f) => f.type.startsWith("video/") || /\.(mov|mp4|m4v|webm|3gp)$/i.test(f.name));
+    const together = door === "new";
+    if (photos.length && !together) void sendPhotos(photos);
+    const list = Array.from(files).filter((f) => f.type.startsWith("video/") || /\.(mov|mp4|m4v|webm|3gp)$/i.test(f.name) || (together && isPhoto(f.type, f.name)));
     if (!list.length) {
       if (!photos.length) toast.bad(new Error("Pick videos (MOV, MP4, WebM) or photos (JPG, PNG, iPhone)."));
       return;
@@ -317,15 +320,18 @@ export function Dump() {
                 tabIndex={0}
                 onKeyDown={(e) => (e.key === "Enter" && door ? inputRef.current?.click() : undefined)}
               >
-                <div className="dropzone-title">{door === "youtube" ? "Drop your video here" : "Drop videos here"}</div>
-                <div className="hint">{door === "youtube" ? "one video, landscape or any shape · it goes up whole" : "or choose from your camera roll · any size · many at once"}</div>
+                <div className="dropzone-title">{door === "youtube" ? "Drop your video here" : door === "new" ? "Drop videos and photos here" : "Drop videos here"}</div>
+                <div className="hint">
+                  {door === "youtube" ? "one video, landscape or any shape · it goes up whole" : door === "new" ? "from your phone or computer · full quality, never shrunk · any size · many at once" : "or choose from your camera roll · any size · many at once"}
+                </div>
+                {door === "new" ? <div className="hint">If the upload stops, choose the same files again: it carries on where it stopped.</div> : null}
                 {hasVideos ? (
                   <span className="btn quiet dump-choose">
-                    <Icon name="plus" size="sm" /> Choose videos
+                    <Icon name="plus" size="sm" /> {door === "new" ? "Choose more videos and photos" : "Choose videos"}
                   </span>
                 ) : (
                   <span className="btn dump-choose" data-primary>
-                    Choose videos
+                    {door === "new" ? "Choose videos and photos" : "Choose videos"}
                   </span>
                 )}
                 {photoNote && (
@@ -345,12 +351,14 @@ export function Dump() {
                   </>
                 ) : dump.status === "ready" ? (
                   <>
-                    <strong>{plural(dump.clips_made, "clip")} ready.</strong> <Link to="/review">Review them now</Link>
+                    <strong>{plural(dump.clips_made, "clip")} ready.</strong> <Link to="/review">Review them now</Link> · <Link to={`/dump/${dump.id}/files`} data-files-link>See what you dumped</Link>
                     {dump.tried ? <span className="tried" data-tried> {dump.tried}</span> : null}
                     {dump.door !== "youtube" ? <LooksLikeLine dumpId={dump.id} looksLike={dump.looks_like} canChange onChanged={() => current.reload()} /> : null}
                   </>
                 ) : dump.status === "reviewed" ? (
-                  <>This dump has been reviewed.</>
+                  <>
+                    This dump has been reviewed. <Link to={`/dump/${dump.id}/files`} data-files-link>See what you dumped</Link>
+                  </>
                 ) : (
                   <>
                     <strong>Something went wrong cutting this dump.</strong> {dump.error_summary ?? ""} <Link to="/help/clips-look-wrong">What to do</Link>
@@ -366,7 +374,7 @@ export function Dump() {
             <Card className="flat">
               <div className="row between">
                 <strong>
-                  {plural(Math.max(local.length, assets.length), "video")}
+                  {plural(Math.max(local.length, assets.length), door === "new" ? "file" : "video")}
                   {totalBytes ? ` · ${fmtBytes(totalBytes)}` : ""}
                 </strong>
                 {uploading ? <span className="pill warn">Uploading · keep this page open</span> : null}
