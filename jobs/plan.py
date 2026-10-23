@@ -302,9 +302,10 @@ def usable(s: Shot) -> bool:
     return not s.privacy and s.quality > 0.34 and s.length >= 1.0
 
 
-def pools(sheets: list[ShotSheet], service: str | None) -> dict[str, list[tuple[str, Shot]]]:
+def pools(sheets: list[ShotSheet], service: str | None, hers: bool = False) -> dict[str, list[tuple[str, Shot]]]:
     """Usable shots by state. A before / in-progress shot may have no service of its own (an empty
-    space shows none); an after shot must show this dump's service when one was found."""
+    space shows none); an after shot must show this dump's service when one was found, or, when she
+    named the service herself (hers=True, "Change" or a one-tap answer), have no other service."""
     out: dict[str, list[tuple[str, Shot]]] = {"before": [], "in_progress": [], "after": [], "other": [], "to_camera": []}
     for sh in sheets:
         for s in sh.shots:
@@ -317,18 +318,18 @@ def pools(sheets: list[ShotSheet], service: str | None) -> dict[str, list[tuple[
                 out["before"].append((sh.asset_id, s))
             elif s.state == "in_progress" and s.sure and fits:
                 out["in_progress"].append((sh.asset_id, s))
-            elif s.state == "after" and s.sure and (not service or s.service == service):
+            elif s.state == "after" and s.sure and (not service or s.service == service or (hers and s.service == UNSURE)):
                 out["after"].append((sh.asset_id, s))
             elif s.state in ("n/a", UNSURE) and s.people != "to_camera":
                 out["other"].append((sh.asset_id, s))
     return out
 
 
-def choose_shape(sheets: list[ShotSheet], service: str | None, muted: dict[str, bool] | None = None, override: str | None = None, fit: list[str] | None = None) -> tuple[str, str | None]:
+def choose_shape(sheets: list[ShotSheet], service: str | None, muted: dict[str, bool] | None = None, override: str | None = None, fit: list[str] | None = None, hers: bool = False) -> tuple[str, str | None]:
     """(shape, why_not): the story shape, and a plain reason when her pick cannot be made. `fit`
     (the Brand Profile's shapes for this service, best first) decides among the shapes the footage
     allows; her own pick ("Change") still wins."""
-    p = pools(sheets, service)
+    p = pools(sheets, service, hers)
     both = bool(p["before"]) and bool(p["after"])
     total = sum(sh.duration for sh in sheets) or 1.0
     talk = sum(s.length for aid, s in p["to_camera"] if not (muted or {}).get(aid))
@@ -429,10 +430,10 @@ def _fit(parts: list[Part]) -> list[Part]:
     return out
 
 
-def plan_clips(sheets: list[ShotSheet], shape: str, service: str | None, quota: int) -> list[Plan]:
+def plan_clips(sheets: list[ShotSheet], shape: str, service: str | None, quota: int, hers: bool = False) -> list[Plan]:
     """The clips, in the order they are made. Never a before shot last; never a before shot
     outside a transformation. Talking-to-camera clips are picked from the speech (cut.py)."""
-    p = pools(sheets, service)
+    p = pools(sheets, service, hers)
     before, prog, after, other = p["before"], p["in_progress"], p["after"], p["other"]
     plans: list[Plan] = []
     quota = max(1, quota)

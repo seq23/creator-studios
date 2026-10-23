@@ -109,3 +109,28 @@ class PictureTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DigitRunTest(unittest.TestCase):
+    def test_single_digits_on_one_line_join_into_a_run(self):
+        words = [((300, 1480, 380, 1630), "4"), ((400, 1480, 480, 1630), "5"), ((500, 1480, 580, 1630), "2"), ((600, 1480, 680, 1630), "1"), ((100, 100, 140, 150), "7"), ((300, 1700, 380, 1850), "9")]
+        runs = [w for w in PR.join_digit_runs(words) if len(w[1]) > 1]
+        self.assertEqual(runs, [((300, 1480, 680, 1630), "4521")])  # the 7 far away and the 9 on the next line stay alone
+
+
+class NumberScalesTest(unittest.TestCase):
+    def test_big_numerals_get_a_quarter_size_read(self):
+        """23 Oct 2026: tesseract's sparse mode misses a door number drawn 220 px tall at full and half
+        size and reads it only at a quarter size; the finder must look at all three."""
+        from unittest import mock
+        from PIL import Image
+
+        sizes: list[tuple[int, int]] = []
+
+        def fake_run(cmd, **_kw):
+            sizes.append(Image.open(cmd[1]).size)
+            return mock.Mock(returncode=0, stdout="h\n")
+
+        with mock.patch.object(PR.subprocess, "run", fake_run):
+            PR.numbers_with_text(Image.new("RGB", (1080, 1920)))
+        self.assertEqual(sizes, [(1080, 1920), (540, 960), (270, 480)])

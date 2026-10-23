@@ -590,6 +590,37 @@ def face_detector(available: bool) -> Any:
     return _DETECTOR
 
 
+def mp_faces(available: bool) -> Any:
+    """Faces in a picture as boxes, with the MediaPipe detector the crop uses (layer 5's face finder
+    in the cut). None when the detector did not load (protect.py then tries the OpenCV finder)."""
+    d = face_detector(available)
+    if not d:
+        return None
+    mp, det = d
+
+    def find(img: Any) -> list[tuple[int, int, int, int]]:
+        """The whole frame, then 9 overlapping tiles: the short-range model misses a face that is
+        small in a wide room shot, and finds it once the tile makes it bigger."""
+        import numpy as np  # type: ignore
+
+        full = np.ascontiguousarray(np.array(img.convert("RGB")))
+        h, w = full.shape[:2]
+        views = [(0, 0, full)]
+        tw, th = int(w * 0.6), int(h * 0.42)
+        for cx in (0, (w - tw) // 2, w - tw):
+            for cy in (0, (h - th) // 2, h - th):
+                views.append((cx, cy, np.ascontiguousarray(full[cy : cy + th, cx : cx + tw])))
+        out = []
+        for ox, oy, arr in views:
+            res = det.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=arr))
+            for x in res.detections or []:
+                bb = x.bounding_box
+                out.append((ox + int(bb.origin_x), oy + int(bb.origin_y), ox + int(bb.origin_x + bb.width), oy + int(bb.origin_y + bb.height)))
+        return out
+
+    return find
+
+
 def face_center(src: Path, s: float, e: float, available: bool) -> float | None:
     """Median horizontal face centre (0..1) across the clip, sampled every 0.5 s; None when
     the detector is unavailable or no face is found (then the centre crop is used)."""
@@ -1372,7 +1403,7 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
             tr = Transcript(words=words, segments=[sg for sg in tr.segments if any(ws - 0.1 <= sg[0] and sg[1] <= we + 0.1 for ws, we in wins)], engine=tr.engine)
             runs = [(s_, e_) for s_, e_ in runs if any(ws < e_ and we > s_ for ws, we in wins)] if sheet.source != "none" else runs
         # 3d. PROTECT: faces (not hers, when her profile allows) and house numbers blurred before anything is cut.
-        safe, ok, _boxes = PR.protect_video(norm, info, rules, sheet, work, str(i))
+        safe, ok, _boxes = PR.protect_video(norm, info, rules, sheet, work, str(i), mp_faces(mediapipe))
         if not ok:
             unsafe.add(a["id"])  # the finder could not run on a strict studio: its clips are hidden, never shown unchecked
         srcs[a["id"]] = Source(safe, info, tr, runs, detect_bars(norm, info["duration"]), muted=not keep)
@@ -1389,17 +1420,19 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
     engine["vision"] = (seen[0].source.split(":")[0] if seen else "none")
     # 4. PLAN: the service, the shape, the shots in each clip (jobs/plan.py)
     service, sure = P.dump_service(sheet_list, override.get("service"), services)
+    # She named the service herself: every finished shot with no service of its own counts as it.
+    hers = bool(override.get("service") and override.get("service") != "unsure" and sure)
     if not override.get("service"):
         # Layer 8: a service she has corrected twice is read as what she said it is.
         service = P.relabel(service, memory, services)
     profile = spec.get("brand_profile") or {}
     # Layer 1: the Brand Profile says which shapes fit this service; the footage says which are possible.
-    shape, why_not = P.choose_shape(sheet_list, service, {aid: s_.muted for aid, s_ in srcs.items()}, override.get("shape"), P.combined_fit(P.shapes_fit(profile, service), memory))
+    shape, why_not = P.choose_shape(sheet_list, service, {aid: s_.muted for aid, s_ in srcs.items()}, override.get("shape"), P.combined_fit(P.shapes_fit(profile, service), memory), hers)
     if why_not:
         steer_report.append({"what": SHAPE_WORDS.get(str(override.get("shape")), "that kind of video"), "why": why_not})
     moments: list[tuple[Moment, Source]] = []
     if seen and shape != "talking" and door != "recycle":
-        plans = P.plan_clips(sheet_list, shape, service, P.careful_quota(target, memory) if spec.get("mode") != "again" else 3)
+        plans = P.plan_clips(sheet_list, shape, service, P.careful_quota(target, memory) if spec.get("mode") != "again" else 3, hers)
         if memory.get("approach") == "careful" and len(plans) > 1:
             # Layer 9, careful: only the strongest plans (at least one).
             plans = [pl for pl in plans if pl.score >= 0.7] or plans[:1]

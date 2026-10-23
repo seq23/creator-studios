@@ -600,6 +600,45 @@ def check_planned(tmp: Path, problems: list[str], heavy: dict) -> None:
     log("selftest.planned", clips=len(r["clips"]), transformation=len(trans), blind=len(r2["clips"]))
 
 
+def check_protect(tmp: Path, problems: list[str], samples: Path, heavy: dict[str, bool]) -> None:
+    """Layer 5 in the cut's own environment (23 Oct 2026: on the live runner the face finder failed and a
+    blur pass died, so a client's clips were all hidden): a frame with a face and a house number must
+    come back with both found and blurred, the finders must load, and the blur must render."""
+    import protect as PR
+    from PIL import Image, ImageDraw, ImageFont
+
+    img = Image.new("RGB", (1080, 1920), (235, 235, 230))
+    portrait = samples / "portrait.jpg"
+    if portrait.exists():
+        face = Image.open(portrait).convert("RGB")
+        face = face.resize((600, int(face.height * 600 / face.width)))
+        img.paste(face, (240, 200))
+    d = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 220)
+    except OSError:
+        font = ImageFont.load_default(size=220)
+    d.rectangle([260, 1380, 820, 1700], fill=(255, 255, 255), outline=(0, 0, 0), width=8)
+    d.text((300, 1420), "4521", fill=(0, 0, 0), font=font)
+    still = tmp / "protect.png"
+    img.save(still)
+    src = tmp / "protect.mp4"
+    cut.ffmpeg(["-loop", "1", "-i", str(still), "-t", "3", "-r", "30", "-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset", "ultrafast", str(src)])
+    info = cut.probe(src)
+    log("selftest.protect.video", seconds=round(info["duration"], 2), width=info["width"], height=info["height"])
+    finder = cut.mp_faces(heavy["mediapipe"])
+    log("selftest.protect.finders", faces_on_still=len(finder(img)) if finder else -1, numbers_on_still=len(PR.numbers_with_text(img)))
+    rules = PR.rules_from({"content_rules": {"blockFaces": True, "blockAddresses": True, "ownerFace": "show"}})
+    out, ok, boxes = PR.protect_video(src, info, rules, None, tmp, "selftest", cut.mp_faces(heavy["mediapipe"]))
+    if not ok:
+        problems.append("protect: the face or number finder did not run in the cut's environment")
+    if boxes < (2 if portrait.exists() else 1):
+        problems.append(f"protect: found {boxes} things to blur, expected a face and a house number")
+    if out == src or not Path(out).exists() or cut.probe(Path(out))["duration"] < 2.5:
+        problems.append("protect: the blurred video was not made")
+    log("selftest.protect", ok=ok, boxes=boxes)
+
+
 def main() -> int:
     write_fixture = "--write-fixture" in sys.argv
     tmp = Path(tempfile.mkdtemp(prefix="cut-selftest-"))
@@ -660,6 +699,8 @@ def main() -> int:
                 problems.append("looks need libass to prove burned captions")
         if "--skip-looks" not in sys.argv:
             check_looks(tmp, problems, write_thumbs)
+        if "--looks-only" not in sys.argv and "--require-heavy" in sys.argv:
+            check_protect(tmp, problems, samples, heavy)
         if "--looks-only" not in sys.argv:
             check_import(tmp, problems)
             check_steer(tmp, problems, heavy)
