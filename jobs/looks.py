@@ -47,6 +47,34 @@ CTA_SIZE = 96
 LINK_SIZE = 58
 CTA_Y = 1180
 LINK_Y = 1330
+
+
+def card_lines(text: str, size: int = 0) -> int:
+    """How many lines the end card's call to action wraps to (bold, about 0.58 em a character,
+    inside the safe area)."""
+    size = size or CTA_SIZE
+    per = max(1, int((SAFE["x1"] - SAFE["x0"]) / (size * 0.58)))
+    lines, cur = 1, 0
+    for w in text.split():
+        add = len(w) + (1 if cur else 0)
+        if cur and cur + add > per:
+            lines, cur = lines + 1, len(w)
+        else:
+            cur += add
+    return lines
+
+
+def card_y(text: str) -> int:
+    """The call to action's centre: a wrapped line moves it up, so its box never runs into the link."""
+    return CTA_Y - int((card_lines(text) - 1) * CTA_SIZE * 0.6)
+
+
+LOGO_H = 200
+
+
+def logo_y(text: str) -> int:
+    """The logo's top: 20 px above the call to action's box, wherever its wrapping put it."""
+    return card_y(text) - int(card_lines(text) * CTA_SIZE * 0.6) - 24 - 20 - LOGO_H
 FADE = 0.35
 
 # Brand fonts a Brand Profile may name, fetched from Google Fonts' public repo at render time.
@@ -276,7 +304,7 @@ def build_ass(words: list[Word], hook: str, opts: dict[str, Any], b: Branding, d
         s = max(0.0, dur - CARD_SECONDS)
         # Over the hero (never a blank card): the call to action big, the link (else the handle) under it.
         if b.cta:
-            lines.append(f"Dialogue: 3,{ass_time(s)},{ass_time(dur)},Card,,0,0,0,,{{\\pos(540,{CTA_Y})\\fad(200,0)}}{ass_text(b.cta)}")
+            lines.append(f"Dialogue: 3,{ass_time(s)},{ass_time(dur)},Card,,0,0,0,,{{\\pos(540,{card_y(b.cta)})\\fad(200,0)}}{ass_text(b.cta)}")
             n += 1
         under = b.link or b.handle
         if under:
@@ -510,8 +538,8 @@ def render_look(
         # The studio's own logo, small, above the call to action, over the hero (never a blank card).
         st = max(0.0, dur - CARD_SECONDS)
         li = add(["-loop", "1", "-framerate", str(FPS), "-t", f"{dur:.3f}", "-i", str(brand.logo.resolve())])
-        chains.append(f"[{li}:v]scale=-2:200:flags=lanczos,format=rgba,fade=t=in:st={st:.3f}:d=0.3:alpha=1[logo]")
-        chains.append(f"[{v}][logo]overlay=(W-w)/2:{CTA_Y - 330}:enable='gte(t,{st:.3f})':shortest=1[vk]")
+        chains.append(f"[{li}:v]scale=-2:{LOGO_H}:flags=lanczos,format=rgba,fade=t=in:st={st:.3f}:d=0.3:alpha=1[logo]")
+        chains.append(f"[{v}][logo]overlay=(W-w)/2:{logo_y(brand.cta) if brand.cta else CTA_Y - 330}:enable='gte(t,{st:.3f})':shortest=1[vk]")
         v = "vk"
     # Burned text last, so captions, the hook and the handle sit on top of everything.
     subs = "none"
