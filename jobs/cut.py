@@ -599,7 +599,7 @@ def mp_faces(available: bool) -> Any:
     mp, det = d
 
     def find(img: Any) -> list[tuple[int, int, int, int]]:
-        """The whole frame, then 6 overlapping tiles: the short-range model misses a face that is
+        """The whole frame, then 9 overlapping tiles: the short-range model misses a face that is
         small in a wide room shot, and finds it once the tile makes it bigger."""
         import numpy as np  # type: ignore
 
@@ -607,7 +607,7 @@ def mp_faces(available: bool) -> Any:
         h, w = full.shape[:2]
         views = [(0, 0, full)]
         tw, th = int(w * 0.6), int(h * 0.42)
-        for cx in (0, w - tw):
+        for cx in (0, (w - tw) // 2, w - tw):
             for cy in (0, (h - th) // 2, h - th):
                 views.append((cx, cy, np.ascontiguousarray(full[cy : cy + th, cx : cx + tw])))
         out = []
