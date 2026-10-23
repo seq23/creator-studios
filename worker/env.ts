@@ -110,6 +110,8 @@ export interface Env {
   CONTENT_RULES?: string;
   /** studios/<slug>.json "sound" as JSON: camera sound and voice defaults (shared/sound.ts soundSettings). */
   STUDIO_SOUND?: string;
+  /** studios/<slug>.json "studioRules" as JSON: call to action, Made with AI, clips per dump, review bar (shared/studioRules.ts). */
+  STUDIO_RULES?: string;
   /** studios/<slug>.json "whatsNew" as JSON: the one-time note shown to the owner (shared/photoPosts.ts). */
   WHATS_NEW?: string;
 }

@@ -89,6 +89,9 @@ export function themeFor(studio, themes) {
 export const DEV_PHOTO_POSTS = { on: true, platforms: ["facebook", "instagram", "tiktok", "pinterest"], headsUpHours: 24, postHour: 11 };
 export const DEV_CONTENT_RULES = { banWords: ["insured"], blockAddresses: true, blockFaces: true, prices: [{ name: "Sample Package", usd: 500 }] };
 
+/** Local dev / e2e only: a sample call to action on an example address (never a real business's). */
+export const DEV_STUDIO_RULES = { cta_phrases: ["Request a quote", "Book your date"], cta_link: "https://example.com/request", ai_note: "ai_images", clip_target: { min: 6, max: 12 }, bar: 70, place_words: ["Springfield"], prices: false };
+
 /** The wrangler env block for one studio. Pure. */
 export function envBlock(s, themes) {
   return {
@@ -127,6 +130,8 @@ export function envBlock(s, themes) {
       CONTENT_RULES: s.contentRules ? JSON.stringify(s.contentRules) : "",
       // Camera sound and voice defaults (shared/sound.ts soundSettings); "" = the plain defaults.
       STUDIO_SOUND: s.sound ? JSON.stringify({ cameraSound: s.sound.cameraSound, voice: s.sound.voice }) : "",
+      // Clip rules: call to action, Made with AI, clips per dump, review bar (shared/studioRules.ts); "" = the plain defaults.
+      STUDIO_RULES: s.studioRules ? JSON.stringify(Object.fromEntries(Object.entries(s.studioRules).filter(([k]) => !k.startsWith("_")))) : "",
       // This studio's share of the account's free 10,000 Workers AI neurons a day ("0" = never call).
       STUDIO_AI_BUDGET: String(s.aiBudget ?? 0),
       ...(s.whatsNew ? { WHATS_NEW: JSON.stringify(s.whatsNew) } : {}),
@@ -167,6 +172,7 @@ export function wranglerConfig({ studios, themes }) {
       PHOTO_POSTS: JSON.stringify(DEV_PHOTO_POSTS),
       CONTENT_RULES: JSON.stringify(DEV_CONTENT_RULES),
       STUDIO_SOUND: "",
+      STUDIO_RULES: JSON.stringify(DEV_STUDIO_RULES),
       STUDIO_AI_BUDGET: "0",
       ENV_NAME: "dev",
       AUTH_MODE: "code",

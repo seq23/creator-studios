@@ -64,6 +64,12 @@ import { textProblems, type ContentRules } from "@shared/contentRules";
 import { contentRules } from "../lib/photoPosts";
 import { loadMemory, type MemorySummary } from "../domain/studioMemory";
 import { cleanLooksLike, cleanOverride, isShape, type PlanOverride, type Shape } from "@shared/looksLike";
+import type { StudioRules } from "@shared/studioRules";
+import { readStudioRules } from "../lib/studioRules";
+import { latestPlaybook, type NichePlaybook } from "../lib/niche";
+import { cleanFixes, type FixKey } from "@shared/fixes";
+import { clipCode } from "@shared/clipNumber";
+import { keepVersion } from "../lib/clipVersions";
 
 /** A cut job's ref: a dump ("dmp_…"), or one clip of it to re-render ("dmp_…/clp_…"). */
 export function parseCutRef(refId: string | null): { dumpId: string; clipId: string | null; import: boolean; again: boolean } | null {
@@ -105,6 +111,12 @@ export interface CutSpecAsset {
   allowed_platforms: Platform[];
   /** This video's own note, when it asks for something different from the dump (it wins for this video's clips). */
   steer?: SteerSpec;
+  /** Its file name as uploaded ("new", "final", "after" in a name = a polished hero). */
+  file_name?: string;
+  /** A camera Make/Model is in its EXIF (studio fix): false = treated as an AI picture. Videos are camera footage. */
+  exif_camera: boolean;
+  /** When the camera took it (EXIF DateTimeOriginal, camera local time), for grouping one event. */
+  taken_at?: string | null;
 }
 
 /** Everything the job must honor from her chips and notes (worker/domain/steer.ts). */
@@ -161,6 +173,10 @@ export interface CutSpec {
   shot_sheets: Record<string, unknown>;
   /** Her pick on "Change" (the plain line): the service and/or the story shape. */
   plan_override: PlanOverride;
+  /** The studio's clip rules (shared/studioRules.ts): call to action, Made with AI, clips per dump, bar, local words, prices. */
+  studio_rules: StudioRules;
+  /** What converts in this studio's niche, researched monthly (jobs/niche_research.py); null before the first run. */
+  niche_playbook: NichePlaybook | null;
 }
 
 /** Try another version with her notes: the clip's videos cut again, away from the moment she has. */
@@ -169,6 +185,8 @@ export interface AgainSpec extends Omit<CutSpec, "type"> {
   mode: "again";
   clip_id: string;
   change_request: string;
+  /** Her one-tap fixes in Review (shared/fixes.ts keys); their words are in change_request too. */
+  fixes: FixKey[];
   avoid_windows: { asset_id: string; start: number; end: number }[];
 }
 
@@ -214,9 +232,13 @@ export function allowedPlatformsFor(asset: { original_platform: string | null; o
   return recyclePlatforms(prior, [...PLATFORMS], now, cooldownDays);
 }
 
-export function targetClips(need: number): { min: number; max: number } {
-  const n = Math.max(1, need);
-  return { min: n * 2, max: n * 3 };
+/**
+ * How many distinct clips a dump should give: the studio's own setting (Settings → Your clips,
+ * shared/studioRules.ts clip_target), sized to the footage by the engine inside it. It used to be
+ * 2–3 per open calendar slot, which had nothing to do with what was dumped (studio fix, 23 Oct 2026).
+ */
+export function targetClips(rules: Pick<StudioRules, "clip_target">): { min: number; max: number } {
+  return { min: rules.clip_target.min, max: rules.clip_target.max };
 }
 
 interface AssetDb {
@@ -231,6 +253,9 @@ interface AssetDb {
   original_views: number | null;
   content_hash: string | null;
   shot_sheet: string | null;
+  file_name: string;
+  exif_camera: number | null;
+  taken_at: string | null;
 }
 
 async function buildSpec(env: Env, jobId: string, refId: string | null): Promise<CutSpec | RerenderSpec | ImportSpec | AgainSpec> {
@@ -248,7 +273,7 @@ async function buildDumpSpec(env: Env, jobId: string, dumpId: string): Promise<C
   // A full video for YouTube never goes through the cutter (validator full-video-uncut).
   if (dump.kind === "full_video") throw new Error("a full video is never cut");
   const { results: rows } = await env.DB.prepare(
-    "SELECT id, r2_key, mime_type, duration_s, file_note, steer_notes, original_platform, original_posted_at, original_views, content_hash, shot_sheet FROM assets WHERE dump_id = ? AND upload_status = 'uploaded' AND raw_deleted_at IS NULL ORDER BY created_at",
+    "SELECT id, r2_key, mime_type, duration_s, file_note, steer_notes, original_platform, original_posted_at, original_views, content_hash, shot_sheet, file_name, exif_camera, taken_at FROM assets WHERE dump_id = ? AND upload_status = 'uploaded' AND raw_deleted_at IS NULL ORDER BY created_at",
   )
     .bind(dumpId)
     .all<AssetDb>();
@@ -312,12 +337,17 @@ async function buildDumpSpec(env: Env, jobId: string, dumpId: string): Promise<C
       original_posted_at: a.original_posted_at,
       original_views: a.original_views,
       allowed_platforms: allowed,
+      file_name: a.file_name,
+      // A video is camera footage (real footage only); a photo with no camera Make/Model is an AI picture.
+      exif_camera: a.mime_type.startsWith("image/") ? a.exif_camera === 1 : true,
+      taken_at: a.taken_at,
       ...(readUnderstood(a.steer_notes)?.said.length ? { steer: steerSpec(assetCtl, `${dump.id}:${a.id}`) } : {}),
     });
   }
   const profile = await env.DB.prepare("SELECT sections FROM brand_profile WHERE locked = 1 ORDER BY version DESC LIMIT 1").first<{ sections: string }>();
   const brief = await env.DB.prepare("SELECT body FROM research_briefs WHERE status = 'approved' ORDER BY version DESC LIMIT 1").first<{ body: string }>();
   const need = weeklyNeed(s.weekly_caps);
+  const rules = await readStudioRules(env);
   const steer = steerSpec(dumpCtl, dump.id);
   const sections = profile ? parseJson<Record<string, string>>(profile.sections, {}) : null;
   const services = servicesOf(sections);
@@ -339,9 +369,10 @@ async function buildDumpSpec(env: Env, jobId: string, dumpId: string): Promise<C
     brief: brief ? parseJson<unknown>(brief.body, null) : null,
     weekly_caps: s.weekly_caps,
     weekly_need: need,
-    target_clips: steerTarget(dumpCtl, targetClips(need)),
+    target_clips: steerTarget(dumpCtl, targetClips(rules)),
     recipes: steer.recipes,
-    quality_bar: QUALITY_BAR,
+    // The studio's review bar (0..100 in studio_rules.bar), here on the engine's older 0..1 scale.
+    quality_bar: rules.bar / 100,
     output_prefix: `clips/${dump.id}/`,
     rotation: steer.rotation,
     looks: steer.looks,
@@ -356,12 +387,14 @@ async function buildDumpSpec(env: Env, jobId: string, dumpId: string): Promise<C
     memory: await loadMemory(env),
     shot_sheets: sheets,
     plan_override: cleanOverride(parseJson(dump.plan_override, {}), services, rows.map((r) => r.id)),
+    studio_rules: rules,
+    niche_playbook: await latestPlaybook(env),
   };
 }
 
 /** The clip's stretches, as [asset id, start, end] (its own video). */
 async function buildAgainSpec(env: Env, jobId: string, dumpId: string, clipId: string): Promise<AgainSpec> {
-  const clip = await env.DB.prepare("SELECT id, asset_id, start_s, end_s, parts, part_assets, again_notes FROM clips WHERE id = ? AND dump_id = ?").bind(clipId, dumpId).first<{ id: string; asset_id: string; start_s: number; end_s: number; parts: string | null; part_assets: string | null; again_notes: string | null }>();
+  const clip = await env.DB.prepare("SELECT id, asset_id, start_s, end_s, parts, part_assets, again_notes, again_fixes, files_used FROM clips WHERE id = ? AND dump_id = ?").bind(clipId, dumpId).first<{ id: string; asset_id: string; start_s: number; end_s: number; parts: string | null; part_assets: string | null; again_notes: string | null; again_fixes: string | null; files_used: string | null }>();
   if (!clip) throw new Error("clip missing");
   const base = await buildDumpSpec(env, jobId, dumpId);
   const notes = (clip.again_notes ?? "").trim();
@@ -370,7 +403,12 @@ async function buildAgainSpec(env: Env, jobId: string, dumpId: string, clipId: s
   // A before -> after clip is cut again from every video it joins.
   const owners = parseJson<unknown>(clip.part_assets, null);
   const partOwners = Array.isArray(owners) ? owners.map(String) : [];
-  const mine = new Set([clip.asset_id, ...partOwners]);
+  // Every file the clip used (photos included, files_used from the engine), so a re-plan can swap its ending or opening.
+  const used = parseJson<unknown>(clip.files_used, null);
+  const fixes = cleanFixes(parseJson<unknown>(clip.again_fixes, []));
+  // "Use a photo ending" may reach for any photo of this dump; the others keep to the clip's own files.
+  const photos = fixes.includes("photo_ending") ? base.assets.filter((a) => a.mime_type.startsWith("image/")).map((a) => a.id) : [];
+  const mine = new Set([clip.asset_id, ...partOwners, ...(Array.isArray(used) ? used.map(String) : []), ...photos]);
   const assets = base.assets.filter((a) => mine.has(a.id)).map((a) => ({ ...a, ...(Object.keys(asked).length ? { steer: { ...(a.steer ?? base.steer), ...againSteer(base, asked) } } : {}) }));
   if (!assets.length) throw new Error("clip source cleared");
   return {
@@ -381,6 +419,7 @@ async function buildAgainSpec(env: Env, jobId: string, dumpId: string, clipId: s
     skipped_assets: [],
     target_clips: { min: 1, max: 1 },
     change_request: notes.slice(0, 1000),
+    fixes,
     avoid_windows: clipParts(clip).map(([start, end], i) => ({ asset_id: partOwners.length === clipParts(clip).length ? partOwners[i]! : clip.asset_id, start, end })),
   };
 }
@@ -562,6 +601,20 @@ export interface CutResultClip {
   part_assets?: string[] | null;
   /** Why the studio hid it (the critic, layer 6), in plain words. */
   hidden_reason?: string | null;
+  // ---- studio fix (the clip engine's result fields, contract 23 Oct 2026) ----
+  /** From the clip-type library ("payoff-first before→after", "photo slideshow" …). */
+  clip_type?: string | null;
+  /** Plain English: why it scored what it did ("ends on a blurry shot"). */
+  score_reasons?: string[] | null;
+  hero_asset_id?: string | null;
+  /** Every file it uses (videos and photos). */
+  files_used?: string[] | null;
+  uses_ai_images?: boolean | null;
+  event_group?: string | null;
+  /** Its words (caption, voice) are still being written; Review shows it and holds Approve. */
+  words_pending?: boolean | null;
+  /** This is the same cut as another clip in a different look: shown as a style of that one. */
+  style_of?: string | null;
 }
 
 export interface CutResult {
@@ -578,6 +631,9 @@ export interface CutResult {
   shot_sheets?: Record<string, unknown>;
   /** Free-model calls this cut made, by kind (vision, critic, text, failed). */
   calls?: Record<string, number>;
+  /** Studio fix: the stage the engine gave each file, and how many distinct clips (styles never count). */
+  asset_roles?: Record<string, string>;
+  clip_counts?: { distinct?: number; by_type?: Record<string, number> };
 }
 
 /**
@@ -631,6 +687,14 @@ export interface CleanClip {
   on_screen: string | null;
   part_assets: string[] | null;
   hidden_reason: string | null;
+  clip_type: string | null;
+  score_reasons: string[];
+  hero_asset_id: string | null;
+  files_used: string[];
+  uses_ai_images: boolean;
+  event_group: string | null;
+  words_pending: boolean;
+  style_of: string | null;
 }
 
 export class CutResultError extends Error {
@@ -669,7 +733,7 @@ export function normalizeHashtags(v: unknown): string {
  */
 export function parseCutResult(
   result: unknown,
-  ctx: { dumpId: string; allowed: Map<string, Platform[]>; rawKeys: Set<string>; rules?: ContentRules },
+  ctx: { dumpId: string; allowed: Map<string, Platform[]>; rawKeys: Set<string>; rules?: ContentRules; bar?: number },
 ): { clips: CleanClip[]; dropped: number } {
   if (!result || typeof result !== "object" || !Array.isArray((result as CutResult).clips)) throw new CutResultError("result has no clip list");
   const list = (result as CutResult).clips;
@@ -716,7 +780,12 @@ export function parseCutResult(
       continue;
     }
     ids.add(c.id!);
-    const s = Math.max(0, Math.min(1, score));
+    // The engine's 0..100 score (studio fix) or an older 0..1 one; stored 0..1, shown as 0..100.
+    const hundred = isHundredScale(c, score);
+    const s = Math.max(0, Math.min(1, hundred ? score / 100 : score));
+    const bar = hundred ? (ctx.bar ?? QUALITY_BAR * 100) / 100 : QUALITY_BAR;
+    const reasons = cleanReasons(c.score_reasons);
+    const used = Array.isArray(c.files_used) ? [...new Set(c.files_used.map(String).filter((a) => ctx.allowed.has(a)))].slice(0, 60) : [];
     const alt = str(c.hook_alt, 200);
     const look = isLookId(c.look) ? c.look : null;
     const parts = cleanParts(c.parts, start, end);
@@ -724,7 +793,8 @@ export function parseCutResult(
     const partAssets = Array.isArray(c.part_assets) && c.part_assets.length === parts.length && c.part_assets.every((a) => typeof a === "string" && ctx.allowed.has(a)) ? (c.part_assets as string[]) : null;
     // Layer 5, checked again here (the Worker never trusts the job): words that break the studio's rules hide the clip.
     const broke = ctx.rules && [c.hook_text, c.hook_alt, c.caption].some((t) => typeof t === "string" && textProblems(t, ctx.rules!).length > 0);
-    const hiddenReason = str(c.hidden_reason, 200) || (broke ? RULES_HIDDEN : null);
+    const under = s < bar;
+    const hiddenReason = str(c.hidden_reason, 200) || (broke ? RULES_HIDDEN : null) || (under && hundred ? underBarReason(Math.round(s * 100), Math.round(bar * 100), reasons) : null);
     clips.push({
       id: c.id!,
       asset_id: String(c.asset_id),
@@ -737,7 +807,7 @@ export function parseCutResult(
       hashtags: normalizeHashtags(c.hashtags),
       platforms,
       score: Math.round(s * 1000) / 1000,
-      hidden: s < QUALITY_BAR || !!hiddenReason,
+      hidden: under || !!hiddenReason,
       r2_key: c.r2_key!,
       cover_r2_key: c.cover_r2_key ?? null,
       look,
@@ -752,9 +822,58 @@ export function parseCutResult(
       on_screen: str(c.on_screen, 400) || null,
       part_assets: partAssets,
       hidden_reason: hiddenReason,
+      clip_type: str(c.clip_type, 60) || null,
+      score_reasons: reasons,
+      hero_asset_id: typeof c.hero_asset_id === "string" && ctx.allowed.has(c.hero_asset_id) ? c.hero_asset_id : null,
+      files_used: used.length ? used : [...new Set([String(c.asset_id), ...(partAssets ?? [])])],
+      uses_ai_images: c.uses_ai_images === true,
+      event_group: str(c.event_group, 80) || null,
+      words_pending: c.words_pending === true,
+      style_of: typeof c.style_of === "string" && /^clp_[a-z0-9]{8,32}$/.test(c.style_of) ? c.style_of : null,
     });
   }
-  return { clips, dropped };
+  return { clips: groupStyles(clips), dropped };
+}
+
+/** A result from the studio-fix engine scores 0..100 (it also sends reasons or a clip type). */
+function isHundredScale(c: Partial<CutResultClip>, score: number): boolean {
+  return score > 1 || Array.isArray(c.score_reasons) || typeof c.clip_type === "string";
+}
+
+/** Up to five short plain reasons. */
+export function cleanReasons(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((r) => (typeof r === "string" ? r.replace(/\s+/g, " ").trim().slice(0, 120) : "")).filter(Boolean).slice(0, 5);
+}
+
+/** "it scored 48, under this studio's bar of 70: ends on a blurry shot" (Review says "Hidden because …"). */
+export function underBarReason(score: number, bar: number, reasons: string[]): string {
+  return `it scored ${score}, under this studio's bar of ${bar}${reasons.length ? `: ${reasons[0]}` : ""}`;
+}
+
+/**
+ * Styles are options of one clip, never separate clips (owner, 23 Oct 2026): a clip that is the
+ * same cut as a better-scored one (same video, same stretches, or the engine says style_of) is
+ * kept as a style of it. A style_of that points at no clip of this result is dropped.
+ */
+export function groupStyles(clips: CleanClip[]): CleanClip[] {
+  const ids = new Set(clips.map((c) => c.id));
+  const sig = (c: CleanClip) => JSON.stringify([c.asset_id, c.parts, c.part_assets ?? []]);
+  const first = new Map<string, string>();
+  const order = [...clips].sort((a, b) => b.score - a.score);
+  const main = new Map<string, string | null>();
+  for (const c of order) {
+    const named = c.style_of && ids.has(c.style_of) && c.style_of !== c.id ? c.style_of : null;
+    const same = first.get(sig(c)) ?? null;
+    main.set(c.id, named ?? same);
+    if (!named && !same) first.set(sig(c), c.id);
+  }
+  // A style of a style points at the main clip; a main clip is never itself a style.
+  return clips.map((c) => {
+    let m = main.get(c.id) ?? null;
+    for (let i = 0; m && main.get(m) && i < 5; i++) m = main.get(m) ?? null;
+    return { ...c, style_of: m && m !== c.id ? m : null };
+  });
 }
 
 /** A song key the job may report: one of her uploads, or a built-in library track that exists. */
@@ -815,25 +934,40 @@ export async function applyDumpClips(env: Env, jobId: string, dumpId: string, re
   const spec = await buildDumpSpec(env, jobId, dumpId);
   const allowed = new Map(spec.assets.map((a) => [a.id, a.allowed_platforms]));
   const rawKeys = new Set(spec.assets.map((a) => a.r2_key));
-  const parsed = parseCutResult(result, { dumpId, allowed, rawKeys, rules: contentRules(env) });
+  const parsed = parseCutResult(result, { dumpId, allowed, rawKeys, rules: contentRules(env), bar: spec.studio_rules.bar });
   // An editor's import may bring back only the clips planned for it, never extra ones.
   const clips = opts.planned ? parsed.clips.filter((c) => opts.planned!.has(c.id)) : parsed.clips;
   const dropped = parsed.dropped + (parsed.clips.length - clips.length);
   if (!clips.length) throw new CutResultError("no usable clips");
 
+  // Clip numbers: the dump's own sequence, never reused (shared/clipNumber.ts). A style takes its clip's number.
+  const seq = (await env.DB.prepare("SELECT clip_seq FROM dumps WHERE id = ?").bind(dumpId).first<{ clip_seq: number }>())?.clip_seq ?? 0;
+  const numbers = numberClips(clips, seq);
   const stmts: D1PreparedStatement[] = [env.DB.prepare("DELETE FROM clips WHERE dump_id = ? AND status = 'draft'").bind(dumpId)];
   for (const c of clips) {
     stmts.push(
       env.DB.prepare(
-        `INSERT INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, hook_text, hook_alt, caption, hashtags, platforms, score, r2_key, cover_r2_key, media_token, status, hidden, look, parts, layout, edited_with, music, speech, muted, shape, service, on_screen, part_assets, hidden_reason)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, hook_text, hook_alt, caption, hashtags, platforms, score, r2_key, cover_r2_key, media_token, status, hidden, look, parts, layout, edited_with, music, speech, muted, shape, service, on_screen, part_assets, hidden_reason,
+           number, version, clip_type, score_reasons, hero_asset_id, files_used, uses_ai_images, event_group, words_pending, style_of)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         c.id, c.asset_id, dumpId, c.start_s, c.end_s, c.recipe, c.hook_text, c.hook_alt, c.caption, c.hashtags, JSON.stringify(c.platforms), c.score, c.r2_key, c.cover_r2_key, mediaToken(), c.hidden ? 1 : 0,
         opts.editor ? null : c.look, JSON.stringify(c.parts), opts.editor ? null : c.layout ? JSON.stringify(c.layout) : null, opts.editor ?? null, c.music, c.speech, c.muted ? 1 : 0,
         c.shape, c.service, c.on_screen, c.part_assets ? JSON.stringify(c.part_assets) : null, c.hidden_reason,
+        numbers.get(c.id) ?? null, c.clip_type, JSON.stringify(c.score_reasons), c.hero_asset_id, JSON.stringify(c.files_used), c.uses_ai_images ? 1 : 0, c.event_group, c.words_pending ? 1 : 0, c.style_of,
       ),
     );
   }
+  stmts.push(env.DB.prepare("UPDATE dumps SET clip_seq = ? WHERE id = ?").bind(Math.max(seq, ...numbers.values()), dumpId));
+  // What each file became (arrival, prep, team, process, finished, detail, hero), for What I dumped.
+  for (const [assetId, role] of Object.entries((result as CutResult).asset_roles ?? {})) {
+    const r = typeof role === "string" ? role.trim().slice(0, 40) : "";
+    if (r && allowed.has(assetId)) stmts.push(env.DB.prepare("UPDATE assets SET role = ? WHERE id = ? AND dump_id = ?").bind(r, assetId, dumpId));
+  }
+  const distinct = clips.filter((c) => !c.style_of);
+  const byType: Record<string, number> = {};
+  for (const c of distinct) byType[c.clip_type ?? "other"] = (byType[c.clip_type ?? "other"] ?? 0) + 1;
+  stmts.push(env.DB.prepare("UPDATE dumps SET clip_counts = ? WHERE id = ?").bind(JSON.stringify({ distinct: distinct.length, styles: clips.length - distinct.length, by_type: byType }), dumpId));
   const own = await ownHandles(env);
   const held = sourceUpdates((result as CutResult).source_marks, new Set(allowed.keys()), own);
   for (const h of held) {
@@ -860,7 +994,8 @@ export async function applyDumpClips(env: Env, jobId: string, dumpId: string, re
   stmts.push(env.DB.prepare("UPDATE dumps SET not_followed = ?, tried = ? WHERE id = ?").bind(JSON.stringify(told.not_followed), told.tried, dumpId));
   await env.DB.batch(stmts);
 
-  const visible = clips.filter((c) => !c.hidden).length;
+  // Styles are options of one clip: they never count (owner, 23 Oct 2026).
+  const visible = clips.filter((c) => !c.hidden && !c.style_of).length;
   const engine = (result as CutResult).engine ?? {};
   const looks = new Set(clips.map((c) => c.look).filter(Boolean)).size;
   const calls = (result as CutResult).calls ?? {};
@@ -873,13 +1008,25 @@ export async function applyDumpClips(env: Env, jobId: string, dumpId: string, re
   log.info("cut.apply", { clips: clips.length, visible, dropped });
 
   const s = await readSettings(env);
-  const hiddenNote = clips.length > visible ? ` ${clips.length - visible} more scored lower and are tucked away under "Show hidden".` : "";
+  const tucked = distinct.length - visible;
+  const hiddenNote = tucked > 0 ? ` ${tucked} more scored under your bar and are tucked away under "Show hidden", each with the reason.` : "";
+  const shown = [...numbers.entries()].filter(([id]) => clips.some((c) => c.id === id && !c.hidden && !c.style_of)).map(([, n]) => n).sort((a, b) => a - b);
+  const range = shown.length ? ` (${shown.length === 1 ? `Clip ${clipCode(shown[0])}` : `Clips ${clipCode(shown[0])} to ${clipCode(shown[shown.length - 1])}`})` : "";
   const { html, text } = emailFrame(
     "Your clips are ready",
-    [`${visible} new clip${visible === 1 ? " is" : "s are"} waiting for you in Review.${hiddenNote}`, "Nothing posts until you approve it. Approve the ones you like, reject the rest."],
+    [`${visible} new clip${visible === 1 ? " is" : "s are"} waiting for you in Review${range}.${hiddenNote}`, "Nothing posts until you approve it. Approve the ones you like, reject the rest.", `What you dumped, and which clips used each file: ${env.PUBLIC_BASE_URL}/dump/${dumpId}/files`],
     { label: "Review clips", url: `${env.PUBLIC_BASE_URL}/review` },
   );
   await sendEmail(env, { kind: "clips_ready", to: s.notify_emails, subject: `${visible} clips ready to review`, html, text, refId: dumpId });
+}
+
+/** Each distinct clip gets the next number after `seq`, in the order the engine sent them; a style shares its clip's number. Pure. */
+export function numberClips(clips: Pick<CleanClip, "id" | "style_of">[], seq: number): Map<string, number> {
+  const out = new Map<string, number>();
+  let n = seq;
+  for (const c of clips) if (!c.style_of) out.set(c.id, ++n);
+  for (const c of clips) if (c.style_of && out.has(c.style_of)) out.set(c.id, out.get(c.style_of)!);
+  return out;
 }
 
 /** Everything her chips and notes asked that the dump could not do, and the one-line "What we tried". */
@@ -988,7 +1135,8 @@ async function applyAgain(env: Env, jobId: string, dumpId: string, clipId: strin
   const clip = await env.DB.prepare("SELECT id, status, r2_key, cover_r2_key, asset_id, rerender_job_id FROM clips WHERE id = ? AND dump_id = ?").bind(clipId, dumpId).first<{ id: string; status: string; r2_key: string; cover_r2_key: string | null; asset_id: string; rerender_job_id: string | null }>();
   const got = (result as { again?: unknown } | null)?.again;
   const { results: dumpAssets } = await env.DB.prepare("SELECT id FROM assets WHERE dump_id = ?").bind(dumpId).all<{ id: string }>();
-  const parsed = parseCutResult({ clips: got ? [got] : [] }, { dumpId, allowed: new Map([[clip?.asset_id ?? "", [...PLATFORMS]], ...dumpAssets.map((a) => [a.id, [...PLATFORMS]] as [string, Platform[]])]), rawKeys: new Set(), rules: contentRules(env) });
+  const rules = await readStudioRules(env);
+  const parsed = parseCutResult({ clips: got ? [got] : [] }, { dumpId, allowed: new Map([[clip?.asset_id ?? "", [...PLATFORMS]], ...dumpAssets.map((a) => [a.id, [...PLATFORMS]] as [string, Platform[]])]), rawKeys: new Set(), rules: contentRules(env), bar: rules.bar });
   const fresh = parsed.clips[0];
   if (!clip || clip.status === "deleted" || clip.rerender_job_id !== jobId || !fresh) {
     if (fresh) await env.FILES.delete([fresh.r2_key, fresh.cover_r2_key].filter((k): k is string => !!k));
@@ -996,14 +1144,17 @@ async function applyAgain(env: Env, jobId: string, dumpId: string, clipId: strin
     log.info("cut.again.orphan", {});
     return;
   }
+  // The version it replaces is kept (Compare versions in Review): 5 becomes 5b, and 5 stays playable.
+  await keepVersion(env, clipId);
   await env.DB.prepare(
     `UPDATE clips SET asset_id = ?, start_s = ?, end_s = ?, recipe = ?, hook_text = ?, hook_alt = ?, caption = ?, hashtags = ?, score = ?, r2_key = ?, cover_r2_key = ?, look = ?, parts = ?, layout = ?,
-       music = ?, speech = ?, muted = ?, shape = ?, service = ?, on_screen = ?, part_assets = ?, hidden_reason = ?, hidden = ?, pending_look = NULL, pending_layout = NULL, pending_music = NULL, rerender_job_id = NULL, rerender_error = NULL, media_version = media_version + 1, edited_with = NULL WHERE id = ?`,
+       music = ?, speech = ?, muted = ?, shape = ?, service = ?, on_screen = ?, part_assets = ?, hidden_reason = ?, hidden = ?, pending_look = NULL, pending_layout = NULL, pending_music = NULL, rerender_job_id = NULL, rerender_error = NULL, media_version = media_version + 1, edited_with = NULL,
+       version = (SELECT COALESCE(MAX(v.version), 0) FROM clip_versions v WHERE v.clip_id = clips.id) + 1,
+       clip_type = ?, score_reasons = ?, hero_asset_id = ?, files_used = ?, uses_ai_images = ?, event_group = ?, words_pending = ? WHERE id = ?`,
   )
-    .bind(fresh.asset_id, fresh.start_s, fresh.end_s, fresh.recipe, fresh.hook_text, fresh.hook_alt, fresh.caption, fresh.hashtags, fresh.score, fresh.r2_key, fresh.cover_r2_key, fresh.look, JSON.stringify(fresh.parts), fresh.layout ? JSON.stringify(fresh.layout) : null, fresh.music, fresh.speech, fresh.muted ? 1 : 0, fresh.shape, fresh.service, fresh.on_screen, fresh.part_assets ? JSON.stringify(fresh.part_assets) : null, fresh.hidden_reason, fresh.hidden ? 1 : 0, clipId)
+    .bind(fresh.asset_id, fresh.start_s, fresh.end_s, fresh.recipe, fresh.hook_text, fresh.hook_alt, fresh.caption, fresh.hashtags, fresh.score, fresh.r2_key, fresh.cover_r2_key, fresh.look, JSON.stringify(fresh.parts), fresh.layout ? JSON.stringify(fresh.layout) : null, fresh.music, fresh.speech, fresh.muted ? 1 : 0, fresh.shape, fresh.service, fresh.on_screen, fresh.part_assets ? JSON.stringify(fresh.part_assets) : null, fresh.hidden_reason, fresh.hidden ? 1 : 0,
+      fresh.clip_type, JSON.stringify(fresh.score_reasons), fresh.hero_asset_id, JSON.stringify(fresh.files_used), fresh.uses_ai_images ? 1 : 0, fresh.event_group, fresh.words_pending ? 1 : 0, clipId)
     .run();
-  const old = [clip.r2_key, clip.cover_r2_key].filter((k): k is string => !!k && k !== fresh.r2_key && k !== fresh.cover_r2_key);
-  if (old.length) await env.FILES.delete(old);
   // A voice over made for the old moment no longer fits: it goes; a new one is made for a clip with no talking.
   await removeVoiceOver(env, clipId);
   await autoVoiceDump(env, dumpId);

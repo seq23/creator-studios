@@ -15,7 +15,7 @@ import { setHealth } from "../lib/db";
 import { log } from "../lib/log";
 import { practice } from "../lib/practice";
 
-export type EmailKind = "time_to_dump" | "clips_ready" | "posting_problem" | "connection_needs_you" | "weekly_recap" | "login_code" | "brief_ready" | "heads_up";
+export type EmailKind = "time_to_dump" | "clips_ready" | "posting_problem" | "connection_needs_you" | "weekly_recap" | "login_code" | "brief_ready" | "heads_up" | "niche_note";
 
 export interface OutgoingEmail {
   kind: EmailKind;

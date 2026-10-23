@@ -13,6 +13,7 @@ import { bufferSync } from "./buffer-sync";
 import { dailyMaintenance } from "./daily";
 import { weekly } from "./weekly";
 import { briefDraftNotice, monthlyBriefRefresh, weeklyBriefAdjust } from "./brief";
+import { monthlyNicheRefresh } from "../lib/niche";
 import { pollEditorJobs } from "../lib/editorJobs";
 import { dailyBrandRefresh } from "./deals";
 import { refreshPublicStats } from "../lib/publicStats";
@@ -53,6 +54,8 @@ export async function runCron(env: Env, cron: string): Promise<void> {
     } else if (lane === "daily") {
       await dailyMaintenance(env);
       await monthlyBriefRefresh(env);
+      // Studio fix: what converts in this studio's niche, researched monthly (worker/lib/niche.ts).
+      await monthlyNicheRefresh(env).catch(() => log.warn("cron.niche_failed"));
       // No-login stats, daily: YouTube's public numbers; Instagram's at most once a day.
       await refreshPublicStats(env);
       await dailyBrandRefresh(env);

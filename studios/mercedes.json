@@ -43,5 +43,18 @@
     ]
   },
   "aiBudget": 1000,
-  "_aiBudget": "Neurons a day of the Cloudflare account's free 10,000 (owner, 23 Oct 2026: \"use the cloudflare free allowance too\"). The four shares sum to 8,500, leaving headroom; past 10,000 the account is billed, so worker/lib/freeAi.ts refuses any call this share cannot cover."
+  "_aiBudget": "Neurons a day of the Cloudflare account's free 10,000 (owner, 23 Oct 2026: \"use the cloudflare free allowance too\"). The four shares sum to 8,500, leaving headroom; past 10,000 the account is billed, so worker/lib/freeAi.ts refuses any call this share cannot cover.",
+  "studioRules": {
+    "_why": "Studio fix defaults, 23 Oct 2026 (shared/studioRules.ts): no call to action of its own yet (the neutral fallback stands in until she sets one in Settings > Your clips), Made with AI only on clips that use an AI picture, 8 to 15 distinct clips per dump, review bar 70, no prices.",
+    "cta_phrases": [],
+    "cta_link": "",
+    "ai_note": "ai_images",
+    "clip_target": {
+      "min": 8,
+      "max": 15
+    },
+    "bar": 70,
+    "place_words": [],
+    "prices": false
+  }
 }
