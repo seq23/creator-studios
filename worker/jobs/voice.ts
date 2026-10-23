@@ -70,7 +70,8 @@ export const voiceJob: JobHandler = {
     if (n && wantsMix(n)) {
       const clip = await env.DB.prepare("SELECT r2_key FROM clips WHERE id = ? AND status != 'deleted'").bind(n.clip_id).first<{ r2_key: string }>();
       if (!clip) throw new Error("the clip for this voice over is gone");
-      return { job_id: jobId, ref_id: refId, type: "voice", mode: "mix", narration_id: n.id, clip_key: clip.r2_key, narration_key: n.r2_key, output_key: mixedKey(n.id) };
+      // The script rides along: its words are burned on screen while it is mixed (jobs/vo_words.py, Follow-on V).
+      return { job_id: jobId, ref_id: refId, type: "voice", mode: "mix", narration_id: n.id, clip_key: clip.r2_key, narration_key: n.r2_key, output_key: mixedKey(n.id), script: n.script };
     }
     const v = await env.DB.prepare("SELECT sample_r2_key, consent_at, model_r2_key FROM voice WHERE id = 1").first<{ sample_r2_key: string | null; consent_at: string | null; model_r2_key: string | null }>();
     if (!n || !v?.sample_r2_key || !v.consent_at) throw new Error("no consented voice sample or narration");

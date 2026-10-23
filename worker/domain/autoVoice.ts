@@ -53,12 +53,12 @@ export function fitScript(text: string, seconds: number): string {
 }
 
 /**
- * The script when the free AI is busy or not connected: the clip's hook and caption in her words,
- * with her call to action, fitted to the clip. Never empty, never a failure.
+ * The last-resort script (no AI and no shots to follow): the clip's hook and her call to action,
+ * fitted to the clip. Never the caption (Follow-on V, owner 23 Oct 2026: a voice over never reads
+ * the caption back). Never empty, never a failure.
  */
-export function starterScript(clip: { hook_text: string; caption: string }, cta: string | null, seconds: number): string {
+export function starterScript(clip: { hook_text: string; caption?: string }, cta: string | null, seconds: number): string {
   const hook = clip.hook_text.replace(/[…]+$/, "").trim();
-  const caption = clip.caption.replace(/#\w+/g, "").replace(/\s+/g, " ").trim();
-  const lines = [hook && /[.!?]$/.test(hook) ? hook : hook ? `${hook}.` : "", caption && caption.toLowerCase() !== hook.toLowerCase() ? caption : "", cta ? `${cta.replace(/[.!]*$/, "")}.` : ""].filter(Boolean);
+  const lines = [hook && /[.!?]$/.test(hook) ? hook : hook ? `${hook}.` : "", cta ? `${cta.replace(/[.!]*$/, "")}.` : ""].filter(Boolean);
   return fitScript(lines.join(" ") || "Here's a little look at my day. Follow for more.", seconds);
 }

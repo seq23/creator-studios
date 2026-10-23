@@ -104,9 +104,11 @@ class Words(unittest.TestCase):
         import voice
 
         spoken: list[str] = []
-        with mock.patch.object(voice, "load_voice", lambda spec, work: object()), mock.patch.object(voice, "speak", lambda m, s, p, cb=None: (spoken.append(s), 3.0)[1]), mock.patch.object(
+        with mock.patch.object(voice, "load_voice", lambda spec, work: object()), mock.patch.object(voice, "speak", lambda m, s, p, cb=None: (spoken.append(s), (3.0, [(0.0, 3.0, s)]))[1]), mock.patch.object(
             voice, "upload_output", lambda *a: None
-        ), mock.patch.object(voice, "download_input", lambda k, d: d), mock.patch.object(voice, "has_audio", lambda p: True), mock.patch.object(voice.subprocess, "run", lambda *a, **k: None):
+        ), mock.patch.object(voice, "download_input", lambda k, d: d), mock.patch.object(voice, "has_audio", lambda p: True), mock.patch.object(voice.subprocess, "run", lambda *a, **k: None), mock.patch.object(
+            voice, "duration_of", lambda p: 8.0
+        ), mock.patch.object(voice, "has_filter", lambda n: True):
             out = voice.batch(type("J", (), {"progress": lambda *a: None})(), {"mode": "batch", "items": [
                 {"narration_id": "n1", "script": REAL_FAILURE, "speak": True, "narration_key": "k1", "clip_key": "c1", "output_key": "o1"},
                 {"narration_id": "n2", "script": "A clean script. It is fine.", "speak": True, "narration_key": "k2", "clip_key": "c2", "output_key": "o2"},

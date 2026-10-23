@@ -83,6 +83,8 @@ export interface DumpSummary {
   /** Which door: new videos, old posts, or "youtube" (a full video for YouTube: dumps.kind = 'full_video'). */
   door: "new" | "recycle" | "youtube";
   notes: string;
+  /** Notes for the voice (Follow-on V): fed to the voice-over script writer. "" when none. */
+  voice_notes: string;
   status: "uploading" | "queued" | "cutting" | "ready" | "reviewed" | "failed";
   files: number;
   clips_made: number;

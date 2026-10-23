@@ -59,7 +59,10 @@ describe("which clips count as having no talking", () => {
       expect(st.length).toBeGreaterThan(10);
       expect(st.split(" ").length).toBeLessThanOrEqual(maxWords(s));
     }
-    expect(starterScript({ hook_text: "Three candles, five minutes…", caption: "Set the table fast #table" }, "Follow for more!", 14)).toBe("Three candles, five minutes. Set the table fast Follow for more.");
+    // Follow-on V: the hook and her call to action, and never the caption read back.
+    const st = starterScript({ hook_text: "Three candles, five minutes…", caption: "Set the table fast #table" }, "Follow for more!", 14);
+    expect(st).toBe("Three candles, five minutes. Follow for more.");
+    expect(st.toLowerCase()).not.toContain("set the table fast");
   });
 });
 
@@ -275,12 +278,15 @@ describe("the Voice over chip (per dump) and a video's own note (per video)", ()
     await cutDumpExisting("dmp_av1", { steer_notes: JSON.stringify(parseNotes("no voice over on this one", [])) });
     expect(one<{ n: number }>("SELECT COUNT(*) AS n FROM narrations").n).toBe(0);
   });
-  it("asked for (chip) with no voice saved: said on the dump, never dropped; nothing fails", async () => {
+  it("asked for (chip) with no voice recorded: followed in the stock voice af_heart (Follow-on V), never listed as not followed; nothing fails", async () => {
     await features(true);
     db.raw.exec("INSERT INTO dumps (id, door, notes, status, steer) VALUES ('dmp_av1', 'new', '', 'cutting', '{\"voice\":\"quiet\"}')");
     await cutDumpExisting("dmp_av1");
-    const nf = JSON.parse(one<{ not_followed: string }>("SELECT not_followed FROM dumps WHERE id = 'dmp_av1'").not_followed) as { what: string; why: string }[];
-    expect(nf).toContainEqual({ what: "voice overs on the quiet clips", why: expect.stringMatching(/your voice isn't saved yet/) });
+    const nf = JSON.parse(one<{ not_followed: string }>("SELECT not_followed FROM dumps WHERE id = 'dmp_av1'").not_followed ?? "[]") as { what: string; why: string }[];
+    expect(nf.some((x) => x.what === "voice overs on the quiet clips")).toBe(false);
+    expect(one<{ n: number }>("SELECT COUNT(*) AS n FROM narrations").n).toBeGreaterThan(0);
+    const vj = voiceJobs()[0];
+    expect(((await voiceJob.buildSpec(env, vj.id, vj.ref_id)) as { stock_voice: string | null }).stock_voice).toBe("af_heart");
     expect(one<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE status = 'failed'").n).toBe(0);
     // the default (untapped) with no voice is not a request: nothing is said
     db.raw.exec("UPDATE dumps SET steer = NULL WHERE id = 'dmp_av1'");
@@ -302,14 +308,37 @@ describe("off, or no voice yet", () => {
     expect(one<{ auto: number }>("SELECT auto FROM narrations WHERE id = ?", n.json.id as string).auto).toBe(0);
   });
 
-  it("on with no voice saved: the switch says Record your voice first; no failure, no light", async () => {
+  it("on with no voice recorded: the stock voice af_heart voices every quiet clip (Follow-on V); no failure, no light", async () => {
     await features(true);
     await cutDump();
-    expect(await autoVoiceDump(env, "dmp_av1")).toEqual({ state: "needs_voice", clips: 0 });
-    expect(one<{ n: number }>("SELECT COUNT(*) AS n FROM narrations").n).toBe(0);
-    expect(one<{ n: number }>("SELECT COUNT(*) AS n FROM health WHERE name = 'Voice'").n).toBe(0);
+    // cutDump's own automatic pass already voiced them, in the stock voice, with no recording of hers.
+    const nar = all<{ engine: string; auto: number }>("SELECT engine, auto FROM narrations");
+    expect(nar.length).toBeGreaterThan(0);
+    expect(nar.every((n) => n.engine === "built-in" && n.auto === 1)).toBe(true);
+    const jobs = voiceJobs();
+    expect(jobs).toHaveLength(1);
+    const spec = (await voiceJob.buildSpec(env, jobs[0].id, jobs[0].ref_id)) as { stock_voice: string | null; sample_key: string | null };
+    expect(spec.stock_voice).toBe("af_heart");
+    expect(spec.sample_key).toBeNull();
+    expect(one<{ n: number }>("SELECT COUNT(*) AS n FROM health WHERE name = 'Voice' AND light != 'green'").n).toBe(0);
     expect(one<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE status = 'failed'").n).toBe(0);
-    expect((await call("GET", "/api/voice")).json.auto).toBe("needs_voice");
+    const state = await call("GET", "/api/voice");
+    expect(state.json.auto).toBe("on");
+    expect(state.json.stock_voice).toBe("af_heart");
+  });
+
+  it("once her consented recording exists, voice overs switch to her own voice by themselves", async () => {
+    await features(true);
+    await voiceSaved();
+    await cutDump();
+    const jobs = voiceJobs();
+    const spec = (await voiceJob.buildSpec(env, jobs[0].id, jobs[0].ref_id)) as { stock_voice: string | null; sample_key: string | null };
+    expect(spec.stock_voice).toBeNull();
+    expect(spec.sample_key).toBe("voice/sample/upl_s");
+    expect((await call("GET", "/api/voice")).json.stock_voice).toBeNull();
+    // A recording without consent is not her voice yet: the stock voice stays.
+    db.raw.exec("UPDATE voice SET consent_at = NULL WHERE id = 1");
+    expect((await call("GET", "/api/voice")).json.stock_voice).toBe("af_heart");
   });
 });
 
@@ -355,12 +384,15 @@ describe("Review: Remove and Redo (Edit the script)", () => {
     expect(one<{ mix_status: string }>("SELECT mix_status FROM narrations WHERE id = ?", now[0].id).mix_status).toBe("ready");
   });
 
-  it("Redo with no voice saved says Record your voice first", async () => {
+  it("Redo after her recording is deleted: re-voiced in the stock voice af_heart, never refused (Follow-on V)", async () => {
     const n = await voiced();
     db.raw.exec("UPDATE voice SET sample_r2_key = NULL, consent_at = NULL WHERE id = 1");
     const r = await call("POST", `/api/clips/${n.clip_id}/voice-over`, { script: "A short new line for this clip." });
-    expect(r.status).toBe(409);
-    expect(r.json.error).toBe("Record your voice first, on Voice overs, or pick a stock voice in Settings → Sound.");
+    expect(r.status).toBe(200);
+    const vj = voiceJobs().at(-1)!;
+    const spec = (await voiceJob.buildSpec(env, vj.id, vj.ref_id)) as { stock_voice: string | null; items: { script: string }[] };
+    expect(spec.stock_voice).toBe("af_heart");
+    expect(spec.items.map((i) => i.script)).toEqual(["A short new line for this clip."]);
   });
 });
 

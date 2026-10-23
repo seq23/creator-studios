@@ -51,6 +51,7 @@ export const REGISTER = {
   "tidy-warns-first": "clearing storage must never delete her footage or anything unposted without a warning first, and tidy only archives (owner, 26 Sep 2026: day 358, storage)",
   "voice-engines": "a narration row without its engine, or an ElevenLabs call that drops a 401 / 402 / 429, shows her the wrong voice tag or a failure with no fallback",
   "voice-script": "the read-aloud script must stay about 3 minutes with a question and a number, and the Voice screen must show it, or her sample makes a thin voice",
+  "vo-words-wired": "a voice over with no words on screen loses every sound-off viewer, a script that reads the caption back says nothing new, and voice overs that wait on a recording never come (owner, 23 Oct 2026, Follow-on V)",
   "web-research-optional": "the brand finder and the Research Brief must work with no web-research key (Firecrawl is an optional speed-up, owner 26 Sep 2026); a job or route that needs it goes silent without it",
   "workflow-yaml-plain": "a step name with \": \" in it made golden-set.yml unparseable: a zero-job red run on every push and no workflow_dispatch (23 Oct 2026)",
   "workflows-dispatchable": "every job type must have an Actions workflow listening for its repository_dispatch event",

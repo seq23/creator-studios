@@ -1217,6 +1217,21 @@ def shot_of(sheets: dict[str, "V.ShotSheet"], a: str, s: float, e: float) -> "V.
     return sh.shot_at((s + e) / 2) if sh and sh.source != "none" else None
 
 
+def shot_list(m: Moment, sheets: dict[str, "V.ShotSheet"]) -> list[dict[str, Any]]:
+    """The clip's shots on its own timeline (Follow-on V: the voice-over script follows the shots):
+    each part's start and end in the finished clip, its stage (prep, process, hero...) and what the
+    shot sheet saw in it. Read by worker/lib/autoVoice.ts draftScript."""
+    out: list[dict[str, Any]] = []
+    t = 0.0
+    stages = m.part_stages or []
+    for i, (a, (s, e)) in enumerate(zip(part_owners(m), m.parts)):
+        d = max(0.0, e - s)
+        what = (shot_of(sheets, a, s, e) or V.Shot(s, e)).what or ""
+        out.append({"t0": round(t, 2), "t1": round(t + d, 2), "stage": stages[i] if i < len(stages) else "", "what": what[:120]})
+        t += d
+    return out[:24]
+
+
 def moment_ground(m: Moment, srcs: dict[str, Source], services: list[str]) -> "P.Ground":
     states = m.part_states or []
     return P.Ground(m.service, services, f"{m.on_screen} {clip_said(m, srcs)}", "before" in states, "after" in states)
@@ -1921,6 +1936,7 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
                 "uses_ai_images": ai_imgs,
                 "event_group": m.event_group or "e1",
                 "voice_script": (SCL.clean_script(m.voice, words["caption"], rules_s["cta_phrases"]) or None) if not words["words_pending"] else None,
+                "shot_list": shot_list(m, sheets),
                 "words_pending": words["words_pending"],
                 "_files": (r.mp4, r.cover),
             }

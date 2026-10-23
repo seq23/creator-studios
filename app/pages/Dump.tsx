@@ -72,6 +72,8 @@ export function Dump() {
   const settingsState = useLoad(() => get<SettingsShape>("/api/settings"));
   const [dumpId, setDumpId] = useState<string | null>(routeId ?? null);
   const [notes, setNotes] = useState("");
+  // Notes for the voice (Follow-on V): what the voice over should know, fed to its script writer.
+  const [voiceNotes, setVoiceNotes] = useState("");
   const [local, setLocal] = useState<Local[]>([]);
   const [photoNote, setPhotoNote] = useState<string | null>(null);
   const [over, setOver] = useState(false);
@@ -95,6 +97,7 @@ export function Dump() {
     if (current.data) {
       setDoor(current.data.dump.door);
       setNotes(current.data.dump.notes);
+      setVoiceNotes(current.data.dump.voice_notes ?? "");
       setSteer(current.data.dump.steer ?? {});
       setUnderstood(current.data.dump.understood ?? null);
     }
@@ -111,10 +114,11 @@ export function Dump() {
     if (dumpId) return dumpId;
     if (!door) throw new Error("First pick which videos these are: new videos you just filmed, old posts to reuse, or a full video for YouTube.");
     const r = await post<{ id: string }>("/api/dumps", { door, notes });
+    if (voiceNotes.trim()) await patch(`/api/dumps/${r.id}`, { voice_notes: voiceNotes }).catch(() => undefined);
     setDumpId(r.id);
     nav(`/dump/${r.id}`, { replace: true });
     return r.id;
-  }, [dumpId, door, notes, nav]);
+  }, [dumpId, door, notes, voiceNotes, nav]);
 
   async function sendPhotos(photos: File[]) {
     try {
@@ -183,6 +187,11 @@ export function Dump() {
     if (dumpId) await patch(`/api/dumps/${dumpId}`, { notes: v }).catch(() => undefined);
   }
 
+  async function saveVoiceNotes(v: string) {
+    setVoiceNotes(v);
+    if (dumpId) await patch(`/api/dumps/${dumpId}`, { voice_notes: v }).catch(() => undefined);
+  }
+
   async function pickDoor(d: Door) {
     setDoor(d);
     if (dumpId) await patch(`/api/dumps/${dumpId}`, { door: d }).catch(() => undefined);
@@ -208,7 +217,7 @@ export function Dump() {
     if (!dumpId) return;
     setSending(true);
     try {
-      await patch(`/api/dumps/${dumpId}`, { notes, steer, understood });
+      await patch(`/api/dumps/${dumpId}`, { notes, steer, understood, voice_notes: voiceNotes });
       await post(`/api/dumps/${dumpId}/dump`);
       toast.ok("Dumped. We’ll email you when the clips are ready to review.");
       setLocal([]);
@@ -430,6 +439,19 @@ export function Dump() {
                 />
                 <div className="hint">You can ask for looks (like a 2x4 grid), music, pace, length, how many clips, captions, platforms, and moments to keep in or leave out.</div>
                 <UnderstoodNote understood={understood} />
+              </div>
+              <div className="field" data-voice-notes>
+                <label htmlFor="voice-notes">Notes for the voice (you can leave this empty)</label>
+                <textarea
+                  id="voice-notes"
+                  className="textarea"
+                  rows={2}
+                  maxLength={400}
+                  value={voiceNotes}
+                  onChange={(e) => saveVoiceNotes(e.target.value)}
+                  placeholder="e.g. Baby shower in Germantown. Say it was for a girl."
+                />
+                <div className="hint">The voice over uses these words when it describes your clips. It still only talks about what is on screen.</div>
               </div>
               <SteerPanel
                 steer={steer}

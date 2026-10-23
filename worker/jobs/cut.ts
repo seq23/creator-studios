@@ -15,6 +15,7 @@
 // every clip comes back with its `look`, its `parts` and (grids) its `layout`.
 // A job whose ref is "<dumpId>/<clipId>" is a re-render of one clip in the Look she picked in
 // Review ("Change look"): the old file stays live until the new one is swapped in here.
+import { cleanShotList } from "@shared/voiceShots";
 import { getConnectionSecret } from "../lib/connections";
 import type { JobHandler } from "./registry";
 import type { Env } from "../env";
@@ -640,6 +641,8 @@ export interface CutResultClip {
   style_of?: string | null;
   /** The engine's voice-over script (jobs/script_clean.py), spoken by the automatic voice over first. */
   voice_script?: string | null;
+  /** Follow-on V: the clip's shots on its own timeline [{t0, t1, stage, what}] (jobs/cut.py shot_list). */
+  shot_list?: unknown;
 }
 
 export interface CutResult {
@@ -721,6 +724,8 @@ export interface CleanClip {
   words_pending: boolean;
   style_of: string | null;
   voice_script: string | null;
+  /** JSON of shared/voiceShots.ts cleanShotList, or null. */
+  shot_list: string | null;
 }
 
 export class CutResultError extends Error {
@@ -863,6 +868,8 @@ export function parseCutResult(
       style_of: typeof c.style_of === "string" && /^clp_[a-z0-9]{8,32}$/.test(c.style_of) ? c.style_of : null,
       // Checked again here (the Worker never trusts the job): reasoning-shaped text is never spoken.
       voice_script: c.words_pending === true ? null : cleanScript(str(c.voice_script, 1500), caption) || null,
+      // Checked here too (the Worker never trusts the job): numbers in order, short plain words.
+      shot_list: ((l) => (l ? JSON.stringify(l) : null))(cleanShotList(c.shot_list)),
     });
   }
   return { clips: groupStyles(clips), dropped };
@@ -981,13 +988,13 @@ export async function applyDumpClips(env: Env, jobId: string, dumpId: string, re
     stmts.push(
       env.DB.prepare(
         `INSERT INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, hook_text, hook_alt, caption, hashtags, platforms, score, r2_key, cover_r2_key, media_token, status, hidden, look, parts, layout, edited_with, music, speech, muted, shape, service, on_screen, part_assets, hidden_reason,
-           number, version, clip_type, score_reasons, hero_asset_id, files_used, uses_ai_images, event_group, words_pending, style_of, voice_script)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           number, version, clip_type, score_reasons, hero_asset_id, files_used, uses_ai_images, event_group, words_pending, style_of, voice_script, shot_list)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         c.id, c.asset_id, dumpId, c.start_s, c.end_s, c.recipe, c.hook_text, c.hook_alt, c.caption, c.hashtags, JSON.stringify(c.platforms), c.score, c.r2_key, c.cover_r2_key, mediaToken(), c.hidden ? 1 : 0,
         opts.editor ? null : c.look, JSON.stringify(c.parts), opts.editor ? null : c.layout ? JSON.stringify(c.layout) : null, opts.editor ?? null, c.music, c.speech, c.muted ? 1 : 0,
         c.shape, c.service, c.on_screen, c.part_assets ? JSON.stringify(c.part_assets) : null, c.hidden_reason,
-        numbers.get(c.id) ?? null, c.clip_type, JSON.stringify(c.score_reasons), c.hero_asset_id, JSON.stringify(c.files_used), c.uses_ai_images ? 1 : 0, c.event_group, c.words_pending ? 1 : 0, c.style_of, c.voice_script,
+        numbers.get(c.id) ?? null, c.clip_type, JSON.stringify(c.score_reasons), c.hero_asset_id, JSON.stringify(c.files_used), c.uses_ai_images ? 1 : 0, c.event_group, c.words_pending ? 1 : 0, c.style_of, c.voice_script, c.shot_list,
       ),
     );
   }
@@ -1183,10 +1190,10 @@ async function applyAgain(env: Env, jobId: string, dumpId: string, clipId: strin
     `UPDATE clips SET asset_id = ?, start_s = ?, end_s = ?, recipe = ?, hook_text = ?, hook_alt = ?, caption = ?, hashtags = ?, score = ?, r2_key = ?, cover_r2_key = ?, look = ?, parts = ?, layout = ?,
        music = ?, speech = ?, muted = ?, shape = ?, service = ?, on_screen = ?, part_assets = ?, hidden_reason = ?, hidden = ?, pending_look = NULL, pending_layout = NULL, pending_music = NULL, rerender_job_id = NULL, rerender_error = NULL, media_version = media_version + 1, edited_with = NULL,
        version = (SELECT COALESCE(MAX(v.version), 0) FROM clip_versions v WHERE v.clip_id = clips.id) + 1,
-       clip_type = ?, score_reasons = ?, hero_asset_id = ?, files_used = ?, uses_ai_images = ?, event_group = ?, words_pending = ?, voice_script = ?, words_tries = 0, words_tried_at = NULL WHERE id = ?`,
+       clip_type = ?, score_reasons = ?, hero_asset_id = ?, files_used = ?, uses_ai_images = ?, event_group = ?, words_pending = ?, voice_script = ?, shot_list = ?, words_tries = 0, words_tried_at = NULL WHERE id = ?`,
   )
     .bind(fresh.asset_id, fresh.start_s, fresh.end_s, fresh.recipe, fresh.hook_text, fresh.hook_alt, fresh.caption, fresh.hashtags, fresh.score, fresh.r2_key, fresh.cover_r2_key, fresh.look, JSON.stringify(fresh.parts), fresh.layout ? JSON.stringify(fresh.layout) : null, fresh.music, fresh.speech, fresh.muted ? 1 : 0, fresh.shape, fresh.service, fresh.on_screen, fresh.part_assets ? JSON.stringify(fresh.part_assets) : null, fresh.hidden_reason, fresh.hidden ? 1 : 0,
-      fresh.clip_type, JSON.stringify(fresh.score_reasons), fresh.hero_asset_id, JSON.stringify(fresh.files_used), fresh.uses_ai_images ? 1 : 0, fresh.event_group, fresh.words_pending ? 1 : 0, fresh.voice_script, clipId)
+      fresh.clip_type, JSON.stringify(fresh.score_reasons), fresh.hero_asset_id, JSON.stringify(fresh.files_used), fresh.uses_ai_images ? 1 : 0, fresh.event_group, fresh.words_pending ? 1 : 0, fresh.voice_script, fresh.shot_list, clipId)
     .run();
   // A voice over made for the old moment no longer fits: it goes; a new one is made for a clip with no talking.
   await removeVoiceOver(env, clipId);
