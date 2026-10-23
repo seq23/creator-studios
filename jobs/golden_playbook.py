@@ -111,8 +111,11 @@ def run_all() -> tuple[list[str], dict[str, Any]]:
 
 
 if __name__ == "__main__":
+    from common import log  # noqa: PLC0415
+
     probs, st = run_all()
-    print(json.dumps(st, indent=1))
+    for slug, x in st.items():
+        log("golden.playbook", slug=slug, clips=x["clips"], types=",".join(x["types"]))
     for p in probs:
-        print("PROBLEM", p)
+        log("golden.playbook.problem", detail=p)
     sys.exit(1 if probs else 0)
