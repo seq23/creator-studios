@@ -6,15 +6,19 @@ one critic call per clip, up to six retries per failure), so the golden set at 0
 model answering 429 and failed. $0 only: no credits are bought, no account is made, the key's limit
 is never changed.
 
-Two providers, both $0:
+Three providers, all $0:
   1. OpenRouter free models (`:free` / openrouter/free), at most OPENROUTER_JOB_BUDGET calls per job.
      A 429 that says the DAILY free quota is used trips the breaker at once (no more calls this job);
      any other 429 tries one more model, and a whole round of 429s also trips it.
-  2. A local open vision model on the runner's CPU (Qwen2-VL-2B-Instruct, Apache-2.0), where
+  2. Cloudflare Workers AI (owner, 23 Oct 2026: "use the cloudflare free allowance too"): Mistral
+     Small 3.1 through the studio's own Worker (common.free_ai → POST /api/jobs/:id/ai), spent only
+     within that studio's share of the account's free 10,000 neurons a day (worker/lib/freeAi.ts);
+     past the share the Worker refuses, so it can never bill. A refusal trips its own breaker.
+  3. A local open vision model on the runner's CPU (Qwen2-VL-2B-Instruct, Apache-2.0), where
      VISION_LOCAL=1 (the cut job and the golden set). No token, no account, no quota: it only costs
      runner minutes, which are free on this public repo. Used for shot sheets when OpenRouter is out.
-Checked and ruled out on 23 Oct 2026: Cloudflare Workers AI (the account's included 10k neurons a day
-were already used, 9.85k, by other Workers; any more is billed), Hugging Face Inference Providers (the
+(Workers AI was first ruled out on 23 Oct 2026 because 9.85k of the day's 10k were used; that was
+one-off picture generation for another project, since stopped.) Ruled out: Hugging Face Inference Providers (the
 account's monthly credits are used up and it cannot pay, so every call is refused), GitHub Models (the
 endpoint no longer answers).
 
@@ -45,14 +49,15 @@ LOCAL_MAX_NEW_TOKENS = 1100
 # Its own cache folder (the workflows keep it between runs with actions/cache, key vlm-<model>).
 VLM_CACHE = os.environ.get("VLM_CACHE", str(Path.home() / ".cache" / "vlm"))
 
-CALLS_BY: dict[str, int] = {"openrouter": 0, "openrouter_failed": 0, "local_vlm": 0, "local_vlm_failed": 0}
-STATE = {"quota_out": False}
+CALLS_BY: dict[str, int] = {"openrouter": 0, "openrouter_failed": 0, "cloudflare": 0, "cloudflare_failed": 0, "local_vlm": 0, "local_vlm_failed": 0}
+STATE = {"quota_out": False, "cloudflare_out": False}
 
 
 def reset() -> None:
     for k in CALLS_BY:
         CALLS_BY[k] = 0
     STATE["quota_out"] = False
+    STATE["cloudflare_out"] = False
 
 
 def openrouter_left() -> int:
@@ -70,7 +75,40 @@ def _error_code(e: Exception) -> Any:
     return code if isinstance(code, int) else type(e).__name__
 
 
-def ask_openrouter(key: str | None, payload_for: Callable[[str], dict[str, Any]], models: list[str], kind: str, usable: Any = json_object_in, timeout: float = 150, ask: Any = None) -> tuple[str | None, str]:
+def ask_openrouter(key: str | None, payload_for: Callable[[str], dict[str, Any]], models: list[str], kind: str, usable: Any = json_object_in, timeout: float = 150, ask: Any = None, cloud: Any = None) -> tuple[str | None, str]:
+    """One answer: OpenRouter's free models first, then Cloudflare Workers AI within the studio's free
+    share. Returns (text, model) or (None, "")."""
+    content, model = _ask_openrouter_only(key, payload_for, models, kind, usable, timeout, ask)
+    if content is not None:
+        return content, model
+    return ask_cloudflare(payload_for(CLOUDFLARE_TAG), kind, usable, cloud)
+
+
+CLOUDFLARE_TAG = "cloudflare:mistral-small-3.1"
+
+
+def ask_cloudflare(payload: dict[str, Any], kind: str, usable: Any = json_object_in, cloud: Any = None) -> tuple[str | None, str]:
+    """The same chat payload through the studio's Worker to Workers AI. A refusal for the share
+    (budget_out / no_share) or no studio job stops further Cloudflare calls in this job."""
+    if STATE["cloudflare_out"]:
+        return None, ""
+    from common import free_ai  # noqa: PLC0415  (the running job's handle)
+
+    call = cloud or free_ai
+    CALLS_BY["cloudflare"] += 1
+    content, why = call(payload.get("messages") or [], int(payload.get("max_tokens") or 900), kind)
+    if content and (not usable or usable(content)):
+        log("ai.call", provider="cloudflare", kind=kind, ok=True)
+        return content, CLOUDFLARE_TAG
+    CALLS_BY["cloudflare_failed"] += 1
+    log("ai.call", provider="cloudflare", kind=kind, ok=False, why=why or "unusable")
+    if why in ("budget_out", "no_share", "no_job", "unreachable"):
+        STATE["cloudflare_out"] = True
+        log("ai.quota_out", provider="cloudflare", kind=kind, why=why)
+    return None, ""
+
+
+def _ask_openrouter_only(key: str | None, payload_for: Callable[[str], dict[str, Any]], models: list[str], kind: str, usable: Any = json_object_in, timeout: float = 150, ask: Any = None) -> tuple[str | None, str]:
     """One answer from the first of `models` that gives one, within the job's budget.
     Returns (text, model) or (None, "")."""
     ask = ask or openrouter_content

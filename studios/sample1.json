@@ -82,5 +82,7 @@
       "You get an email the day before. Tap Skip to stop one.",
       "Faces and house numbers are blurred before anything posts."
     ]
-  }
+  },
+  "aiBudget": 3500,
+  "_aiBudget": "Neurons a day of the Cloudflare account's free 10,000 (owner, 23 Oct 2026: \"use the cloudflare free allowance too\"). The four shares sum to 8,500, leaving headroom; past 10,000 the account is billed, so worker/lib/freeAi.ts refuses any call this share cannot cover."
 }

@@ -46,6 +46,10 @@ export interface Env {
   ENV_NAME?: string;
   /** The commit this Worker was built from (scripts/studio.mjs deploy passes --var BUILD_SHA); /healthz reports it for the parity check. */
   BUILD_SHA?: string;
+  /** Cloudflare Workers AI (worker/lib/freeAi.ts): the second $0 source for the intelligence jobs. */
+  AI?: Ai;
+  /** This studio's share of the account's free 10,000 neurons a day (registry aiBudget); "" or 0 = never call. */
+  STUDIO_AI_BUDGET?: string;
   /**
    * Always "code" (the email one-time-code login) in every studio. The old "open" mode is gone:
    * authMode() ignores the var and the validator `login-never-open` fails any config that sets it.
