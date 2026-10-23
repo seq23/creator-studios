@@ -7,6 +7,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { cleanLink, cleanRules, FALLBACK_CTA, RULES_DEFAULT, rulesProblem, studioRules } from "@shared/studioRules";
 import { cutJob, type CutSpec } from "@worker/jobs/cut";
+// @ts-expect-error plain .mjs module
 import { envBlock } from "../../scripts/studio.mjs";
 import { harness } from "./helpers/studio-fix-env";
 
