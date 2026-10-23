@@ -750,33 +750,6 @@ def inset_for(src: Source, m: "Moment", mediapipe: bool) -> L.Seg:
     return src.seg(line[0], line[1], mediapipe)
 
 
-def grid_cells(k: int, m: "Moment", src: Source, others: list[tuple[str, "Moment", Source]], n: int, mediapipe: bool) -> tuple[list[L.Seg], dict[str, Any]]:
-    """Cells for a grid Look: this moment first, then the dump's other moments (clip k+1, k+2 …,
-    each a same-length stretch of its own video), then this moment closer (zooms) when the dump
-    has fewer moments than cells. The voice is the cell with the clearest speech."""
-    length = m.end - m.start
-    cells = [src.seg(m.start, m.end, mediapipe)]
-    layout: list[dict[str, Any]] = [{"kind": "self"}]
-    speech = [coverage(src.runs, m.start, m.end)]
-    for j in range(len(others)):
-        if len(cells) >= n:
-            break
-        cid, om, osrc = others[(k + j) % len(others)]
-        s, e = osrc.window(om.start, length)
-        cells.append(osrc.seg(s, e, mediapipe))
-        layout.append({"kind": "clip", "clip_id": cid})
-        speech.append(coverage(osrc.runs, s, e))
-    zooms = [1.35, 1.7, 2.1]
-    z = 0
-    while len(cells) < n:
-        cells.append(src.seg(m.start, m.end, mediapipe, zooms[z % len(zooms)]))
-        layout.append({"kind": "zoom", "zoom": zooms[z % len(zooms)]})
-        speech.append(speech[0] * 0.99)  # the same sound as cell 0: never preferred over it
-        z += 1
-    voice = max(range(len(speech)), key=lambda i: (speech[i], -i))
-    return cells, {"cells": layout, "voice": voice}
-
-
 def speech_share(src: "Source", stretches: list[tuple[float, float]]) -> float:
     """How much of a clip has her talking (0..1): her words' time when there is a transcript, else
     the non-silent stretches. The Worker voices over a clip automatically only under 15%

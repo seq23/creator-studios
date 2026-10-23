@@ -353,7 +353,6 @@ def check_looks(tmp: Path, problems: list[str], write_thumbs: bool) -> None:
     src = cut.Source(work / "norm.mp4", info, tr, runs, None)
     brand = L.Branding(handle="@samplestudio", cta="Follow for more real days")
     m = cut.Moment("ast_look", "hook_first", 2.0, 2.0 + LOOK_SECONDS - 2.0, [(8.0, 10.0), (2.0, 2.0 + LOOK_SECONDS - 2.0)], hook="You need to hear this part")
-    others = [(f"clp_look{i:08d}", cut.Moment("ast_look", "talking_head", 4.0 * i, 4.0 * i + 8.0, [(4.0 * i, 4.0 * i + 8.0)]), src) for i in range(1, 8)]
     libass = cut.ffmpeg_has_filter("subtitles")
     hashes: dict[str, list[int]] = {}
     kind = sys.argv[sys.argv.index("--looks-kind") + 1] if "--looks-kind" in sys.argv else "all"
@@ -363,16 +362,24 @@ def check_looks(tmp: Path, problems: list[str], write_thumbs: bool) -> None:
         # grid always differ (the grid's gutters are checked from the pixels), so each job compares its own.
         if kind != "all" and (opts["layout"] == "grid") != (kind == "grid"):
             continue
-        cells, voice = None, 0
+        cells, voice, ending = None, 0, None
         if opts["layout"] == "grid":
-            cells, lay = cut.grid_cells(0, m, src, others, len(L.cells_of(opts)), False)
-            voice = lay["voice"]
-            if len(lay["cells"]) != len(L.cells_of(opts)) or lay["cells"][0] != {"kind": "self"}:
-                problems.append(f"{lid}: grid cells not filled")
+            # Studio fix: a grid's cells are the clip's own DIFFERENT shots (here: different stretches of
+            # the footage), then the clip's hero full frame (never the same picture in two cells).
+            gm = cut.Moment("ast_look", "montage", 0.0, 40.0, [(4.0 * i, 4.0 * i + 4.0) for i in range(len(L.cells_of(opts)))] + [(34.0, 37.0)])
+            gm.part_keys = [f"ast_look@{4.0 * i:.2f}" for i in range(len(L.cells_of(opts)))] + ["ast_look@34.00"]
+            gm.part_stages = ["process"] * len(L.cells_of(opts)) + ["hero"]
+            gm.hero_asset_id, gm.hook = "ast_look", m.hook
+            if not cut.look_fits(opts, gm, len(cut.grid_body(gm))):
+                problems.append(f"{lid}: a grid of different shots was refused")
+            cells, lay, ending = cut.grid_from_parts(gm, cut.grid_body(gm)[: len(L.cells_of(opts))], {"ast_look": src}, {}, False)
+            if len(lay["cells"]) != len(L.cells_of(opts)) or len({(c["start"], c["end"]) for c in lay["cells"]}) != len(lay["cells"]) or not lay.get("ending"):
+                problems.append(f"{lid}: grid cells are not all different shots with a hero ending")
         try:
-            r = cut.render_moment(m, src, opts, brand, work, f"look_{lid}", False, cells=cells, voice=voice)
-            bare_opts = {**opts, "captions": "none", "hook": "none"}
-            bare = cut.render_moment(m, src, bare_opts, brand, work, f"bare_{lid}", False, cells=cells, voice=voice)
+            r = cut.render_moment(m, src, opts, brand, work, f"look_{lid}", False, cells=cells, voice=voice, ending=ending)
+            # The comparison render: no words and no end call to action, so each one is measured.
+            bare_opts = {**opts, "captions": "none", "hook": "none", "end_card": False}
+            bare = cut.render_moment(m, src, bare_opts, brand, work, f"bare_{lid}", False, cells=cells, voice=voice, ending=ending)
         except subprocess.CalledProcessError:
             problems.append(f"{lid}: render failed")
             continue
@@ -393,14 +400,22 @@ def check_looks(tmp: Path, problems: list[str], write_thumbs: bool) -> None:
                 problems.append(f"{lid}: captions not burned ({d:.1f})")
             if opts["captions"] == "none" and d > 2:
                 problems.append(f"{lid}: text burned where the look has none ({d:.1f})")
-            h = band_diff(L.frame_gray(r.mp4, 1.0, 108, 192), L.frame_gray(bare.mp4, 1.0, 108, 192), 15, 33, 108)
+            # The hook is big and centred in the safe area (studio fix): rows around HOOK_Y.
+            hy = L.HOOK_Y // 10
+            h = band_diff(L.frame_gray(r.mp4, 1.0, 108, 192), L.frame_gray(bare.mp4, 1.0, 108, 192), hy - 8, hy + 8, 108)
             if (opts["hook"] == "top_bold") != (h >= 4):
                 problems.append(f"{lid}: hook text {'missing' if opts['hook'] == 'top_bold' else 'burned'} ({h:.1f})")
-        if opts["end_card"]:
-            card = L.frame_rgb(r.mp4, r.duration - 0.25)
-            corners = [rgb_at(card, 40, 40), rgb_at(card, L.OUT_W - 40, L.OUT_H - 60), rgb_at(card, 40, L.OUT_H // 2)]
-            if not all(near_paper(px) for px in corners):
-                problems.append(f"{lid}: no end card")
+        # Studio fix (owner, 23 Oct 2026: "every clip ending on a near-blank card"): the end is footage,
+        # never a blank card, and (with libass) a big call to action sits in the safe area over it.
+        end = L.frame_rgb(r.mp4, r.duration - 0.25)
+        corners = [rgb_at(end, 40, 40), rgb_at(end, L.OUT_W - 40, L.OUT_H - 60), rgb_at(end, 40, L.OUT_H // 2)]
+        if all(near_paper(px) for px in corners):
+            problems.append(f"{lid}: ends on a blank card")
+        if opts["end_card"] and libass:
+            cy = L.CTA_Y // 10
+            e = band_diff(L.frame_gray(r.mp4, r.duration - 0.25, 108, 192), L.frame_gray(bare.mp4, r.duration - 0.25, 108, 192), cy - 6, cy + 18, 108)
+            if e < 4:
+                problems.append(f"{lid}: no call to action on the end ({e:.1f})")
         if opts["layout"] == "grid":
             problems.extend(grid_problems(opts, L.frame_rgb(bare.mp4, mid)))  # text off: the gutters are bare
         hashes[lid] = [L.dhash(L.frame_gray(r.mp4, t, 55, 96)) for t in (1.0, mid, r.duration - 2.0)]
@@ -608,7 +623,7 @@ def check_planned(tmp: Path, problems: list[str], heavy: dict) -> None:
     names = {"ast_before": "before.mp4", "ast_prep": "prep.mp4", "ast_team": "team.mp4", "ast_process": "process.mp4", "ast_after": "after.mp4"}
     spec = spec_for("new", "dmp_planned", [{"id": aid, "r2_key": f, "mime_type": "video/mp4", "allowed_platforms": all_p, "file_note": None} for aid, f in names.items()]
                     + [{"id": "ast_photo", "r2_key": "final-look.jpg", "mime_type": "image/jpeg", "file_name": "final-look.jpg", "allowed_platforms": all_p, "file_note": None}])
-    spec.update({"services": services, "shot_sheets": sheets, "camera": "off", "rotation": ["grid_four", "clean"], "target_clips": {"min": 3, "max": 4},
+    spec.update({"services": services, "shot_sheets": sheets, "camera": "off", "rotation": ["grid_four", "side_by_side", "clean"], "target_clips": {"min": 3, "max": 4},
                  "studio_rules": {"cta_phrases": ["Book your date", "Request a quote"], "cta_link": "https://example.com/request", "ai_note": "ai_images", "clip_target": {"min": 4, "max": 12}, "bar": 0, "place_words": ["Riverton"], "prices": False},
                  "brand_profile": {"ctas": "Book your beta work.\nMessage us to book your date.", "do_dont": "#SampleStudio"}})
     r = cut.cut_dump(spec, work / "w1", download, upload, FakeJob().progress, heavy)
@@ -635,7 +650,7 @@ def check_planned(tmp: Path, problems: list[str], heavy: dict) -> None:
             problems.append("planned: a joined clip's video is not the reveal's")
     grids = [c for c in clips if c["layout"]]
     if not grids:
-        problems.append("planned: four different shots made no grid")
+        problems.append("planned: clips of different shots made no grid (side by side or four)")
     for c in grids:
         cells = c["layout"]["cells"]
         if len({x["asset_id"] for x in cells}) != len(cells) or not c["layout"].get("ending"):
