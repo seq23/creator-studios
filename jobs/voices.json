@@ -8,8 +8,16 @@
     "voices_url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"
   },
   "voices": [
-    { "id": "af_heart", "label": "Voice 1: warm, a woman", "preview": "/voices/voice-1.mp3" },
-    { "id": "af_bella", "label": "Voice 2: bright, a woman", "preview": "/voices/voice-2.mp3" },
-    { "id": "am_michael", "label": "Voice 3: easy, a man", "preview": "/voices/voice-3.mp3" }
-  ]
+    {
+      "id": "af_heart",
+      "label": "Voice 1: warm, a woman",
+      "preview": "/voices/voice-1.mp3"
+    },
+    {
+      "id": "af_bella",
+      "label": "Voice 2: bright, a woman",
+      "preview": "/voices/voice-2.mp3"
+    }
+  ],
+  "_choice": "Owner's decision 23 Oct 2026: two women's voices; af_heart is Porch & Party Studio's voice, af_bella the alternate."
 }

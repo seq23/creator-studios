@@ -39,8 +39,8 @@ describe("the built-in music and the stock voices are real files with an open li
     expect(lib.tracks.every((t) => t.source.includes("scripts/make-music.py"))).toBe(true);
     expect(existsSync(path.join(ROOT, "scripts", "make-music.py"))).toBe(true);
   });
-  it("stock voices are preset speakers (Apache-2.0) with a preview each", () => {
-    expect(STOCK_VOICES.length).toBe(3);
+  it("stock voices are preset speakers (Apache-2.0) with a preview each: af_heart first, af_bella the alternate", () => {
+    expect(STOCK_VOICES.map((v) => v.id)).toEqual(["af_heart", "af_bella"]);
     const voices = JSON.parse(readFileSync(path.join(ROOT, "jobs", "voices.json"), "utf8")) as { engine: { model_licence: string } };
     expect(voices.engine.model_licence).toMatch(/^Apache-2\.0/);
     for (const v of STOCK_VOICES) expect(existsSync(path.join(ROOT, "public", v.preview)), v.preview).toBe(true);
