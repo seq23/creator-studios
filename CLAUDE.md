@@ -13,8 +13,11 @@ operational reference ("runbook creator-studios" opens it).
   The host's former business name appears nowhere (validator `no-host-brand`).
   `wrangler.jsonc` is GENERATED from the registry
   (`npm run studio:gen`; validator `studios-generated`). Never hand-edit it.
-- Copied from `seq23/sheila-creator-dashboard` (no history, see README). That repo and its
-  deployments are never touched from here.
+- Copied from `seq23/sheila-creator-dashboard` (no history, see README). On the owner's word 23 Oct
+  2026 ("One codebase") Sheila's and Mercedes' studios joined this registry (`studios/sheila.json`,
+  `studios/mercedes.json`: their own Worker, D1, R2 and data); their old repos are disabled. All
+  studios ship from here, and `parity.yml` (scripts/parity-check.mjs) proves after every deploy and
+  daily that each one answers /healthz on the deployed commit.
 - **Public repo** (free Actions minutes for video cutting). No secrets, no client data, no host
   identifiers in anything a client studio ships (validator `sample-clean`, `scripts/bundle-scan.mjs`).
 - Two kinds of studio: **host-accounts** (Hadiyah: the services the host gave Sheila on the host's

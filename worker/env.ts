@@ -44,6 +44,8 @@ export interface Env {
    * "production" (every studio Worker) | "dev" (.dev.vars, e2e). Missing reads as production.
    */
   ENV_NAME?: string;
+  /** The commit this Worker was built from (scripts/studio.mjs deploy passes --var BUILD_SHA); /healthz reports it for the parity check. */
+  BUILD_SHA?: string;
   /**
    * Always "code" (the email one-time-code login) in every studio. The old "open" mode is gone:
    * authMode() ignores the var and the validator `login-never-open` fails any config that sets it.

@@ -517,6 +517,12 @@ async function smoke(s) {
   console.log(`smoke ${s.slug}: ok (${s.url})`);
 }
 
+/** The commit being deployed: GITHUB_SHA in Actions, else the checkout's HEAD. */
+export function buildSha(env = process.env) {
+  if (env.GITHUB_SHA) return env.GITHUB_SHA;
+  return spawnSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).stdout.trim();
+}
+
 async function deploy(target) {
   const reg = loadRegistry();
   const list = target === "--all" ? reg.studios : [studioBySlug(target).s];
@@ -530,7 +536,8 @@ async function deploy(target) {
     console.log(`==> ${s.slug}: migrations`);
     wrangler(["d1", "migrations", "apply", s.d1.name, "--remote", "--env", s.slug]);
     console.log(`==> ${s.slug}: deploy`);
-    wrangler(["deploy", "--env", s.slug]);
+    // The commit it ships, so /healthz can prove every studio runs the same code (scripts/parity-check.mjs).
+    wrangler(["deploy", "--env", s.slug, "--var", `BUILD_SHA:${buildSha()}`]);
     await smoke(s);
     if (s.kind === "client") {
       // Guard (a), live: a client studio's Worker holds none of the host's keys as secrets.
