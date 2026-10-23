@@ -218,6 +218,17 @@ dumps.patch("/:id/assets/:assetId", async (c) => {
 dumps.delete("/:id/assets/:assetId", async (c) => {
   const asset = await c.env.DB.prepare("SELECT r2_key, upload_id FROM assets WHERE id = ? AND dump_id = ?").bind(c.req.param("assetId"), c.req.param("id")).first<{ r2_key: string; upload_id: string | null }>();
   if (!asset) return fail(c, 404, "That file is not in this dump.");
+  const owner = await c.env.DB.prepare("SELECT status FROM dumps WHERE id = ?").bind(c.req.param("id")).first<{ status: string }>();
+  if (owner && (owner.status === "queued" || owner.status === "cutting")) return fail(c, 409, "This dump is being cut. Remove files once its clips are ready.");
+  // A file clips were already made from (a finished dump, before Start over with new files): the
+  // original goes and the next cut skips it, but the row stays, so its approved, posted and
+  // rejected clips are never erased with it (clips.asset_id cascades on delete).
+  const used = await c.env.DB.prepare("SELECT 1 FROM clips WHERE asset_id = ? LIMIT 1").bind(c.req.param("assetId")).first();
+  if (used && !asset.upload_id) {
+    await c.env.FILES.delete(asset.r2_key);
+    await c.env.DB.prepare("UPDATE assets SET upload_status = 'aborted', raw_deleted_at = ? WHERE id = ?").bind(nowIso(), c.req.param("assetId")).run();
+    return c.json({ ok: true });
+  }
   if (asset.upload_id) {
     try {
       await c.env.FILES.resumeMultipartUpload(asset.r2_key, asset.upload_id).abort();
