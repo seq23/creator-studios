@@ -48,7 +48,7 @@ import {
 } from "../domain/looks";
 import { getSetting } from "../lib/db";
 import { CUT_REF } from "../lib/jobStorage";
-import { hasVoiceSample, autoVoiceDump } from "../lib/autoVoice";
+import { voiceReady, autoVoiceDump, removeVoiceOver } from "../lib/autoVoice";
 import { cleanControls, mergeControls, recipesAllowed, steerLook, steerMusic, steerPlatforms, steerRecipes, steerTarget, whatWeTried } from "../domain/steer";
 import { readUnderstood, tracksOf } from "../lib/steerStore";
 import type { NotFollowed, SteerControls } from "@shared/steer";
@@ -56,11 +56,15 @@ import { applyImport, buildImportSpec, fakeImport, importFailed, type ImportSpec
 import { connectedEditors, editorChoice, queueClipEditors } from "../lib/editorJobs";
 import { effectiveEditor } from "../domain/editors";
 import { dispatchJob } from "../services/github";
+import { readSound } from "../routes/settings";
+import { libraryTrack, type CameraSound } from "@shared/sound";
+import { parseNotes } from "../domain/steer";
 
 /** A cut job's ref: a dump ("dmp_…"), or one clip of it to re-render ("dmp_…/clp_…"). */
-export function parseCutRef(refId: string | null): { dumpId: string; clipId: string | null; import: boolean } | null {
+export function parseCutRef(refId: string | null): { dumpId: string; clipId: string | null; import: boolean; again: boolean } | null {
   const m = CUT_REF.exec(refId ?? "");
-  return m ? { dumpId: m[1], clipId: m[2] ?? null, import: !!m[3] } : null;
+  if (!m || (m[3] === "again" && !m[2])) return null;
+  return { dumpId: m[1], clipId: m[2] ?? null, import: m[3] === "import", again: m[3] === "again" };
 }
 
 /** Everything a render needs from her settings: the editing switches, her songs, her branding. */
@@ -108,6 +112,8 @@ export interface SteerSpec {
   count: number | null;
   include: string[];
   avoid: string[];
+  /** Camera sound for these clips (shared/sound.ts); a video's own note may set it for that video. */
+  camera?: CameraSound;
 }
 
 export interface CutSpec {
@@ -138,6 +144,17 @@ export interface CutSpec {
   music: { r2_key: string }[];
   /** Her chips and notes, resolved (the fields above already carry the dump-wide ones). */
   steer: SteerSpec;
+  /** The camera's own sound: auto (keep talking, drop background talk), keep, or off (music instead). */
+  camera: CameraSound;
+}
+
+/** Try another version with her notes: the clip's videos cut again, away from the moment she has. */
+export interface AgainSpec extends Omit<CutSpec, "type"> {
+  type: "cut";
+  mode: "again";
+  clip_id: string;
+  change_request: string;
+  avoid_windows: { asset_id: string; start: number; end: number }[];
 }
 
 /** One stretch of a source video for a re-render: a raw upload or, when that is gone, a clip file. */
@@ -164,6 +181,8 @@ export interface RerenderSpec {
   voice: number;
   branding: Branding;
   music: { r2_key: string }[];
+  /** Cut with the camera sound off: it stays off in every new look, with music under it. */
+  muted: boolean;
   output_key: string;
   output_cover_key: string;
 }
@@ -198,10 +217,11 @@ interface AssetDb {
   content_hash: string | null;
 }
 
-async function buildSpec(env: Env, jobId: string, refId: string | null): Promise<CutSpec | RerenderSpec | ImportSpec> {
+async function buildSpec(env: Env, jobId: string, refId: string | null): Promise<CutSpec | RerenderSpec | ImportSpec | AgainSpec> {
   const ref = parseCutRef(refId);
   if (!ref) throw new Error("cut job has no dump");
   if (ref.import) return buildImportSpec(env, jobId, ref.dumpId, ref.clipId);
+  if (ref.again && ref.clipId) return buildAgainSpec(env, jobId, ref.dumpId, ref.clipId);
   if (ref.clipId) return buildRerenderSpec(env, jobId, ref.dumpId, ref.clipId);
   return buildDumpSpec(env, jobId, ref.dumpId);
 }
@@ -236,6 +256,7 @@ async function buildDumpSpec(env: Env, jobId: string, dumpId: string): Promise<C
       count: ctl.count ?? null,
       include: ctl.include ?? [],
       avoid: ctl.avoid ?? [],
+      ...(ctl.camera ? { camera: ctl.camera } : {}),
     };
   };
   const skipped: CutSpec["skipped_assets"] = [];
@@ -304,7 +325,52 @@ async function buildDumpSpec(env: Env, jobId: string, dumpId: string): Promise<C
     branding: ctx.branding,
     music: steer.music,
     steer,
+    camera: dumpCtl.camera ?? (await readSound(env)).camera,
   };
+}
+
+/** The clip's stretches, as [asset id, start, end] (its own video). */
+async function buildAgainSpec(env: Env, jobId: string, dumpId: string, clipId: string): Promise<AgainSpec> {
+  const clip = await env.DB.prepare("SELECT id, asset_id, start_s, end_s, parts, again_notes FROM clips WHERE id = ? AND dump_id = ?").bind(clipId, dumpId).first<{ id: string; asset_id: string; start_s: number; end_s: number; parts: string | null; again_notes: string | null }>();
+  if (!clip) throw new Error("clip missing");
+  const base = await buildDumpSpec(env, jobId, dumpId);
+  const notes = (clip.again_notes ?? "").trim();
+  // Her notes steer this version like a video's own note (moment, hook, pace, look, music, camera sound).
+  const asked = parseNotes(notes, await tracksOf(env)).controls;
+  const assets = base.assets.filter((a) => a.id === clip.asset_id).map((a) => ({ ...a, ...(Object.keys(asked).length ? { steer: { ...(a.steer ?? base.steer), ...againSteer(base, asked) } } : {}) }));
+  if (!assets.length) throw new Error("clip source cleared");
+  return {
+    ...base,
+    mode: "again",
+    clip_id: clipId,
+    assets,
+    skipped_assets: [],
+    target_clips: { min: 1, max: 1 },
+    change_request: notes.slice(0, 1000),
+    avoid_windows: clipParts(clip).map(([start, end]) => ({ asset_id: clip.asset_id, start, end })),
+  };
+}
+
+/** What her "what to change" notes override in the dump's steer for one new version. */
+function againSteer(base: CutSpec, asked: SteerControls): Partial<SteerSpec> {
+  const out: Partial<SteerSpec> = {};
+  if (asked.camera) out.camera = asked.camera;
+  if (asked.looks?.length) {
+    out.rotation = asked.looks.filter(isLookId) as LookId[];
+    out.looks = Object.fromEntries(out.rotation.map((id) => [id, base.looks[id] ?? resolveLook(id, editingFromStored({}), base.music.length > 0)])) as SteerSpec["looks"];
+  }
+  if (asked.pace || asked.captions) {
+    const rot = out.rotation ?? base.rotation;
+    out.rotation = rot;
+    out.looks = Object.fromEntries(rot.map((id) => [id, steerLook((out.looks ?? base.looks)[id] ?? resolveLook(id, editingFromStored({}), base.music.length > 0), asked)])) as SteerSpec["looks"];
+  }
+  if (asked.length) {
+    out.recipes = steerRecipes(asked);
+    out.allowed_recipes = recipesAllowed(asked);
+  }
+  if (asked.include) out.include = asked.include;
+  if (asked.avoid) out.avoid = asked.avoid;
+  return out;
 }
 
 interface ClipSourceDb {
@@ -328,7 +394,7 @@ interface ClipSourceDb {
   asset_duration: number | null;
 }
 
-const CLIP_SOURCE_SQL = `SELECT c.id, c.dump_id, c.asset_id, c.start_s, c.end_s, c.recipe, c.hook_text, c.r2_key, c.parts, c.layout, c.pending_look, c.pending_layout, c.pending_music, c.music,
+const CLIP_SOURCE_SQL = `SELECT c.id, c.dump_id, c.asset_id, c.start_s, c.end_s, c.recipe, c.hook_text, c.r2_key, c.parts, c.layout, c.pending_look, c.pending_layout, c.pending_music, c.music, c.muted,
   c.media_version, a.r2_key AS raw_key, a.raw_deleted_at, a.duration_s AS asset_duration FROM clips c JOIN assets a ON a.id = c.asset_id`;
 
 /** The file names a re-render writes: the clip's id and the next version, inside its dump's folder. */
@@ -351,7 +417,7 @@ export function clipSource(c: Pick<ClipSourceDb, "raw_key" | "raw_deleted_at" | 
 }
 
 async function buildRerenderSpec(env: Env, jobId: string, dumpId: string, clipId: string): Promise<RerenderSpec> {
-  const clip = await env.DB.prepare(`${CLIP_SOURCE_SQL} WHERE c.id = ? AND c.dump_id = ?`).bind(clipId, dumpId).first<ClipSourceDb>();
+  const clip = await env.DB.prepare(`${CLIP_SOURCE_SQL} WHERE c.id = ? AND c.dump_id = ?`).bind(clipId, dumpId).first<ClipSourceDb & { muted: number }>();
   if (!clip || !clip.pending_look || !isLookId(clip.pending_look)) throw new Error("clip has no pending look");
   if (clip.raw_deleted_at) throw new Error("clip source cleared");
   const ctx = await renderContext(env);
@@ -360,7 +426,8 @@ async function buildRerenderSpec(env: Env, jobId: string, dumpId: string, clipId
   // Change music (Review): "none", one of her songs, else the song it had (or Settings' for a clip that had none).
   const tracks = await tracksOf(env);
   const musicChoice = clip.pending_music === "none" ? "none" : clip.pending_music ? `track:${clip.pending_music}` : null;
-  const kept = clip.music ? tracks.filter((t) => t.r2_key === clip.music).map((t) => ({ r2_key: t.r2_key })) : [];
+  // The song it had: one of hers, or a built-in track (a clip with its camera sound off).
+  const kept = clip.music ? (libraryTrack(clip.music) ? [{ r2_key: clip.music }] : tracks.filter((t) => t.r2_key === clip.music).map((t) => ({ r2_key: t.r2_key }))) : [];
   const music = musicChoice ? steerMusic(cleanControls({ music: musicChoice }, tracks).controls, tracks, []) : kept.length ? kept : ctx.music;
   const look = steerLook(resolveLook(clip.pending_look, lastCaption?.status === "failed" ? ctx.own : ctx.editing, music.length > 0), musicChoice ? { music: musicChoice as SteerControls["music"] } : kept.length ? { music: "any" } : {});
   const parts = clipParts(clip);
@@ -400,6 +467,7 @@ async function buildRerenderSpec(env: Env, jobId: string, dumpId: string, clipId
     voice,
     branding: ctx.branding,
     music,
+    muted: !!clip.muted,
     output_key: keys.mp4,
     output_cover_key: keys.jpg,
   };
@@ -432,6 +500,8 @@ export interface CutResultClip {
   music?: string | null;
   /** How much of it has her talking (0..1); null = not measured. */
   speech?: number | null;
+  /** Cut with the camera sound off (none of the video's own sound is in it). */
+  muted?: boolean;
 }
 
 export interface CutResult {
@@ -490,6 +560,7 @@ export interface CleanClip {
   layout: GridLayout | null;
   music: string | null;
   speech: number | null;
+  muted: boolean;
 }
 
 export class CutResultError extends Error {
@@ -596,11 +667,20 @@ export function parseCutResult(
       look,
       parts: cleanParts(c.parts, start, end),
       layout: look && isGridLook(look) ? (cleanGridLayout(look, c.layout) ?? defaultGridLayout(look, [])) : null,
-      music: typeof c.music === "string" && /^music\/[A-Za-z0-9_]{4,60}$/.test(c.music) ? c.music : null,
-      speech: typeof c.speech === "number" && Number.isFinite(c.speech) && c.speech >= 0 && c.speech <= 1 ? Math.round(c.speech * 1000) / 1000 : null,
+      music: songKey(c.music),
+      // A muted clip has no talking of its own (automatic voice over applies), whatever the job said.
+      speech: c.muted === true ? 0 : typeof c.speech === "number" && Number.isFinite(c.speech) && c.speech >= 0 && c.speech <= 1 ? Math.round(c.speech * 1000) / 1000 : null,
+      muted: c.muted === true,
     });
   }
   return { clips, dropped };
+}
+
+/** A song key the job may report: one of her uploads, or a built-in library track that exists. */
+export function songKey(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  if (/^music\/[A-Za-z0-9_]{4,60}$/.test(v)) return v;
+  return libraryTrack(v) ? v : null;
 }
 
 /** The parts a clip plays: at most 4, each inside the source's 0 … end_s + 1 h, else [start, end]. */
@@ -633,6 +713,7 @@ async function applyResult(env: Env, jobId: string, refId: string | null, result
   const ref = parseCutRef(refId);
   if (!ref) throw new CutResultError("cut job has no dump");
   if (ref.import) return applyImport(env, jobId, ref.dumpId, ref.clipId, result);
+  if (ref.again && ref.clipId) return applyAgain(env, jobId, ref.dumpId, ref.clipId, result);
   if (ref.clipId) return applyRerender(env, jobId, ref.dumpId, ref.clipId, result);
   return applyDumpClips(env, jobId, ref.dumpId, result, {});
 }
@@ -659,11 +740,11 @@ export async function applyDumpClips(env: Env, jobId: string, dumpId: string, re
   for (const c of clips) {
     stmts.push(
       env.DB.prepare(
-        `INSERT INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, hook_text, hook_alt, caption, hashtags, platforms, score, r2_key, cover_r2_key, media_token, status, hidden, look, parts, layout, edited_with, music, speech)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, hook_text, hook_alt, caption, hashtags, platforms, score, r2_key, cover_r2_key, media_token, status, hidden, look, parts, layout, edited_with, music, speech, muted)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         c.id, c.asset_id, dumpId, c.start_s, c.end_s, c.recipe, c.hook_text, c.hook_alt, c.caption, c.hashtags, JSON.stringify(c.platforms), c.score, c.r2_key, c.cover_r2_key, mediaToken(), c.hidden ? 1 : 0,
-        opts.editor ? null : c.look, JSON.stringify(c.parts), opts.editor ? null : c.layout ? JSON.stringify(c.layout) : null, opts.editor ?? null, c.music, c.speech,
+        opts.editor ? null : c.look, JSON.stringify(c.parts), opts.editor ? null : c.layout ? JSON.stringify(c.layout) : null, opts.editor ?? null, c.music, c.speech, c.muted ? 1 : 0,
       ),
     );
   }
@@ -715,7 +796,7 @@ export async function steerOutcome(env: Env, dumpId: string, report: unknown, cl
   for (const a of assetNotes) nf.push(...(readUnderstood(a.steer_notes)?.not_followed ?? []));
   // Voice over "on quiet clips" asked for (chip or note) while her voice isn't saved: said, never dropped.
   const askedVoice = [mergeControls(chips, note?.controls ?? {}).controls.voice, ...assetNotes.map((a) => readUnderstood(a.steer_notes)?.controls.voice)];
-  if (askedVoice.includes("quiet") && !(await hasVoiceSample(env)))
+  if (askedVoice.includes("quiet") && !(await voiceReady(env)))
     nf.push({ what: "voice overs on the quiet clips", why: "your voice isn't saved yet (Voice overs, the steps at the top), so none were made; once it is, tap Add voice over on a clip in Review" });
   if (Array.isArray(report))
     for (const r of report.slice(0, 20)) if (r && typeof r.what === "string" && typeof r.why === "string") nf.push({ what: r.what.slice(0, 120), why: r.why.slice(0, 240) });
@@ -733,7 +814,7 @@ export function parseRerender(result: unknown, expect: { clipId: string; look: s
   if (r.clip_id !== expect.clipId || r.look !== expect.look || r.r2_key !== expect.mp4 || r.cover_r2_key !== expect.jpg) throw new CutResultError("re-render result does not match its clip");
   const d = Number(r.duration_s);
   const v = typeof r.voice === "number" ? r.voice : NaN;
-  const music = typeof r.music === "string" && /^music\/[A-Za-z0-9_]{4,60}$/.test(r.music) ? r.music : null;
+  const music = songKey(r.music);
   return { duration_s: Number.isFinite(d) && d > 0 ? d : null, voice: Number.isInteger(v) && v >= 0 ? v : null, music };
 }
 
@@ -796,13 +877,46 @@ async function applyRerender(env: Env, _jobId: string, dumpId: string, clipId: s
   log.info("cut.rerender.apply", {});
 }
 
+/** The sentence on the clip when Try another version (with notes) fails; the clip stays as it was. */
+export const AGAIN_FAILED = "The new version didn't finish, so your clip is unchanged. Try another version again.";
+
+/**
+ * Try another version with notes: the new cut replaces this clip in place (same id, so its place
+ * in Review, its platforms and its status stay); the old files go once the new ones are in.
+ */
+async function applyAgain(env: Env, jobId: string, dumpId: string, clipId: string, result: unknown): Promise<void> {
+  const clip = await env.DB.prepare("SELECT id, status, r2_key, cover_r2_key, asset_id, rerender_job_id FROM clips WHERE id = ? AND dump_id = ?").bind(clipId, dumpId).first<{ id: string; status: string; r2_key: string; cover_r2_key: string | null; asset_id: string; rerender_job_id: string | null }>();
+  const got = (result as { again?: unknown } | null)?.again;
+  const parsed = parseCutResult({ clips: got ? [got] : [] }, { dumpId, allowed: new Map([[clip?.asset_id ?? "", [...PLATFORMS]]]), rawKeys: new Set() });
+  const fresh = parsed.clips[0];
+  if (!clip || clip.status === "deleted" || clip.rerender_job_id !== jobId || !fresh) {
+    if (fresh) await env.FILES.delete([fresh.r2_key, fresh.cover_r2_key].filter((k): k is string => !!k));
+    if (!fresh) throw new CutResultError("no usable clips");
+    log.info("cut.again.orphan", {});
+    return;
+  }
+  await env.DB.prepare(
+    `UPDATE clips SET start_s = ?, end_s = ?, recipe = ?, hook_text = ?, hook_alt = ?, caption = ?, hashtags = ?, score = ?, r2_key = ?, cover_r2_key = ?, look = ?, parts = ?, layout = ?,
+       music = ?, speech = ?, muted = ?, pending_look = NULL, pending_layout = NULL, pending_music = NULL, rerender_job_id = NULL, rerender_error = NULL, media_version = media_version + 1, edited_with = NULL WHERE id = ?`,
+  )
+    .bind(fresh.start_s, fresh.end_s, fresh.recipe, fresh.hook_text, fresh.hook_alt, fresh.caption, fresh.hashtags, fresh.score, fresh.r2_key, fresh.cover_r2_key, fresh.look, JSON.stringify(fresh.parts), fresh.layout ? JSON.stringify(fresh.layout) : null, fresh.music, fresh.speech, fresh.muted ? 1 : 0, clipId)
+    .run();
+  const old = [clip.r2_key, clip.cover_r2_key].filter((k): k is string => !!k && k !== fresh.r2_key && k !== fresh.cover_r2_key);
+  if (old.length) await env.FILES.delete(old);
+  // A voice over made for the old moment no longer fits: it goes; a new one is made for a clip with no talking.
+  await removeVoiceOver(env, clipId);
+  await autoVoiceDump(env, dumpId);
+  await recordEvent(env.DB, "clip.again_applied", clipId, {});
+  log.info("cut.again.apply", { muted: fresh.muted });
+}
+
 async function onFailure(env: Env, jobId: string, refId: string | null, safeError: string): Promise<void> {
   const ref = parseCutRef(refId);
   if (!ref) return;
   if (ref.import) return importFailed(env, ref.dumpId, ref.clipId, safeError);
   if (ref.clipId) {
     await env.DB.prepare("UPDATE clips SET pending_look = NULL, pending_layout = NULL, pending_music = NULL, rerender_job_id = NULL, rerender_error = ? WHERE id = ? AND rerender_job_id = ?")
-      .bind(RERENDER_FAILED, ref.clipId, jobId)
+      .bind(ref.again ? AGAIN_FAILED : RERENDER_FAILED, ref.clipId, jobId)
       .run();
     log.warn("cut.rerender.failed", { len: safeError.length });
     return;
@@ -854,6 +968,20 @@ async function fakeRun(env: Env, jobId: string, refId: string | null, options: R
   const ref = parseCutRef(refId);
   if (!ref) throw new Error("cut job has no dump");
   if (ref.import) return fakeImport(env, jobId, ref.dumpId, ref.clipId, options, unb64(FAKE_MP4_B64), unb64(FAKE_JPG_B64[0]));
+  if (ref.again && ref.clipId) {
+    // The fake "another version": a new file and a new hook for the same video, as the real job.
+    const spec = await buildAgainSpec(env, jobId, ref.dumpId, ref.clipId);
+    const id = newId("clp", 16);
+    const key = `${spec.output_prefix}${id}.mp4`;
+    const cover = `${spec.output_prefix}${id}.jpg`;
+    await env.FILES.put(key, unb64(FAKE_MP4_B64), { httpMetadata: { contentType: "video/mp4" } });
+    await env.FILES.put(cover, unb64(FAKE_JPG_B64[1]), { httpMetadata: { contentType: "image/jpeg" } });
+    const muted = spec.camera === "off";
+    const start = (spec.avoid_windows[0]?.end ?? 0) + 1;
+    return {
+      again: { id, asset_id: spec.assets[0]!.id, start_s: start, end_s: start + 20, recipe: "montage", hook_text: spec.change_request ? "A fresh take" : "Another take", hook_alt: null, caption: "Another version.", hashtags: "#creator", platforms: spec.assets[0]!.allowed_platforms, score: 0.7, r2_key: key, cover_r2_key: cover, look: spec.rotation[0], parts: [[start, start + 20]], layout: null, music: muted ? "library/bright-morning" : null, speech: muted ? 0 : 0.6, muted },
+    };
+  }
   if (ref.clipId) {
     // The fake re-render copies the clip's file to the new name, as the real job uploads a new one.
     const spec = await buildRerenderSpec(env, jobId, ref.dumpId, ref.clipId);
@@ -900,8 +1028,9 @@ async function fakeRun(env: Env, jobId: string, refId: string | null, options: R
       parts: [[start, start + len]],
       layout: null,
       music: spec.looks[look]?.music && spec.music.length ? spec.music[i % spec.music.length].r2_key : null,
-      // A montage is b-roll with no talking (the real job measures it from the transcript).
-      speech: recipe === "montage" ? 0.04 : 0.72,
+      // A montage is b-roll with no talking (the real job measures it from the transcript); camera sound off = no talking, music always.
+      speech: spec.camera === "off" ? 0 : recipe === "montage" ? 0.04 : 0.72,
+      ...(spec.camera === "off" ? { muted: true, music: spec.music[i % Math.max(1, spec.music.length)]?.r2_key ?? `library/${["bright-morning", "pop-up"][i % 2]}` } : {}),
     });
   }
   // Grid Looks: the other clips of this dump fill the cells, as the real job does.

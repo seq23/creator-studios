@@ -31,6 +31,7 @@ import { getLlm } from "../services/openrouter";
 import { kitName, lockedProfile, themeList } from "./mediakit";
 import type { Features } from "@shared/types";
 import { autoVoiceState } from "../domain/autoVoice";
+import { stockVoice, voiceReady } from "../lib/autoVoice";
 import { DEFAULT_FEATURES } from "@shared/constants";
 
 /** Voice overs per page on the Voice overs screen (day 358). */
@@ -116,7 +117,10 @@ voice.get("/", async (c) => {
     enabled: await featureOn(c.env),
     hasSample: !!v.sample_r2_key && !!v.consent_at,
     /** "on", "needs_voice" (on, but her voice isn't saved yet: a quiet state, never an error) or "off". */
-    auto: autoVoiceState(await featureOn(c.env), !!v.sample_r2_key && !!v.consent_at),
+    auto: autoVoiceState(await featureOn(c.env), await voiceReady(c.env)),
+    /** Voice overs can be made now: a stock voice (Settings → Sound) or her saved recording. */
+    ready: await voiceReady(c.env),
+    stock_voice: await stockVoice(c.env),
     consent_at: v.consent_at,
     consent_line: CONSENT_LINE,
     hasModel: !!v.model_r2_key,

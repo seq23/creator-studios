@@ -7,6 +7,7 @@
 // dump's note > surprise (the built-in variety). A clash is said, never guessed away.
 import { PLATFORMS, RECIPES, type Platform, type Recipe } from "@shared/constants";
 import { CAPTION_CHOICES, CAPTION_LABEL, LENGTHS, MAX_COUNT, PACES, STEER_KEYS, VOICE_CHOICES, VOICE_LABEL, type VoiceChoice, type CaptionChoice, type Length, type NotFollowed, type Pace, type SteerControls, type Understood } from "@shared/steer";
+import { CAMERA_LABEL, CAMERA_SOUNDS, libraryKey, MUSIC_LIBRARY, type CameraSound } from "@shared/sound";
 import { GRIDS, LOOKS, LOOK_IDS, isGridLook, isLookId, lookById, type LookId, type ResolvedLook } from "./looks";
 
 export interface Track {
@@ -52,6 +53,7 @@ export function cleanControls(input: unknown, tracks: readonly Track[]): { contr
     if (p.length) out.platforms = p;
   }
   if (typeof v.voice === "string" && (VOICE_CHOICES as readonly string[]).includes(v.voice)) out.voice = v.voice as VoiceChoice;
+  if (typeof v.camera === "string" && (CAMERA_SOUNDS as readonly string[]).includes(v.camera)) out.camera = v.camera as CameraSound;
   const words = (x: unknown) => (Array.isArray(x) ? [...new Set(x.filter((w): w is string => typeof w === "string").map((w) => w.trim().slice(0, 60)).filter((w) => w.length >= 2))].slice(0, 8) : []);
   const inc = words(v.include);
   const avo = words(v.avoid);
@@ -61,6 +63,8 @@ export function cleanControls(input: unknown, tracks: readonly Track[]): { contr
 }
 
 // ---------------------------------------------------------------- reading a note
+
+const NO_SONGS = "you haven't added songs yet (Settings → Editing → My music), so the studio's built-in music was used";
 
 interface LookRule {
   re: RegExp;
@@ -142,15 +146,24 @@ export function parseNotes(text: string, tracks: readonly Track[]): Understood {
       const hit = tracks.find((tr) => tr.name.toLowerCase().includes(want) || want.split(/\s+/).filter((w) => w.length >= 3).some((w) => tr.name.toLowerCase().includes(w)));
       if (hit) c.music = `track:${hit.id}`;
       else if (/^(upbeat|chill|happy|calm|fun|sad|my|a|the|some|any)$/.test(want)) c.music = "any";
-      else nf.push({ what: `the song "${want}"`, why: tracks.length ? "there is no song by that name in My music, so your other songs were used" : "you haven't added songs yet (Settings → Editing → My music), so no music was used" });
+      else {
+        // No songs of hers at all: the built-in music plays (said); with songs, the Settings choice stands.
+        if (!tracks.length) c.music = "any";
+        nf.push({ what: `the song "${want}"`, why: tracks.length ? "there is no song by that name in My music, so your other songs were used" : NO_SONGS });
+      }
     } else if (/\b(with music|add music|some music|music on|background music|upbeat music|use my music|my songs?)\b/.test(t)) c.music = "any";
   }
   // Quoted words are names (songs, captions she typed), never instructions for the rules below.
   t = t.replace(/["“][^"”]*["”]/g, " ");
   if ((c.music === "any" || c.music?.startsWith("track:")) && !tracks.length) {
-    nf.push({ what: "music", why: "you haven't added songs yet (Settings → Editing → My music), so no music was used" });
-    delete c.music;
+    // The built-in music library plays instead: music she asked for is never dropped.
+    if (!nf.some((x) => x.why === NO_SONGS)) nf.push({ what: "your songs", why: NO_SONGS });
+    c.music = "any";
   }
+
+  // camera sound (shared/sound.ts)
+  if (/\b(no camera sound|camera sound off|mute (?:the )?(?:videos?|clips?|camera|sound|audio)|no (?:background|original|video) (?:sound|audio|noise)|(?:without|drop|remove|lose|cut) (?:the )?(?:camera |background |original )?(?:sound|audio|noise)|music only|just music)\b/.test(t)) c.camera = "off";
+  else if (/\b(keep (?:the |my )?(?:camera |original )?(?:sound|audio)|keep what i (?:say|said)|camera sound on|with (?:the )?(?:camera|original) sound)\b/.test(t)) c.camera = "keep";
 
   // pace
   if (/\b(fast|punchy|quick cuts?|snappy|high[- ]energy|hype|energetic)\b/.test(t)) c.pace = "fast";
@@ -245,7 +258,7 @@ export function describe(c: SteerControls, tracks: readonly Track[]): string[] {
   const out: string[] = [];
   if (c.looks?.length) out.push(`Look: ${lookNames(c.looks)}${c.looks.length === 1 && isGridLook(c.looks[0]) ? ` (${GRIDS[lookById(c.looks[0])!.grid!].cells.length} cells)` : ""}`);
   if (c.music === "none") out.push("Music: none");
-  else if (c.music === "any") out.push("Music: your songs");
+  else if (c.music === "any") out.push(tracks.length ? "Music: your songs" : "Music: the studio's built-in music");
   else if (c.music?.startsWith("track:")) out.push(`Music: "${tracks.find((t) => `track:${t.id}` === c.music)?.name ?? "your song"}"`);
   if (c.pace) out.push(`Pace: ${c.pace}`);
   if (c.length) out.push(`Clip length: ${LENGTHS[c.length].label.toLowerCase()}`);
@@ -253,6 +266,7 @@ export function describe(c: SteerControls, tracks: readonly Track[]): string[] {
   if (c.captions) out.push(`Captions: ${CAPTION_LABEL[c.captions].toLowerCase()}`);
   if (c.platforms) out.push(`For: ${c.platforms.map((p) => PLATFORM_NAME[p]).join(", ")}`);
   if (c.voice) out.push(`Voice over: ${c.voice === "pick" ? "none now, you pick in Review" : VOICE_LABEL[c.voice].toLowerCase()}`);
+  if (c.camera) out.push(`Camera sound: ${CAMERA_LABEL[c.camera].toLowerCase()}`);
   if (c.include?.length) out.push(`Must include: ${c.include.map((x) => `"${x}"`).join(", ")}`);
   if (c.avoid?.length) out.push(`Leave out: ${c.avoid.map((x) => `"${x}"`).join(", ")}`);
   return out;
@@ -296,10 +310,13 @@ export function steerLook(look: ResolvedLook, c: SteerControls): ResolvedLook {
   return out;
 }
 
-/** Her songs for this dump: none, all of them in turn, or the one she named. */
+/** The built-in music, one track per clip in turn (shared/sound.ts MUSIC_LIBRARY, CC0). */
+export const LIBRARY_MUSIC: { r2_key: string }[] = MUSIC_LIBRARY.map((t) => ({ r2_key: libraryKey(t.id) }));
+
+/** Her songs for this dump: none, all of them in turn (the built-in music when she has none), or the one she named. */
 export function steerMusic(c: SteerControls, tracks: readonly { id: string; r2_key: string }[], settingsList: { r2_key: string }[]): { r2_key: string }[] {
   if (c.music === "none") return [];
-  if (c.music === "any") return tracks.map((t) => ({ r2_key: t.r2_key }));
+  if (c.music === "any") return tracks.length ? tracks.map((t) => ({ r2_key: t.r2_key })) : LIBRARY_MUSIC;
   if (c.music?.startsWith("track:")) return tracks.filter((t) => `track:${t.id}` === c.music).map((t) => ({ r2_key: t.r2_key }));
   return settingsList;
 }
@@ -342,7 +359,7 @@ export function whatWeTried(clips: readonly { look: string | null; music: string
   for (const c of clips) if (c.look) looks.set(c.look, (looks.get(c.look) ?? 0) + 1);
   const grids = clips.filter((c) => isGridLook(c.look)).length;
   const withMusic = clips.filter((c) => c.music);
-  const songs = new Set(withMusic.map((c) => tracks.find((t) => t.r2_key === c.music)?.name ?? "a song"));
+  const songs = new Set(withMusic.map((c) => tracks.find((t) => t.r2_key === c.music)?.name ?? (c.music?.startsWith("library/") ? "the studio's music" : "a song")));
   const top = [...looks.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([id]) => lookById(id)?.name ?? id);
   const parts = [`${clips.length} clip${clips.length === 1 ? "" : "s"} in ${looks.size} look${looks.size === 1 ? "" : "s"} (${top.join(", ")}${looks.size > 4 ? ", …" : ""})`];
   parts.push(grids ? `${grids} grid${grids === 1 ? "" : "s"}` : "no grids");

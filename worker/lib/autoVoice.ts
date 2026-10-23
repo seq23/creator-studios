@@ -25,11 +25,26 @@ import { parseJson } from "./db";
 import { kitName, lockedProfile } from "../routes/mediakit";
 import { DEFAULT_FEATURES } from "@shared/constants";
 import type { Features } from "@shared/types";
+import { readSound } from "../routes/settings";
 
 export const AUTO_BATCH_PREFIX = "auto/";
 
 export async function autoVoiceOn(env: Env): Promise<boolean> {
   return !!(await getSetting<Features>(env.DB, "features", { ...DEFAULT_FEATURES })).voice;
+}
+
+/**
+ * A voice the voice overs can use: the stock voice when the studio uses one (Settings → Sound,
+ * shared/sound.ts), else her own recorded sample.
+ */
+export async function voiceReady(env: Env): Promise<boolean> {
+  return (await readSound(env)).voice_source === "stock" || (await hasVoiceSample(env));
+}
+
+/** The stock voice's id when voice overs use one, else null (her own recorded voice). */
+export async function stockVoice(env: Env): Promise<string | null> {
+  const s = await readSound(env);
+  return s.voice_source === "stock" ? s.stock_voice : null;
 }
 
 export async function hasVoiceSample(env: Env): Promise<boolean> {
@@ -67,13 +82,15 @@ export async function draftScript(env: Env, clip: TargetClip): Promise<string> {
 async function voiceClips(env: Env, items: { clip: TargetClip; script: string; auto: boolean }[]): Promise<{ batch: string | null; premium: number; builtIn: number }> {
   if (!items.length) return { batch: null, premium: 0, builtIn: 0 };
   const batch = newId("vb");
-  const cloned = await ensurePremiumVoice(env);
+  // A stock voice is spoken on the job runner; the premium engine clones HER voice, so it is skipped then.
+  const stock = await stockVoice(env);
+  const cloned = stock ? { voiceId: null } : await ensurePremiumVoice(env);
   const choice = await currentEngine(env);
   let premium = 0;
   let builtIn = 0;
   for (const it of items) {
     const id = newId("nar");
-    const usePremium = choice.engine === "elevenlabs" && !!(choice.state.voiceId ?? cloned.voiceId);
+    const usePremium = !stock && choice.engine === "elevenlabs" && !!(choice.state.voiceId ?? cloned.voiceId);
     await env.DB.prepare("INSERT INTO narrations (id, script, clip_id, status, engine, auto, ai_generated, batch, mix_status) VALUES (?, ?, ?, ?, ?, ?, 1, ?, 'mixing')")
       .bind(id, it.script, it.clip.id, usePremium ? "generating" : "queued", usePremium ? "elevenlabs" : "built-in", it.auto ? 1 : 0, batch)
       .run();
@@ -102,7 +119,7 @@ async function voiceClips(env: Env, items: { clip: TargetClip; script: string; a
  * dump's note > the Settings switch (worker/domain/autoVoice.ts voiceFor).
  */
 export async function voicePlans(env: Env, dumpId: string): Promise<{ dump: VoicePlan; assets: Map<string, VoicePlan> }> {
-  const [on, sample, tracks] = [await autoVoiceOn(env), await hasVoiceSample(env), await tracksOf(env)];
+  const [on, sample, tracks] = [await autoVoiceOn(env), await voiceReady(env), await tracksOf(env)];
   const dump = await env.DB.prepare("SELECT steer, steer_notes FROM dumps WHERE id = ?").bind(dumpId).first<{ steer: string | null; steer_notes: string | null }>();
   const chips = cleanControls(parseJson(dump?.steer ?? null, {}), tracks).controls;
   const note = readUnderstood(dump?.steer_notes ?? null)?.controls ?? {};
@@ -136,6 +153,27 @@ export async function autoVoiceDump(env: Env, dumpId: string): Promise<{ state: 
   await recordEvent(env.DB, "voice.auto", dumpId, { clips: targets.length, premium: r.premium, built_in: r.builtIn });
   log.info("voice.auto", { clips: targets.length, premium: r.premium, built_in: r.builtIn });
   return { state: "voiced", clips: targets.length };
+}
+
+/**
+ * "Add voice over to all clips in this dump" (Review): every clip of the dump with no talking that
+ * has no voice over yet gets one, in ONE voice job run, whatever the dump's plan was. Clips where
+ * someone talks never do. Returns how many were started (0 = nothing to voice).
+ */
+export async function voiceAllInDump(env: Env, dumpId: string): Promise<{ clips: number; started: boolean }> {
+  const { results } = await env.DB.prepare(
+    "SELECT c.id, c.hook_text, c.caption, c.start_s, c.end_s, c.speech FROM clips c WHERE c.dump_id = ? AND c.status IN ('draft', 'approved') AND c.full_video = 0 AND NOT EXISTS (SELECT 1 FROM narrations n WHERE n.clip_id = c.id)",
+  )
+    .bind(dumpId)
+    .all<TargetClip>();
+  const targets = results.filter((c) => isSilentClip(c.speech));
+  if (!targets.length) return { clips: 0, started: false };
+  const items = [];
+  for (const clip of targets) items.push({ clip, script: await draftScript(env, clip), auto: true });
+  const r = await voiceClips(env, items);
+  await recordEvent(env.DB, "voice.all", dumpId, { clips: targets.length });
+  log.info("voice.all", { clips: targets.length, started: !!r.batch });
+  return { clips: targets.length, started: !!r.batch };
 }
 
 /** Remove: the clip goes back to its own sound; the voice over and its mixed file are deleted. */

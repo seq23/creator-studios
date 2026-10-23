@@ -115,7 +115,7 @@ test.describe("voice", () => {
     await page.getByRole("tab", { name: /Approved/ }).click();
     const voiced = page.locator('[data-clip-id="demo_clip_1"]');
     // one she attached herself: no "added automatically", and the AI label is said before it posts
-    await expect(voiced.locator('[data-voice-over="ready"]')).toHaveText("With your voice over · AI-labelled when it posts");
+    await expect(voiced.locator('[data-voice-over="ready"]')).toHaveText("With a voice over · Made with AI");
     await expect(voiced.getByLabel("Play this clip")).toHaveAttribute("src", new RegExp(`\\?v=${id}$`));
     const [demo] = sql<{ media_token: string }>("SELECT media_token FROM clips WHERE id = 'demo_clip_1'");
     expect((await page.request.get(`/media/${demo.media_token}`)).status()).toBe(200);

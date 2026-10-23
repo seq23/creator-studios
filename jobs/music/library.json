@@ -1,0 +1,85 @@
+{
+  "_why": "The built-in music library (owner, 22 Oct 2026): clips with the camera sound off never go out silent; with no songs of her own, the studio uses these. Every track is an original instrumental generated from scratch by scripts/make-music.py in this repository (no samples, no third-party material) and dedicated to the public domain under CC0 1.0, so it is free for commercial use on every platform. $0, no paid service.",
+  "tracks": [
+    {
+      "id": "bright-morning",
+      "title": "Bright Morning",
+      "mood": "upbeat",
+      "seconds": 48.0,
+      "file": "jobs/music/bright-morning.mp3",
+      "source": "scripts/make-music.py (original, generated in this repository)",
+      "licence": "CC0 1.0 Universal (public domain dedication)",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    {
+      "id": "easy-stroll",
+      "title": "Easy Stroll",
+      "mood": "warm",
+      "seconds": 48.0,
+      "file": "jobs/music/easy-stroll.mp3",
+      "source": "scripts/make-music.py (original, generated in this repository)",
+      "licence": "CC0 1.0 Universal (public domain dedication)",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    {
+      "id": "pop-up",
+      "title": "Pop Up",
+      "mood": "upbeat",
+      "seconds": 48.0,
+      "file": "jobs/music/pop-up.mp3",
+      "source": "scripts/make-music.py (original, generated in this repository)",
+      "licence": "CC0 1.0 Universal (public domain dedication)",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    {
+      "id": "slow-glow",
+      "title": "Slow Glow",
+      "mood": "warm",
+      "seconds": 48.0,
+      "file": "jobs/music/slow-glow.mp3",
+      "source": "scripts/make-music.py (original, generated in this repository)",
+      "licence": "CC0 1.0 Universal (public domain dedication)",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    {
+      "id": "ready-set",
+      "title": "Ready Set",
+      "mood": "upbeat",
+      "seconds": 48.0,
+      "file": "jobs/music/ready-set.mp3",
+      "source": "scripts/make-music.py (original, generated in this repository)",
+      "licence": "CC0 1.0 Universal (public domain dedication)",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    {
+      "id": "golden-hour",
+      "title": "Golden Hour",
+      "mood": "warm",
+      "seconds": 48.0,
+      "file": "jobs/music/golden-hour.mp3",
+      "source": "scripts/make-music.py (original, generated in this repository)",
+      "licence": "CC0 1.0 Universal (public domain dedication)",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    {
+      "id": "sunday-best",
+      "title": "Sunday Best",
+      "mood": "upbeat",
+      "seconds": 48.0,
+      "file": "jobs/music/sunday-best.mp3",
+      "source": "scripts/make-music.py (original, generated in this repository)",
+      "licence": "CC0 1.0 Universal (public domain dedication)",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    {
+      "id": "big-reveal",
+      "title": "Big Reveal",
+      "mood": "upbeat",
+      "seconds": 48.0,
+      "file": "jobs/music/big-reveal.mp3",
+      "source": "scripts/make-music.py (original, generated in this repository)",
+      "licence": "CC0 1.0 Universal (public domain dedication)",
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    }
+  ]
+}

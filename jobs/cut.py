@@ -470,6 +470,7 @@ def llm_moments(asset: dict[str, Any], duration: float, transcript: Transcript, 
             "video_seconds": round(duration, 1),
             "dump_notes": spec.get("notes", ""),
             "file_note": asset.get("file_note") or "",
+            "change_request": spec.get("change_request") or "",
             "must_include": st.get("include") or [],
             "leave_out": st.get("avoid") or [],
             "brand_profile": spec.get("brand_profile") or {},
@@ -625,6 +626,9 @@ class Source:
     runs: list[tuple[float, float]]
     bars: tuple[int, int, int, int] | None = None
     faces: dict[tuple[float, float], float | None] = field(default_factory=dict)
+    # Camera sound off (worker/domain/footage camera rules, the Dump chip / Settings): the clip plays
+    # none of this video's own sound, nothing it said is transcribed, and it counts as having no talking.
+    muted: bool = False
 
     def seg(self, s: float, e: float, mediapipe: bool, zoom: float = 1.0) -> L.Seg:
         key = (round(s, 1), round(e, 1))
@@ -686,6 +690,8 @@ def speech_share(src: "Source", stretches: list[tuple[float, float]]) -> float:
     """How much of a clip has her talking (0..1): her words' time when there is a transcript, else
     the non-silent stretches. The Worker voices over a clip automatically only under 15%
     (worker/domain/autoVoice.ts isSilentClip)."""
+    if src.muted:
+        return 0.0
     total = sum(max(0.0, e - s) for s, e in stretches) or 1.0
     if src.transcript.words:
         spoken = sum(max(0.0, min(e, w.end) - max(s, w.start)) for s, e in stretches for w in src.transcript.words if w.end > s and w.start < e)
@@ -694,18 +700,120 @@ def speech_share(src: "Source", stretches: list[tuple[float, float]]) -> float:
     return round(min(1.0, spoken / total), 3)
 
 
-def music_key(spec: dict[str, Any], k: int) -> str | None:
-    """The song clip k gets (her uploads only, one per clip in turn), or None."""
-    tracks = [t for t in (spec.get("music") or []) if isinstance(t, dict) and str(t.get("r2_key", "")).startswith("music/")]
-    return str(tracks[k % len(tracks)]["r2_key"]) if tracks else None
+# ---------------------------------------------------------------- camera sound
+
+CAMERA_MODES = ("auto", "keep", "off")
+# Auto: under this share of the video covered by clear words, what the camera heard is background
+# talk or room noise, not someone talking to the camera, so the sound is dropped.
+TALK_SHARE_KEEP = 0.3
 
 
-def music_for(spec: dict[str, Any], k: int, work: Path, download: "Downloader", cache: dict[str, Path]) -> Path | None:
-    """Her own uploaded songs only (Settings > Editing > My music), one per clip in turn."""
-    tracks = [t for t in (spec.get("music") or []) if isinstance(t, dict) and str(t.get("r2_key", "")).startswith("music/")]
-    if not tracks:
+def camera_mode(spec: dict[str, Any], asset: dict[str, Any] | None) -> str:
+    """Camera sound for a video: its own note's choice, else the dump's (chip > note > Settings)."""
+    m = ((asset or {}).get("steer") or {}).get("camera") or spec.get("camera") or "keep"
+    return m if m in CAMERA_MODES else "keep"
+
+
+def camera_keep(mode: str, transcript: "Transcript", duration: float) -> tuple[bool, str]:
+    """Whether a video keeps its own sound, and why (a code for the log and the dump's line).
+    off: never. keep: always. auto: only when clear talk covers enough of it; with no transcript
+    (the speech tools are not installed) the sound is kept, since talk cannot be told from noise."""
+    if mode == "off":
+        return False, "off"
+    if mode != "auto":
+        return True, "keep"
+    if transcript.engine in ("none", "muted"):
+        return True, "unmeasured"
+    talk = sum(max(0.0, w.end - w.start) for w in transcript.words) / max(1.0, duration)
+    return (True, "talking") if talk >= TALK_SHARE_KEEP else (False, "little_talk")
+
+
+def avoid_overlap(m: "Moment", avoid: list[dict[str, Any]]) -> float:
+    """How much of a moment is a stretch she asked for another version of (0..1)."""
+    length = max(0.01, m.end - m.start)
+    got = 0.0
+    for w in avoid:
+        if str(w.get("asset_id")) == m.asset_id:
+            got += max(0.0, min(m.end, float(w.get("end", 0))) - max(m.start, float(w.get("start", 0))))
+    return min(1.0, got / length)
+
+
+def llm_copy(asset: dict[str, Any], spec: dict[str, Any], n: int) -> list[dict[str, Any]] | None:
+    """Hooks and captions for clips with no sound of their own: from her notes and Brand Profile
+    only (nothing was heard). None means the starter lines are used."""
+    key = spec.get("llm_key") or os.environ.get("OPENROUTER_API_KEY")
+    if not key or n <= 0:
         return None
-    key = str(tracks[k % len(tracks)]["r2_key"])
+    prof = spec.get("brand_profile") or {}
+    system = (
+        "You write on-screen hooks and captions for short vertical videos for one business or creator. The videos have no "
+        "talking: write only from the notes and the Brand Profile; never invent prices, names, places or details that are not "
+        "in them, and never write about a topic the notes do not name. Answer with JSON only: "
+        "{\"items\":[{\"hook\":str,\"hook_alt\":str,\"caption\":str,\"hashtags\":[str]}]} with exactly how_many items, "
+        "each different. hook and hook_alt are on-screen text, max 8 words each. caption max 150 characters in their voice "
+        "with one call to action from their list. 3-5 hashtags."
+    )
+    user = json.dumps(
+        {
+            "how_many": n,
+            "dump_notes": spec.get("notes", ""),
+            "file_note": asset.get("file_note") or "",
+            "change_request": spec.get("change_request") or "",
+            "brand_profile": {k: prof.get(k, "") for k in ("who", "voice", "themes", "do_dont", "off_limits", "ctas")},
+        }
+    )
+    payload = {"model": OPENROUTER_MODEL, "max_tokens": 1500, "response_format": {"type": "json_object"}, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
+    for attempt in range(2):
+        try:
+            text, _ = openrouter_content(key, payload, timeout=90, usable=json_object_in)
+            m = re.search(r"\{.*\}", text, re.S)
+            items = [it for it in json.loads(m.group(0) if m else text).get("items", []) if isinstance(it, dict) and str(it.get("hook", "")).strip()]
+            log("copy.model", ok=True, items=len(items))
+            return items or None
+        except Exception:  # noqa: BLE001
+            log("copy.model", ok=False, attempt=attempt)
+            time.sleep(3)
+    return None
+
+
+MUSIC_DIR = Path(__file__).resolve().parent / "music"
+LIBRARY = json.loads((MUSIC_DIR / "library.json").read_text(encoding="utf-8"))["tracks"]
+LIBRARY_IDS = [t["id"] for t in LIBRARY]
+
+
+def _song_keys(spec: dict[str, Any]) -> list[str]:
+    """Her uploads ("music/…", streamed from storage) and built-in library tracks ("library/<id>",
+    files in jobs/music, CC0: jobs/music/library.json), in the order the Worker sent them."""
+    out = []
+    for t in spec.get("music") or []:
+        key = str((t or {}).get("r2_key", "")) if isinstance(t, dict) else ""
+        if key.startswith("music/") or (key.startswith("library/") and key[8:] in LIBRARY_IDS):
+            out.append(key)
+    return out
+
+
+def library_key(k: int) -> str:
+    """A built-in track for clip k (one per clip in turn), so a clip with no sound of its own is never silent."""
+    return f"library/{LIBRARY_IDS[k % len(LIBRARY_IDS)]}"
+
+
+def music_key(spec: dict[str, Any], k: int, muted: bool = False) -> str | None:
+    """The song clip k gets (her uploads, else the built-in library, one per clip in turn), or None.
+    A clip with its camera sound off always gets one (never a silent clip)."""
+    keys = _song_keys(spec)
+    if keys:
+        return keys[k % len(keys)]
+    return library_key(k) if muted else None
+
+
+def music_for(spec: dict[str, Any], k: int, work: Path, download: "Downloader", cache: dict[str, Path], muted: bool = False) -> Path | None:
+    """The file for music_key: a library track from jobs/music, or her upload from storage."""
+    key = music_key(spec, k, muted)
+    if not key:
+        return None
+    if key.startswith("library/"):
+        path = MUSIC_DIR / f"{key[8:]}.mp3"
+        return path if path.exists() else None
     if key not in cache:
         try:
             cache[key] = download(key, work / f"music_{len(cache)}")
@@ -723,6 +831,8 @@ def render_moment(m: "Moment", src: Source, opts: dict[str, Any], brand: L.Brand
         words = [Word(round(w.start - c.start, 3), round(w.end - c.start, 3), w.text) for w in vs.transcript.words_in(c.start, c.end)]
     else:
         words = words_on_timeline(src, m.parts, opts)
+    if opts.get("mute"):
+        words = []  # camera sound off: no word captions from what the camera heard
     inset = inset_for(src, m, mediapipe) if opts["layout"] == "pip" else None
     return L.render_look(opts, parts, words, m.hook, brand, work, clip_id, cells=cells, voice=voice, inset=inset, music=music if opts.get("music") else None)
 
@@ -953,6 +1063,8 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
             if lid in L.LOOKS:
                 look_opts.setdefault(f"{a['id']}:{lid}", L.look_options(lid, o))
     steer_report: list[dict[str, str]] = []
+    camera: dict[str, str] = {}
+    avoid_windows = [w for w in (spec.get("avoid_windows") or []) if isinstance(w, dict)]
 
     # 1-2. download + normalize (+ whose video it is)
     prepared = []
@@ -980,7 +1092,13 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         if tr.engine != "none":
             engine["transcript"] = tr.engine
         runs = speech_runs(wav, info["duration"])
-        src = Source(norm, info, tr, runs, detect_bars(norm, info["duration"]))
+        keep, why = camera_keep(camera_mode(spec, a), tr, info["duration"])
+        camera[a["id"]] = "kept" if keep else "off"
+        if not keep:
+            # Camera sound off: nothing it heard is used, not for captions, not for picking moments.
+            tr, runs = Transcript(engine="muted"), []
+        log("cut.camera", n=i, keep=keep, why=why)
+        src = Source(norm, info, tr, runs, detect_bars(norm, info["duration"]), muted=not keep)
         # 4. pick
         progress("Finding the best moments", i, len(prepared))
         st = steer_of(spec, a)
@@ -995,6 +1113,17 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
             picked = fallback_moments(a, info["duration"], runs, tr, a_recipes, quota, door, st.get("allowed_recipes"))
         picked, told = apply_steer(picked, a, tr, st, a_recipes, info["duration"])
         steer_report.extend(told)
+        if avoid_windows:
+            # Try another version: a different moment than the one she has, when the video has one.
+            picked.sort(key=lambda m: avoid_overlap(m, avoid_windows))
+            fresh = [m for m in picked if avoid_overlap(m, avoid_windows) < 0.5]
+            picked = fresh or picked
+        if src.muted and picked:
+            for m, it in zip(picked, llm_copy(a, spec, len(picked)) or []):
+                m.hook = str(it.get("hook", ""))[:120]
+                m.hook_alt = str(it.get("hook_alt", ""))[:120]
+                m.caption = str(it.get("caption", ""))[:300]
+                m.hashtags = [str(h) for h in (it.get("hashtags") or [])][:6]
         for j, m in enumerate(picked):
             fill_copy(m, tr, spec, j)
             moments.append((m, src))
@@ -1034,8 +1163,11 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
                 if voice > 0 and layout["cells"][voice]["kind"] == "clip":
                     voice_src = next(osrc for cid, _om, osrc in others if cid == layout["cells"][voice]["clip_id"])
             songs = {"music": a_steer["music"]} if "music" in a_steer else spec
-            song = music_key(songs, k) if opts.get("music") else None
-            r = render_moment(m, src, opts, brand, work, clip_id, mediapipe, cells=cells, voice=voice, voice_src=voice_src, music=music_for(songs, k, work, download, music_cache) if song else None)
+            if src.muted:
+                # No sound of its own: always a music bed (her songs, else the built-in library), never silent.
+                opts = {**opts, "music": True, "mute": True}
+            song = music_key(songs, k, src.muted) if opts.get("music") else None
+            r = render_moment(m, src, opts, brand, work, clip_id, mediapipe, cells=cells, voice=voice, voice_src=voice_src, music=music_for(songs, k, work, download, music_cache, src.muted) if song else None)
         except subprocess.CalledProcessError:
             log("cut.render.failed", n=k, look=look_id)
             continue
@@ -1063,7 +1195,8 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
                 "parts": [[round(s, 2), round(e, 2)] for s, e in m.parts],
                 "layout": layout,
                 "music": song if r.music_used else None,
-                "speech": speech_share(voice_src, [(cells[voice].start, cells[voice].end)] if cells else list(m.parts)),
+                "speech": speech_share(src if src.muted else voice_src, [(cells[voice].start, cells[voice].end)] if cells else list(m.parts)),
+                "muted": src.muted,
                 "_files": (r.mp4, r.cover),
             }
         )
@@ -1085,6 +1218,7 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         "skipped": [{"asset_id": s["id"], "reason": s["reason"]} for s in spec.get("skipped_assets", [])],
         "source_marks": marks,
         "steer_report": steer_report,
+        "camera": camera,
     }
 
 
@@ -1099,6 +1233,10 @@ def rerender_clip(spec: dict[str, Any], work: Path, download: Downloader, upload
     brand = L.branding_from(spec.get("branding"), work)
     look_id = str(spec.get("look_id") or "clean")
     opts = L.look_options(look_id, spec.get("look"))
+    muted = bool(spec.get("muted"))
+    if muted:
+        # A clip cut with the camera sound off stays that way in every new look: music, never silence.
+        opts = {**opts, "music": True, "mute": True}
     wanted: dict[str, list[tuple[float, float]]] = {}
     stretches = [*(spec.get("parts") or []), *(spec.get("cells") or []), *([spec["inset"]] if spec.get("inset") else [])]
     for p in stretches:
@@ -1117,8 +1255,8 @@ def rerender_clip(spec: dict[str, Any], work: Path, download: Downloader, upload
         wav = work / f"audio_{i}.wav"
         extract_wav(norm, wav)
         progress("Listening", i, len(wanted))
-        tr = transcribe(wav, heavy.get("whisper", False))
-        sources[key] = (Source(norm, info, tr, speech_runs(wav, info["duration"]), detect_bars(norm, info["duration"])), lo)
+        tr = Transcript(engine="muted") if muted else transcribe(wav, heavy.get("whisper", False))
+        sources[key] = (Source(norm, info, tr, [] if muted else speech_runs(wav, info["duration"]), detect_bars(norm, info["duration"]), muted=muted), lo)
 
     def seg(p: dict[str, Any]) -> tuple[L.Seg, Source]:
         src, lo = sources[str(p["src"])]
@@ -1140,8 +1278,9 @@ def rerender_clip(spec: dict[str, Any], work: Path, download: Downloader, upload
         voice = min(max(0, voice), n - 1)
         voice_src = got[voice][1]
     progress("Cutting clips", 0, 1)
-    song = music_key(spec, 0) if opts.get("music") else None
-    r = render_moment(m, main_src, opts, brand, work, str(spec["clip_id"]), mediapipe, cells=cells, voice=voice, voice_src=voice_src, music=music_for(spec, 0, work, download, {}) if song else None)
+    k = int(spec.get("music_turn") or 0)
+    song = music_key(spec, k, muted) if opts.get("music") else None
+    r = render_moment(m, main_src, opts, brand, work, str(spec["clip_id"]), mediapipe, cells=cells, voice=voice, voice_src=voice_src, music=music_for(spec, k, work, download, {}, muted) if song else None)
     progress("Saving clips", 0, 1)
     upload(r.mp4, str(spec["output_key"]), "video/mp4")
     upload(r.cover, str(spec["output_cover_key"]), "image/jpeg")
@@ -1159,6 +1298,17 @@ def rerender_clip(spec: dict[str, Any], work: Path, download: Downloader, upload
         },
         "engine": {"subtitles": r.subtitles},
     }
+
+
+# ---------------------------------------------------------------- one clip, made again with her notes
+
+def again_clip(spec: dict[str, Any], work: Path, download: Downloader, upload: Uploader, progress: Progress, heavy: dict[str, bool]) -> dict[str, Any]:
+    """Try another version with her notes ("what to change"): the clip's video is cut again, steered
+    by the notes (moment, hook, pace, look), away from the moment she already has. The Worker swaps
+    the new file in when it is ready; the current clip plays meanwhile."""
+    out = cut_dump({**spec, "target_clips": {"min": 1, "max": 1}, "steer": {**(spec.get("steer") or {}), "count": 1}}, work, download, upload, progress, heavy)
+    clip = out["clips"][0]
+    return {"again": {**clip, "replaces": spec.get("clip_id")}, "engine": out["engine"], "camera": out.get("camera", {})}
 
 
 # ---------------------------------------------------------------- another editor's videos
@@ -1275,6 +1425,8 @@ def main(job: Job, spec: dict[str, Any]) -> dict[str, Any]:
             return rerender_clip(spec, work, download_input, upload_output, job.progress, heavy)
         if spec.get("mode") == "import":
             return import_items(spec, work, download_input, upload_output, job.progress)
+        if spec.get("mode") == "again":
+            return again_clip(spec, work, download_input, upload_output, job.progress, heavy)
         return cut_dump(spec, work, download_input, upload_output, job.progress, heavy)
     finally:
         shutil.rmtree(work, ignore_errors=True)

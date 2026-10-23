@@ -32,7 +32,7 @@ On **Dump**, the **Voice over** choice decides for this dump only: on quiet clip
 <!-- route: /review?tab=approved -->
 <!-- target: [data-clip-id="demo_clip_3"] [data-voice-over="ready"] -->
 
-A clip with a voice over says **With your voice over · added automatically**. Tap play to hear it.
+A clip with a voice over says **With a voice over · added automatically · Made with AI**. Tap play to hear it.
 
 ## Change the words, or remove it
 

@@ -141,9 +141,9 @@ describe("connected editors: fakes and failure shapes", () => {
 
 describe("cut refs and storage for imports", () => {
   it("a dump import and a clip import are their own refs", () => {
-    expect(parseCutRef("dmp_ab12/import")).toEqual({ dumpId: "dmp_ab12", clipId: null, import: true });
-    expect(parseCutRef("dmp_ab12/clp_aaaaaaaaaaaa/import")).toEqual({ dumpId: "dmp_ab12", clipId: "clp_aaaaaaaaaaaa", import: true });
-    expect(parseCutRef("dmp_ab12/clp_aaaaaaaaaaaa")).toEqual({ dumpId: "dmp_ab12", clipId: "clp_aaaaaaaaaaaa", import: false });
+    expect(parseCutRef("dmp_ab12/import")).toEqual({ dumpId: "dmp_ab12", clipId: null, import: true, again: false });
+    expect(parseCutRef("dmp_ab12/clp_aaaaaaaaaaaa/import")).toEqual({ dumpId: "dmp_ab12", clipId: "clp_aaaaaaaaaaaa", import: true, again: false });
+    expect(parseCutRef("dmp_ab12/clp_aaaaaaaaaaaa")).toEqual({ dumpId: "dmp_ab12", clipId: "clp_aaaaaaaaaaaa", import: false, again: false });
     expect(parseCutRef("dmp_ab12/import/clp_aaaaaaaaaaaa")).toBeNull();
   });
   it("an import reads only her uploaded edit for that clip and writes only its dump's folder", () => {

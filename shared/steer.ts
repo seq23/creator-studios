@@ -3,6 +3,7 @@
 // chips, the parsed notes and the cut job: every control is optional, and an unset control means
 // "surprise me" for that one thing. worker/domain/steer.ts holds the rules; this is the data.
 import type { Platform } from "./constants";
+import type { CameraSound } from "./sound";
 
 export const PACES = ["calm", "normal", "fast"] as const;
 export type Pace = (typeof PACES)[number];
@@ -31,7 +32,7 @@ export const VOICE_CHOICES = ["quiet", "none", "pick"] as const;
 export type VoiceChoice = (typeof VOICE_CHOICES)[number];
 export const VOICE_LABEL: Record<VoiceChoice, string> = { quiet: "On quiet clips", none: "None for this dump", pick: "Let me pick in Review" };
 
-/** Music: "none", "any" (her songs, one per clip in turn) or one song ("track:<id>"). */
+/** Music: "none", "any" (her songs, one per clip in turn; the studio's built-in music when she has none) or one song ("track:<id>"). */
 export type MusicChoice = "none" | "any" | `track:${string}`;
 
 export interface SteerControls {
@@ -43,6 +44,8 @@ export interface SteerControls {
   captions?: CaptionChoice;
   platforms?: Platform[];
   voice?: VoiceChoice;
+  /** The camera's own sound for this dump (shared/sound.ts); unset = Settings → Sound. */
+  camera?: CameraSound;
   /** Moments that must be in: words she said, a person, a product. */
   include?: string[];
   /** Moments to leave out. */
@@ -64,5 +67,5 @@ export interface Understood {
   by: "rules" | "rules+ai";
 }
 
-export const STEER_KEYS = ["looks", "music", "pace", "length", "count", "captions", "platforms", "voice", "include", "avoid"] as const;
+export const STEER_KEYS = ["looks", "music", "pace", "length", "count", "captions", "platforms", "voice", "camera", "include", "avoid"] as const;
 export type SteerKey = (typeof STEER_KEYS)[number];

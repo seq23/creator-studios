@@ -2,6 +2,8 @@
   "_about": "Notes a creator writes on a dump or a video, and what worker/domain/steer.ts parseNotes must read from them. tracks: her songs in My music for every case.",
   "tracks": [{ "id": "upl_upbeat001", "name": "Upbeat summer.mp3" }, { "id": "upl_chill0002", "name": "Chill piano.m4a" }],
   "cases": [
+    { "note": "no camera sound please, the background talk is noise", "controls": { "camera": "off" }, "not_followed": [] },
+    { "note": "keep my sound on these, I talk to the camera", "controls": { "camera": "keep" }, "not_followed": [] },
     { "note": "no voice over on this one, fast", "controls": { "voice": "none", "pace": "fast" }, "not_followed": [] },
     { "note": "voice over the b-roll please", "controls": { "voice": "quiet" }, "not_followed": [] },
     { "note": "I'll pick the voice overs myself in review", "controls": { "voice": "pick" }, "not_followed": [] },

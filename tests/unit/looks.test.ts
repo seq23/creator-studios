@@ -243,9 +243,9 @@ describe("a cut result carries each clip's look, parts and grid, checked", () =>
 
 describe("re-rendering one clip", () => {
   it("a cut ref is a dump or a dump/clip; anything else is refused", () => {
-    expect(parseCutRef("dmp_abcd1234")).toEqual({ dumpId: "dmp_abcd1234", clipId: null, import: false });
-    expect(parseCutRef("dmp_abcd1234/clp_aaaaaaaaaaaa")).toEqual({ dumpId: "dmp_abcd1234", clipId: "clp_aaaaaaaaaaaa", import: false });
-    for (const bad of [null, "", "dmp_abcd/../x", "../raw", "dmp_a.b", "dmp_abcd1234/clp_aaaaaaaaaaaa/x", "dmp_abcd1234/ast_aaaaaaaaaaaa"]) expect(parseCutRef(bad), String(bad)).toBeNull();
+    expect(parseCutRef("dmp_abcd1234")).toEqual({ dumpId: "dmp_abcd1234", clipId: null, import: false, again: false });
+    expect(parseCutRef("dmp_abcd1234/clp_aaaaaaaaaaaa")).toEqual({ dumpId: "dmp_abcd1234", clipId: "clp_aaaaaaaaaaaa", import: false, again: false });
+    for (const bad of [null, "", "dmp_abcd/../x", "../raw", "dmp_a.b", "dmp_abcd1234/clp_aaaaaaaaaaaa/x", "dmp_abcd1234/ast_aaaaaaaaaaaa", "dmp_abcd1234/again", "dmp_abcd1234/clp_aaaaaaaaaaaa/again/x"]) expect(parseCutRef(bad), String(bad)).toBeNull();
   });
   it("storage: a re-render may read any upload, clip file or song, and writes only its own dump's folder", () => {
     const s = jobStorageScope("cut", "job_1", "dmp_abcd1234/clp_aaaaaaaaaaaa");

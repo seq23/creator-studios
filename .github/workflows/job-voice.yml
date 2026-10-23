@@ -25,7 +25,8 @@ jobs:
           cache: pip
           cache-dependency-path: jobs/requirements.txt
       - name: System tools
-        run: bash .github/scripts/apt-install.sh ffmpeg
+        # espeak-ng: the stock voice (Kokoro) reads words into sounds with it (jobs/voice.py espeak_config).
+        run: bash .github/scripts/apt-install.sh ffmpeg espeak-ng
       - run: pip install -q -r jobs/requirements.txt
       - name: Run
         run: python3 jobs/voice.py

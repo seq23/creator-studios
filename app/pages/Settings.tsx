@@ -13,6 +13,7 @@ import { Icon } from "../components/Icon";
 import { EditingCard } from "../components/EditingSettings";
 import { AUTO_VOICE_HINT } from "@shared/autoVoice";
 import { StorageSection } from "../components/StorageSection";
+import { SoundCard } from "../components/SoundSettings";
 import "../styles/settings.css";
 
 export function Settings() {
@@ -165,6 +166,7 @@ export function Settings() {
         </div>
 
         <div className="settings-col">
+          <SoundCard sound={draft.sound} owner={owner} onSave={save} />
           <EditingCard owner={owner} />
           <StorageSection owner={owner} />
           <HealthSection health={health.data} onChange={(rows) => health.setData(rows)} />

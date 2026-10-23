@@ -123,6 +123,8 @@ export function envBlock(s, themes) {
       // into the JSON the deploy's live secret check parses (22 Oct 2026: deploy:all stopped at sample2).
       PHOTO_POSTS: s.photoPosts ? JSON.stringify(s.photoPosts) : "",
       CONTENT_RULES: s.contentRules ? JSON.stringify(s.contentRules) : "",
+      // Camera sound and voice defaults (shared/sound.ts soundSettings); "" = the plain defaults.
+      STUDIO_SOUND: s.sound ? JSON.stringify({ cameraSound: s.sound.cameraSound, voice: s.sound.voice }) : "",
       ...(s.whatsNew ? { WHATS_NEW: JSON.stringify(s.whatsNew) } : {}),
       ENV_NAME: "production",
       AUTH_MODE: "code",
@@ -160,6 +162,7 @@ export function wranglerConfig({ studios, themes }) {
       // Local dev and e2e exercise photo posts with a sample rule set (no real business's words).
       PHOTO_POSTS: JSON.stringify(DEV_PHOTO_POSTS),
       CONTENT_RULES: JSON.stringify(DEV_CONTENT_RULES),
+      STUDIO_SOUND: "",
       ENV_NAME: "dev",
       AUTH_MODE: "code",
     },
