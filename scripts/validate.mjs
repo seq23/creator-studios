@@ -41,6 +41,8 @@ export const REGISTER = {
   "routes-mounted": "a route file nothing mounts is code that exists but nothing invokes",
   "sample-clean": "studio brief §6a: a client studio must carry none of the host's identifiers (emails, names, the former business name, Sheila, the host's channel and account ids) in its config or the shipped bundle, and no host key bound as a secret",
   "screens-registered": "every page file must be routed in App.tsx or it is unreachable",
+  // studio fix B
+  "studio-rules-wired": "the owner's rulings (23 Oct 2026): each studio's call to action, Made with AI, clips per dump and review bar must reach every cut and every post; the Oct 22 cut sized clips to the calendar, said Message us instead of the request link, and had no clip rules at all",
   "studio-isolation": "studio brief §6b: studio A's D1 or R2 bound by studio B is one client reading another's footage and keys",
   "studios-generated": "the registry is the one list of studios; a hand-edited wrangler.jsonc deploys a studio with another's config",
   "seed-year-local-only": "the year of demo data must never reach staging or production and must be removable row by row",
