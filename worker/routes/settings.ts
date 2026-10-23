@@ -7,6 +7,12 @@ import { getSetting, listHealth, recordEvent, setSetting } from "../lib/db";
 import { fail, isEmail, readJson } from "../lib/http";
 import { DEFAULT_FEATURES, DEFAULT_RECYCLE_COOLDOWN_DAYS, DEFAULT_RUNWAY_THRESHOLD_WEEKS, DEFAULT_WEEKLY_CAPS, HARD_CAP_PER_CHANNEL_PER_WEEK, PLATFORMS } from "@shared/constants";
 import type { Features, SettingsShape } from "@shared/types";
+import { cleanSound, soundSettings, type SoundSettings } from "@shared/sound";
+
+/** Camera sound and voice: the studio's registry defaults with anything saved in Settings on top. */
+export async function readSound(env: Env): Promise<SoundSettings> {
+  return soundSettings(env.STUDIO_SOUND, await getSetting<unknown>(env.DB, "sound", null));
+}
 
 export const settings = new Hono<{ Bindings: Env; Variables: Vars }>();
 settings.use("*", requireUser);
@@ -23,7 +29,7 @@ export async function readSettings(env: Env): Promise<SettingsShape> {
     getSetting<string | null>(env.DB, "helper_email", null),
   ]);
   const emails = notify_emails.length ? notify_emails : [env.OWNER_EMAIL];
-  return { weekly_caps, hard_cap_per_channel, runway_threshold_weeks, notify_emails: emails, posting_slots_source, features, recycle_cooldown_days, helper_email, audience_timezone: env.AUDIENCE_TIMEZONE };
+  return { weekly_caps, hard_cap_per_channel, runway_threshold_weeks, notify_emails: emails, posting_slots_source, features, recycle_cooldown_days, helper_email, audience_timezone: env.AUDIENCE_TIMEZONE, sound: await readSound(env) };
 }
 
 settings.get("/", async (c) => c.json(await readSettings(c.env)));
@@ -53,6 +59,7 @@ settings.patch("/", requireOwner, async (c) => {
     const current = await getSetting<Features>(c.env.DB, "features", { ...DEFAULT_FEATURES });
     await setSetting(c.env.DB, "features", { ...current, ...body.features });
   }
+  if (body.sound) await setSetting(c.env.DB, "sound", cleanSound(body.sound, await readSound(c.env)));
   if (body.recycle_cooldown_days !== undefined) {
     const d = Number(body.recycle_cooldown_days);
     if (!(d >= 30 && d <= 365)) return fail(c, 422, "The recycle wait must be 30 to 365 days.");

@@ -35,6 +35,12 @@ export interface ReviewClip extends ClipRow {
   editing_note: string | null;
   music_id: string | null;
   pending_music: string | null;
+  /** A built-in track under it (studio music), by name. */
+  music_library: string | null;
+  /** Cut with the camera sound off (music, and a voice over, instead of what the camera heard). */
+  muted: boolean;
+  /** What she asked to change the last time she tried another version. */
+  again_notes: string | null;
   /** Her voice over on this clip: being added, in it (the video plays with it), or it did not work. */
   voice_over: "mixing" | "ready" | "failed" | null;
   /** The words of that voice over (Redo opens them to edit), and whether it was made automatically. */
@@ -101,6 +107,8 @@ export function Review() {
   const [handoff, setHandoff] = useState<ReviewClip | null>(null);
   const [musicFor, setMusicFor] = useState<ReviewClip | null>(null);
   const [voiceFor, setVoiceFor] = useState<ReviewClip | null>(null);
+  const [anotherFor, setAnotherFor] = useState<ReviewClip | null>(null);
+  const [startOver, setStartOver] = useState<{ dumpId: string; clips: number } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const query = useMemo(() => {
@@ -294,6 +302,19 @@ export function Review() {
             Dump: {fmtDate(g.dump.created_at)} · {g.dump.door === "new" ? "New videos" : g.dump.door === "youtube" ? "Full video for YouTube" : "Old posts"} <span className="hint">· {plural(g.clips.length, "clip")} · best first</span>
           </h2>
           {g.dump.held_note ? <HeldNotice dumpId={g.dump.id} note={g.dump.held_note} onDone={list.reload} /> : null}
+          {tab === "new" && g.dump.door !== "youtube" ? (
+            <div className="row wrap review-dump-actions" data-dump-actions>
+              <button className="btn quiet small" disabled={busy} onClick={() => run(async () => {
+                const r = await post<{ clips: number }>(`/api/dumps/${g.dump.id}/voice-all`);
+                if (!r.clips) throw new Error("Every clip in this dump already has a voice over, or has someone talking.");
+              }, "Adding voice overs to this dump's clips, a few minutes. Each one plays here when it's in.")}>
+                Add voice over to all clips in this dump
+              </button>
+              <button className="btn quiet small" disabled={busy} onClick={() => setStartOver({ dumpId: g.dump.id, clips: g.clips.length })}>
+                Start over with these videos
+              </button>
+            </div>
+          ) : null}
           <div className="review-grid">
             {g.clips.map((c) => (
               <ClipCard
@@ -310,12 +331,7 @@ export function Review() {
                 onRestyle={() => setRestyling(c)}
                 onHandoff={() => setHandoff(c)}
                 onMusic={() => setMusicFor(c)}
-                onAnother={() =>
-                  run(async () => {
-                    const r = await post<{ clip: ReviewClip | null }>(`/api/clips/${c.id}/another`);
-                    if (r.clip) replaceClip(r.clip);
-                  }, "Trying another version, about a minute. The current one stays until it's ready.")
-                }
+                onAnother={() => setAnotherFor(c)}
                 onVoiceRedo={() => setVoiceFor(c)}
                 onVoiceAdd={() => setVoiceFor(c)}
                 onKeep={() => keep([c.id])}
@@ -411,6 +427,28 @@ export function Review() {
             setMusicFor(null);
             toast.ok("Changing the music, about a minute. The current version stays until it's ready.");
             list.reload();
+          }}
+        />
+      ) : null}
+      {anotherFor ? (
+        <AnotherModal
+          clip={anotherFor}
+          onClose={() => setAnotherFor(null)}
+          onQueued={(updated, withNotes) => {
+            if (updated) replaceClip(updated);
+            setAnotherFor(null);
+            toast.ok(withNotes ? "Making a new version with your notes, a few minutes. The current one stays until it's ready." : "Trying another version, about a minute. The current one stays until it's ready.");
+            list.reload();
+          }}
+        />
+      ) : null}
+      {startOver ? (
+        <StartOverModal
+          {...startOver}
+          onClose={() => setStartOver(null)}
+          onStarted={(removed) => {
+            setStartOver(null);
+            after(`Starting over: ${plural(removed, "new clip")} removed. New clips arrive in about 10 to 30 minutes; we'll email you.`);
           }}
         />
       ) : null}
@@ -516,7 +554,12 @@ function ClipCard(props: {
           {c.paid_partnership ? <span className="pill ok">Paid partnership</span> : null}
           {c.voice_over === "ready" ? (
             <span className="pill ok" data-voice-over="ready">
-              With your voice over{c.voice_auto ? " · added automatically" : ""} · AI-labelled when it posts
+              With a voice over{c.voice_auto ? " · added automatically" : ""} · Made with AI
+            </span>
+          ) : null}
+          {c.muted ? (
+            <span className="pill" data-camera-off>
+              Camera sound off{c.music_library ? ` · Music: ${c.music_library}` : ""}
             </span>
           ) : null}
           {c.voice_over === "mixing" ? <span className="pill" data-voice-over="mixing">Adding your voice over…</span> : null}
@@ -832,9 +875,83 @@ function MusicModal({ clip, onClose, onQueued }: { clip: ReviewClip; onClose: ()
         ))}
       </div>
       {!songs.loading && !list.length ? <p className="hint">No songs yet. Add one under Settings → Editing → My music.</p> : null}
+      {clip.muted ? <p className="hint">This clip has its camera sound off, so it always has music: with No music, the studio’s own music plays.</p> : null}
       <div className="btn-row">
         <button className="btn quiet" onClick={onClose}>
           Keep it as it is
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+/** Try another version: optional notes on what to change (moment, hook, pace, look). Empty = a new look. */
+function AnotherModal({ clip, onClose, onQueued }: { clip: ReviewClip; onClose: () => void; onQueued: (updated: ReviewClip | null, withNotes: boolean) => void }) {
+  const toast = useToast();
+  const [notes, setNotes] = useState(clip.again_notes ?? "");
+  const [busy, setBusy] = useState(false);
+  async function go() {
+    setBusy(true);
+    try {
+      const r = await post<{ clip: ReviewClip | null }>(`/api/clips/${clip.id}/another`, notes.trim() ? { notes: notes.trim() } : {});
+      onQueued(r.clip, !!notes.trim());
+    } catch (e) {
+      toast.bad(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title="Try another version" onClose={onClose}>
+      <div className="field">
+        <label htmlFor="another-notes">What should change? (you can leave this empty)</label>
+        <textarea id="another-notes" className="textarea" rows={3} value={notes} maxLength={1000} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Start with the best moment. Shorter. A calmer feel. A different first line." />
+        <div className="hint">{notes.trim() ? "We cut this video again with your notes: a different moment, words on screen, pace or look. A few minutes." : "Empty: the same moment in a different look, in about a minute."} Your current clip stays until the new one is ready.</div>
+      </div>
+      <div className="btn-row">
+        <button className="btn" data-primary disabled={busy} onClick={go}>
+          {busy ? "Starting…" : "Make another version"}
+        </button>
+        <button className="btn quiet" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+/** Start over: confirm in plain words; the dump's New clips go, the same videos are cut again. */
+function StartOverModal({ dumpId, clips, onClose, onStarted }: { dumpId: string; clips: number; onClose: () => void; onStarted: (removed: number) => void }) {
+  const toast = useToast();
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function go() {
+    setBusy(true);
+    try {
+      const r = await post<{ removed: number }>(`/api/dumps/${dumpId}/start-over`, notes.trim() ? { notes: notes.trim() } : {});
+      onStarted(r.removed);
+    } catch (e) {
+      toast.bad(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title="Start this dump over?" onClose={onClose}>
+      <p>
+        The {plural(clips, "new clip")} from this dump will be removed. Clips you approved or posted stay, and your videos stay. We cut the same videos again with your current settings and email you
+        when the new clips are ready (about 10 to 30 minutes).
+      </p>
+      <div className="field">
+        <label htmlFor="start-over-notes">Anything to do differently? (you can leave this empty)</label>
+        <textarea id="start-over-notes" className="textarea" rows={3} value={notes} maxLength={1000} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Shorter clips. Start each one with the best moment." />
+      </div>
+      <div className="btn-row">
+        <button className="btn danger" disabled={busy} onClick={go}>
+          {busy ? "Starting…" : "Yes, start over"}
+        </button>
+        <button className="btn quiet" onClick={onClose}>
+          Keep these clips
         </button>
       </div>
     </Modal>

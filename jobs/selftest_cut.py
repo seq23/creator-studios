@@ -43,7 +43,7 @@ import looks as L  # noqa: E402
 from common import log  # noqa: E402
 
 FIXTURE = HERE.parent / "tests" / "unit" / "fixtures" / "cut-result.sample.json"
-CLIP_KEYS = {"id", "asset_id", "start_s", "end_s", "recipe", "hook_text", "hook_alt", "caption", "hashtags", "platforms", "score", "r2_key", "cover_r2_key", "look", "parts", "layout", "music", "speech"}
+CLIP_KEYS = {"id", "asset_id", "start_s", "end_s", "recipe", "hook_text", "hook_alt", "caption", "hashtags", "platforms", "score", "r2_key", "cover_r2_key", "look", "parts", "layout", "music", "speech", "muted"}
 STAGES = {"Getting your videos", "Listening", "Finding the best moments", "Cutting clips", "Saving clips"}
 
 
@@ -137,6 +137,9 @@ def check(result: dict, spec: dict, out: Path, problems: list[str]) -> None:
         n = len(problems)
         if set(c) != CLIP_KEYS:
             problems.append(f"clip keys {sorted(set(c) ^ CLIP_KEYS)}")
+        # No camera choice in the spec keeps the camera sound (jobs/cut.py camera_mode): never muted by default.
+        if c.get("muted") is not False:
+            problems.append("muted without camera sound off")
         if not re.fullmatch(r"clp_[a-z0-9]{8,32}", c["id"]):
             problems.append("clip id shape")
         if c["asset_id"] not in asset_ids:

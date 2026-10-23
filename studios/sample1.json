@@ -50,6 +50,11 @@
     "headsUpHours": 24,
     "postHour": 11
   },
+  "sound": {
+    "_why": "Owner, 22 Oct 2026: this studio's phone videos carry only background talk, so the camera sound is off by default (music plays instead; a voice over is added), and voice overs use a stock voice (Kokoro preset, Apache-2.0) until the owner picks another or records her own (Settings > Sound). shared/sound.ts.",
+    "cameraSound": "off",
+    "voice": { "source": "stock", "stock": "af_heart" }
+  },
   "contentRules": {
     "_why": "Porch & Party's rules, enforced in code (shared/contentRules.ts): never the word insured, no customer address, house number or face, prices only from this one list. Host's word, 22 Oct 2026.",
     "banWords": [

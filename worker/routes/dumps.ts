@@ -20,6 +20,13 @@ import { dispatchJob } from "../services/github";
 import { pendingRefusal, spaceLine } from "../domain/fullVideo";
 import { PLAN_AHEAD_WEEKS } from "./posts";
 import { storageUsed } from "../lib/storage";
+import { notesWithStartOver, startOverPlan } from "../domain/startOver";
+import { removeVoiceOver, voiceAllInDump, voiceReady } from "../lib/autoVoice";
+
+/** Is this clip already loaded into Buffer? (Then it is never removed from here.) */
+async function inBuffer(env: Env, clipId: string): Promise<boolean> {
+  return !!(await env.DB.prepare("SELECT 1 AS x FROM posts WHERE clip_id = ? AND status IN ('in_buffer', 'posted') LIMIT 1").bind(clipId).first());
+}
 
 export const dumps = new Hono<{ Bindings: Env; Variables: Vars }>();
 dumps.use("*", requireUser);
@@ -282,3 +289,56 @@ export async function briefGate(env: Env): Promise<{ message: string; fix_guide:
   if (!brief) return { message: "Approve your Research Brief first. It tells the cutter what to look for.", fix_guide: "approve-research-brief" };
   return null;
 }
+
+/**
+ * Start over (Review): this dump's New clips go (their files and voice overs too); approved,
+ * rejected and posted clips stay, and her uploaded videos are never touched. The same videos are
+ * cut again with the current settings, plus the notes she adds here.
+ */
+dumps.post("/:id/start-over", async (c) => {
+  const id = c.req.param("id");
+  const body = await readJson<{ notes?: string }>(c);
+  const dump = await c.env.DB.prepare("SELECT id, status, kind, notes FROM dumps WHERE id = ?").bind(id).first<{ id: string; status: string; kind: string; notes: string }>();
+  const { results: rows } = await c.env.DB.prepare("SELECT id, status, r2_key, cover_r2_key FROM clips WHERE dump_id = ?").bind(id).all<{ id: string; status: string; r2_key: string; cover_r2_key: string | null }>();
+  const clipsNow = [];
+  for (const r of rows) clipsNow.push({ id: r.id, status: r.status, in_buffer: r.status === "draft" ? await inBuffer(c.env, r.id) : false });
+  const sources = (await c.env.DB.prepare("SELECT COUNT(*) AS n FROM assets WHERE dump_id = ? AND upload_status = 'uploaded' AND raw_deleted_at IS NULL").bind(id).first<{ n: number }>())?.n ?? 0;
+  const plan = startOverPlan(dump, clipsNow, sources);
+  if (plan.refusal) return fail(c, plan.refusal.status, plan.refusal.error, "review-and-approve-clips");
+  const gate = await briefGate(c.env);
+  if (gate) return fail(c, 409, gate.message, gate.fix_guide);
+  for (const clipId of plan.remove) {
+    const r = rows.find((x) => x.id === clipId)!;
+    await removeVoiceOver(c.env, clipId);
+    await c.env.FILES.delete([r.r2_key, r.cover_r2_key].filter((k): k is string => !!k));
+    await c.env.DB.batch([
+      c.env.DB.prepare("UPDATE clips SET status = 'deleted', media_token = NULL, reviewed_at = ? WHERE id = ? AND status = 'draft'").bind(nowIso(), clipId),
+      c.env.DB.prepare("UPDATE posts SET status = 'unscheduled' WHERE clip_id = ? AND status = 'planned'").bind(clipId),
+    ]);
+  }
+  const added = String(body?.notes ?? "").slice(0, 1000);
+  if (added.trim()) {
+    const notes = notesWithStartOver(dump!.notes, added);
+    await c.env.DB.prepare("UPDATE dumps SET notes = ?, steer_notes = ? WHERE id = ?").bind(notes, JSON.stringify(await understand(c.env, notes)), id).run();
+  }
+  await c.env.DB.prepare("UPDATE dumps SET status = 'queued', error_summary = NULL, not_followed = NULL, tried = NULL WHERE id = ?").bind(id).run();
+  const r = await startDumpCut(c.env, id, c.env.PUBLIC_BASE_URL);
+  if (!r.dispatched) {
+    await c.env.DB.prepare("UPDATE dumps SET status = 'failed', error_summary = ? WHERE id = ?").bind(r.error, id).run();
+    return fail(c, 502, r.error ?? "The cutting job could not start.", "clips-look-wrong");
+  }
+  await c.env.DB.prepare("UPDATE dumps SET status = 'cutting' WHERE id = ?").bind(id).run();
+  await recordEvent(c.env.DB, "dump.start_over", id, { removed: plan.remove.length, kept: plan.keep, notes: !!added.trim() }, c.get("user").email);
+  log.info("dump.start_over", { removed: plan.remove.length, kept: plan.keep });
+  return c.json({ ok: true, removed: plan.remove.length, kept: plan.keep, jobId: r.jobId });
+});
+
+/** "Add voice over to all clips in this dump" (Review): one voice job run for every quiet clip still without one. */
+dumps.post("/:id/voice-all", async (c) => {
+  const id = c.req.param("id");
+  if (!(await c.env.DB.prepare("SELECT id FROM dumps WHERE id = ?").bind(id).first())) return fail(c, 404, "That dump no longer exists.");
+  if (!(await voiceReady(c.env))) return fail(c, 409, "Pick a voice first: a stock voice in Settings → Sound, or record your own on Voice overs.", "record-your-voice");
+  const r = await voiceAllInDump(c.env, id);
+  if (r.clips && !r.started) return fail(c, 502, "The voice overs could not start. Try again in a minute.", "reconnect-github");
+  return c.json({ ok: true, clips: r.clips });
+});

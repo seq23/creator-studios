@@ -94,7 +94,7 @@ test("on, voice saved: clips with no talking come back voiced; Review offers Rem
 
   await page.goto("/review");
   const card = page.locator(`[data-clip-id="${voiced[0].id}"]`);
-  await expect(card.locator('[data-voice-over="ready"]')).toHaveText("With your voice over · added automatically · AI-labelled when it posts");
+  await expect(card.locator('[data-voice-over="ready"]')).toHaveText("With a voice over · added automatically · Made with AI");
   await expect(page.locator(`[data-clip-id="${talking[0].id}"]`).locator("[data-voice-over]")).toHaveCount(0);
   await expect(page.locator(`[data-clip-id="${talking[0].id}"]`).getByRole("button", { name: "Remove voice over" })).toHaveCount(0);
 
@@ -165,5 +165,5 @@ test("Dump: the Voice over chip (not all or none) and Review: Add voice over on 
   const after = (await clipsOf(page.request, dumpId)).find((c) => c.id === clips[0].id)!;
   expect(after).toMatchObject({ voice_over: "ready", voice_auto: false });
   await page.reload();
-  await expect(card.locator('[data-voice-over="ready"]')).toHaveText("With your voice over · AI-labelled when it posts");
+  await expect(card.locator('[data-voice-over="ready"]')).toHaveText("With a voice over · Made with AI");
 });

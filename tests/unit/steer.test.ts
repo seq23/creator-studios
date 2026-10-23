@@ -32,10 +32,25 @@ describe("notes read into controls (fixtures)", () => {
     const seen = new Set(FX.cases.flatMap((c) => Object.keys(c.controls)));
     for (const k of STEER_KEYS) expect(seen.has(k), k).toBe(true);
   });
-  it("music asked for with no songs uploaded is said, not silently dropped", () => {
-    const u = parseNotes("use my upbeat song", []);
-    expect(u.controls.music).toBeUndefined();
-    expect(u.not_followed[0].why).toMatch(/haven't added songs yet/);
+  it("music asked for with no songs uploaded plays the built-in music, and says so", () => {
+    for (const note of ["use my upbeat song", "add music", "use my song \"Sunrise\" track"]) {
+      const u = parseNotes(note, []);
+      expect(u.controls.music, note).toBe("any");
+      expect(u.not_followed.map((x) => x.why), note).toEqual([expect.stringMatching(/haven't added songs yet.*built-in music was used/)]);
+      expect(u.said, note).toContain("Music: the studio's built-in music");
+    }
+  });
+  it("\"any\" music with no songs of hers is the built-in library, one track per clip; none stays none", () => {
+    expect(steerMusic({ music: "any" }, [], []).length).toBeGreaterThanOrEqual(6);
+    expect(steerMusic({ music: "any" }, [], []).every((t) => /^library\/[a-z0-9-]+$/.test(t.r2_key))).toBe(true);
+    expect(steerMusic({ music: "none" }, [], [])).toEqual([]);
+  });
+  it("camera sound from a note, a chip, and never from anything else", () => {
+    expect(parseNotes("mute the videos, music only", []).controls.camera).toBe("off");
+    expect(parseNotes("keep the sound, I talk in these", []).controls.camera).toBe("keep");
+    expect(parseNotes("no music, fast", []).controls.camera).toBeUndefined();
+    expect(cleanControls({ camera: "off" }, []).controls.camera).toBe("off");
+    expect(cleanControls({ camera: "loud" }, []).controls.camera).toBeUndefined();
   });
 });
 

@@ -59,6 +59,7 @@
     "AUDIENCE_TIMEZONE": "America/New_York",
     "PHOTO_POSTS": "{\"on\":true,\"platforms\":[\"facebook\",\"instagram\",\"tiktok\",\"pinterest\"],\"headsUpHours\":24,\"postHour\":11}",
     "CONTENT_RULES": "{\"banWords\":[\"insured\"],\"blockAddresses\":true,\"blockFaces\":true,\"prices\":[{\"name\":\"Sample Package\",\"usd\":500}]}",
+    "STUDIO_SOUND": "",
     "ENV_NAME": "dev",
     "AUTH_MODE": "code"
   },
@@ -115,6 +116,7 @@
         "AUDIENCE_TIMEZONE": "America/New_York",
         "PHOTO_POSTS": "{\"_why\":\"Photo posts (shared/photoPosts.ts): one photo becomes a pack of posts that go out on their own with a heads-up and a Skip. On by the host's word, 22 Oct 2026.\",\"on\":true,\"platforms\":[\"facebook\",\"instagram\",\"tiktok\",\"pinterest\"],\"headsUpHours\":24,\"postHour\":11}",
         "CONTENT_RULES": "",
+        "STUDIO_SOUND": "",
         "WHATS_NEW": "{\"id\":\"2026-10-photo-posts\",\"title\":\"New in your studio\",\"lines\":[\"You can now add photos, not just videos.\",\"One photo becomes a few posts: a short moving video, a photo set and captions.\",\"They post to Facebook, Instagram, TikTok and Pinterest on their own.\",\"You get an email the day before. Tap Skip to stop one.\"]}",
         "ENV_NAME": "production",
         "AUTH_MODE": "code"
@@ -177,6 +179,7 @@
         "AUDIENCE_TIMEZONE": "America/Chicago",
         "PHOTO_POSTS": "{\"_why\":\"Photo posts (shared/photoPosts.ts): one photo becomes a pack of posts that go out on their own with a heads-up and a Skip. On by the host's word, 22 Oct 2026.\",\"on\":true,\"platforms\":[\"facebook\",\"instagram\",\"tiktok\",\"pinterest\"],\"headsUpHours\":24,\"postHour\":11}",
         "CONTENT_RULES": "{\"_why\":\"Porch & Party's rules, enforced in code (shared/contentRules.ts): never the word insured, no customer address, house number or face, prices only from this one list. Host's word, 22 Oct 2026.\",\"banWords\":[\"insured\"],\"blockAddresses\":true,\"blockFaces\":true,\"prices\":[{\"name\":\"Grand Holiday Porch\",\"usd\":1050}]}",
+        "STUDIO_SOUND": "{\"cameraSound\":\"off\",\"voice\":{\"source\":\"stock\",\"stock\":\"af_heart\"}}",
         "WHATS_NEW": "{\"id\":\"2026-10-photo-posts\",\"title\":\"New in your studio\",\"lines\":[\"Add a photo and the studio makes a few posts from it.\",\"Posts go to Facebook, Instagram, TikTok and Pinterest on their own.\",\"You get an email the day before. Tap Skip to stop one.\",\"Faces and house numbers are blurred before anything posts.\"]}",
         "ENV_NAME": "production",
         "AUTH_MODE": "code"
@@ -234,6 +237,7 @@
         "AUDIENCE_TIMEZONE": "America/New_York",
         "PHOTO_POSTS": "",
         "CONTENT_RULES": "",
+        "STUDIO_SOUND": "",
         "ENV_NAME": "production",
         "AUTH_MODE": "code"
       }
@@ -290,6 +294,7 @@
         "AUDIENCE_TIMEZONE": "America/New_York",
         "PHOTO_POSTS": "",
         "CONTENT_RULES": "",
+        "STUDIO_SOUND": "",
         "ENV_NAME": "production",
         "AUTH_MODE": "code"
       }

@@ -352,6 +352,11 @@ class Rendered:
     music_used: bool = False  # a song from her uploads is mixed under the voice
 
 
+def silence(seconds: float, label: str) -> str:
+    """A silent stereo track of the given length, in place of a source's own sound."""
+    return f"anullsrc=r=48000:cl=stereo,atrim=duration={max(0.05, seconds):.3f},asetpts=PTS-STARTPTS[{label}]"
+
+
 def render_look(
     opts: dict[str, Any],
     parts: list[Seg],
@@ -371,6 +376,8 @@ def render_look(
     where `words` come from); a pip Look uses `inset`."""
     out = work / f"{name}.mp4"
     cover = work / f"{name}.jpg"
+    # Camera sound off: none of the source's own sound is used (a music bed goes under, or nothing).
+    mute = bool(opts.get("mute"))
     grid = opts["layout"] == "grid" and cells
     if grid:
         parts = [cells[voice]]
@@ -403,7 +410,7 @@ def render_look(
             chains.append(f"[{last}][c{j}]overlay={x}:{y}:eof_action=pass[g{j + 1}]")
             last = f"g{j + 1}"
             if j == voice:
-                chains.append(f"[{i}:a]aresample=48000,aformat=channel_layouts=stereo,apad,atrim=duration={dur:.3f}[ac]")
+                chains.append(silence(dur, "ac") if mute else f"[{i}:a]aresample=48000,aformat=channel_layouts=stereo,apad,atrim=duration={dur:.3f}[ac]")
         v = last
     else:
         for k, seg in enumerate(parts):
@@ -419,7 +426,7 @@ def render_look(
                 )
             else:
                 chains.append(f"[{i}:v]{crop_to(seg, OUT_W, OUT_H)},fps={FPS},format=yuv420p,setpts=PTS-STARTPTS[v{k}]")
-            chains.append(f"[{i}:a]aresample=48000,aformat=channel_layouts=stereo,asetpts=PTS-STARTPTS[a{k}]")
+            chains.append(silence(seg.dur, f"a{k}") if mute else f"[{i}:a]aresample=48000,aformat=channel_layouts=stereo,asetpts=PTS-STARTPTS[a{k}]")
         n = len(parts)
         if n == 1:
             chains.append("[v0]null[vj];[a0]anull[ac]")
@@ -488,7 +495,8 @@ def render_look(
         si = add(["-i", f"{name}.srt"])
         sub_map = ["-map", f"{si}:s", "-c:s", "mov_text"]
         subs = "soft"
-    # Audio: her voice, a music bed from her own songs ducked under it, then -14 LUFS.
+    # Audio: her voice, a music bed (her own songs, or the built-in library when the camera sound is
+    # off) ducked under it, then -14 LUFS.
     a = "ac"
     music_used = music is not None and music.exists()
     if music_used:

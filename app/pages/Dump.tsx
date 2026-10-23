@@ -3,7 +3,7 @@
 // Phone-first: "Choose from camera roll", many files at once, resumable chunked uploads.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import type { AssetRow, DumpSummary } from "@shared/types";
+import type { AssetRow, DumpSummary, SettingsShape } from "@shared/types";
 import { del, get, patch, post } from "../lib/api";
 import { uploadFile } from "../lib/upload";
 import { fmtBytes, plural } from "../lib/format";
@@ -66,7 +66,9 @@ export function Dump() {
   const understandTimer = useRef<number | null>(null);
   const editing = useLoad(() => get<{ looks: SteerLook[]; music: SteerTrack[] }>("/api/editing"));
   // The Voice over chip's default: the Settings switch, and whether her voice is saved.
-  const voiceState = useLoad(() => get<{ auto: "on" | "needs_voice" | "off"; hasSample: boolean }>("/api/voice"));
+  const voiceState = useLoad(() => get<{ auto: "on" | "needs_voice" | "off"; hasSample: boolean; ready?: boolean }>("/api/voice"));
+  // The Camera sound chip's default: Settings → Sound.
+  const settingsState = useLoad(() => get<SettingsShape>("/api/settings"));
   const [dumpId, setDumpId] = useState<string | null>(routeId ?? null);
   const [notes, setNotes] = useState("");
   const [local, setLocal] = useState<Local[]>([]);
@@ -424,7 +426,8 @@ export function Dump() {
                 onChange={changeSteer}
                 looks={editing.data?.looks ?? []}
                 tracks={editing.data?.music ?? []}
-                voice={{ choice: voiceState.data?.auto === "off" ? "none" : "quiet", hasVoice: !!voiceState.data?.hasSample }}
+                voice={{ choice: voiceState.data?.auto === "off" ? "none" : "quiet", hasVoice: !!(voiceState.data?.ready ?? voiceState.data?.hasSample) }}
+                camera={settingsState.data?.sound.camera ?? "keep"}
               />
               <div className="row wrap">
                 <button className="btn big" data-primary={hasVideos && door ? true : undefined} disabled={!door || sending || uploading || uploadedCount === 0} onClick={send} data-dump-button>

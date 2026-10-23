@@ -16,6 +16,8 @@ on:
       - jobs/looks.json
       - jobs/common.py
       - jobs/selftest_cut.py
+      - jobs/music/**
+      - .github/scripts/apt-install.sh
       - .github/workflows/job-cut.yml
   workflow_dispatch:
 

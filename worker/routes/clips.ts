@@ -30,13 +30,14 @@ import { PLATFORMS, RECIPES, REJECT_REASONS, REJECTED_RETENTION_DAYS, type Platf
 import type { ClipRow } from "@shared/types";
 import { cellCount, cleanGridLayout, defaultGridLayout, editingFromStored, isGridLook, isLookId, LOOK_IDS, lookById, ZOOMS, type GridLayout, type LookId, type StoredEditing } from "../domain/looks";
 import { tracksOf } from "../lib/steerStore";
-import { draftScript, hasVoiceSample, redoVoiceOver, removeVoiceOver } from "../lib/autoVoice";
+import { draftScript, voiceReady, redoVoiceOver, removeVoiceOver } from "../lib/autoVoice";
 import { maxWords } from "../domain/autoVoice";
 import { dispatchJob } from "../services/github";
 import { checkEdit, editorName, isHandoffApp, HANDOFF } from "../domain/editors";
 import { editingNote, pollEditorJobs, startHandback } from "../lib/editorJobs";
 import { probeR2 } from "../lib/mp4";
 import { clipFileAction, FILES } from "../domain/tidy";
+import { libraryTrack } from "@shared/sound";
 import { FULL_VIDEO_PRIVACY, cleanTags, cleanTitle, composeDescription, studioLink, DESCRIPTION_MAX, type FullVideoDetails, type FullVideoPrivacy } from "../domain/fullVideo";
 
 export const clips = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -121,6 +122,12 @@ export interface ReviewClip extends ClipRow {
   /** The song under it (her upload's id), and a Change music in progress ("none" or a song id). */
   music_id: string | null;
   pending_music: string | null;
+  /** A built-in track under it (the studio's own music), by name; null for her songs or none. */
+  music_library: string | null;
+  /** Cut with the camera sound off: music (and a voice over) instead of what the camera heard. */
+  muted: boolean;
+  /** What she asked to change the last time she tapped Try another version. */
+  again_notes: string | null;
   /** Her voice over's script (Edit the script in Review) and whether it was made automatically. */
   voice_script: string | null;
   voice_auto: boolean;
@@ -204,6 +211,8 @@ interface ClipDb {
   voice_nid: string | null;
   music: string | null;
   pending_music: string | null;
+  muted: number;
+  again_notes: string | null;
   voice_script: string | null;
   voice_auto: number | null;
   full_video: number;
@@ -261,8 +270,11 @@ function toView(r: ClipDb): ReviewClip {
     edited_with_name: editorName(r.edited_with),
     editing_note: editingNote(r.busy_editor, r.busy_capability),
     voice_over: r.voice_mix === "mixing" || r.voice_mix === "ready" || r.voice_mix === "failed" ? r.voice_mix : null,
-    music_id: r.music ? r.music.slice("music/".length) : null,
+    music_id: r.music?.startsWith("music/") ? r.music.slice("music/".length) : null,
     pending_music: r.pending_music,
+    music_library: libraryTrack(r.music)?.title ?? null,
+    muted: !!r.muted,
+    again_notes: r.again_notes,
     voice_script: r.voice_script,
     voice_auto: !!r.voice_auto,
     full_video: r.full_video ? fullVideoView(r) : null,
@@ -295,7 +307,7 @@ function fullVideoView(r: ClipDb): FullVideoView {
 
 const CLIP_SELECT = `SELECT c.id, c.asset_id, c.dump_id, c.start_s, c.end_s, c.recipe, c.hook_text, c.hook_alt, c.caption, c.hashtags,
   c.platforms, c.score, c.status, c.reject_reason, c.paid_partnership, c.hidden, c.created_at, c.reviewed_at, c.media_token, c.cover_r2_key,
-  c.look, c.layout, c.pending_look, c.rerender_error, c.media_version, c.edited_with, c.music, c.pending_music, a.raw_deleted_at,
+  c.look, c.layout, c.pending_look, c.rerender_error, c.media_version, c.edited_with, c.music, c.pending_music, c.muted, c.again_notes, a.raw_deleted_at,
   (SELECT e.editor FROM editor_jobs e WHERE e.clip_id = c.id AND e.status IN ('submitted', 'importing') ORDER BY e.created_at DESC LIMIT 1) AS busy_editor,
   (SELECT e.capability FROM editor_jobs e WHERE e.clip_id = c.id AND e.status IN ('submitted', 'importing') ORDER BY e.created_at DESC LIMIT 1) AS busy_capability,
   a.file_name AS source_file, a.source_owner, a.source_note,
@@ -689,6 +701,15 @@ export function lookChangeRefusal(clip: LookChangeState | null, look: unknown, s
   return null;
 }
 
+/** Why Try another version with notes can't start now, in her words; null when it can. Pure. */
+export function againRefusal(clip: Omit<LookChangeState, "look"> & { look?: string | null } | null): { status: 404 | 409; error: string } | null {
+  if (!clip || clip.status === "deleted") return { status: 404, error: "That clip is gone." };
+  if (clip.in_buffer) return { status: 409, error: "This clip is already loaded into Buffer. Remove it from the Calendar first, then try another version." };
+  if (clip.pending_look) return { status: 409, error: "A new version of this clip is already on its way. It will be ready in a few minutes." };
+  if (clip.raw_deleted_at) return { status: 409, error: "The original video for this clip was cleared after 7 days, so it can't be cut again. Dump that video again to get new versions." };
+  return null;
+}
+
 interface CellClipDb {
   id: string;
   dump_id: string;
@@ -768,15 +789,40 @@ clips.post("/:id/music", async (c) => {
   return rerender(c, id, row?.look ?? "clean", undefined, { music, sameLookOk: true });
 });
 
-/** Try another version: a different look, picked at random from the ones in her mix. */
+/**
+ * Try another version. With notes ("what to change"): the clip's video is cut again, steered by them
+ * (moment, hook, pace, look), away from the moment she has; the current clip stays until the new one
+ * replaces it. Without notes: a different look, picked at random from the ones in her mix.
+ */
 clips.post("/:id/another", async (c) => {
   const id = c.req.param("id");
+  const body = await readJson<{ notes?: string }>(c);
+  const notes = String(body?.notes ?? "").replace(/\s+/g, " ").trim().slice(0, 1000);
   const row = await rerenderRow(c.env, id);
+  if (notes) return againWithNotes(c, id, row, notes);
   const editing = editingFromStored(await getSetting<StoredEditing>(c.env.DB, "editing", {}));
   const pool = editing.looks.filter((l) => l !== row?.look);
   const pick = (pool.length ? pool : LOOK_IDS.filter((l) => l !== row?.look))[crypto.getRandomValues(new Uint32Array(1))[0] % Math.max(1, pool.length || LOOK_IDS.length - 1)];
   return rerender(c, id, pick, undefined, {});
 });
+
+/** Try another version with her notes: one new cut of this clip's video, swapped in when ready (worker/jobs/cut.ts applyAgain). */
+async function againWithNotes(c: Ctx, id: string, row: RerenderRow | null, notes: string) {
+  const refused = againRefusal(row ? { ...row, in_buffer: await lockedByBuffer(c.env, id) } : null);
+  if (refused) return fail(c, refused.status, refused.error, "review-and-approve-clips");
+  // pending_look keeps its current look: Review shows "working on it" and the buttons wait.
+  await c.env.DB.prepare("UPDATE clips SET again_notes = ?, pending_look = ?, pending_layout = NULL, pending_music = NULL, rerender_error = NULL WHERE id = ?").bind(notes, row!.look ?? "clean", id).run();
+  const job = await dispatchJob(c.env, "cut", `${row!.dump_id}/${id}/again`);
+  if (!job.dispatched) {
+    await c.env.DB.prepare("UPDATE clips SET pending_look = NULL, rerender_error = ? WHERE id = ?").bind("We couldn't start the new version. Try again in a minute.", id).run();
+    return fail(c, 502, "We couldn't start the new version. Try again in a minute.", "reconnect-github");
+  }
+  await c.env.DB.prepare("UPDATE clips SET rerender_job_id = ? WHERE id = ?").bind(job.jobId, id).run();
+  await recordEvent(c.env.DB, "clip.again_requested", id, { words: notes.split(" ").length }, c.get("user").email);
+  log.info("clip.again", {});
+  const updated = await c.env.DB.prepare(`${CLIP_SELECT} WHERE c.id = ?`).bind(id).first<ClipDb>();
+  return c.json({ jobId: job.jobId, clip: updated ? toView(updated) : null });
+}
 
 /** Queue a re-render of one clip (a new look, new cells, or new music); the old file plays until it is ready. */
 async function rerender(c: Ctx, id: string, look: unknown, layoutInput: unknown, opts: { music?: string; sameLookOk?: boolean }) {
@@ -872,7 +918,7 @@ clips.post("/:id/voice-over/remove", async (c) => {
 clips.post("/:id/voice-over/draft", async (c) => {
   const clip = await c.env.DB.prepare("SELECT id, hook_text, caption, start_s, end_s, speech FROM clips WHERE id = ? AND status != 'deleted'").bind(c.req.param("id")).first<{ id: string; hook_text: string; caption: string; start_s: number; end_s: number; speech: number | null }>();
   if (!clip) return fail(c, 404, "That clip is gone.");
-  return c.json({ script: await draftScript(c.env, clip), has_voice: await hasVoiceSample(c.env) });
+  return c.json({ script: await draftScript(c.env, clip), has_voice: await voiceReady(c.env) });
 });
 
 /** Add, or Redo with her own words: the script she wrote is voiced and mixed into just this clip. */
@@ -886,7 +932,7 @@ clips.post("/:id/voice-over", async (c) => {
   const seconds = clip.end_s - clip.start_s;
   const words = script.split(" ").length;
   if (words > maxWords(seconds)) return fail(c, 422, `That's ${words} words; this ${Math.round(seconds)}-second clip has room for about ${maxWords(seconds)}. Shorten it a little.`, "record-your-voice");
-  if (!(await hasVoiceSample(c.env))) return fail(c, 409, "Record your voice first, on Voice overs.", "record-your-voice");
+  if (!(await voiceReady(c.env))) return fail(c, 409, "Record your voice first, on Voice overs, or pick a stock voice in Settings → Sound.", "record-your-voice");
   if (await lockedByBuffer(c.env, id)) return fail(c, 409, "This clip is already loaded into Buffer. Remove it from the Calendar first.", "move-or-remove-a-post");
   const r = await redoVoiceOver(c.env, id, script);
   if (!r.batch) return fail(c, 502, "The voice over could not start. Try again in a minute.", "reconnect-github");

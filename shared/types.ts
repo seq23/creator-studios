@@ -213,6 +213,8 @@ export interface SettingsShape {
   recycle_cooldown_days: number;
   helper_email: string | null;
   audience_timezone: string;
+  /** Camera sound and whose voice the voice overs use (shared/sound.ts). */
+  sound: import("./sound").SoundSettings;
 }
 
 export interface ConnectionView {

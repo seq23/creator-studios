@@ -6,6 +6,7 @@ import type { Env } from "../env";
 import { log } from "../lib/log";
 import { recordEvent, setHealth } from "../lib/db";
 import { nowIso } from "../lib/ids";
+import { stockVoice } from "../lib/autoVoice";
 
 export const VOICE_MODEL_KEY = "voice/model/conds.pt";
 export const mixedKey = (narrationId: string) => `voice/mixed/${narrationId}.mp4`;
@@ -46,7 +47,9 @@ export async function buildBatchSpec(env: Env, jobId: string, batch: string) {
   if (!list.length) throw new Error("nothing to voice");
   const v = await env.DB.prepare("SELECT sample_r2_key, consent_at, model_r2_key FROM voice WHERE id = 1").first<{ sample_r2_key: string | null; consent_at: string | null; model_r2_key: string | null }>();
   const speaks = list.some((r) => r.status !== "ready");
-  if (speaks && (!v?.sample_r2_key || !v.consent_at)) throw new Error("no consented voice sample");
+  // A stock voice (Settings → Sound) needs no recording of hers; her own voice needs her consented sample.
+  const stock = await stockVoice(env);
+  if (speaks && !stock && (!v?.sample_r2_key || !v.consent_at)) throw new Error("no consented voice sample");
   await env.DB.prepare("UPDATE narrations SET status = 'generating' WHERE batch = ? AND status = 'queued'").bind(batch).run();
   const items: BatchItem[] = list.map((r) => ({
     narration_id: r.id,
@@ -64,6 +67,7 @@ export async function buildBatchSpec(env: Env, jobId: string, batch: string) {
     sample_key: v?.sample_r2_key ?? null,
     model_key: v?.model_r2_key ?? VOICE_MODEL_KEY,
     model_exists: !!v?.model_r2_key,
+    stock_voice: stock,
     items,
   };
 }

@@ -360,7 +360,7 @@ describe("Review: Remove and Redo (Edit the script)", () => {
     db.raw.exec("UPDATE voice SET sample_r2_key = NULL, consent_at = NULL WHERE id = 1");
     const r = await call("POST", `/api/clips/${n.clip_id}/voice-over`, { script: "A short new line for this clip." });
     expect(r.status).toBe(409);
-    expect(r.json.error).toBe("Record your voice first, on Voice overs.");
+    expect(r.json.error).toBe("Record your voice first, on Voice overs, or pick a stock voice in Settings → Sound.");
   });
 });
 

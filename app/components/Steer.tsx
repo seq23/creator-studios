@@ -1,11 +1,12 @@
 // How she steers a dump, on the Dump screen (worker/domain/steer.ts has the rules):
 //   - Surprise me (the default): we pick, varied across the batch, and say what we tried
-//   - or tap chips: Look, Music, Pace, Clip length, How many, Captions, Platforms, Voice over. An untapped
+//   - or tap chips: Look, Music, Pace, Clip length, How many, Captions, Platforms, Voice over, Camera sound. An untapped
 //     group stays "Surprise me" for that one thing. Every group is always shown (nothing hidden).
 // Under the note: "Here's what we understood", and anything we can't do as asked, before Dump.
 import type { NotFollowed, SteerControls, Understood } from "@shared/steer";
 import { CAPTION_CHOICES, CAPTION_LABEL, COUNT_CHOICES, LENGTHS, PACES, VOICE_CHOICES, VOICE_LABEL, type VoiceChoice } from "@shared/steer";
 import { PLATFORMS, PLATFORM_LABEL, type Platform } from "@shared/constants";
+import { CAMERA_HINT, CAMERA_LABEL, CAMERA_SOUNDS, type CameraSound } from "@shared/sound";
 import "../styles/steer.css";
 
 export interface SteerLook {
@@ -51,7 +52,7 @@ export interface VoiceDefault {
   hasVoice: boolean;
 }
 
-export function SteerPanel({ steer, onChange, looks, tracks, disabled, voice }: { steer: SteerControls; onChange: (s: SteerControls) => void; looks: SteerLook[]; tracks: SteerTrack[]; disabled?: boolean; voice: VoiceDefault }) {
+export function SteerPanel({ steer, onChange, looks, tracks, disabled, voice, camera }: { steer: SteerControls; onChange: (s: SteerControls) => void; looks: SteerLook[]; tracks: SteerTrack[]; disabled?: boolean; voice: VoiceDefault; camera: CameraSound }) {
   const set = (patch: Partial<SteerControls>) => {
     const next = { ...steer, ...patch } as Record<string, unknown>;
     for (const k of Object.keys(next)) if (next[k] === undefined) delete next[k];
@@ -90,17 +91,15 @@ export function SteerPanel({ steer, onChange, looks, tracks, disabled, voice }: 
         <Chip on={steer.music === "none"} onClick={() => set({ music: "none" })}>
           No music
         </Chip>
-        {tracks.length ? (
-          <Chip on={steer.music === "any"} onClick={() => set({ music: "any" })}>
-            My songs
-          </Chip>
-        ) : null}
+        <Chip on={steer.music === "any"} onClick={() => set({ music: "any" })}>
+          {tracks.length ? "My songs" : "Studio music"}
+        </Chip>
         {tracks.map((t) => (
           <Chip key={t.id} on={steer.music === `track:${t.id}`} onClick={() => set({ music: `track:${t.id}` })}>
             {t.file_name.replace(/\.[a-z0-9]+$/i, "")}
           </Chip>
         ))}
-        {!tracks.length ? <span className="hint">Add songs under Settings → Editing → My music.</span> : null}
+        {!tracks.length ? <span className="hint">Studio music = free songs that come with your studio. Add your own under Settings → Editing → My music.</span> : null}
       </Group>
       <Group name="Pace" surprise={!steer.pace} onSurprise={() => set({ pace: undefined })}>
         {PACES.map((p) => (
@@ -154,11 +153,29 @@ export function SteerPanel({ steer, onChange, looks, tracks, disabled, voice }: 
         <span className="hint" data-voice-hint>
           {(steer.voice ?? voice.choice) === "quiet"
             ? voice.hasVoice
-              ? "Clips with no talking get a voice over in your voice; clips where you talk never do. You can remove any of them in Review."
-              : "Record your voice first (Voice overs, the steps at the top); until then no voice overs are made."
+              ? "Clips with no talking get a voice over in the voice you picked (Settings → Sound); clips where you talk never do. You can remove any of them in Review."
+              : "Pick a voice first (Settings → Sound) or record your own (Voice overs); until then no voice overs are made."
             : (steer.voice ?? voice.choice) === "pick"
               ? "No voice overs now; tap Add voice over on any clip in Review."
               : "No voice overs on this dump. You can still add one to any clip in Review."}
+        </span>
+      </div>
+      {/* Camera sound: no "Surprise me"; untapped, Settings → Sound decides, and the chip it picks is marked. */}
+      <div className="steer-group" role="group" aria-label="Camera sound">
+        <div className="steer-name">Camera sound</div>
+        <div className="steer-chips">
+          {CAMERA_SOUNDS.map((m) => {
+            const isDefault = !steer.camera && camera === m;
+            return (
+              <Chip key={m} on={steer.camera === m || isDefault} onClick={() => set({ camera: steer.camera === m ? undefined : m })}>
+                {CAMERA_LABEL[m]}
+                {isDefault ? " (your setting)" : ""}
+              </Chip>
+            );
+          })}
+        </div>
+        <span className="hint" data-camera-hint>
+          {CAMERA_HINT[steer.camera ?? camera]}
         </span>
       </div>
     </fieldset>

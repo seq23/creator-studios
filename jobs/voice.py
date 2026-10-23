@@ -18,6 +18,15 @@ from typing import Any
 
 from common import WORK, Job, download_input, log, run, upload_output
 
+import json
+import urllib.request
+
+# Stock voices (owner, 22 Oct 2026): Kokoro-82M preset speakers, Apache-2.0, through kokoro-onnx (MIT).
+# No real person's voice is cloned. jobs/voices.json lists them and their licences.
+VOICES = json.loads((Path(__file__).resolve().parent / "voices.json").read_text(encoding="utf-8"))
+STOCK_IDS = [v["id"] for v in VOICES["voices"]]
+KOKORO = "kokoro-onnx>=0.4,<0.5"
+
 CHATTERBOX = "chatterbox-tts>=0.1.2,<0.2"
 # Chatterbox's watermarker (resemble-perth) imports pkg_resources, which setuptools 81 removed and
 # a Python 3.12 runner does not ship: perth.PerthImplicitWatermarker was None and every voice job
@@ -85,6 +94,50 @@ def mix(job: Job, spec: dict[str, Any]) -> dict[str, Any]:
     return {"mode": "mix", "r2_key": key, "bytes": out.stat().st_size}
 
 
+class Stock:
+    """A stock voice: Kokoro with one of its preset speakers. Same speak() shape as Chatterbox."""
+
+    def __init__(self, voice: str, work: Path) -> None:
+        if voice not in STOCK_IDS:
+            raise RuntimeError("unknown_stock_voice")
+        log("voice.install", engine="stock")
+        subprocess.run([sys.executable, "-m", "pip", "install", "-q", KOKORO, "soundfile"], check=True, stdout=subprocess.DEVNULL)
+        files = {}
+        for name, url in (("model", VOICES["engine"]["model_url"]), ("voices", VOICES["engine"]["voices_url"])):
+            dest = work / url.rsplit("/", 1)[-1]
+            if not dest.exists():
+                urllib.request.urlretrieve(url, dest)
+            files[name] = dest
+        from kokoro_onnx import Kokoro  # noqa: E402
+
+        self.k = Kokoro(str(files["model"]), str(files["voices"]), **espeak_config())
+        self.voice = voice
+        log("voice.ready", engine="stock")
+
+
+def espeak_config() -> dict[str, Any]:
+    """The system espeak-ng (job-voice.yml installs it) when there is one: the library bundled with
+    kokoro-onnx looks for its phoneme data at the path it was built on (macOS, 22 Oct 2026:
+    "Error processing file '/Users/runner/.../phontab'") and every sentence failed."""
+    import ctypes.util
+
+    lib = ctypes.util.find_library("espeak-ng")
+    data = next((d for d in ("/usr/lib/x86_64-linux-gnu/espeak-ng-data", "/usr/share/espeak-ng-data", "/opt/homebrew/share/espeak-ng-data", "/usr/local/share/espeak-ng-data") if Path(d, "phontab").exists()), None)
+    if not lib or not data:
+        return {}
+    from kokoro_onnx.config import EspeakConfig  # noqa: E402
+
+    return {"espeak_config": EspeakConfig(lib_path=lib, data_path=data)}
+
+
+def load_voice(spec: dict[str, Any], work: Path) -> Any:
+    """The stock voice when the studio uses one (Settings > Voice), else her own recorded voice."""
+    stock = spec.get("stock_voice")
+    if stock:
+        return Stock(str(stock), work)
+    return load_model(spec, work)[0]
+
+
 def load_model(spec: dict[str, Any], work: Path) -> tuple[Any, bool]:
     """Chatterbox with her voice, from the saved voice model or, the first time, from her sample
     (then saved to R2 so later runs skip that step). Loaded ONCE per run."""
@@ -117,6 +170,8 @@ def load_model(spec: dict[str, Any], work: Path) -> tuple[Any, bool]:
 
 def speak(model: Any, script: str, out_mp3: Path, on_sentence: Any = None) -> float:
     """The script in her voice, sentence by sentence (a steady CPU run), as an mp3. Returns seconds."""
+    if isinstance(model, Stock):
+        return speak_stock(model, script, out_mp3, on_sentence)
     import torch  # noqa: E402
     import torchaudio  # noqa: E402
 
@@ -133,6 +188,18 @@ def speak(model: Any, script: str, out_mp3: Path, on_sentence: Any = None) -> fl
     return wav.shape[-1] / model.sr
 
 
+def speak_stock(model: Stock, script: str, out_mp3: Path, on_sentence: Any = None) -> float:
+    import soundfile as sf  # noqa: E402
+
+    samples, sr = model.k.create(script.replace("\n", " "), voice=model.voice, speed=1.0, lang="en-us")
+    if on_sentence:
+        on_sentence(1, 1)
+    out_wav = out_mp3.with_suffix(".wav")
+    sf.write(str(out_wav), samples, sr)
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(out_wav), "-codec:a", "libmp3lame", "-q:a", "3", str(out_mp3)], check=True)
+    return len(samples) / sr
+
+
 def batch(job: Job, spec: dict[str, Any]) -> dict[str, Any]:
     """Automatic voice overs for a whole dump in ONE run: the model loads once, then each clip with
     no talking gets its voice over spoken (premium ones arrive ready) and mixed in. One clip that
@@ -144,7 +211,7 @@ def batch(job: Job, spec: dict[str, Any]) -> dict[str, Any]:
     model = None
     if any(it.get("speak") for it in items):
         job.progress("loading your voice", 0, len(items) + 1)
-        model, _ = load_model(spec, work)
+        model = load_voice(spec, work)
     results = []
     for k, it in enumerate(items):
         job.progress("voicing clips", k + 1, len(items) + 1)
@@ -167,7 +234,8 @@ def batch(job: Job, spec: dict[str, Any]) -> dict[str, Any]:
             results.append({"narration_id": nid, "ok": False})
     minutes = round((time.time() - started) / 60, 2)
     log("voice.batch.done", items=len(items), ok=sum(1 for r in results if r["ok"]), minutes=minutes)
-    return {"mode": "batch", "items": results, "model_key": str(spec.get("model_key") or ""), "minutes": minutes}
+    # A stock voice makes no voice model of hers: nothing to record on the Worker.
+    return {"mode": "batch", "items": results, "model_key": "" if spec.get("stock_voice") else str(spec.get("model_key") or ""), "minutes": minutes}
 
 
 def main(job: Job, spec: dict[str, Any]) -> dict[str, Any]:
@@ -181,7 +249,7 @@ def main(job: Job, spec: dict[str, Any]) -> dict[str, Any]:
     work = WORK / "voice"
     work.mkdir(parents=True, exist_ok=True)
     job.progress("preparing", 0, 4)
-    model, _ = load_model(spec, work)
+    model = load_voice(spec, work)
     job.progress("speaking", 2, 4)
     out_mp3 = work / "narration.mp3"
     seconds = speak(model, script, out_mp3, lambda n, of: (job.progress("speaking", 2, 4), log("voice.sentence", n=n, of=of)))
@@ -189,7 +257,7 @@ def main(job: Job, spec: dict[str, Any]) -> dict[str, Any]:
     key = str(spec["output_key"])
     upload_output(out_mp3, key, "audio/mpeg")
     log("voice.done", seconds=round(seconds, 1), bytes=out_mp3.stat().st_size)
-    return {"r2_key": key, "duration_s": round(seconds, 1), "bytes": out_mp3.stat().st_size, "model_key": str(spec["model_key"])}
+    return {"r2_key": key, "duration_s": round(seconds, 1), "bytes": out_mp3.stat().st_size, "model_key": "" if spec.get("stock_voice") else str(spec["model_key"])}
 
 
 if __name__ == "__main__":

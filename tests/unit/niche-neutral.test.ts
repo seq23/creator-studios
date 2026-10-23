@@ -24,6 +24,12 @@ const FILES = [
   "help/index.json",
   "shared/setup.ts",
   "worker/domain/marketplaces.ts",
+  // Sound (22 Oct 2026): the built-in music's names, the stock voices, camera-sound words, Start over.
+  "shared/sound.ts",
+  "jobs/music/library.json",
+  "jobs/voices.json",
+  "scripts/make-music.py",
+  "worker/domain/startOver.ts",
 ];
 
 describe("screen copy is niche-neutral", () => {

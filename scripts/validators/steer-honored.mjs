@@ -18,6 +18,7 @@ const CHAIN = {
   captions: [["worker/jobs/cut.ts", "steerLook("], ["worker/domain/steer.ts", "out.captions = c.captions"], ["tests/unit/steer.test.ts", 'l!.captions === "none"']],
   platforms: [["worker/jobs/cut.ts", "steerPlatforms("], ["tests/unit/steer.test.ts", "allowed_platforms"]],
   voice: [["worker/lib/autoVoice.ts", "voiceFor(mergeControls(chips, note"], ["worker/domain/autoVoice.ts", "export function voiceFor("], ["worker/jobs/cut.ts", "askedVoice.includes(\"quiet\")"], ["tests/unit/auto-voice.test.ts", "the Voice over chip"]],
+  camera: [["worker/jobs/cut.ts", "camera: dumpCtl.camera"], ["jobs/cut.py", "camera_keep(camera_mode(spec, a)"], ["jobs/tests/test_cut_camera_sound.py", "def test_a_dump_cut_with_camera_sound_off"], ["tests/unit/camera-sound.test.ts", "camera sound reaches the cut"]],
   include: [["worker/jobs/cut.ts", "include: ctl.include"], ["jobs/cut.py", "apply_steer("], ["jobs/selftest_cut.py", "she asked to include is missing"]],
   avoid: [["worker/jobs/cut.ts", "avoid: ctl.avoid"], ["jobs/cut.py", "apply_steer("], ["jobs/selftest_cut.py", "she asked to leave out was kept"]],
 };
