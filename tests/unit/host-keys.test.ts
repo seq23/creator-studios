@@ -215,12 +215,14 @@ describe("secret plan and validator host-keys-host-only", () => {
   const reg = loadRegistry(root);
   const cfg = () => parseJsonc(readFileSync(path.join(root, "wrangler.jsonc"), "utf8"));
 
-  it("the pinned list is exactly hadiyah (all five) and sample1 (email + AI writing); sample2 and sample3 carry none", () => {
+  it("the pinned list is exactly hadiyah (all five), sample1 (email + AI writing), sheila and mercedes (email only, 23 Oct 2026); sample2 and sample3 carry none", () => {
     expect(ALLOWED).toEqual({
       hadiyah: ["OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM", "FIRECRAWL_API_KEY", "HUNTER_API_KEY"],
       sample1: ["OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM"],
+      sheila: ["RESEND_API_KEY", "STUDIO_EMAIL_FROM"],
+      mercedes: ["RESEND_API_KEY", "STUDIO_EMAIL_FROM"],
     });
-    expect(reg.studios.filter((s: { kind: string }) => s.kind === "host-accounts").map((s: { slug: string }) => s.slug).sort()).toEqual(["hadiyah", "sample1"]);
+    expect(reg.studios.filter((s: { kind: string }) => s.kind === "host-accounts").map((s: { slug: string }) => s.slug).sort()).toEqual(["hadiyah", "mercedes", "sample1", "sheila"]);
     for (const slug of ["sample2", "sample3"]) expect(reg.studios.find((s: { slug: string }) => s.slug === slug).kind, slug).toBe("client");
   });
 
@@ -294,7 +296,7 @@ describe("secret plan and validator host-keys-host-only", () => {
     const sources = { "worker/lib/practice.ts": "hydrate: const out = hostBase(env);", "worker/lib/hostKeys.ts": "allowedHostKeys(env)" };
     const r = checkHostKeys({ studios, cfg: c, secretPlan, cliList: CLI_LIST, workerList: CLI_LIST, sources });
     const text = r.problems.join("\n");
-    expect(text).toMatch(/host-accounts studios are \[hadiyah,sample1,sample2\], the pinned list is \[hadiyah,sample1\]/);
+    expect(text).toMatch(/host-accounts studios are \[hadiyah,mercedes,sample1,sample2,sheila\], the pinned list is \[hadiyah,mercedes,sample1,sheila\]/);
     expect(text).toMatch(/env\.sample1 would carry the host's FIRECRAWL_API_KEY, which is not pinned for it/);
     expect(text).toMatch(/studios\/sample1\.json hostKeys .* differ from the pinned/);
     expect(text).toMatch(/studios\/sample3\.json: a client studio has hostKeys/);

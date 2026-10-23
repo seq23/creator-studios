@@ -1,0 +1,44 @@
+{
+  "slug": "sheila",
+  "worker": "sheilastudio",
+  "hostname": "sheila-studio.spryexecutiveos.com",
+  "appName": "Sheila Studio",
+  "ownerName": "Sheila",
+  "_ownerEmail": "Never in this file (public repo). From the 0600 file <secrets dir>/sheila/OWNER_EMAIL.",
+  "theme": "sheila",
+  "kind": "host-accounts",
+  "hostKeys": [
+    "RESEND_API_KEY",
+    "STUDIO_EMAIL_FROM"
+  ],
+  "audienceTimezone": "America/New_York",
+  "d1": {
+    "name": "sheila-creator-dashboard-db",
+    "id": "f2ddb225-deb9-42e6-b77c-3a122621792f"
+  },
+  "r2": {
+    "bucket": "sheila-creator-dashboard-files"
+  },
+  "githubRepo": "seq23/creator-studios",
+  "hostSecrets": {
+    "_why": "Sheila's studio joined the shared code on the owner's word, 23 Oct 2026 (\"One codebase\"): its Worker, D1, R2, domain and keys carried over. Studio email runs on a host Resend sender; everything else is Sheila's own, pasted on Setup or already on the Worker.",
+    "GITHUB_DISPATCH_TOKEN": "gh-auth-token",
+    "YOUTUBE_API_KEY": "file?:YOUTUBE_API_KEY",
+    "GOOGLE_CLIENT_ID": "studio-file?:GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET": "studio-file?:GOOGLE_CLIENT_SECRET",
+    "RESEND_API_KEY": "studio-file:RESEND_API_KEY",
+    "STUDIO_EMAIL_FROM": "studio-file:STUDIO_EMAIL_FROM",
+    "_kept": "The Worker already carries its YouTube and Google sign-in keys from before the move; secrets never rotates a set one, so these optional sources only matter for a fresh Worker."
+  },
+  "jobSecretOnHostRepo": true,
+  "whatsNew": {
+    "id": "2026-10-new-studio",
+    "title": "New in your studio",
+    "lines": [
+      "Your studio now watches your videos before it cuts them, so clips show what really happened.",
+      "Each clip says what it thinks it shows. Tap to fix it, no typing.",
+      "Camera sound you don't want is left out, and music or a voice over is added.",
+      "To keep your accounts safe, you now sign in with a code we email you."
+    ]
+  }
+}

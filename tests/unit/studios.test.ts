@@ -33,7 +33,10 @@ const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 describe("the registry", () => {
   it("has Hadiyah (host accounts), Porch & Party (host accounts for email, AI writing and jobs since 22 Oct 2026; was Sample 1) and two sample studios (clients) at the agreed URLs", () => {
     const by = Object.fromEntries(reg.studios.map((s: { slug: string }) => [s.slug, s]));
-    expect(Object.keys(by).sort()).toEqual(["hadiyah", "sample1", "sample2", "sample3"]);
+    expect(Object.keys(by).sort()).toEqual(["hadiyah", "mercedes", "sample1", "sample2", "sample3", "sheila"]);
+    // Owner's word 23 Oct 2026 ("One codebase"): Sheila's and Mercedes' studios joined with their own Worker, D1, R2 and data; Sheila got a proper address (her workers.dev link 301s to it), Mercedes keeps her domain.
+    expect(by.sheila).toMatchObject({ kind: "host-accounts", appName: "Sheila Studio", theme: "sheila", hostname: "sheila-studio.spryexecutiveos.com", worker: "sheilastudio", workersDevUrl: "https://sheilastudio.seq-taylor.workers.dev", d1: { name: "sheila-creator-dashboard-db", id: "f2ddb225-deb9-42e6-b77c-3a122621792f" }, r2: { bucket: "sheila-creator-dashboard-files" }, githubRepo: "seq23/creator-studios", jobSecretOnHostRepo: true, hostKeys: ["RESEND_API_KEY", "STUDIO_EMAIL_FROM"] });
+    expect(by.mercedes).toMatchObject({ kind: "host-accounts", appName: "Mercedes Studio", theme: "mercedes", hostname: "dashboard.justbeingmercedes.com", worker: "mercedesstudio", d1: { name: "mercedes-creator-dashboard-db", id: "ab67b7cc-20fc-42da-a48f-f9d7c4b11e76" }, r2: { bucket: "mercedes-creator-dashboard-files" }, githubRepo: "seq23/creator-studios", jobSecretOnHostRepo: true, hostKeys: ["RESEND_API_KEY", "STUDIO_EMAIL_FROM"] });
     expect(by.hadiyah).toMatchObject({ kind: "host-accounts", appName: "Hadiyah Studio", ownerName: "Hadiyah", theme: "hadiyah", hostname: "hadiyah-studio.spryexecutiveos.com", url: "https://hadiyah-studio.spryexecutiveos.com", workersDevUrl: "https://hadiyahstudio.seq-taylor.workers.dev" });
     expect(by.hadiyah).not.toHaveProperty("previousHostnames");
     // Sample 1 renamed in place (22 Oct 2026): new name, host and theme; the slug, Worker, D1 and R2 keep their names (the data stays).
@@ -148,15 +151,16 @@ describe("guard (b): studio A's D1 and R2 are never studio B's", () => {
   it("passes on the repo: every studio has its own Worker, D1, R2 and URL", async () => {
     const r = await studioIsolation({ root });
     expect(r.problems).toEqual([]);
-    expect(r.items).toBe(4);
+    expect(r.items).toBe(6);
     const all = reg.studios.flatMap((s: { d1: { name: string }; r2: { bucket: string } }) => [s.d1.name, s.r2.bucket]);
     expect(new Set(all).size).toBe(all.length);
   });
 
   it("negative proof: a shared D1, a shared bucket, a studio env pointing at another's storage, a shared Worker all fail", () => {
     const studios = clone(reg.studios);
-    studios[2].d1.name = studios[1].d1.name;
-    studios[3].r2.bucket = studios[0].r2.bucket;
+    const at = (slug: string) => studios.find((s: { slug: string }) => s.slug === slug);
+    at("sample2").d1.name = at("sample1").d1.name;
+    at("sample3").r2.bucket = at("hadiyah").r2.bucket;
     const c = cfg();
     c.env.sample1.d1_databases[0].database_name = reg.studios.find((s: { slug: string }) => s.slug === "hadiyah").d1.name;
     c.env.sample2.r2_buckets.push({ binding: "OTHER", bucket_name: "creator-studios-hadiyah-files" });
@@ -167,7 +171,7 @@ describe("guard (b): studio A's D1 and R2 are never studio B's", () => {
     expect(text).toMatch(/env\.sample1: DB must bind exactly its own D1/);
     expect(text).toMatch(/env\.sample2: FILES must bind exactly its own R2/);
     const w = clone(reg.studios);
-    w[1].worker = w[0].worker;
+    w.find((s: { slug: string }) => s.slug === "sample1").worker = w.find((s: { slug: string }) => s.slug === "hadiyah").worker;
     expect(checkIsolation(w, cfg()).problems.join("\n")).toMatch(/Worker hadiyahstudio is shared by hadiyah and sample1/);
   });
 });
@@ -251,7 +255,7 @@ describe("the owner email and the platform sender are never committed config", (
   it("validator registry-no-emails passes on the repo and fails on a committed address or an ownerEmail field (negative proof)", async () => {
     const r = await registryNoEmails({ root });
     expect(r.problems).toEqual([]);
-    expect(r.items).toBe(5);
+    expect(r.items).toBe(7);
     expect(checkRegistryText("x.json", '{"note":"local dev uses owner@studio.example"}')).toEqual([]);
     expect(checkRegistryText("hadiyah.json", '{"note":"someone@client.example"}').join("\n")).toMatch(/hadiyah\.json: an email address \(s…@client\.example\) is committed/);
     expect(checkRegistryText("hadiyah.json", '{"ownerEmail":""}').join("\n")).toMatch(/an ownerEmail field/);
