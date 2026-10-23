@@ -593,8 +593,10 @@ def see_videos(key: str | None, items: list[dict[str, Any]], services: list[str]
                     prompt = json.loads(sheet_prompt(services, b["times"], b.get("notes") or ""))
                     if looks:
                         prompt["what_each_service_looks_like"] = looks
-                    answer, model = ask_vision(key, SHEET_SYSTEM, json.dumps(prompt), grid, "vision")
+                    answer, model = ask_vision(key, SHEET_SYSTEM, json.dumps(prompt), grid, "vision", local=False)
                     sheet = parse_sheet(answer, b["asset_id"], b["duration"], b["times"], services, f"vision:{model}") if answer else None
+            if not sheet:
+                sheet = local_vlm_sheet(b, services, looks, work)
             if not sheet:
                 sheet = local_sheet(b["asset_id"], b["duration"], b["frames"], b["times"], services)
         except Exception:  # noqa: BLE001
@@ -609,3 +611,65 @@ def worth_saving(sheet: ShotSheet) -> bool:
     """Only a sheet a vision model made is saved for re-plans; the CLIP backup's guess is made again
     for free next time, so a later run with quota left can look properly."""
     return sheet.source.startswith("vision:") or sheet.source == "cached"
+
+
+# ---------------------------------------------------------------- the local open model's sheet (quota fix)
+
+# A small model on a CPU answers a short, flat question far more reliably than the shot grid
+# (23 Oct 2026 golden run on the local model alone: 0.8 with the grid prompt). So each stretch of a
+# video gets one flat answer: a video up to SEGMENT_S long is one stretch, a longer one up to 3.
+SEGMENT_S = 20.0
+LOCAL_CELLS = 6
+LOCAL_SYSTEM = (
+    "You see frames from one short phone video, in time order. Describe only what you can see. "
+    "Answer JSON only, with exactly these keys: "
+    "\"what\": one plain sentence, no names, no addresses; "
+    "\"state\": one of \"before\" (empty, bare or not set up yet), \"in_progress\" (the work being done), "
+    "\"after\" (the finished result), \"n/a\" (a person talking to the camera), \"unsure\"; "
+    "\"people\": one of \"none\", \"to_camera\" (a person facing the camera and talking to it), \"working\", "
+    "\"others\" (guests or passers-by); "
+    "\"service\": exactly one item of the services list, or \"unsure\"; "
+    "\"confidence\": a number from 0 to 1; "
+    "\"privacy\": a list with any of \"face\" (a bystander's face), \"house_number\", \"street_sign\", \"plate\", \"written_name\"."
+)
+
+
+def segments(duration: float) -> list[tuple[float, float]]:
+    n = 1 if duration <= SEGMENT_S else min(3, math.ceil(duration / SEGMENT_S))
+    step = duration / n
+    return [(round(i * step, 2), round(duration if i == n - 1 else (i + 1) * step, 2)) for i in range(n)]
+
+
+def local_vlm_sheet(b: dict[str, Any], services: list[str], looks: dict[str, str] | None, work: Path) -> ShotSheet | None:
+    """The local open model's sheet for one video: one flat answer per stretch (jobs/ai.py)."""
+    if os.environ.get("VISION_LOCAL") != "1":
+        return None
+    shots: list[Shot] = []
+    model = ""
+    for j, (s0, s1) in enumerate(segments(b["duration"])):
+        frames = [f for f, t in zip(b["frames"], b["times"]) if s0 - 0.01 <= t < s1 + 0.01] or b["frames"]
+        frames = frames[:: max(1, math.ceil(len(frames) / LOCAL_CELLS))][:LOCAL_CELLS]
+        seg_dir = work / f"local_{b['asset_id']}_{j}"
+        seg_dir.mkdir(parents=True, exist_ok=True)
+        for k, f in enumerate(frames):  # numbered without gaps for the grid
+            (seg_dir / f"f_{k:03d}.jpg").write_bytes(f.read_bytes())
+        grid = contact_sheet(sorted(seg_dir.glob("f_*.jpg")), work / f"local_{b['asset_id']}_{j}.jpg")
+        if not grid:
+            return None
+        text = json.dumps({"services": services, **({"what_each_service_looks_like": looks} if looks else {}), "owner_note": (b.get("notes") or "")[:300]})
+        answer = A.first_json(A.ask_local_vlm(LOCAL_SYSTEM, text, grid, "vision", 400))
+        if answer is None:
+            return None
+        shots.append(_shot_fields(Shot(s0, s1), answer, services))
+        model = A.LOCAL_VLM.split("/")[-1]
+    if not shots:
+        return None
+    # Neighbouring stretches with the same reading join.
+    merged: list[Shot] = []
+    for sh in shots:
+        if merged and (merged[-1].state, merged[-1].service, merged[-1].people) == (sh.state, sh.service, sh.people):
+            merged[-1].end = sh.end
+            merged[-1].confidence = min(merged[-1].confidence, sh.confidence)
+            continue
+        merged.append(sh)
+    return ShotSheet(b["asset_id"], b["duration"], merged, f"vision:local_vlm:{model}")

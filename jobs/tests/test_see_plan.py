@@ -424,3 +424,42 @@ class AnswersAndMemoryTest(unittest.TestCase):
         self.assertNotEqual(pl.hook.lower(), "same old hook")
         prompt = json.loads(P.copy_prompt([pl], {}, memory={"kept_hooks": ["Walk in to this"], "turned_down_hooks": ["Same old hook"]}))
         self.assertEqual(prompt["what_the_owner_kept_and_turned_down"]["kept_hooks"], ["Walk in to this"])
+
+
+class LocalModelSheetTest(unittest.TestCase):
+    """The $0 backup: the local open model answers one flat question per stretch of a video."""
+
+    def test_segments_and_flat_answers_join(self):
+        import ai as A
+
+        self.assertEqual(V.segments(12.0), [(0.0, 12.0)])
+        self.assertEqual(V.segments(46.0), [(0.0, 15.33), (15.33, 30.67), (30.67, 46.0)])
+        answers = iter(['{"what":"an empty room","state":"before","people":"none","service":"unsure","confidence":0.8}',
+                        '{"what":"the finished room","state":"after","people":"none","service":"alpha work","confidence":0.9}',
+                        '{"what":"the finished room, close","state":"after","people":"none","service":"alpha work","confidence":0.7}'])
+        old = A.ask_local_vlm, V.contact_sheet, os.environ.get("VISION_LOCAL")
+        try:
+            A.ask_local_vlm = lambda *a, **k: next(answers)
+            V.contact_sheet = lambda frames, out: Path(__file__)
+            os.environ["VISION_LOCAL"] = "1"
+            import tempfile
+
+            work = Path(tempfile.mkdtemp())
+            f = work / "x.jpg"
+            f.write_bytes(b"jpg")
+            b = {"asset_id": "a", "duration": 46.0, "frames": [f] * 12, "times": [i * 4.0 + 2 for i in range(12)], "notes": ""}
+            sh = V.local_vlm_sheet(b, ["alpha work"], None, work)
+        finally:
+            A.ask_local_vlm, V.contact_sheet = old[0], old[1]
+            if old[2] is None:
+                os.environ.pop("VISION_LOCAL", None)
+            else:
+                os.environ["VISION_LOCAL"] = old[2]
+        self.assertTrue(sh.source.startswith("vision:local_vlm:"))
+        self.assertEqual([(s.state, s.service) for s in sh.shots], [("before", V.UNSURE), ("after", "alpha work")])
+        self.assertEqual((sh.shots[1].start, sh.shots[1].end), (15.33, 46.0))
+        self.assertTrue(V.worth_saving(sh))
+
+    def test_no_local_model_without_the_switch(self):
+        os.environ.pop("VISION_LOCAL", None)
+        self.assertIsNone(V.local_vlm_sheet({"asset_id": "a", "duration": 5.0, "frames": [], "times": []}, [], None, Path("/tmp")))
