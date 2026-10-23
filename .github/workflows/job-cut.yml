@@ -54,7 +54,7 @@ jobs:
         with:
           path: ~/.cache/huggingface
           key: whisper-${{ env.WHISPER_MODEL }}-v1
-      - name: Local vision model cache (jobs/ai.py: the $0 backup when the free quota is used up)
+      - name: "Local vision model cache (jobs/ai.py, the $0 backup when the free quota is used up)"
         uses: actions/cache@v4
         with:
           path: ~/.cache/vlm
