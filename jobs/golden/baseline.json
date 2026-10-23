@@ -1,0 +1,24 @@
+{
+  "_why": "jobs/golden.py: the last accepted golden-set score; a drop of more than 0.15, or a passing check turning to a fail, fails the weekly job.",
+  "score": 1.0,
+  "passing": {
+    "event-decor": [
+      "job_type",
+      "before_after",
+      "caption_noise"
+    ],
+    "hair-salon": [
+      "job_type",
+      "before_after"
+    ],
+    "car-detailer": [
+      "job_type",
+      "before_after"
+    ],
+    "talking-head": [
+      "job_type",
+      "before_after",
+      "to_camera"
+    ]
+  }
+}
