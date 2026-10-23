@@ -385,7 +385,7 @@ dumps.get("/:id/services", async (c) => {
   return c.json({ services: servicesOf(profile ? parseJson<Record<string, string>>(profile.sections, {}) : null) });
 });
 
-async function startOver(c: Context<{ Bindings: Env; Variables: Vars }>, id: string, notesIn: string, event: "dump.start_over" | "dump.looks_like_changed"): Promise<Response> {
+export async function startOver(c: Context<{ Bindings: Env; Variables: Vars }>, id: string, notesIn: string, event: "dump.start_over" | "dump.looks_like_changed"): Promise<Response> {
   const dump = await c.env.DB.prepare("SELECT id, status, kind, notes FROM dumps WHERE id = ?").bind(id).first<{ id: string; status: string; kind: string; notes: string }>();
   const { results: rows } = await c.env.DB.prepare("SELECT id, status, r2_key, cover_r2_key FROM clips WHERE dump_id = ?").bind(id).all<{ id: string; status: string; r2_key: string; cover_r2_key: string | null }>();
   const clipsNow = [];

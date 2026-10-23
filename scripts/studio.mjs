@@ -19,7 +19,7 @@
 // crypto randomness and kept in 0600 files <secrets dir>/<slug>/<NAME>. Every value is piped
 // straight into `wrangler secret put` / `gh secret set` on stdin, never printed.
 import { spawnSync } from "node:child_process";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -562,6 +562,26 @@ async function create(slug) {
   if (stops.length) console.log(`named stops: ${stops.join("; ")}`);
 }
 
+/**
+ * Start over one dump on a live studio as the host developer (worker/routes/ops.ts): signed with the
+ * studio's JOB_SHARED_SECRET from its 0600 file (never printed), the same code path as the button.
+ * --service / --shape make a "Change" pick first.
+ */
+async function startOverCmd(slug, dumpId) {
+  const { s } = studioBySlug(slug);
+  const file = path.join(secretsDir(), slug, "JOB_SHARED_SECRET");
+  if (!existsSync(file)) throw new Error(`no ${file}: the studio's job secret is needed to sign`);
+  const secret = readFileSync(file, "utf8").trim();
+  const opt = (k) => process.argv.find((x) => x.startsWith(`--${k}=`))?.slice(k.length + 3);
+  const body = JSON.stringify({ dump_id: dumpId, ...(opt("service") ? { service: opt("service") } : {}), ...(opt("shape") ? { shape: opt("shape") } : {}) });
+  const ts = Math.floor(Date.now() / 1000);
+  const sig = createHmac("sha256", secret).update(`${ts}.ops:${body}`).digest("hex");
+  const res = await fetch(`${s.url}/api/ops/start-over`, { method: "POST", headers: { "content-type": "application/json", "x-ops-timestamp": String(ts), "x-ops-signature": sig }, body });
+  const out = await res.json().catch(() => ({}));
+  console.log(`${res.status} ${JSON.stringify(out)}`);
+  if (!res.ok) process.exit(1);
+}
+
 const [cmd, arg] = process.argv.slice(2);
 if (import.meta.url === `file://${process.argv[1]}`) {
   const commands = {
@@ -588,14 +608,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       }
     },
     invite: () => invite(arg),
+    "start-over": () => startOverCmd(arg, process.argv[4]),
     storage: () => {
       provisionStorage(studioBySlug(arg).s);
       gen();
     },
   };
   const fn = commands[cmd];
-  if (!fn || (["create", "deploy", "secrets", "invite", "storage"].includes(cmd) && !arg)) {
-    console.log("usage: node scripts/studio.mjs gen|check|list | create <slug> | deploy <slug>|--all | secrets <slug>|--all [--refresh] [--only=NAME,…] | invite <slug>");
+  if (!fn || (["create", "deploy", "secrets", "invite", "storage", "start-over"].includes(cmd) && !arg)) {
+    console.log("usage: node scripts/studio.mjs gen|check|list | create <slug> | deploy <slug>|--all | secrets <slug>|--all [--refresh] [--only=NAME,…] | invite <slug> | start-over <slug> <dumpId> [--service=…] [--shape=…]");
     process.exit(2);
   }
   Promise.resolve(fn()).catch((e) => {
