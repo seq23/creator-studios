@@ -15,6 +15,7 @@ import { getSetting, recordEvent } from "./db";
 import { newId } from "./ids";
 import { log } from "./log";
 import { dispatchJob } from "../services/github";
+import { groundScript } from "@shared/grounded";
 import { getLlm } from "../services/openrouter";
 import { fakeServices } from "../env";
 import { currentEngine, ensurePremiumVoice, premiumNarrate } from "./premiumVoice";
@@ -59,6 +60,9 @@ interface TargetClip {
   start_s: number;
   end_s: number;
   speech: number | null;
+  /** What the shot sheet says is on screen, and the clip's story shape (null for clips made before). */
+  on_screen?: string | null;
+  shape?: string | null;
 }
 
 /** A script for one clip with no talking, in her voice, fitted to the clip. Never empty. */
@@ -66,15 +70,18 @@ export async function draftScript(env: Env, clip: TargetClip): Promise<string> {
   const seconds = clip.end_s - clip.start_s;
   const profile = await lockedProfile(env);
   const cta = (profile?.ctas ?? "").split("\n").map((l) => l.replace(/^[\s\-•]+/, "").trim()).find(Boolean) ?? null;
-  const starter = starterScript(clip, cta, seconds);
+  // Grounded (studio intelligence layer 4): no sentence mentions automation, none claims a finished
+  // result or a "before" the picture does not show (shared/grounded.ts, one word list with the cutter).
+  const ground = clip.shape ? { hasAfter: clip.shape === "transformation" || clip.shape === "walkthrough", hasBefore: clip.shape === "transformation" } : { hasAfter: true, hasBefore: true };
+  const starter = groundScript(starterScript(clip, cta, seconds), ground) || fitScript(cta ? `${cta.replace(/[.!]*$/, "")}.` : "Take a look.", seconds);
   if (fakeServices(env)) return starter;
   const llm = await getLlm(env);
   const r = await llm.complete({
-    system: `You write a voice-over for a ${Math.round(seconds)}-second vertical video with no talking in it (b-roll, montage, product shots), for the creator ${kitName(env)}, spoken in her own voice. At most ${maxWords(seconds)} words. Her voice: ${profile?.voice || "warm and direct"}. Do: ${profile?.do_dont || ""}. Never mention: ${profile?.off_limits || "nothing listed"}. End with one call to action from: ${profile?.ctas || "follow for more"}. Reply with the script only, plain spoken sentences.`,
-    user: `On-screen hook: ${clip.hook_text}\nCaption: ${clip.caption}`,
+    system: `You write a voice-over for a ${Math.round(seconds)}-second vertical video with no talking in it (b-roll, montage, product shots), for the creator ${kitName(env)}, spoken in her own voice. At most ${maxWords(seconds)} words. Her voice: ${profile?.voice || "warm and direct"}. Do: ${profile?.do_dont || ""}. Never mention: ${profile?.off_limits || "nothing listed"}. End with one call to action from: ${profile?.ctas || "follow for more"}. Describe only what is on screen; never mention automation, software or how the video was made. Reply with the script only, plain spoken sentences.`,
+    user: `On-screen hook: ${clip.hook_text}\nCaption: ${clip.caption}${clip.on_screen ? `\nOn screen, in order: ${clip.on_screen}` : ""}`,
     maxTokens: 300,
   });
-  const text = r.ok ? r.text.trim().replace(/^["“]|["”]$/g, "") : "";
+  const text = r.ok ? groundScript(r.text.trim().replace(/^["“]|["”]$/g, ""), ground) : "";
   return text.length >= 10 ? fitScript(text, seconds) : starter;
 }
 
@@ -141,7 +148,7 @@ export async function autoVoiceDump(env: Env, dumpId: string): Promise<{ state: 
     return { state: [plans.dump, ...plans.assets.values()].includes("needs_voice") ? "needs_voice" : "off", clips: 0 };
   }
   const { results } = await env.DB.prepare(
-    "SELECT c.id, c.asset_id, c.hook_text, c.caption, c.start_s, c.end_s, c.speech FROM clips c WHERE c.dump_id = ? AND c.status IN ('draft', 'approved') AND NOT EXISTS (SELECT 1 FROM narrations n WHERE n.clip_id = c.id)",
+    "SELECT c.id, c.asset_id, c.hook_text, c.caption, c.start_s, c.end_s, c.speech, c.on_screen, c.shape FROM clips c WHERE c.dump_id = ? AND c.status IN ('draft', 'approved') AND NOT EXISTS (SELECT 1 FROM narrations n WHERE n.clip_id = c.id)",
   )
     .bind(dumpId)
     .all<TargetClip & { asset_id: string }>();
@@ -162,7 +169,7 @@ export async function autoVoiceDump(env: Env, dumpId: string): Promise<{ state: 
  */
 export async function voiceAllInDump(env: Env, dumpId: string): Promise<{ clips: number; started: boolean }> {
   const { results } = await env.DB.prepare(
-    "SELECT c.id, c.hook_text, c.caption, c.start_s, c.end_s, c.speech FROM clips c WHERE c.dump_id = ? AND c.status IN ('draft', 'approved') AND c.full_video = 0 AND NOT EXISTS (SELECT 1 FROM narrations n WHERE n.clip_id = c.id)",
+    "SELECT c.id, c.hook_text, c.caption, c.start_s, c.end_s, c.speech, c.on_screen, c.shape FROM clips c WHERE c.dump_id = ? AND c.status IN ('draft', 'approved') AND c.full_video = 0 AND NOT EXISTS (SELECT 1 FROM narrations n WHERE n.clip_id = c.id)",
   )
     .bind(dumpId)
     .all<TargetClip>();

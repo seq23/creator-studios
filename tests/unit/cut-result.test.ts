@@ -113,6 +113,32 @@ describe("cut result guard rails", () => {
   });
 });
 
+describe("studio intelligence fields (shot sheet, plan, critic)", () => {
+  const twoAssets = () => {
+    const c = ctx();
+    c.allowed.set("ast_otherone", [...PLATFORMS]);
+    return c;
+  };
+  it("keeps a clip's shape, service and what is on screen; an unknown shape is dropped to null", () => {
+    const r = parseCutResult(one({ shape: "transformation", service: "alpha work", on_screen: "an empty corner · the finished corner" }), ctx());
+    expect(r.clips[0]).toMatchObject({ shape: "transformation", service: "alpha work", on_screen: "an empty corner · the finished corner" });
+    expect(parseCutResult(one({ shape: "dance" }), ctx()).clips[0]!.shape).toBeNull();
+  });
+  it("a clip joining several videos names each part's video, and only this dump's videos", () => {
+    const c0 = fixture.result.clips[0]!;
+    const parts: [number, number][] = [[0, 3], [c0.start_s, c0.end_s]];
+    const ok = parseCutResult(one({ parts, part_assets: ["ast_otherone", c0.asset_id] }), twoAssets());
+    expect(ok.clips[0]!.part_assets).toEqual(["ast_otherone", c0.asset_id]);
+    expect(parseCutResult(one({ parts, part_assets: ["ast_notinthisdump", c0.asset_id] }), twoAssets()).clips[0]!.part_assets).toBeNull();
+    expect(parseCutResult(one({ parts, part_assets: [c0.asset_id] }), twoAssets()).clips[0]!.part_assets).toBeNull();
+  });
+  it("a clip the critic hid stays hidden whatever its score, with the reason in plain words", () => {
+    const r = parseCutResult(one({ score: 0.95, hidden_reason: "the words did not match the picture" }), ctx());
+    expect(r.clips[0]).toMatchObject({ hidden: true, hidden_reason: "the words did not match the picture" });
+    expect(parseCutResult(one({ score: 0.95 }), ctx()).clips[0]!.hidden).toBe(false);
+  });
+});
+
 describe("cut spec rules", () => {
   const now = new Date("2026-09-25T12:00:00Z");
   it("Door A may go everywhere", () => {

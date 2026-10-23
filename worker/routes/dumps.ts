@@ -21,6 +21,8 @@ import { pendingRefusal, spaceLine } from "../domain/fullVideo";
 import { PLAN_AHEAD_WEEKS } from "./posts";
 import { storageUsed } from "../lib/storage";
 import { notesWithStartOver, startOverPlan } from "../domain/startOver";
+import { cleanLooksLike, cleanOverride, type PlanOverride } from "@shared/looksLike";
+import { servicesOf } from "@shared/services";
 import { removeVoiceOver, voiceAllInDump, voiceReady } from "../lib/autoVoice";
 
 /** Is this clip already loaded into Buffer? (Then it is never removed from here.) */
@@ -51,9 +53,11 @@ interface DumpDb {
   not_followed: string | null;
   tried: string | null;
   archived_at: string | null;
+  looks_like: string | null;
+  plan_override: string | null;
 }
 
-const SELECT = `SELECT d.id, d.door, d.kind, d.notes, d.status, d.error_summary, d.clips_made, d.created_at, d.ready_at, d.steer, d.steer_notes, d.not_followed, d.tried, d.archived_at,
+const SELECT = `SELECT d.id, d.door, d.kind, d.notes, d.status, d.error_summary, d.clips_made, d.created_at, d.ready_at, d.steer, d.steer_notes, d.not_followed, d.tried, d.archived_at, d.looks_like, d.plan_override,
   (SELECT COUNT(*) FROM assets a WHERE a.dump_id = d.id AND a.upload_status != 'aborted') AS files,
   (SELECT j.progress FROM jobs j WHERE j.ref_id = d.id AND j.type = 'cut' ORDER BY j.created_at DESC LIMIT 1) AS progress,
   (SELECT a.source_note FROM assets a WHERE a.dump_id = d.id AND a.source_owner = 'other' LIMIT 1) AS held_note,
@@ -62,11 +66,11 @@ const SELECT = `SELECT d.id, d.door, d.kind, d.notes, d.status, d.error_summary,
   FROM dumps d`;
 
 function view(r: DumpDb): DumpSummary {
-  const { editor, editor_status, steer, steer_notes, not_followed, kind, ...rest } = r;
+  const { editor, editor_status, steer, steer_notes, not_followed, kind, looks_like, plan_override, ...rest } = r;
   // A connected editor is cutting it (Who edits > Cutting): say who, in her words.
   const name = editorDef(editor)?.name;
   const progress = name && r.status === "cutting" ? { step: editor_status === "importing" ? `Bringing your clips back from ${name}` : `${name} is cutting your videos`, done: 0, total: 1 } : parseJson(r.progress, null);
-  return { ...rest, door: kind === "full_video" ? "youtube" : r.door, progress, steer: parseJson(steer, {}), understood: readUnderstood(steer_notes), not_followed: parseJson<NotFollowed[]>(not_followed, []) };
+  return { ...rest, door: kind === "full_video" ? "youtube" : r.door, progress, steer: parseJson(steer, {}), understood: readUnderstood(steer_notes), not_followed: parseJson<NotFollowed[]>(not_followed, []), looks_like: cleanLooksLike(parseJson(looks_like, null)), plan_override: parseJson<PlanOverride>(plan_override, {}) };
 }
 
 /** While Dump is open it asks the connected editors how they are doing (throttled per job). */
@@ -296,8 +300,35 @@ export async function briefGate(env: Env): Promise<{ message: string; fix_guide:
  * cut again with the current settings, plus the notes she adds here.
  */
 dumps.post("/:id/start-over", async (c) => {
-  const id = c.req.param("id");
   const body = await readJson<{ notes?: string }>(c);
+  return startOver(c, c.req.param("id"), String(body?.notes ?? ""), "dump.start_over");
+});
+
+/**
+ * "Change" on the plain line (studio intelligence layer 7): she taps what the footage shows (a
+ * service from her Brand Profile, or "Not sure") and/or the kind of video. The dump is re-planned
+ * at once: its New clips go and the videos are cut again following her pick, from the shot sheets
+ * already saved (no new picture reading).
+ */
+dumps.post("/:id/looks-like", async (c) => {
+  const id = c.req.param("id");
+  const body = await readJson<{ service?: string; shape?: string }>(c);
+  const profile = await c.env.DB.prepare("SELECT sections FROM brand_profile WHERE locked = 1 ORDER BY version DESC LIMIT 1").first<{ sections: string }>();
+  const pick = cleanOverride(body ?? {}, servicesOf(profile ? parseJson<Record<string, string>>(profile.sections, {}) : null));
+  if (!pick.service && !pick.shape) return fail(c, 400, "Pick what these videos show, or the kind of video.", "review-and-approve-clips");
+  const now = await c.env.DB.prepare("SELECT plan_override FROM dumps WHERE id = ?").bind(id).first<{ plan_override: string | null }>();
+  const merged = { ...parseJson<PlanOverride>(now?.plan_override ?? null, {}), ...pick };
+  await c.env.DB.prepare("UPDATE dumps SET plan_override = ? WHERE id = ?").bind(JSON.stringify(merged), id).run();
+  return startOver(c, id, "", "dump.looks_like_changed");
+});
+
+/** GET /:id/services: what "Change" offers (the locked Brand Profile's services, never code's). */
+dumps.get("/:id/services", async (c) => {
+  const profile = await c.env.DB.prepare("SELECT sections FROM brand_profile WHERE locked = 1 ORDER BY version DESC LIMIT 1").first<{ sections: string }>();
+  return c.json({ services: servicesOf(profile ? parseJson<Record<string, string>>(profile.sections, {}) : null) });
+});
+
+async function startOver(c: Context<{ Bindings: Env; Variables: Vars }>, id: string, notesIn: string, event: "dump.start_over" | "dump.looks_like_changed"): Promise<Response> {
   const dump = await c.env.DB.prepare("SELECT id, status, kind, notes FROM dumps WHERE id = ?").bind(id).first<{ id: string; status: string; kind: string; notes: string }>();
   const { results: rows } = await c.env.DB.prepare("SELECT id, status, r2_key, cover_r2_key FROM clips WHERE dump_id = ?").bind(id).all<{ id: string; status: string; r2_key: string; cover_r2_key: string | null }>();
   const clipsNow = [];
@@ -316,7 +347,7 @@ dumps.post("/:id/start-over", async (c) => {
       c.env.DB.prepare("UPDATE posts SET status = 'unscheduled' WHERE clip_id = ? AND status = 'planned'").bind(clipId),
     ]);
   }
-  const added = String(body?.notes ?? "").slice(0, 1000);
+  const added = notesIn.slice(0, 1000);
   if (added.trim()) {
     const notes = notesWithStartOver(dump!.notes, added);
     await c.env.DB.prepare("UPDATE dumps SET notes = ?, steer_notes = ? WHERE id = ?").bind(notes, JSON.stringify(await understand(c.env, notes)), id).run();
@@ -328,10 +359,10 @@ dumps.post("/:id/start-over", async (c) => {
     return fail(c, 502, r.error ?? "The cutting job could not start.", "clips-look-wrong");
   }
   await c.env.DB.prepare("UPDATE dumps SET status = 'cutting' WHERE id = ?").bind(id).run();
-  await recordEvent(c.env.DB, "dump.start_over", id, { removed: plan.remove.length, kept: plan.keep, notes: !!added.trim() }, c.get("user").email);
-  log.info("dump.start_over", { removed: plan.remove.length, kept: plan.keep });
+  await recordEvent(c.env.DB, event, id, { removed: plan.remove.length, kept: plan.keep, notes: !!added.trim() }, c.get("user").email);
+  log.info(event, { removed: plan.remove.length, kept: plan.keep });
   return c.json({ ok: true, removed: plan.remove.length, kept: plan.keep, jobId: r.jobId });
-});
+}
 
 /** "Add voice over to all clips in this dump" (Review): one voice job run for every quiet clip still without one. */
 dumps.post("/:id/voice-all", async (c) => {

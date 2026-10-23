@@ -1,0 +1,51 @@
+{
+  "_why": "Studio intelligence layer 4 (owner's plan, 22 Oct 2026): a hook, caption, voice-over script or hashtag may describe only what the shot sheet says is on screen. ONE list for the cutter (jobs/plan.py grounded_ok) and the Worker's voice-over scripts (shared/grounded.ts). Business-neutral: no service words here; those come from each studio's locked Brand Profile.",
+  "automation": [
+    "automatically",
+    "automatic",
+    "auto-generated",
+    "auto generated",
+    "generated",
+    "algorithm",
+    "added for you",
+    "made by the studio",
+    "this video was made",
+    "robot"
+  ],
+  "finished": [
+    "after",
+    "reveal",
+    "revealed",
+    "the big reveal",
+    "finished",
+    "final look",
+    "end result",
+    "the result",
+    "glow up",
+    "glow-up",
+    "glowed up",
+    "transformation",
+    "transformed",
+    "all done",
+    "complete",
+    "completed",
+    "came together",
+    "come together",
+    "comes together",
+    "ready for"
+  ],
+  "before": [
+    "before",
+    "empty",
+    "bare",
+    "blank",
+    "plain",
+    "from scratch",
+    "start to finish"
+  ],
+  "stopwords": [
+    "a", "an", "and", "the", "of", "for", "with", "to", "in", "on", "at", "by", "or", "our", "your", "my", "we", "you",
+    "is", "it", "its", "this", "that", "from", "all", "any", "more", "new", "service", "services", "custom", "plus",
+    "up", "out", "set", "sets", "one", "two", "day", "days"
+  ]
+}

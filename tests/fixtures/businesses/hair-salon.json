@@ -1,0 +1,13 @@
+{
+  "_why": "A fixture business (made up): a hair salon.",
+  "slug": "hair-salon",
+  "profile": {
+    "who": "Mane Street is a hair salon run by Rosa. Services: silk press, knotless braids, color and trims.",
+    "voice": "Warm, confident, a little playful.",
+    "themes": "1. Before and after | 2. Styling tips",
+    "do_dont": "DO: tag #ManeStreet.",
+    "off_limits": "Clients' names.",
+    "ctas": "\"Book your chair today.\" | \"Book a silk press.\""
+  },
+  "services": ["silk press", "knotless braids", "color", "trims"]
+}

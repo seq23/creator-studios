@@ -16,6 +16,8 @@ import { LookModal } from "../components/LookPicker";
 import { HandoffModal } from "../components/HandoffModal";
 import { maxWords } from "@shared/autoVoice";
 import { FullVideoBody, type FullVideo } from "../components/FullVideoCard";
+import { LooksLikeLine } from "../components/LooksLikeLine";
+import type { LooksLike } from "@shared/looksLike";
 import "../styles/review.css";
 
 type Tab = "new" | "approved" | "rejected";
@@ -41,6 +43,10 @@ export interface ReviewClip extends ClipRow {
   muted: boolean;
   /** What she asked to change the last time she tried another version. */
   again_notes: string | null;
+  /** Studio intelligence: the story shape and service (null = not sure), and why the studio hid it. */
+  shape?: string | null;
+  service?: string | null;
+  hidden_reason?: string | null;
   /** Her voice over on this clip: being added, in it (the video plays with it), or it did not work. */
   voice_over: "mixing" | "ready" | "failed" | null;
   /** The words of that voice over (Redo opens them to edit), and whether it was made automatically. */
@@ -55,7 +61,7 @@ export interface ReviewClip extends ClipRow {
 }
 interface ReviewGroup {
   /** held_note: "Looks like someone else's video" (worker/domain/sourceCheck.ts), or null. */
-  dump: { id: string; door: "new" | "recycle" | "youtube"; created_at: string; ready_at: string | null; status: string; held_note: string | null };
+  dump: { id: string; door: "new" | "recycle" | "youtube"; created_at: string; ready_at: string | null; status: string; held_note: string | null; looks_like?: LooksLike | null };
   clips: ReviewClip[];
 }
 interface ReviewList {
@@ -301,6 +307,7 @@ export function Review() {
           <h2 className="review-group-head">
             Dump: {fmtDate(g.dump.created_at)} · {g.dump.door === "new" ? "New videos" : g.dump.door === "youtube" ? "Full video for YouTube" : "Old posts"} <span className="hint">· {plural(g.clips.length, "clip")} · best first</span>
           </h2>
+          {g.dump.door !== "youtube" ? <LooksLikeLine dumpId={g.dump.id} looksLike={g.dump.looks_like} canChange={tab === "new"} onChanged={list.reload} /> : null}
           {g.dump.held_note ? <HeldNotice dumpId={g.dump.id} note={g.dump.held_note} onDone={list.reload} /> : null}
           {tab === "new" && g.dump.door !== "youtube" ? (
             <div className="row wrap review-dump-actions" data-dump-actions>
@@ -541,6 +548,12 @@ function ClipCard(props: {
           <span className="pill">{RECIPES[c.recipe]?.label ?? c.recipe}</span>
           {c.door === "recycle" ? <span className="pill">Recycled</span> : null}
           {c.hidden ? <span className="pill warn">Under the quality bar</span> : null}
+          {c.hidden && c.hidden_reason ? (
+            <span className="hint" data-hidden-reason>
+              {" "}
+              Hidden because {c.hidden_reason}
+            </span>
+          ) : null}
           {c.clears_on ? (
             <span className="pill warn" data-clears-on>
               Cleared {fmtDate(c.clears_on)} unless you approve or keep it
@@ -554,7 +567,7 @@ function ClipCard(props: {
           {c.paid_partnership ? <span className="pill ok">Paid partnership</span> : null}
           {c.voice_over === "ready" ? (
             <span className="pill ok" data-voice-over="ready">
-              With a voice over{c.voice_auto ? " · added automatically" : ""} · Made with AI
+              With a voice over · Made with AI
             </span>
           ) : null}
           {c.muted ? (

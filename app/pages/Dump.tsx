@@ -1,6 +1,7 @@
 // Dump (section 7): three doors (new videos, old posts, a full video for YouTube), drop files,
 // notes, the Dump button, progress, recent dumps.
 // Phone-first: "Choose from camera roll", many files at once, resumable chunked uploads.
+import { LooksLikeLine } from "../components/LooksLikeLine";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { AssetRow, DumpSummary, SettingsShape } from "@shared/types";
@@ -346,6 +347,7 @@ export function Dump() {
                   <>
                     <strong>{plural(dump.clips_made, "clip")} ready.</strong> <Link to="/review">Review them now</Link>
                     {dump.tried ? <span className="tried" data-tried> {dump.tried}</span> : null}
+                    {dump.door !== "youtube" ? <LooksLikeLine dumpId={dump.id} looksLike={dump.looks_like} canChange onChanged={() => current.reload()} /> : null}
                   </>
                 ) : dump.status === "reviewed" ? (
                   <>This dump has been reviewed.</>

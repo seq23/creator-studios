@@ -1,0 +1,13 @@
+{
+  "_why": "A fixture business (made up): a talking-head creator with no service list, so the content themes are the labels.",
+  "slug": "talking-head",
+  "profile": {
+    "who": "Jo Reyes is a money creator who talks straight to camera about saving and careers.",
+    "voice": "Calm, plain, like a big sister.",
+    "themes": "1. Money tips: saving on a small salary\n2. Career advice: asking for a raise\n3. Q&A Fridays",
+    "do_dont": "DO: one idea per video.",
+    "off_limits": "Investment picks.",
+    "ctas": "\"Follow for more money tips.\""
+  },
+  "services": ["Money tips", "Career advice", "Q&A Fridays"]
+}
