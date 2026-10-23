@@ -80,9 +80,19 @@ test.describe("home and dump", () => {
     await expect(page.locator("[data-primary]")).toHaveCount(1);
     await expect(page.getByRole("button", { name: "Dump 1 old post", exact: true })).toHaveAttribute("data-primary", "true");
     await page.getByRole("button", { name: "Dump 1 old post", exact: true }).click();
-    // Section 6 gate: no Brand Profile locked yet → a plain-English stop with a fix link.
-    await expect(page.locator(".toast.bad")).toContainText("Brand Profile");
-    await expect(page.locator(".toast.bad").getByRole("link", { name: "How to fix" })).toBeVisible();
+    // Section 6 gate: no Brand Profile locked yet → never a red error: the video is saved and a
+    // calm checklist says the two steps, a link each; the clips start by themselves after them.
+    const list = page.locator("[data-setup-checklist]");
+    // (Another spec may already have locked the profile on this shared server: then one step is left.)
+    await expect(list).toContainText(/^Your video is saved\. (Two quick steps|One quick step) first, then your clips start by themselves:/);
+    const open = await list.locator("[data-setup-step]:not([data-done])").count();
+    expect(open).toBeGreaterThanOrEqual(1);
+    await expect(list.locator("[data-setup-step]:not([data-done]) a[href]")).toHaveCount(open);
+    await expect(list.locator('[data-setup-step="brief"] a[href="/research"]')).toHaveText("Approve your Research Brief →");
+    await expect(list.locator("[data-setup-step][data-done]")).toContainText(open === 2 ? [] : ["Lock your Brand Profile: done"]);
+    await expect(page.locator(".toast.bad")).toHaveCount(0);
+    // The dump card says what it waits for instead of looking stuck.
+    await expect(page.locator("[data-dump-row]").first()).toContainText(/Waiting for: (Lock your Brand Profile, then )?Approve your Research Brief/);
   });
 
   test("settings: caps stop at 10 and save; every feature switch is on by default and says what off does", async ({ page }) => {

@@ -26,6 +26,7 @@ import { qrSvg } from "../domain/qr";
 // Someone else's video (watermark check) never reaches her public kit: same rule as the calendar.
 import { POSTABLE_CLIP_SQL } from "../domain/sourceCheck";
 import { readSettings } from "./settings";
+import { PROFILE_IN_USE } from "../lib/profileInUse";
 
 export const mediakit = new Hono<{ Bindings: Env; Variables: Vars }>();
 mediakit.use("*", requireUser);
@@ -53,7 +54,7 @@ export async function readKit(env: Env): Promise<KitRow> {
 
 /** The locked Brand Profile every AI step reads (section 5), or null before she locks one. */
 export async function lockedProfile(env: Env): Promise<BrandProfileSections | null> {
-  const row = await env.DB.prepare("SELECT sections FROM brand_profile WHERE locked = 1 ORDER BY version DESC LIMIT 1").first<{ sections: string }>();
+  const row = await env.DB.prepare(`SELECT sections FROM brand_profile ${PROFILE_IN_USE}`).first<{ sections: string }>();
   return row ? parseJson<BrandProfileSections | null>(row.sections, null) : null;
 }
 

@@ -14,6 +14,7 @@ import { log } from "../lib/log";
 import { cleanOverride, type PlanOverride } from "@shared/looksLike";
 import { servicesOf } from "@shared/services";
 import { startOver } from "./dumps";
+import { PROFILE_IN_USE } from "../lib/profileInUse";
 
 export const ops = new Hono<{ Bindings: Env; Variables: Vars }>();
 
@@ -30,7 +31,7 @@ ops.post("/start-over", async (c) => {
   const id = String(body.dump_id ?? "");
   if (!id) return fail(c, 400, "Which dump?");
   if (body.service || body.shape) {
-    const profile = await c.env.DB.prepare("SELECT sections FROM brand_profile WHERE locked = 1 ORDER BY version DESC LIMIT 1").first<{ sections: string }>();
+    const profile = await c.env.DB.prepare(`SELECT sections FROM brand_profile ${PROFILE_IN_USE}`).first<{ sections: string }>();
     const pick = cleanOverride({ service: body.service, shape: body.shape }, servicesOf(profile ? parseJson<Record<string, string>>(profile.sections, {}) : null));
     if ((body.service && !pick.service) || (body.shape && !pick.shape)) return fail(c, 400, "That service or shape is not one this studio knows.");
     const now = await c.env.DB.prepare("SELECT plan_override FROM dumps WHERE id = ?").bind(id).first<{ plan_override: string | null }>();

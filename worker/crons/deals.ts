@@ -7,6 +7,7 @@ import type { Env } from "../env";
 import { setHealth } from "../lib/db";
 import { log } from "../lib/log";
 import { dispatchJob } from "../services/github";
+import { PROFILE_IN_USE } from "../lib/profileInUse";
 
 /** Skip when a finder ran (or is running) in the last 20 hours, or before her Brand Profile is locked. */
 export function shouldRefreshBrands(lastStartedAt: string | null, profileLocked: boolean, now: Date): { run: boolean; why: string } {
@@ -17,7 +18,7 @@ export function shouldRefreshBrands(lastStartedAt: string | null, profileLocked:
 
 export async function dailyBrandRefresh(env: Env): Promise<void> {
   const last = await env.DB.prepare("SELECT created_at FROM jobs WHERE type = 'brand_finder' ORDER BY created_at DESC LIMIT 1").first<{ created_at: string }>();
-  const locked = !!(await env.DB.prepare("SELECT version FROM brand_profile WHERE locked = 1 LIMIT 1").first());
+  const locked = !!(await env.DB.prepare(`SELECT version FROM brand_profile ${PROFILE_IN_USE}`).first());
   const d = shouldRefreshBrands(last?.created_at ?? null, locked, new Date());
   if (d.run) {
     const r = await dispatchJob(env, "brand_finder", "daily");

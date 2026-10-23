@@ -20,6 +20,8 @@ import { refreshPublicStats } from "../lib/publicStats";
 import { youtubeDirectSync } from "../lib/youtubeDirect";
 import { photoPostsTick, photoStopLights } from "../lib/photoPosts";
 import { wordsPass } from "../lib/wordsPass";
+import { ensureFirstResearch } from "../lib/setupWait";
+import { sendWaitingDumps } from "../routes/dumps";
 
 /**
  * The "Last <lane> run" note: "OK · Wed, Oct 7, 1:00 PM" in her audience time zone, the same parts
@@ -49,6 +51,10 @@ export async function runCron(env: Env, cron: string): Promise<void> {
       await photoPostsTick(env);
       await photoStopLights(env);
       await briefDraftNotice(env);
+      // Setup runs by itself: a locked profile with no brief on the way gets one, and dumps waiting
+      // for setup go once it is done (worker/lib/setupWait.ts; each dump is sent at most once).
+      await ensureFirstResearch(env);
+      await sendWaitingDumps(env, null);
       // Studio fix: clips that came back with no words of their own get them (worker/lib/wordsPass.ts).
       await wordsPass(env).catch(() => log.warn("cron.words_failed"));
       // Connected editors (docs/EDITORS.md): the screens ask while they are open; this catches the rest.

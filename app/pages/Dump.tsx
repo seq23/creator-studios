@@ -5,7 +5,8 @@ import { LooksLikeLine } from "../components/LooksLikeLine";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { AssetRow, DumpSummary, SettingsShape } from "@shared/types";
-import { del, get, patch, post } from "../lib/api";
+import { ApiFailure, del, get, patch, post } from "../lib/api";
+import { SetupChecklist } from "../components/SetupChecklist";
 import { uploadFile } from "../lib/upload";
 import { fmtBytes, plural } from "../lib/format";
 import { Card, HelpButton, Notice, PageHead, useLoad, useToast } from "../components/ui";
@@ -224,7 +225,12 @@ export function Dump() {
       reloadCurrent();
       setHistoryKey((n) => n + 1);
     } catch (e) {
-      toast.bad(e);
+      // Setup not done yet: her videos are saved and the dump waits; the checklist shows the steps
+      // (no red error, nothing to press again).
+      if (e instanceof ApiFailure && e.body.setup) {
+        reloadCurrent();
+        setHistoryKey((n) => n + 1);
+      } else toast.bad(e);
     } finally {
       setSending(false);
     }
@@ -272,6 +278,7 @@ export function Dump() {
 
       <div className="split">
         <div className="section dump-main">
+          {dump?.waiting_for && editable ? <SetupChecklist files={dump.files} steps={dump.waiting_for} /> : null}
           {editable ? (
             <>
               <div className="door-pick" role="radiogroup" aria-label="Which videos are these?">

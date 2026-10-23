@@ -18,13 +18,14 @@ import { dispatchJob } from "../services/github";
 import { loadObservations } from "../jobs/metrics";
 import { adjustBrief, draftNoticeDue, monthlyRefreshDecision, summarizeWeek, type LiveBrief } from "../domain/brief";
 import type { BriefBody, BriefSource } from "@shared/types";
+import { PROFILE_IN_USE } from "../lib/profileInUse";
 
 export const MONTHLY_HEALTH = "Monthly brief refresh";
 export const WEEKLY_HEALTH = "Weekly brief adjustment";
 
 export async function monthlyBriefRefresh(env: Env, now = new Date()): Promise<{ dispatched: boolean; note: string }> {
   const approved = await env.DB.prepare("SELECT version FROM research_briefs WHERE status = 'approved' LIMIT 1").first();
-  const profile = await env.DB.prepare("SELECT version FROM brand_profile WHERE locked = 1 LIMIT 1").first();
+  const profile = await env.DB.prepare(`SELECT version FROM brand_profile ${PROFILE_IN_USE}`).first();
   const aiReady = practice(env, "openrouter") || !!(await getConnectionSecret(env, "openrouter"));
   const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
   const { results: researchJobs } = await env.DB.prepare("SELECT status, created_at FROM jobs WHERE type = 'research' AND created_at >= ?").bind(since).all<{ status: string; created_at: string }>();

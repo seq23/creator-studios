@@ -14,9 +14,11 @@ import { parseJson, recordEvent } from "../lib/db";
 import { fail, readJson } from "../lib/http";
 import { nowIso } from "../lib/ids";
 import { log } from "../lib/log";
-import { dispatchJob } from "../services/github";
+import { ensureFirstResearch, startResearch } from "../lib/setupWait";
+import { sendWaitingDumps } from "./dumps";
 import type { BriefBody, BriefSource, BriefView } from "@shared/types";
 import { briefCounts, enforceTruth, shapeProblems, WEB_SKIPPED_SOURCE_ID } from "../domain/brief";
+import { PROFILE_IN_USE } from "../lib/profileInUse";
 
 export const research = new Hono<{ Bindings: Env; Variables: Vars }>();
 research.use("*", requireUser);
@@ -40,6 +42,7 @@ function toView(r: BriefDb): BriefView {
 const COLS = "version, body, sources, status, approved_at, created_at";
 
 research.get("/", async (c) => {
+  await ensureFirstResearch(c.env, c.get("user").email);
   const row = await c.env.DB.prepare(`SELECT ${COLS} FROM research_briefs WHERE status != 'superseded' ORDER BY version DESC LIMIT 1`).first<BriefDb>();
   // Day 358: old briefs are archived (a tap, or the tidy rules at 90 days); "Show archived" lists them.
   const archived = c.req.query("archived") === "1";
@@ -48,7 +51,7 @@ research.get("/", async (c) => {
   const { results: uploads } = await c.env.DB.prepare("SELECT id, file_name, uploaded_at FROM research_uploads ORDER BY uploaded_at DESC").all();
   const job = await c.env.DB.prepare("SELECT id, status, safe_error, created_at, finished_at FROM jobs WHERE type = 'research' ORDER BY created_at DESC LIMIT 1").first();
   const approved = await c.env.DB.prepare("SELECT version, approved_at FROM research_briefs WHERE status = 'approved' ORDER BY version DESC LIMIT 1").first<{ version: number; approved_at: string }>();
-  const profileLocked = !!(await c.env.DB.prepare("SELECT version FROM brand_profile WHERE locked = 1 LIMIT 1").first());
+  const profileLocked = !!(await c.env.DB.prepare(`SELECT version FROM brand_profile ${PROFILE_IN_USE}`).first());
   const brief = row ? toView(row) : null;
   return c.json({
     brief,
@@ -65,18 +68,9 @@ research.get("/", async (c) => {
 });
 
 research.post("/refresh", async (c) => {
-  const profile = await c.env.DB.prepare("SELECT version FROM brand_profile WHERE locked = 1 LIMIT 1").first();
-  if (!profile) return fail(c, 409, "Lock your Brand Profile first. The research starts from it.", "upload-brand-docs");
-  const running = await c.env.DB.prepare("SELECT id FROM jobs WHERE type = 'research' AND status IN ('queued', 'dispatched', 'running') AND created_at > ? LIMIT 1")
-    .bind(new Date(Date.now() - 45 * 60_000).toISOString())
-    .first<{ id: string }>();
-  if (running) return c.json({ ok: true, jobId: running.id, already: true });
-  if (!c.get("fake") && !(await getConnectionSecret(c.env, "openrouter"))) return fail(c, 409, "Connect the AI (OpenRouter) first; it writes the brief.", "connect-openrouter");
-  const r = await dispatchJob(c.env, "research", null);
-  if (!r.dispatched) return fail(c, 502, r.error ?? "The research could not start.", "approve-research-brief");
-  await recordEvent(c.env.DB, "brief.refresh", r.jobId, {}, c.get("user").email);
-  log.info("research.refresh");
-  return c.json({ ok: true, jobId: r.jobId });
+  const r = await startResearch(c.env, c.get("fake"), c.get("user").email);
+  if (!r.ok) return fail(c, r.status, r.error, r.fix_guide);
+  return c.json(r.already ? { ok: true, jobId: r.jobId, already: true } : { ok: true, jobId: r.jobId });
 });
 
 research.post("/approve", async (c) => {
@@ -89,7 +83,9 @@ research.post("/approve", async (c) => {
   ]);
   await recordEvent(c.env.DB, "brief.approved", String(draft.version), {}, c.get("user").email);
   log.info("research.approved");
-  return c.json({ ok: true, version: draft.version, approved_at: now });
+  // Every dump that was waiting for this setup step goes now, through the Dump button's own path.
+  const sent = await sendWaitingDumps(c.env, c.get("user").email);
+  return c.json({ ok: true, version: draft.version, approved_at: now, sent: sent.length });
 });
 
 research.patch("/", async (c) => {

@@ -12,6 +12,7 @@ import { settings as settingsRoute } from "@worker/routes/settings";
 import { uploads as uploadsRoute } from "@worker/routes/uploads";
 import { brain as brainRoute } from "@worker/routes/brain";
 import { posts as postsRoute } from "@worker/routes/posts";
+import { research as researchRoute } from "@worker/routes/research";
 import { cutJob } from "@worker/jobs/cut";
 import { dispatchJob } from "@worker/services/github";
 import { setSetting } from "@worker/lib/db";
@@ -51,6 +52,7 @@ export async function harness(extra: Partial<Env> = {}) {
   app.route("/api/uploads", uploadsRoute);
   app.route("/api/brain", brainRoute);
   app.route("/api/posts", postsRoute);
+  app.route("/api/research", researchRoute);
   const one = <T>(sql: string, ...args: (string | number | null)[]) => db.raw.prepare(sql).get(...args) as T;
   const all = <T>(sql: string, ...args: (string | number | null)[]) => db.raw.prepare(sql).all(...args) as T[];
   const request = async (method: string, p: string, body?: unknown, headers: Record<string, string> = {}) =>

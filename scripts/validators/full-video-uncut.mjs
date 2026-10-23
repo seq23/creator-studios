@@ -22,10 +22,11 @@ export default async function ({ root }) {
 
   const dumps = await read("worker/routes/dumps.ts");
   const branch = dumps.indexOf('if (dump.kind === "full_video") return dumpFullVideo(');
-  const cut = dumps.indexOf("startDumpCut(c.env");
+  // sendDump(env, …) is shared by the Dump button and the automatic send after setup (23 Oct 2026).
+  const cut = dumps.indexOf("startDumpCut(env");
   check(branch > 0 && cut > 0 && branch < cut, "worker/routes/dumps.ts: a full-video dump must go to dumpFullVideo before startDumpCut");
-  check(/async function dumpFullVideo[\s\S]*?dispatchJob\(c\.env, "fullvideo"/.test(dumps), "worker/routes/dumps.ts: dumpFullVideo must dispatch the fullvideo job");
-  check(!/async function dumpFullVideo[\s\S]*?startDumpCut|dispatchJob\(c\.env, "cut"[\s\S]{0,80}full/.test(dumps.slice(dumps.indexOf("async function dumpFullVideo"), dumps.indexOf("export async function briefGate"))), "worker/routes/dumps.ts: dumpFullVideo must never start the cutter");
+  check(/async function dumpFullVideo[\s\S]*?dispatchJob\(env, "fullvideo"/.test(dumps), "worker/routes/dumps.ts: dumpFullVideo must dispatch the fullvideo job");
+  check(!/async function dumpFullVideo[\s\S]*?startDumpCut|dispatchJob\((?:c\.)?env, "cut"[\s\S]{0,80}full/.test(dumps.slice(dumps.indexOf("async function dumpFullVideo"), dumps.indexOf("export async function briefGate"))), "worker/routes/dumps.ts: dumpFullVideo must never start the cutter");
 
   const cutTs = await read("worker/jobs/cut.ts");
   check(/if \(dump\.kind === "full_video"\) throw new Error\("a full video is never cut"\)/.test(cutTs), "worker/jobs/cut.ts: buildDumpSpec must refuse a full-video dump");

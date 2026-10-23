@@ -79,11 +79,11 @@ export function Research() {
     return () => clearInterval(t);
   }, [running, reload]);
 
-  async function act(name: string, fn: () => Promise<unknown>, okText: string) {
+  async function act<T>(name: string, fn: () => Promise<T>, okText: string | ((r: T) => string)) {
     setBusy(name);
     try {
-      await fn();
-      toast.ok(okText);
+      const r = await fn();
+      toast.ok(typeof okText === "function" ? okText(r) : okText);
       return true;
     } catch (e) {
       toast.bad(e);
@@ -152,7 +152,7 @@ export function Research() {
           </Link>
         ) : null}
         {approveNext ? (
-          <button className="btn" data-primary onClick={() => act("approve", () => post("/api/research/approve"), "Approved. Clips can be cut now.")} disabled={busy === "approve"}>
+          <button className="btn" data-primary onClick={() => act("approve", () => post<{ sent?: number }>("/api/research/approve"), (r) => (r?.sent ? `Approved. Your ${r.sent === 1 ? "waiting dump is" : `${r.sent} waiting dumps are`} being cut now. We’ll email you when the clips are ready.` : "Approved. Clips can be cut now."))} disabled={busy === "approve"}>
             Approve brief
           </button>
         ) : null}

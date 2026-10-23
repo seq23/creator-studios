@@ -72,6 +72,7 @@ import { cleanFixes, type FixKey } from "@shared/fixes";
 import { cleanScript, ctaTurnFor } from "@shared/clipWords";
 import { clipCode } from "@shared/clipNumber";
 import { keepVersion } from "../lib/clipVersions";
+import { PROFILE_IN_USE } from "../lib/profileInUse";
 
 /** A cut job's ref: a dump ("dmp_…"), or one clip of it to re-render ("dmp_…/clp_…"). */
 export function parseCutRef(refId: string | null): { dumpId: string; clipId: string | null; import: boolean; again: boolean } | null {
@@ -87,7 +88,7 @@ export async function renderContext(env: Env): Promise<{ editing: ReturnType<typ
   const captionsElsewhere = effectiveEditor(await editorChoice(env), "caption", await connectedEditors(env)) !== "built-in";
   const editing = captionsElsewhere ? { ...stored, captions: false } : stored;
   const { results: tracks } = await env.DB.prepare("SELECT r2_key FROM music_tracks ORDER BY created_at").all<{ r2_key: string }>();
-  const profile = await env.DB.prepare("SELECT sections FROM brand_profile WHERE locked = 1 ORDER BY version DESC LIMIT 1").first<{ sections: string }>();
+  const profile = await env.DB.prepare(`SELECT sections FROM brand_profile ${PROFILE_IN_USE}`).first<{ sections: string }>();
   const buffer = await env.DB.prepare("SELECT meta FROM connections WHERE service = 'buffer' AND status = 'ok'").first<{ meta: string }>();
   const channels = parseJson<{ channels?: { platform?: string; handle?: string }[] }>(buffer?.meta, {}).channels ?? [];
   return {
@@ -353,7 +354,7 @@ async function buildDumpSpec(env: Env, jobId: string, dumpId: string): Promise<C
       ...(readUnderstood(a.steer_notes)?.said.length ? { steer: steerSpec(assetCtl, `${dump.id}:${a.id}`) } : {}),
     });
   }
-  const profile = await env.DB.prepare("SELECT sections FROM brand_profile WHERE locked = 1 ORDER BY version DESC LIMIT 1").first<{ sections: string }>();
+  const profile = await env.DB.prepare(`SELECT sections FROM brand_profile ${PROFILE_IN_USE}`).first<{ sections: string }>();
   const brief = await env.DB.prepare("SELECT body FROM research_briefs WHERE status = 'approved' ORDER BY version DESC LIMIT 1").first<{ body: string }>();
   const need = weeklyNeed(s.weekly_caps);
   const rules = await readStudioRules(env);

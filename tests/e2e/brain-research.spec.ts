@@ -38,20 +38,30 @@ async function dumpWithVideo(api: APIRequestContext): Promise<string> {
 // holds while no brief is approved; the deals spec computes marketplace eligibility from the
 // newest TikTok account_stats row, so the rows the import and the fake sync write here must go.
 // There is no un-approve route (approval is a one-way action for her), so the local D1 is
-// cleared directly.
+// cleared directly. Unlocking alone no longer closes the gate (the version locked last stays in use,
+// lib/profileInUse.ts), so its lock history is cleared directly too.
 test.afterEach(async ({ page }) => {
   await page.request.post("/api/brain/profile/unlock");
-  sql(["DELETE FROM research_briefs", "DELETE FROM account_stats", "DELETE FROM platform_videos", "DELETE FROM metrics", "DELETE FROM settings WHERE key IN ('learned_slots','learned_slots_at','youtube_public','youtube_channel','youtube_channel_typed','instagram_public','instagram_manual','instagram_reminder','instagram_handle_typed')"].join("; "));
+  sql(["UPDATE brand_profile SET locked = 0, locked_at = NULL", "DELETE FROM research_briefs", "DELETE FROM account_stats", "DELETE FROM platform_videos", "DELETE FROM metrics", "DELETE FROM settings WHERE key IN ('learned_slots','learned_slots_at','youtube_public','youtube_channel','youtube_channel_typed','instagram_public','instagram_manual','instagram_reminder','instagram_handle_typed')"].join("; "));
 });
 
 test("brain → research → the cutting gate opens only after lock + approve", async ({ page }) => {
   const api = page.request;
 
-  // Gate closed: no locked profile yet, so Dump is refused with a plain sentence + fix guide.
+  // Gate closed: no locked profile yet, so Dump is refused with the setup checklist; her video is
+  // saved and the dump waits for setup (it goes by itself once the brief is approved).
   const dumpId = await dumpWithVideo(api);
   const refused = await api.post(`/api/dumps/${dumpId}/dump`);
   expect(refused.status()).toBe(409);
-  expect(await refused.json()).toMatchObject({ error: expect.stringContaining("Brand Profile"), fix_guide: "upload-brand-docs" });
+  expect(await refused.json()).toMatchObject({
+    error: "Your video is saved. Two quick steps first, then your clips start by themselves:",
+    fix_guide: "upload-brand-docs",
+    setup: { files: 1, steps: [{ key: "profile", done: false, href: "/brain" }, { key: "brief", done: false, href: "/research" }] },
+  });
+  await page.goto(`/dump/${dumpId}`);
+  await expect(page.locator("[data-setup-checklist]")).toContainText("Your video is saved.");
+  await expect(page.locator("[data-setup-checklist]").getByRole("link", { name: "Lock your Brand Profile →" })).toHaveAttribute("href", "/brain");
+  await expect(page.locator("[data-setup-checklist]").getByRole("link", { name: "Approve your Research Brief →" })).toHaveAttribute("href", "/research");
 
   // ---- Client Brain: upload → read → draft → edit → lock
   await page.goto("/brain");
@@ -77,17 +87,22 @@ test("brain → research → the cutting gate opens only after lock + approve", 
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.locator(".toast").filter({ hasText: "Saved as a new version." })).toBeVisible();
   await expect(page.getByText(/· v\d+ · edited/)).toBeVisible();
+  // Locking starts the research by itself: no Refresh to press.
+  const lockCall = page.waitForResponse((r) => r.url().endsWith("/api/brain/profile/lock"));
   await page.getByRole("button", { name: "Lock profile" }).click();
+  const lock = (await (await lockCall).json()) as { researchStarted: boolean; researchJobId: string | null };
+  expect(lock).toMatchObject({ researchStarted: true, researchJobId: expect.stringMatching(/^job_/) });
+  await expect(page.locator(".toast").filter({ hasText: "Your Research Brief is being written now" })).toBeVisible();
   await expect(page.locator(".pill", { hasText: "Locked" })).toBeVisible();
   await expect(page.getByLabel("Calls to action")).toBeDisabled();
   await expect(page.getByLabel("Calls to action")).toHaveValue(/fall gala/);
 
-  // ---- Research: refresh → fake job → cited brief → approve
+  // ---- Research: the job the lock started → cited brief → approve
+  await page.goto(`/dump/${dumpId}`);
+  await expect(page.locator('[data-setup-step="profile"]')).toContainText("Lock your Brand Profile: done");
+  await expect(page.locator('[data-setup-step="brief"]')).toContainText("being written now");
+  await runFake(api, lock.researchJobId!);
   await page.goto("/research");
-  const refreshCall = page.waitForResponse((r) => r.url().endsWith("/api/research/refresh"));
-  await page.getByRole("button", { name: "Refresh research" }).click();
-  const { jobId } = (await (await refreshCall).json()) as { jobId: string };
-  await runFake(api, jobId);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Posting times" })).toBeVisible();
   await expect(page.locator('.rs-claim[data-label="web"] a[href^="https://buffer.com/"]').first()).toBeVisible();
@@ -99,14 +114,18 @@ test("brain → research → the cutting gate opens only after lock + approve", 
   // The header's "N claims marked uncertain" counts exactly the Uncertain pills on the page.
   const shownUncertain = await page.locator('.rs-claim[data-label="uncertain"]').count();
   await expect(page.locator(".rs-legend .hint")).toContainText(`${shownUncertain} claim${shownUncertain === 1 ? "" : "s"} marked uncertain`);
+  const approveCall = page.waitForResponse((r) => r.url().endsWith("/api/research/approve"));
   await page.getByRole("button", { name: "Approve brief" }).click();
-  await expect(page.locator(".toast").filter({ hasText: "Approved" })).toBeVisible();
+  expect(((await (await approveCall).json()) as { sent: number }).sent).toBeGreaterThanOrEqual(1);
+  await expect(page.locator(".toast").filter({ hasText: /Approved\. Your .*being cut now/ })).toBeVisible();
   await expect(page.getByText(/^Approved v\d+/)).toBeVisible();
 
-  // ---- Gate open: the same dump now goes through to cutting.
-  const sent = await api.post(`/api/dumps/${dumpId}/dump`);
-  expect(sent.status(), await sent.text()).toBe(200);
-  expect(await sent.json()).toMatchObject({ ok: true, jobId: expect.stringMatching(/^job_/) });
+  // ---- Gate open: the waiting dump went by itself, once; pressing Dump again sends nothing.
+  const after = (await (await api.get(`/api/dumps/${dumpId}`)).json()) as { dump: { status: string; waiting_for: unknown } };
+  expect(after.dump).toMatchObject({ status: "cutting", waiting_for: null });
+  const again = await api.post(`/api/dumps/${dumpId}/dump`);
+  expect(again.status()).toBe(409);
+  expect(await again.json()).toMatchObject({ error: "This dump was already sent." });
 });
 
 test("stats: Instagram sign-in, TikTok export, sync, and an expired token turns the light red", async ({ page }) => {
