@@ -494,11 +494,17 @@ def plan_score(pl: Plan, sheets: list[ShotSheet]) -> float:
 # ---------------------------------------------------------------- grounded copy
 
 NEUTRAL = {
-    "transformation": (["{S}: before and after", "Before and after"], ["Watch it come together", "From start to finish"], "From start to finish."),
-    "walkthrough": (["Take a slow look", "{S}, up close"], ["Come take a look", "Every detail"], "A slow look at the finished result."),
-    "montage": (["The little details", "{S}, up close"], ["A closer look", "Every detail counts"], "A closer look."),
-    "talking": (["Real talk for a second", "Here's what to know"], ["Listen to this", "Quick one"], "A quick word."),
-    "unsure": (["Have a look", "A little look at today"], ["Take a look", "Here's a look"], "Have a look."),
+    # Six hooks per shape (23 Oct 2026: two per shape gave 8 before-and-after clips 2 hooks between them).
+    "transformation": (["{S}: before and after", "Before and after", "From plain to done", "Same spot, start to finish", "Watch it all come together", "Before, then after"],
+                       ["Watch it come together", "From start to finish", "Start to finish", "The before and the after", "How it came together", "Then and now"], "From start to finish."),
+    "walkthrough": (["Take a slow look", "{S}, up close", "Have a look around", "A slow walk through", "Every angle", "Look around with us"],
+                    ["Come take a look", "Every detail", "Take it all in", "A look around", "Look around", "All the details"], "A slow look at the finished result."),
+    "montage": (["The little details", "{S}, up close", "Up close", "Details, details", "The small touches", "Look at these details"],
+                ["A closer look", "Every detail counts", "Look closer", "In the details", "The finishing touches", "Small things, big feel"], "A closer look."),
+    "talking": (["Real talk for a second", "Here's what to know", "A quick word", "Let me tell you", "One thing to know", "Quick thought"],
+                ["Listen to this", "Quick one", "Hear me out", "Real quick", "Worth knowing", "Just so you know"], "A quick word."),
+    "unsure": (["Have a look", "A little look at today", "Today's work", "Take a look at this", "A look at today", "Fresh from today"],
+               ["Take a look", "Here's a look", "Have a look", "Look at this", "From today", "A quick look"], "Have a look."),
 }
 
 
@@ -512,7 +518,7 @@ def neutral_copy(pl: Plan, profile: dict[str, str] | None, services: list[str], 
     hooks, alts, cap = NEUTRAL.get(key, NEUTRAL["unsure"])
     svc = (pl.service or "").strip()
     def fill(t: str) -> str:
-        return t.replace("{S}", svc[:1].upper() + svc[1:]) if "{S}" in t and svc else t
+        return t.replace("{S}", svc[:1].upper() + svc[1:])if "{S}" in t and svc else t
     pick = [fill(h) for h in hooks if "{S}" not in h or svc]
     alt_pick = [fill(h) for h in alts if "{S}" not in h or svc]
     hook = pick[i % len(pick)]

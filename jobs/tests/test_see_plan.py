@@ -131,6 +131,21 @@ class GroundedTest(unittest.TestCase):
         # The call to action naming one service is not used when nothing is sure.
         self.assertNotIn("garland", out["caption"].lower())
 
+    def test_neutral_hooks_differ_across_a_dump(self):
+        """23 Oct 2026 live re-cut: 8 before-and-after clips shared 2 hooks. Six clips of one shape get six
+        different hooks, every one grounded."""
+        f = FIX["event-decor"]
+        svc = f["services"][0]
+        shapes = {"transformation": [P.Part("a", 0, 4, "before", "x"), P.Part("b", 0, 4, "after", "x")],
+                  "walkthrough": [P.Part("a", 0, 8, "after", "x")], "montage": [P.Part("a", 0, 8, "after", "x")]}
+        for shape, parts in shapes.items():
+            pl = P.Plan(shape, svc, parts)
+            g = pl.ground(f["services"])
+            hooks = [P.neutral_copy(pl, f["profile"], f["services"], i)["hook"] for i in range(6)]
+            self.assertEqual(len(set(hooks)), 6, (shape, hooks))
+            for h in hooks:
+                self.assertTrue(P.grounded_ok(h, g)[0], (shape, h))
+
     def test_other_services_and_automation_are_refused(self):
         f = FIX["hair-salon"]
         g = P.Ground(f["services"][0], f["services"], "sleek straight hair", True, True)
