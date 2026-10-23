@@ -893,8 +893,12 @@ def music_for(spec: dict[str, Any], k: int, work: Path, download: "Downloader", 
 
 def render_moment(m: "Moment", src: Source, opts: dict[str, Any], brand: L.Branding, work: Path, clip_id: str, mediapipe: bool, *, cells: list[L.Seg] | None = None, voice: int = 0, voice_src: Source | None = None, music: Path | None = None, srcs: dict[str, Source] | None = None, ending: L.Seg | None = None) -> L.Rendered:
     if cells and ending is not None:
-        # A grid of the clip's own distinct shots, then its hero full frame (studio fix).
-        return L.render_look(opts, [cells[0]], [], m.hook, brand, work, clip_id, cells=cells, voice=0, inset=None, music=music if opts.get("music") else None, ending=ending)
+        # A grid of the clip's own distinct shots, then its hero full frame (studio fix). Cell 0 is the
+        # voice; its words are the captions (none when the camera sound is off).
+        vs = voice_src or src
+        c0 = cells[0]
+        words = [] if opts.get("mute") or m.captions_off or vs.path != c0.path else [Word(round(w.start - c0.start, 3), round(w.end - c0.start, 3), w.text) for w in vs.transcript.words_in(c0.start, c0.end)]
+        return L.render_look(opts, [c0], words, m.hook, brand, work, clip_id, cells=cells, voice=0, inset=None, music=music if opts.get("music") else None, ending=ending)
     if m.part_assets and srcs:
         # A planned clip joining shots of several videos (before -> after): each part from its own video.
         psrc = [srcs.get(a, src) for a in m.part_assets]
@@ -1701,8 +1705,14 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
             plans.sort(key=lambda pl: sum(avoid_overlap(Moment(pt.asset_id, "montage", pt.start, pt.end, [(pt.start, pt.end)]), avoid_windows) for pt in pl.parts))
             plans = plans[:1]
         P.write_copy(key, plans, profile, services, OPENROUTER_MODEL, ask_text, feedback={0: spec.get("change_request")} if spec.get("change_request") and plans else None, guard=text_ok, rules=PR.copy_rules(rules), memory=memory, extra=copy_extra(rules_s, pb, len(plans)))
-        for pl in plans:
-            moments.append((plan_moment(pl), srcs[pl.parts[-1].asset_id]))
+        for j, pl in enumerate(plans):
+            pm = plan_moment(pl)
+            if not pm.clip_type:
+                # The earlier planner's clip: typed by its shape, and it ends on the hero too.
+                pm.clip_type = {"transformation": "payoff_first", "walkthrough": "finished_walkthrough"}.get(pl.shape, "finished_walkthrough")
+                pm.event_group = meta.get(pm.asset_id, {}).get("event", "e1")
+                add_hero_ending(pm, looks, tracks, float(pb.get("hero_hold_s", 2.0)), j)
+            moments.append((pm, srcs[pm.asset_id]))
         if plans:
             engine["picker"] = "shot-sheet"
     if not moments or shape == "talking":
@@ -1801,6 +1811,7 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         if opts["layout"] == "grid":
             n_cells = len(L.cells_of(opts))
             cells, layout, ending = grid_from_parts(m, body[:n_cells], srcs, by_key, mediapipe)
+            voice_src = srcs[layout["cells"][0]["asset_id"]]
         songs = {"music": a_steer["music"]} if "music" in a_steer else spec
         if src.muted or (m.part_assets and all(srcs[x].muted for x in m.part_assets if x in srcs)):
             # No sound of its own: always a music bed (her songs, else the built-in library), never silent.
