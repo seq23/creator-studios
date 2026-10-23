@@ -23,6 +23,7 @@ export const REGISTER = {
   "host-keys-host-only": "the host's personal OpenRouter, Resend, Firecrawl and Hunter run Hadiyah's studio only (owner decision 7 Oct 2026); a client studio carrying or reading them spends the host's money on, and sends as the host for, someone else's studio",
   "home-caps": "Home grew with everything a year of use piles up (3.7 phone screens, five year-old follow-ups, no dismiss): every Home list must be capped by HOME_CAPS and proven on a year of data (owner, 26 Sep 2026, day-358 review)",
   "login-never-open": "studio brief §4/§6c: every studio logs in with the email code; an AUTH_MODE \"open\" anywhere, or an \"open\" branch in the login code, makes anyone with the URL the owner",
+  "intelligence-layers": "each studio-intelligence layer (owner's plan 22 Oct 2026) must be called by the cut, not merely written: a layer nothing invokes leaves her clips as blind as before",
   "jobs-no-direct-storage": "a job holding storage keys needs an R2 token the owner cannot mint and a public repo can leak; jobs reach storage only through the Worker",
   "jobs-one-openrouter-client": "three hand-rolled OpenRouter clients in jobs each lost the end of a reasoning model's answer (live test 25 Sep 2026); one client in common.py asks again with more room",
   "jobs-registered": "every job type in the schema must have a handler or dispatch silently does nothing",

@@ -1,0 +1,12 @@
+{
+  "_why": "A fixture business (made up): a lawn and garden crew, with the layer 1 sections (what each service looks like, which shapes fit).",
+  "slug": "landscaper",
+  "profile": {
+    "who": "Green Edge is a two-person lawn and garden crew.",
+    "service_looks": "Lawn mowing: a cut, striped lawn with clean edges; before is long, uneven grass\nHedge trimming: hedges cut into flat, square shapes; before is shaggy and overgrown\nMulching: flower borders covered in fresh dark mulch",
+    "video_shapes": "Lawn mowing: before and after, walk-through\nAll: close-ups",
+    "voice": "Friendly and plain.",
+    "ctas": "\"Text us for a free quote.\""
+  },
+  "services": ["Lawn mowing", "Hedge trimming", "Mulching"]
+}

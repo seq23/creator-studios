@@ -1,6 +1,6 @@
 """Studio intelligence, layers 2 and 4 (owner's plan, 22 Oct 2026): the shot sheet and the story plan.
 
-Four unlike fixture businesses (tests/fixtures/businesses, the same files tests/unit/services-of.test.ts
+Six unlike fixture businesses (tests/fixtures/businesses, the same files tests/unit/services-of.test.ts
 reads) each with their own services. Pinned here:
   * before/after fires only when both a before and an after shot are present;
   * a before shot is never last and never in a clip that is not a before/after;
@@ -48,8 +48,12 @@ def decor_dump(with_before=True):
 
 
 class FixturesTest(unittest.TestCase):
-    def test_four_unlike_businesses_with_their_own_services(self):
-        self.assertEqual(sorted(FIX), ["car-detailer", "event-decor", "hair-salon", "talking-head"])
+    def test_six_unlike_businesses_with_their_own_services(self):
+        self.assertEqual(sorted(FIX), ["bakery", "car-detailer", "event-decor", "hair-salon", "landscaper", "talking-head"])
+        # The golden set scores exactly these (layer 9).
+        import golden as G
+
+        self.assertEqual(sorted(G.SCENES), sorted(FIX))
         labels = [s.lower() for f in FIX.values() for s in f["services"]]
         self.assertEqual(len(labels), len(set(labels)))
 
@@ -389,3 +393,34 @@ class KnowTheBusinessTest(unittest.TestCase):
     def test_copy_prompt_carries_what_the_service_looks_like(self):
         pl = P.Plan("montage", "alpha work", [P.Part("a", 0, 4, "after", "a corner")])
         self.assertEqual(json.loads(P.copy_prompt([pl], self.profile))["clips"][0]["what_this_service_looks_like"], "a finished corner with soft lights")
+
+
+class AnswersAndMemoryTest(unittest.TestCase):
+    """Layers 7-9 in the planner: her before answer, the shapes she keeps, a corrected service, careful mode."""
+
+    def test_her_before_answer_makes_a_before_and_after(self):
+        a = V.ShotSheet("a", 6.0, [V.Shot(0, 6, what="an empty corner", state=V.UNSURE, confidence=0.2)], "vision:x")
+        b = V.ShotSheet("b", 8.0, [V.Shot(0, 8, what="the finished corner", state="after", service="alpha work", confidence=0.9)], "vision:x")
+        self.assertNotEqual(P.choose_shape([a, b], "alpha work")[0], "transformation")
+        self.assertEqual(P.mark_before([a, b], ["a"]), 1)
+        self.assertEqual(P.choose_shape([a, b], "alpha work")[0], "transformation")
+        plans = P.plan_clips([a, b], "transformation", "alpha work", 4)
+        self.assertTrue(any(p.parts[0].state == "before" and p.parts[-1].state == "after" for p in plans))
+
+    def test_memory_fit_and_careful_order(self):
+        mem = {"shapes": {"walkthrough": {"approved": 4, "rejected": 1, "views": 50}, "montage": {"approved": 1, "rejected": 4, "views": 5}, "transformation": {"approved": 1, "rejected": 0}}}
+        self.assertEqual(P.memory_fit(mem), ["walkthrough"])  # montage kept under half the time; 1 review is too few
+        self.assertEqual(P.combined_fit(["transformation"], mem), ["transformation", "walkthrough"])
+        self.assertEqual(P.combined_fit(["transformation"], {**mem, "approach": "careful"}), ["walkthrough", "transformation"])
+        self.assertIsNone(P.combined_fit(None, {}))
+        self.assertEqual(P.careful_quota(10, {"approach": "careful"}), 5)
+        self.assertEqual(P.careful_quota(10, {}), 10)
+
+    def test_relabel_and_turned_down_hooks(self):
+        self.assertEqual(P.relabel("alpha work", {"relabel": {"alpha work": "Beta work"}}, ["alpha work", "beta work"]), "beta work")
+        self.assertEqual(P.relabel("alpha work", {}, ["alpha work"]), "alpha work")
+        pl = P.Plan("montage", "alpha work", [P.Part("a", 0, 4, "after", "a corner")])
+        P.apply_copy([pl], {"items": [{"n": 0, "hook": "Same old hook", "caption": "x"}]}, {}, ["alpha work"], None, ["same old hook"])
+        self.assertNotEqual(pl.hook.lower(), "same old hook")
+        prompt = json.loads(P.copy_prompt([pl], {}, memory={"kept_hooks": ["Walk in to this"], "turned_down_hooks": ["Same old hook"]}))
+        self.assertEqual(prompt["what_the_owner_kept_and_turned_down"]["kept_hooks"], ["Walk in to this"])

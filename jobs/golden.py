@@ -59,6 +59,21 @@ SCENES: dict[str, dict[str, Any]] = {
         "expect": {"service": "Money tips", "transformation": False, "to_camera": True},
         "clips": [("talk", 10, (235, 240, 245), "A woman looks into the camera and talks about money tips.", "face")],
     },
+    # Layer 9: six unlike businesses (23 Oct 2026), the two below read their services from the layer 1 sections.
+    "landscaper": {
+        "expect": {"service": "Lawn mowing", "transformation": True},
+        "clips": [
+            ("before", 6, (200, 215, 190), "Before: long, uneven, overgrown grass in a yard.", "grass_long"),
+            ("after", 8, (215, 230, 205), "After: a freshly cut, striped lawn with clean edges.", "grass_cut"),
+        ],
+    },
+    "bakery": {
+        "expect": {"service": "Frosted cakes", "transformation": False},
+        "clips": [
+            ("after", 8, (250, 240, 230), "A tall frosted layer cake with piped decoration on a stand.", "cake"),
+            ("detail", 6, (245, 235, 225), "Close-up of the finished cake's piped frosting.", "cake"),
+        ],
+    },
 }
 
 
@@ -88,6 +103,21 @@ def draw(dest: Path, seconds: int, bg: tuple[int, int, int], words: str, kind: s
     elif kind == "gloss":
         d.polygon([(60, 900), (660, 900), (600, 600), (120, 600)], fill=(20, 60, 140))
         d.line([(160, 640), (560, 640)], fill=(240, 240, 255), width=10)
+    elif kind == "grass_long":
+        for i in range(220):
+            x = 20 + (i * 29) % 680
+            d.line([x, 1240, x + (i % 7) - 3, 1240 - 150 - (i * 37) % 260], fill=(40 + i % 40, 120 + i % 60, 30), width=5)
+    elif kind == "grass_cut":
+        for i in range(8):
+            d.rectangle([0, 700 + i * 70, 720, 770 + i * 70], fill=(60, 150, 50) if i % 2 else (90, 180, 70))
+        d.line([(0, 700), (720, 700)], fill=(120, 100, 70), width=8)
+    elif kind == "cake":
+        d.rectangle([300, 1000, 420, 1180], fill=(180, 180, 190))
+        for j, (w, c) in enumerate([(420, (250, 220, 230)), (340, (245, 200, 215)), (260, (250, 230, 240))]):
+            y = 860 - j * 150
+            d.rectangle([360 - w // 2, y, 360 + w // 2, y + 140], fill=c, outline=(200, 150, 170), width=4)
+            for k in range(8):
+                d.ellipse([360 - w // 2 + k * w // 8, y - 14, 360 - w // 2 + k * w // 8 + 28, y + 14], fill=(255, 255, 255))
     elif kind == "face":
         d.ellipse([220, 300, 500, 620], fill=(205, 160, 130))
         d.ellipse([290, 420, 320, 450], fill=(30, 30, 30))
@@ -112,6 +142,10 @@ def draw(dest: Path, seconds: int, bg: tuple[int, int, int], words: str, kind: s
     subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-loop", "1", "-i", str(png), "-t", str(seconds), "-r", "30", "-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset", "ultrafast", str(dest)], check=True, capture_output=True)
 
 
+def base_slugs() -> list[str]:
+    return list((json.loads(BASELINE.read_text()) if BASELINE.exists() else {}).get("passing", {}))
+
+
 def score_business(slug: str, fixture: dict[str, Any], key: str | None, work: Path) -> dict[str, Any]:
     spec = SCENES[slug]
     services = fixture["services"]
@@ -125,7 +159,7 @@ def score_business(slug: str, fixture: dict[str, Any], key: str | None, work: Pa
     sheets = [got[it["asset_id"]] for it in items]
     film = [s for s, c in zip(sheets, spec["clips"]) if c[0] != "chatter"]
     service, sure = P.dump_service(film, None, services)
-    shape, _ = P.choose_shape(film, service, {s.asset_id: False for s in film})
+    shape, _ = P.choose_shape(film, service, {s.asset_id: False for s in film}, None, P.shapes_fit(fixture["profile"], service))
     exp = spec["expect"]
     m: dict[str, bool] = {"job_type": bool(sure and service and service.lower() == exp["service"].lower())}
     plans = P.plan_clips(film, shape, service, 4) if shape != "talking" else []
@@ -144,12 +178,27 @@ def score_business(slug: str, fixture: dict[str, Any], key: str | None, work: Pa
     return {"metrics": m, "service": service, "shape": shape, "sources": sorted({s.source.split(":")[0] for s in sheets})}
 
 
+def loud(lines: list[str]) -> None:
+    """A drop is a loud failure: an error annotation per lost check on the run page, and the job summary."""
+    for line in lines:
+        sys.stdout.write(f"::error title=Golden set dropped::{line}\n")  # a GitHub annotation, not a log line
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a", encoding="utf-8") as f:
+            f.write("## Golden set dropped\n\n" + "\n".join(f"- {x}" for x in lines) + "\n")
+
+
 def main() -> int:
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key and os.environ.get("VISION_LOCAL") != "1":
         log("golden.stop", why="no_key_no_local_model")
         return 1
     fixtures = {p.stem: json.loads(p.read_text()) for p in (ROOT / "tests" / "fixtures" / "businesses").glob("*.json")}
+    if sorted(fixtures) != sorted(SCENES) or len(SCENES) < 6:
+        # Rule 0: every fixture business is scored, and at least six unlike ones (layer 9).
+        log("golden.stop", why="fixtures_and_scenes_differ", fixtures=len(fixtures), scenes=len(SCENES))
+        loud([f"the golden set scores {len(SCENES)} businesses and there are {len(fixtures)} fixtures; it must be the same six or more"])
+        return 1
     work = Path(tempfile.mkdtemp(prefix="golden-"))
     results = {slug: score_business(slug, fixtures[slug], key, work) for slug in SCENES}
     flat = [v for r in results.values() for v in r["metrics"].values()]
@@ -158,6 +207,10 @@ def main() -> int:
         log("golden.business", slug=slug, shape=r["shape"], source=",".join(r["sources"]), **r["metrics"])
     log("golden.score", score=total, checks=len(flat), vision_calls=V.CALLS.get("vision", 0), failed_calls=V.CALLS.get("failed", 0))
     log("ai.calls", **A.report())
+    missing = [s for s in base_slugs() if s not in results]
+    if missing:
+        loud([f"the baseline has {s}, the run did not score it" for s in missing])
+        return 1
     if "--write-baseline" in sys.argv:
         BASELINE.parent.mkdir(parents=True, exist_ok=True)
         BASELINE.write_text(json.dumps({"_why": "jobs/golden.py: the last accepted golden-set score; a drop of more than 0.15, or a passing check turning to a fail, fails the weekly job.", "score": total, "passing": {s: [k for k, v in r["metrics"].items() if v] for s, r in results.items()}}, indent=2) + "\n")
@@ -168,6 +221,7 @@ def main() -> int:
         for item in lost:
             log("golden.lost", check=item)
         log("golden.DROP", score=total, baseline=float(base.get("score", 0)), lost=len(lost))
+        loud([f"score {total} against the baseline {float(base.get('score', 0))}", *[f"lost: {x}" for x in lost]])
         return 1
     return 0
 

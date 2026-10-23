@@ -1201,7 +1201,7 @@ def critic_round(_pairs: Any) -> int:
     return _ROUND["n"]
 
 
-def recut_batch(reqs: list[tuple[tuple[int, Moment], list[str], int]], key: str | None, srcs: dict[str, Source], sheets: dict[str, "V.ShotSheet"], services: list[str], profile: dict[str, Any], text_ok: Any = None, rules: dict[str, Any] | None = None) -> list[tuple[int, Moment] | None]:
+def recut_batch(reqs: list[tuple[tuple[int, Moment], list[str], int]], key: str | None, srcs: dict[str, Source], sheets: dict[str, "V.ShotSheet"], services: list[str], profile: dict[str, Any], text_ok: Any = None, rules: dict[str, Any] | None = None, memory: dict[str, Any] | None = None) -> list[tuple[int, Moment] | None]:
     """A round's re-cuts together: the shots fixed per clip (no model), then ONE text call re-writes
     the words of every first re-cut (the reasons fed back); later attempts take the neutral lines."""
     out: list[tuple[int, Moment] | None] = []
@@ -1216,7 +1216,7 @@ def recut_batch(reqs: list[tuple[tuple[int, Moment], list[str], int]], key: str 
             plans.append((len(out), n, pl, reasons))
         out.append((k, n))
     if plans and key:
-        P.write_copy(key, [pl for _i, _n, pl, _r in plans], profile, services, OPENROUTER_MODEL, ask_text, feedback={j: "; ".join(C.REASON_WORDS.get(r, r) for r in rs) for j, (_i, _n, _pl, rs) in enumerate(plans)}, guard=text_ok, rules=rules)
+        P.write_copy(key, [pl for _i, _n, pl, _r in plans], profile, services, OPENROUTER_MODEL, ask_text, feedback={j: "; ".join(C.REASON_WORDS.get(r, r) for r in rs) for j, (_i, _n, _pl, rs) in enumerate(plans)}, guard=text_ok, rules=rules, memory=memory)
         for _i, n, pl, _r in plans:
             n.hook, n.hook_alt, n.caption, n.hashtags = pl.hook, pl.hook_alt, pl.caption, list(pl.hashtags)
     return out
@@ -1377,22 +1377,36 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
             unsafe.add(a["id"])  # the finder could not run on a strict studio: its clips are hidden, never shown unchecked
         srcs[a["id"]] = Source(safe, info, tr, runs, detect_bars(norm, info["duration"]), muted=not keep)
     sheet_list = [sheets[a["id"]] for a, *_ in prepared]
+    # Saved as the model saw them, before her answers are applied (her answers live on the dump).
+    saved_sheets = {aid: sh.to_json() for aid, sh in sheets.items() if V.worth_saving(sh)}
+    # Layer 7: the videos she tapped as "a before" are cut as before shots.
+    if P.mark_before(sheet_list, override.get("before_assets")):
+        log("cut.before_marked", videos=len(override.get("before_assets") or []))
+    memory = spec.get("memory") if isinstance(spec.get("memory"), dict) else {}
+    if memory.get("approach") == "careful":
+        log("cut.approach", approach="careful", rate=(memory.get("rejection") or {}).get("rate"), reviewed=(memory.get("rejection") or {}).get("reviewed"))
     seen = [sh for sh in sheet_list if sh.source != "none"]
     engine["vision"] = (seen[0].source.split(":")[0] if seen else "none")
     # 4. PLAN: the service, the shape, the shots in each clip (jobs/plan.py)
     service, sure = P.dump_service(sheet_list, override.get("service"), services)
+    if not override.get("service"):
+        # Layer 8: a service she has corrected twice is read as what she said it is.
+        service = P.relabel(service, memory, services)
     profile = spec.get("brand_profile") or {}
     # Layer 1: the Brand Profile says which shapes fit this service; the footage says which are possible.
-    shape, why_not = P.choose_shape(sheet_list, service, {aid: s_.muted for aid, s_ in srcs.items()}, override.get("shape"), P.shapes_fit(profile, service))
+    shape, why_not = P.choose_shape(sheet_list, service, {aid: s_.muted for aid, s_ in srcs.items()}, override.get("shape"), P.combined_fit(P.shapes_fit(profile, service), memory))
     if why_not:
         steer_report.append({"what": SHAPE_WORDS.get(str(override.get("shape")), "that kind of video"), "why": why_not})
     moments: list[tuple[Moment, Source]] = []
     if seen and shape != "talking" and door != "recycle":
-        plans = P.plan_clips(sheet_list, shape, service, target if spec.get("mode") != "again" else 3)
+        plans = P.plan_clips(sheet_list, shape, service, P.careful_quota(target, memory) if spec.get("mode") != "again" else 3)
+        if memory.get("approach") == "careful" and len(plans) > 1:
+            # Layer 9, careful: only the strongest plans (at least one).
+            plans = [pl for pl in plans if pl.score >= 0.7] or plans[:1]
         if avoid_windows:
             plans.sort(key=lambda pl: sum(avoid_overlap(Moment(pt.asset_id, "montage", pt.start, pt.end, [(pt.start, pt.end)]), avoid_windows) for pt in pl.parts))
             plans = plans[:1]
-        P.write_copy(key, plans, profile, services, OPENROUTER_MODEL, ask_text, feedback={0: spec.get("change_request")} if spec.get("change_request") and plans else None, guard=text_ok, rules=PR.copy_rules(rules))
+        P.write_copy(key, plans, profile, services, OPENROUTER_MODEL, ask_text, feedback={0: spec.get("change_request")} if spec.get("change_request") and plans else None, guard=text_ok, rules=PR.copy_rules(rules), memory=memory)
         for pl in plans:
             moments.append((plan_moment(pl), srcs[pl.parts[-1].asset_id]))
         if plans:
@@ -1499,8 +1513,8 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         list(enumerate(m for m, _s in moments)),
         render_k,
         lambda item, rr: critic_rules(item[1], srcs, sheets, services),
-        lambda pairs: C.vision_check_batch(key, [critic_item(item[1], rr, srcs, sheets) for item, rr in pairs], work, f"r{critic_round(pairs)}"),
-        lambda reqs: recut_batch(reqs, key, srcs, sheets, services, profile, text_ok, PR.copy_rules(rules)),
+        lambda pairs: C.vision_check_batch(key, [critic_item(item[1], rr, srcs, sheets) for item, rr in pairs], work, f"r{critic_round(pairs)}", memory),
+        lambda reqs: recut_batch(reqs, key, srcs, sheets, services, profile, text_ok, PR.copy_rules(rules), memory),
     )
     for k, checked in enumerate(checked_all):
         if checked is None:
@@ -1572,7 +1586,7 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         "steer_report": steer_report,
         "camera": camera,
         "looks_like": looks_like,
-        "shot_sheets": {aid: sh.to_json() for aid, sh in sheets.items() if V.worth_saving(sh)},
+        "shot_sheets": saved_sheets,
         "calls": {**dict(V.CALLS), **{f"by_{k}": v for k, v in A.report().items()}},
         "critic": critic_stats,
         "sound_labels": sound_labels,

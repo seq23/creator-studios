@@ -20,6 +20,10 @@ describe("golden set", () => {
     for (const slug of fixtures) expect(golden, slug).toContain(`"${slug}": {`);
     expect(Object.keys(baseline.passing).sort()).toEqual([...fixtures].sort());
     for (const k of ["job_type", "before_after", "caption_noise"]) expect(Object.values(baseline.passing).flat()).toContain(k);
-    expect(golden).toMatch(/if total < float\(base\.get\("score", 0\)\) - ALLOWED_DROP or lost:[\s\S]{0,200}golden\.DROP[^\n]*\n\s*return 1/);
+    expect(golden).toMatch(/if total < float\(base\.get\("score", 0\)\) - ALLOWED_DROP or lost:[\s\S]{0,200}golden\.DROP[^\n]*\n\s*loud\([^\n]*\n\s*return 1/);
+    // Layer 9: six unlike businesses at least, the same six in fixtures, scenes and baseline; a drop is an error annotation.
+    expect(fixtures.length).toBeGreaterThanOrEqual(6);
+    expect(golden).toContain("if sorted(fixtures) != sorted(SCENES) or len(SCENES) < 6:");
+    expect(golden).toContain("::error title=Golden set dropped::");
   });
 });

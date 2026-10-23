@@ -18,7 +18,7 @@ Open **Review**. The number beside **New** is how many clips are waiting.
 ![Step 2](/help/screenshots/review-and-approve-clips-2.png)
 <!-- target: [data-clip-id="demo_new_1"] video -->
 
-Clips are grouped by dump, best first. Tap play to watch.
+Clips are grouped by dump, best first. Tap play to watch. Under a dump's "Looks like" line, a yellow question ("Is this …?" or "Is one of these a before?") takes one tap to answer. If your answer changes things, those clips are made again, and the studio remembers it next time.
 
 ## Tap Approve
 

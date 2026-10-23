@@ -140,7 +140,8 @@ CRITIC_BATCH_SYSTEM = CRITIC_SYSTEM.replace(
     "The picture is a grid of frames from the finished clip, in time order (left to right, top to bottom); text at the top is its on-screen hook. You also get its caption, the words burned in as captions, and what each shot was planned to show. Answer JSON only: {",
     "The picture shows SEVERAL finished clips, each under its own black heading (CLIP 1, CLIP 2, ...), its frames in time order "
     "(left to right, top to bottom); text at the top of a frame is that clip's on-screen hook. For each clip you also get its caption, "
-    "the words burned in as captions, and what each shot was planned to show. Judge every clip on its own. Answer JSON only: "
+    "the words burned in as captions, and what each shot was planned to show. Judge every clip on its own; if the owner turned down "
+    "clips like one of these before, say text_matches_picture false and why. Answer JSON only: "
     "{\"clips\":[{\"clip\":int,",
 ).replace("\"why\":str}.", "\"why\":str}]}.")
 
@@ -161,7 +162,7 @@ def parse_batch_verdicts(answer: Any, n: int) -> list[list[str] | None]:
     return out
 
 
-def vision_check_batch(key: str | None, items: list[dict[str, Any]], work: Path, tag: str) -> list[list[str] | None]:
+def vision_check_batch(key: str | None, items: list[dict[str, Any]], work: Path, tag: str, memory: dict[str, Any] | None = None) -> list[list[str] | None]:
     """The critic on several finished clips per call. items: {mp4, duration, hook, caption, said,
     plan_text}. None for a clip no model judged (the rules alone decide it)."""
     out: list[list[str] | None] = [None] * len(items)
@@ -176,7 +177,8 @@ def vision_check_batch(key: str | None, items: list[dict[str, Any]], work: Path,
         grid = V.labelled_grid(groups, work / f"critic_{tag}_{i}.jpg")
         if not grid:
             continue
-        prompt = json.dumps({"clips": [{"clip": j + 1, "hook": it["hook"], "caption": it["caption"], "burned_captions": it["said"][:400], "planned_shots": it["plan_text"][:8]} for j, it in enumerate(chunk)]})
+        learned = {k: (memory or {}).get(k, [])[:6] for k in ("reject_reasons", "turned_down_hooks") if (memory or {}).get(k)}
+        prompt = json.dumps({**({"the_owner_turned_down_clips_like_these": learned} if learned else {}), "clips": [{"clip": j + 1, "hook": it["hook"], "caption": it["caption"], "burned_captions": it["said"][:400], "planned_shots": it["plan_text"][:8]} for j, it in enumerate(chunk)]})
         answer, _model = V.ask_vision(key, CRITIC_BATCH_SYSTEM, prompt, grid, "critic", max_tokens=1600, local=False)
         for j, v in enumerate(parse_batch_verdicts(answer, len(chunk))):
             out[i + j] = v

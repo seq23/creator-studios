@@ -62,6 +62,7 @@ import { parseNotes } from "../domain/steer";
 import { servicesOf } from "@shared/services";
 import { textProblems, type ContentRules } from "@shared/contentRules";
 import { contentRules } from "../lib/photoPosts";
+import { loadMemory, type MemorySummary } from "../domain/studioMemory";
 import { cleanLooksLike, cleanOverride, isShape, type PlanOverride, type Shape } from "@shared/looksLike";
 
 /** A cut job's ref: a dump ("dmp_…"), or one clip of it to re-render ("dmp_…/clp_…"). */
@@ -154,6 +155,8 @@ export interface CutSpec {
   services: string[];
   /** The studio's content rules (shared/contentRules.ts), enforced by jobs/protect.py. */
   content_rules: ContentRules;
+  /** Studio Memory (worker/domain/studioMemory.ts): read by jobs/plan.py and jobs/critic.py. */
+  memory: MemorySummary;
   /** What the vision model saw in each video before (jobs/see.py), so a re-plan looks no again. */
   shot_sheets: Record<string, unknown>;
   /** Her pick on "Change" (the plain line): the service and/or the story shape. */
@@ -349,8 +352,10 @@ async function buildDumpSpec(env: Env, jobId: string, dumpId: string): Promise<C
     services,
     // Layer 5 (jobs/protect.py): faces and house numbers blurred, the never-list, real prices only.
     content_rules: contentRules(env),
+    // Layer 8: what this studio learned (approvals, rejections, notes, her answers, views); layer 9's approach.
+    memory: await loadMemory(env),
     shot_sheets: sheets,
-    plan_override: cleanOverride(parseJson(dump.plan_override, {}), services),
+    plan_override: cleanOverride(parseJson(dump.plan_override, {}), services, rows.map((r) => r.id)),
   };
 }
 

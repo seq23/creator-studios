@@ -215,6 +215,64 @@ def shapes_fit(profile: dict[str, str] | None, service: str | None) -> list[str]
     return general or None
 
 
+# ---------------------------------------------------------------- her answers and Studio Memory (layers 7, 8, 9)
+
+def mark_before(sheets: list[ShotSheet], before_assets: list[str] | None) -> int:
+    """She tapped "This one is a before" (layer 7): every shot of those videos is a before shot,
+    sure. Returns how many videos changed."""
+    ids = set(before_assets or [])
+    n = 0
+    for sh in sheets:
+        if sh.asset_id in ids:
+            for s in sh.shots:
+                s.state, s.confidence = "before", max(s.confidence, 0.9)
+                if s.people == "to_camera":
+                    s.people = "working"
+            n += 1
+    return n
+
+
+def memory_fit(memory: dict[str, Any] | None) -> list[str] | None:
+    """The shapes she keeps, best first: at least 3 reviewed and kept at least half the time, by
+    how often she kept them, then views. None when the studio has not learned enough yet."""
+    rated = []
+    for shape, v in ((memory or {}).get("shapes") or {}).items():
+        if shape not in SHAPES or not isinstance(v, dict):
+            continue
+        seen = int(v.get("approved", 0)) + int(v.get("rejected", 0))
+        if seen >= 3:
+            rate = int(v.get("approved", 0)) / seen
+            if rate >= 0.5:
+                rated.append((rate, int(v.get("views", 0)), shape))
+    return [x[2] for x in sorted(rated, reverse=True)] or None
+
+
+def combined_fit(profile_fit: list[str] | None, memory: dict[str, Any] | None) -> list[str] | None:
+    """Her Brand Profile's shapes first; in the careful approach (layer 9) the shapes she keeps lead."""
+    learned = memory_fit(memory) or []
+    own = profile_fit or []
+    order = [*learned, *own] if (memory or {}).get("approach") == "careful" else [*own, *learned]
+    out = [x for i, x in enumerate(order) if x not in order[:i]]
+    return out or None
+
+
+def relabel(service: str | None, memory: dict[str, Any] | None, services: list[str]) -> str | None:
+    """A service she has corrected at least twice is read as what she said it is (layer 8)."""
+    to = ((memory or {}).get("relabel") or {}).get(service or "")
+    return next((s for s in services if s.lower() == str(to).lower()), service) if to else service
+
+
+def careful_quota(quota: int, memory: dict[str, Any] | None) -> int:
+    """Layer 9: in the careful approach the studio makes half as many clips (at least 2)."""
+    return max(2, math.ceil(quota / 2)) if (memory or {}).get("approach") == "careful" else quota
+
+
+def memory_prompt(memory: dict[str, Any] | None) -> dict[str, Any]:
+    m = memory or {}
+    out = {k: m[k][:8] for k in ("kept_hooks", "turned_down_hooks", "notes", "reject_reasons") if isinstance(m.get(k), list) and m[k]}
+    return {"what_the_owner_kept_and_turned_down": out} if out else {}
+
+
 # ---------------------------------------------------------------- the dump: service + shape
 
 def dump_service(sheets: list[ShotSheet], override: str | None = None, services: list[str] | None = None) -> tuple[str | None, bool]:
@@ -478,18 +536,19 @@ COPY_SYSTEM = (
     "on screen in each shot and its state (before = empty or unfinished, in_progress, after = the finished result). Write ONLY about "
     "what is listed. Never mention any service other than the clip's service. Call something finished, a reveal or an after ONLY if a "
     "shot's state is after; say before or empty ONLY if a shot's state is before. Never write people's names, addresses or prices. "
-    "Never mention automation, software or how the video was made. Every clip's hook must be different from every other clip's "
+    "Never mention automation, software or how the video was made. Follow studio_rules exactly. Learn from what the owner kept and turned down (never reuse a turned-down hook). Every clip's hook must be different from every other clip's "
     "and describe that clip's own shots; do not reuse lines from the voice examples. hook and hook_alt: on-screen text, max 8 words each. caption: "
     "max 150 characters in their voice, ending with one call to action from their list. 3-5 hashtags. Answer JSON only: "
     "{\"items\":[{\"n\":int,\"hook\":str,\"hook_alt\":str,\"caption\":str,\"hashtags\":[str]}]}."
 )
 
 
-def copy_prompt(plans: list[Plan], profile: dict[str, str] | None, feedback: dict[int, str] | None = None, rules: dict[str, Any] | None = None) -> str:
+def copy_prompt(plans: list[Plan], profile: dict[str, str] | None, feedback: dict[int, str] | None = None, rules: dict[str, Any] | None = None, memory: dict[str, Any] | None = None) -> str:
     prof = profile or {}
     return json.dumps(
         {
             **({"studio_rules": rules} if rules else {}),
+            **memory_prompt(memory),
             "voice": prof.get("voice", "")[:600],
             "do_dont": prof.get("do_dont", "")[:600],
             "off_limits": prof.get("off_limits", "")[:400],
@@ -509,7 +568,7 @@ def copy_prompt(plans: list[Plan], profile: dict[str, str] | None, feedback: dic
     )
 
 
-def apply_copy(plans: list[Plan], answer: Any, profile: dict[str, str] | None, services: list[str], guard: Any = None) -> int:
+def apply_copy(plans: list[Plan], answer: Any, profile: dict[str, str] | None, services: list[str], guard: Any = None, avoid: list[str] | None = None) -> int:
     """The model's lines where they pass grounded_ok; the neutral lines everywhere else.
     Returns how many fields fell back (logged as a count)."""
     items = {}
@@ -519,7 +578,8 @@ def apply_copy(plans: list[Plan], answer: Any, profile: dict[str, str] | None, s
                 items[it["n"]] = it
     fell = 0
     own = {h.lower().lstrip("#") for h in profile_hashtags(profile)}
-    used: set[str] = set()
+    # A hook she turned down before (Studio Memory) is never used again, like a hook already on another clip.
+    used: set[str] = {h.lower().rstrip(".!") for h in (avoid or [])}
     for i, pl in enumerate(plans):
         g = pl.ground(services)
         base = neutral_copy(pl, profile, services, i)
@@ -552,12 +612,12 @@ def apply_copy(plans: list[Plan], answer: Any, profile: dict[str, str] | None, s
     return fell
 
 
-def write_copy(key: str | None, plans: list[Plan], profile: dict[str, str] | None, services: list[str], model: str, ask: Any, feedback: dict[int, str] | None = None, guard: Any = None, rules: dict[str, Any] | None = None) -> int:
+def write_copy(key: str | None, plans: list[Plan], profile: dict[str, str] | None, services: list[str], model: str, ask: Any, feedback: dict[int, str] | None = None, guard: Any = None, rules: dict[str, Any] | None = None, memory: dict[str, Any] | None = None) -> int:
     """ONE text call for every clip of the dump (or a re-cut's clips). `ask(key, payload)` returns
-    the model's text (common.openrouter_content in the job, a fake in tests)."""
+    the model's text (cut.ask_text in the job, a fake in tests)."""
     answer = None
     if key and plans:
-        payload = {"model": model, "max_tokens": 2500, "response_format": {"type": "json_object"}, "messages": [{"role": "system", "content": COPY_SYSTEM}, {"role": "user", "content": copy_prompt(plans, profile, feedback, rules)}]}
+        payload = {"model": model, "max_tokens": 2500, "response_format": {"type": "json_object"}, "messages": [{"role": "system", "content": COPY_SYSTEM}, {"role": "user", "content": copy_prompt(plans, profile, feedback, rules, memory)}]}
         try:
             CALLS["text"] = CALLS.get("text", 0) + 1
             text = ask(key, payload)
@@ -566,7 +626,7 @@ def write_copy(key: str | None, plans: list[Plan], profile: dict[str, str] | Non
         except Exception:  # noqa: BLE001
             CALLS["failed"] = CALLS.get("failed", 0) + 1
             answer = None
-    return apply_copy(plans, answer, profile, services, guard)
+    return apply_copy(plans, answer, profile, services, guard, (memory or {}).get("turned_down_hooks"))
 
 
 # ---------------------------------------------------------------- speech: only talking to camera

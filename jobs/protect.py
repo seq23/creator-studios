@@ -42,7 +42,7 @@ SUFFIX = (
 )
 STREET = re.compile(rf"\b\d{{1,6}}[a-z]?\s+(?:[nsew]\.?\s+)?(?:[a-z0-9'.-]+\s+){{0,4}}(?:{SUFFIX})\b\.?", re.I)
 HOUSE_NUMBER = re.compile(r"\b(?:house|home|door|unit|apt|apartment)\s*(?:number|num|no\.?|#)?\s*#?\s*\d{1,6}\b", re.I)
-MONEY = re.compile(r"\$\s?(\d[\d,]*(?:\.\d{1,2})?)|\b(\d[\d,]*(?:\.\d{1,2})?)\s*(?:dollars|bucks|usd)\b|\busd\s?(\d[\d,]*(?:\.\d{1,2})?)", re.I)
+AMOUNT = re.compile(r"\$\s?(\d[\d,]*(?:\.\d{1,2})?)|\b(\d[\d,]*(?:\.\d{1,2})?)\s*(?:dollars|bucks|usd)\b|\busd\s?(\d[\d,]*(?:\.\d{1,2})?)", re.I)
 
 
 @dataclass
@@ -87,7 +87,7 @@ def rules_from(spec: dict[str, Any]) -> Rules:
 
 def _amounts(text: str) -> list[float]:
     out = []
-    for m in MONEY.finditer(text or ""):
+    for m in AMOUNT.finditer(text or ""):
         v = (m.group(1) or m.group(2) or m.group(3) or "").replace(",", "")
         try:
             out.append(round(float(v), 2))
