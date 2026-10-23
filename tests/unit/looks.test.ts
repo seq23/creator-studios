@@ -28,7 +28,7 @@ import {
   rotationFor,
   type LookId,
 } from "@worker/domain/looks";
-import { clipParts, clipSource, cleanParts, parseCutRef, parseCutResult, parseRerender, rerenderKeys, CutResultError, type CutResultClip } from "@worker/jobs/cut";
+import { MAX_PARTS, clipParts, clipSource, cleanParts, parseCutRef, parseCutResult, parseRerender, rerenderKeys, CutResultError, type CutResultClip } from "@worker/jobs/cut";
 import { jobStorageScope, mayRead, mayWrite } from "@worker/lib/jobStorage";
 import { lookChangeRefusal } from "@worker/routes/clips";
 import { sqliteD1 } from "./helpers/sqlite-d1";
@@ -237,7 +237,10 @@ describe("a cut result carries each clip's look, parts and grid, checked", () =>
     expect(clips[0]).toMatchObject({ look: null, parts: [[10, 40]], layout: null });
     const g = parseCutResult({ clips: [{ ...clipBase, look: "grid_four", layout: { cells: [], voice: 0 } }] }, ctx).clips[0];
     expect(g.layout).toEqual(defaultGridLayout("grid_four", []));
-    expect(cleanParts([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]], 0, 10)).toEqual([[0, 10]]);
+    // Up to MAX_PARTS (a before -> after joins up to 6 shots) are kept; one more falls back to start-end.
+    const many = Array.from({ length: MAX_PARTS }, (_, i) => [i, i + 1] as [number, number]);
+    expect(cleanParts(many, 0, 10)).toEqual(many);
+    expect(cleanParts([...many, [9, 10]], 0, 10)).toEqual([[0, 10]]);
   });
 });
 
