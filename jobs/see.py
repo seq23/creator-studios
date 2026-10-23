@@ -53,6 +53,10 @@ VISION_MODELS = ["nvidia/nemotron-3.5-super-vl:free", "openrouter/free", "google
 # Calls made to the free models in this job, by kind (reported in the result's engine; the plan
 # budgets 1,000 a day across every studio).
 CALLS: dict[str, int] = {"vision": 0, "critic": 0, "text": 0, "failed": 0}
+# Circuit breaker (23 Oct 2026 live run: the account's free quota was used up and 84 calls in one job
+# all came back 429). Once a whole round of models answers 429, no more model calls this job: the
+# shot sheet uses the local backup and the critic its rules, never a silent pass of either.
+QUOTA_OUT = {"out": False}
 
 
 @dataclass
@@ -184,8 +188,9 @@ def vision_models() -> list[str]:
 def ask_vision(key: str | None, system: str, text: str, image: Path, kind: str, max_tokens: int = 3000) -> tuple[dict[str, Any] | None, str]:
     """One picture + one question to the first free vision model that answers with JSON.
     Returns (answer, model) or (None, "") when none did."""
-    if not key or not image or not image.exists():
+    if not key or not image or not image.exists() or QUOTA_OUT["out"]:
         return None, ""
+    codes: list[Any] = []
     # Free models answer bursts with 429s (23 Oct 2026 live run: 2 of 9 videos and 5 of 12 critic checks
     # found every model busy). A second round after a pause, before giving up to the backup.
     for model in [*vision_models(), *(["__pause__"] + vision_models()[:2])]:
@@ -206,8 +211,13 @@ def ask_vision(key: str | None, system: str, text: str, image: Path, kind: str, 
             return json.loads(m.group(0)), model
         except Exception as e:  # noqa: BLE001
             CALLS["failed"] = CALLS.get("failed", 0) + 1
-            log("see.model", ok=False, kind=kind, code=getattr(e, "code", None) if isinstance(getattr(e, "code", None), int) else type(e).__name__)
+            code = getattr(e, "code", None) if isinstance(getattr(e, "code", None), int) else type(e).__name__
+            codes.append(code)
+            log("see.model", ok=False, kind=kind, code=code)
             time.sleep(3)
+    if codes and all(c == 429 for c in codes):
+        QUOTA_OUT["out"] = True
+        log("see.quota_out", kind=kind)
     return None, ""
 
 

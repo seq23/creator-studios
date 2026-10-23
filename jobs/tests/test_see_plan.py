@@ -235,3 +235,29 @@ class PlainLineTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class QuotaTest(unittest.TestCase):
+    def test_a_round_of_429s_stops_further_model_calls(self):
+        import urllib.error
+        calls = []
+
+        def busy(*_a, **_k):
+            calls.append(1)
+            raise urllib.error.HTTPError("u", 429, "busy", {}, None)
+
+        img = Path(__file__)
+        old, old_pause, old_sleep = V.openrouter_content, V.VISION_PAUSE_S, V.time.sleep
+        V.openrouter_content, V.VISION_PAUSE_S = busy, 0
+        V.time.sleep = lambda *_: None
+        try:
+            V.QUOTA_OUT["out"] = False
+            self.assertEqual(V.ask_vision("k", "s", "t", img, "vision"), (None, ""))
+            first = len(calls)
+            self.assertGreater(first, 0)
+            self.assertTrue(V.QUOTA_OUT["out"])
+            self.assertEqual(V.ask_vision("k", "s", "t", img, "critic"), (None, ""))
+            self.assertEqual(len(calls), first)  # no call once the quota is out
+        finally:
+            V.openrouter_content, V.VISION_PAUSE_S, V.time.sleep = old, old_pause, old_sleep
+            V.QUOTA_OUT["out"] = False
