@@ -238,7 +238,7 @@ def numbers_with_text(img: Any) -> list[tuple[tuple[int, int, int, int], str]]:
 
     out: list[tuple[tuple[int, int, int, int], str]] = []
     with tempfile.TemporaryDirectory() as d:
-        for scale in (1.0, 0.5):
+        for scale in (1.0, 0.5, 0.25):  # 0.25: big bold numerals (a door number filling the frame) read only when small, 23 Oct 2026
             src = img if scale == 1.0 else img.resize((max(1, int(img.width * scale)), max(1, int(img.height * scale))))
             p = Path(d) / f"ocr-{scale}.png"
             src.convert("L").save(p)
