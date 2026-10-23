@@ -28,6 +28,7 @@ import { parseJson } from "../lib/db";
 import type { JobRow } from "@shared/types";
 import { JOB_HANDLERS } from "../jobs/registry";
 import { youtubeAccessToken } from "../lib/youtubeDirect";
+import { freeAi, type ChatMessage } from "../lib/freeAi";
 
 export const jobs = new Hono<{ Bindings: Env; Variables: Vars }>();
 
@@ -184,6 +185,20 @@ jobs.post("/:id/youtube-token", async (c) => {
   if (!tok) return fail(c, 409, "YouTube needs her to reconnect.", "reconnect-youtube");
   log.info("job.youtube_token", {});
   return c.json({ access_token: tok.access_token, expires_at: tok.expires_at }, 200, { "cache-control": "no-store" });
+});
+
+// The second $0 AI source (worker/lib/freeAi.ts): a running job asks; the studio spends only its own
+// share of the account's free daily allowance and refuses (429) past it, so a call never bills.
+jobs.post("/:id/ai", async (c) => {
+  const text = await c.req.text();
+  const job = await loadStorageJob(c, text);
+  if (job instanceof Response) return job;
+  const body = parseJson<{ messages?: ChatMessage[]; max_tokens?: number; kind?: string }>(text, {});
+  if (!Array.isArray(body.messages) || !body.messages.length) return fail(c, 400, "No messages.");
+  const r = await freeAi(c.env, body.messages, Number(body.max_tokens ?? 900));
+  log.info("job.free_ai", { kind: String(body.kind ?? ""), ok: r.ok, why: r.ok ? "" : r.why, left: Math.round(r.left) });
+  if (!r.ok) return c.json({ ok: false, why: r.why, left: Math.round(r.left) }, r.why === "failed" ? 502 : 429);
+  return c.json({ ok: true, content: r.content, neurons: Math.round(r.neurons), left: Math.round(r.left) });
 });
 
 jobs.post("/:id/progress", async (c) => {

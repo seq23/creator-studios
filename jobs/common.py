@@ -422,6 +422,27 @@ class Job:
             time.sleep(2 ** attempt)
         raise RuntimeError("worker unreachable")
 
+    # ---------- the second $0 AI source, through the Worker ----------
+
+    def free_ai(self, messages: list[Any], max_tokens: int, kind: str) -> tuple[str | None, str]:
+        """One answer from Cloudflare Workers AI within this studio's free daily share
+        (worker/lib/freeAi.ts). One attempt, never retried: (content, "") or (None, why), where why is
+        no_share / budget_out / failed / unreachable."""
+        body = json.dumps({"messages": messages, "max_tokens": max_tokens, "kind": kind})
+        req = urllib.request.Request(self._url("/ai"), method="POST", data=body.encode(), headers=self._headers(body))
+        try:
+            with urllib.request.urlopen(req, timeout=120) as res:
+                out = json.loads(res.read().decode() or "{}")
+            return (out.get("content") or None), ("" if out.get("content") else "failed")
+        except urllib.error.HTTPError as e:
+            try:
+                why = json.loads(e.read().decode() or "{}").get("why") or str(e.code)
+            except Exception:  # noqa: BLE001
+                why = str(e.code)
+            return None, why
+        except (urllib.error.URLError, TimeoutError):
+            return None, "unreachable"
+
     # ---------- storage, through the Worker ----------
 
     def input_url(self, key: str) -> str:
@@ -551,6 +572,13 @@ def download_input(key: str, dest: Path) -> Path:
     if _CURRENT is None:
         raise RuntimeError("no job")
     return _CURRENT.download_input(key, dest)
+
+
+def free_ai(messages: list[Any], max_tokens: int, kind: str) -> tuple[str | None, str]:
+    """The running job's Cloudflare Workers AI call (Job.free_ai); outside a studio job (the golden set), none."""
+    if _CURRENT is None:
+        return None, "no_job"
+    return _CURRENT.free_ai(messages, max_tokens, kind)
 
 
 def upload_output(src: Path, key: str, content_type: str) -> None:

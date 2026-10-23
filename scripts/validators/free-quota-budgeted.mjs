@@ -29,7 +29,9 @@ export default async function ({ root }) {
   if (!budget) problems.push("jobs/ai.py: OPENROUTER_JOB_BUDGET (the per-job cap) is missing");
   else if (Number(budget[1]) > 25 || Number(budget[1]) < 1) problems.push(`jobs/ai.py: OPENROUTER_JOB_BUDGET ${budget[1]} must be 1..25 (the account has 50 free calls a day)`);
   if (!/def daily_quota_message\(/.test(ai) || !/daily_quota_message\(body\)/.test(ai)) problems.push("jobs/ai.py: a 429 for the used-up daily quota must stop further calls at once");
-  if (!/"local_vlm": 0/.test(ai) || !/"openrouter": 0/.test(ai)) problems.push("jobs/ai.py: CALLS_BY must count calls per provider (openrouter, local_vlm)");
+  if (!/"local_vlm": 0/.test(ai) || !/"openrouter": 0/.test(ai) || !/"cloudflare": 0/.test(ai)) problems.push("jobs/ai.py: CALLS_BY must count calls per provider (openrouter, cloudflare, local_vlm)");
+  // Cloudflare Workers AI (owner, 23 Oct 2026): only through the studio's own share; a refusal stops it for the job.
+  if (!/def ask_cloudflare\(/.test(ai) || !/STATE\["cloudflare_out"\] = True/.test(ai)) problems.push("jobs/ai.py: Cloudflare must go through ask_cloudflare, and a refused share must stop further Cloudflare calls in the job");
   const see = await read("see.py");
   const critic = await read("critic.py");
   const bv = see.match(/^BATCH_VIDEOS = (\d+)/m);

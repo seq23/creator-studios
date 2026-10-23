@@ -101,6 +101,8 @@ export function envBlock(s, themes) {
     assets: { directory: "./dist/client", binding: "ASSETS", not_found_handling: "single-page-application", run_worker_first: RUN_WORKER_FIRST },
     d1_databases: [{ binding: "DB", database_name: s.d1.name, database_id: s.d1.id ?? "00000000-0000-0000-0000-000000000000", migrations_dir: "migrations" }],
     r2_buckets: [{ binding: "FILES", bucket_name: s.r2.bucket }],
+    // Cloudflare Workers AI, spent only within this studio's aiBudget (worker/lib/freeAi.ts).
+    ai: { binding: "AI" },
     triggers: { crons: CRONS },
     vars: {
       APP_NAME: s.appName,
@@ -125,6 +127,8 @@ export function envBlock(s, themes) {
       CONTENT_RULES: s.contentRules ? JSON.stringify(s.contentRules) : "",
       // Camera sound and voice defaults (shared/sound.ts soundSettings); "" = the plain defaults.
       STUDIO_SOUND: s.sound ? JSON.stringify({ cameraSound: s.sound.cameraSound, voice: s.sound.voice }) : "",
+      // This studio's share of the account's free 10,000 Workers AI neurons a day ("0" = never call).
+      STUDIO_AI_BUDGET: String(s.aiBudget ?? 0),
       ...(s.whatsNew ? { WHATS_NEW: JSON.stringify(s.whatsNew) } : {}),
       ENV_NAME: "production",
       AUTH_MODE: "code",
@@ -163,6 +167,7 @@ export function wranglerConfig({ studios, themes }) {
       PHOTO_POSTS: JSON.stringify(DEV_PHOTO_POSTS),
       CONTENT_RULES: JSON.stringify(DEV_CONTENT_RULES),
       STUDIO_SOUND: "",
+      STUDIO_AI_BUDGET: "0",
       ENV_NAME: "dev",
       AUTH_MODE: "code",
     },
