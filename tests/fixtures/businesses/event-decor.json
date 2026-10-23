@@ -1,0 +1,13 @@
+{
+  "_why": "A fixture business (made up) for the studio-intelligence tests: event decor. Its services come only from this profile (shared/services.ts servicesOf).",
+  "slug": "event-decor",
+  "profile": {
+    "who": "Glow Lane is an event decor business run by Dana. She sets the scene for big days: balloon garlands, backdrop walls (flowers, neon signs), table centerpieces and dessert displays. Serving the whole county.",
+    "voice": "Bright and friendly. Short sentences.",
+    "themes": "1. Setups coming together | 2. Night shots",
+    "do_dont": "DO: use 3 hashtags (#GlowLane #EventDecor #CountyEvents).",
+    "off_limits": "Guests' faces and names.",
+    "ctas": "\"Message us to book your date.\" | \"Book your balloon garland.\""
+  },
+  "services": ["balloon garlands", "backdrop walls", "table centerpieces", "dessert displays"]
+}

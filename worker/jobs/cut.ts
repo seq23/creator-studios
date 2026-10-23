@@ -59,6 +59,8 @@ import { dispatchJob } from "../services/github";
 import { readSound } from "../routes/settings";
 import { libraryTrack, type CameraSound } from "@shared/sound";
 import { parseNotes } from "../domain/steer";
+import { servicesOf } from "@shared/services";
+import { cleanLooksLike, cleanOverride, isShape, type PlanOverride, type Shape } from "@shared/looksLike";
 
 /** A cut job's ref: a dump ("dmp_…"), or one clip of it to re-render ("dmp_…/clp_…"). */
 export function parseCutRef(refId: string | null): { dumpId: string; clipId: string | null; import: boolean; again: boolean } | null {
@@ -146,6 +148,12 @@ export interface CutSpec {
   steer: SteerSpec;
   /** The camera's own sound: auto (keep talking, drop background talk), keep, or off (music instead). */
   camera: CameraSound;
+  /** The services the footage can show, from the locked Brand Profile only (shared/services.ts). */
+  services: string[];
+  /** What the vision model saw in each video before (jobs/see.py), so a re-plan looks no again. */
+  shot_sheets: Record<string, unknown>;
+  /** Her pick on "Change" (the plain line): the service and/or the story shape. */
+  plan_override: PlanOverride;
 }
 
 /** Try another version with her notes: the clip's videos cut again, away from the moment she has. */
@@ -215,6 +223,7 @@ interface AssetDb {
   original_posted_at: string | null;
   original_views: number | null;
   content_hash: string | null;
+  shot_sheet: string | null;
 }
 
 async function buildSpec(env: Env, jobId: string, refId: string | null): Promise<CutSpec | RerenderSpec | ImportSpec | AgainSpec> {
@@ -227,12 +236,12 @@ async function buildSpec(env: Env, jobId: string, refId: string | null): Promise
 }
 
 async function buildDumpSpec(env: Env, jobId: string, dumpId: string): Promise<CutSpec> {
-  const dump = await env.DB.prepare("SELECT id, door, kind, notes, steer, steer_notes FROM dumps WHERE id = ?").bind(dumpId).first<{ id: string; door: "new" | "recycle"; kind: string; notes: string; steer: string | null; steer_notes: string | null }>();
+  const dump = await env.DB.prepare("SELECT id, door, kind, notes, steer, steer_notes, plan_override FROM dumps WHERE id = ?").bind(dumpId).first<{ id: string; door: "new" | "recycle"; kind: string; notes: string; steer: string | null; steer_notes: string | null; plan_override: string | null }>();
   if (!dump) throw new Error("dump missing");
   // A full video for YouTube never goes through the cutter (validator full-video-uncut).
   if (dump.kind === "full_video") throw new Error("a full video is never cut");
   const { results: rows } = await env.DB.prepare(
-    "SELECT id, r2_key, mime_type, duration_s, file_note, steer_notes, original_platform, original_posted_at, original_views, content_hash FROM assets WHERE dump_id = ? AND upload_status = 'uploaded' AND raw_deleted_at IS NULL ORDER BY created_at",
+    "SELECT id, r2_key, mime_type, duration_s, file_note, steer_notes, original_platform, original_posted_at, original_views, content_hash, shot_sheet FROM assets WHERE dump_id = ? AND upload_status = 'uploaded' AND raw_deleted_at IS NULL ORDER BY created_at",
   )
     .bind(dumpId)
     .all<AssetDb>();
@@ -303,6 +312,13 @@ async function buildDumpSpec(env: Env, jobId: string, dumpId: string): Promise<C
   const brief = await env.DB.prepare("SELECT body FROM research_briefs WHERE status = 'approved' ORDER BY version DESC LIMIT 1").first<{ body: string }>();
   const need = weeklyNeed(s.weekly_caps);
   const steer = steerSpec(dumpCtl, dump.id);
+  const sections = profile ? parseJson<Record<string, string>>(profile.sections, {}) : null;
+  const services = servicesOf(sections);
+  const sheets: Record<string, unknown> = {};
+  for (const a of rows) {
+    const sh = parseJson<unknown>(a.shot_sheet, null);
+    if (sh && assets.some((x) => x.id === a.id)) sheets[a.id] = sh;
+  }
   return {
     job_id: jobId,
     type: "cut",
@@ -312,7 +328,7 @@ async function buildDumpSpec(env: Env, jobId: string, dumpId: string): Promise<C
     notes: dump.notes,
     assets,
     skipped_assets: skipped,
-    brand_profile: profile ? parseJson<Record<string, string>>(profile.sections, {}) : null,
+    brand_profile: sections,
     brief: brief ? parseJson<unknown>(brief.body, null) : null,
     weekly_caps: s.weekly_caps,
     weekly_need: need,
@@ -326,18 +342,25 @@ async function buildDumpSpec(env: Env, jobId: string, dumpId: string): Promise<C
     music: steer.music,
     steer,
     camera: dumpCtl.camera ?? (await readSound(env)).camera,
+    services,
+    shot_sheets: sheets,
+    plan_override: cleanOverride(parseJson(dump.plan_override, {}), services),
   };
 }
 
 /** The clip's stretches, as [asset id, start, end] (its own video). */
 async function buildAgainSpec(env: Env, jobId: string, dumpId: string, clipId: string): Promise<AgainSpec> {
-  const clip = await env.DB.prepare("SELECT id, asset_id, start_s, end_s, parts, again_notes FROM clips WHERE id = ? AND dump_id = ?").bind(clipId, dumpId).first<{ id: string; asset_id: string; start_s: number; end_s: number; parts: string | null; again_notes: string | null }>();
+  const clip = await env.DB.prepare("SELECT id, asset_id, start_s, end_s, parts, part_assets, again_notes FROM clips WHERE id = ? AND dump_id = ?").bind(clipId, dumpId).first<{ id: string; asset_id: string; start_s: number; end_s: number; parts: string | null; part_assets: string | null; again_notes: string | null }>();
   if (!clip) throw new Error("clip missing");
   const base = await buildDumpSpec(env, jobId, dumpId);
   const notes = (clip.again_notes ?? "").trim();
   // Her notes steer this version like a video's own note (moment, hook, pace, look, music, camera sound).
   const asked = parseNotes(notes, await tracksOf(env)).controls;
-  const assets = base.assets.filter((a) => a.id === clip.asset_id).map((a) => ({ ...a, ...(Object.keys(asked).length ? { steer: { ...(a.steer ?? base.steer), ...againSteer(base, asked) } } : {}) }));
+  // A before -> after clip is cut again from every video it joins.
+  const owners = parseJson<unknown>(clip.part_assets, null);
+  const partOwners = Array.isArray(owners) ? owners.map(String) : [];
+  const mine = new Set([clip.asset_id, ...partOwners]);
+  const assets = base.assets.filter((a) => mine.has(a.id)).map((a) => ({ ...a, ...(Object.keys(asked).length ? { steer: { ...(a.steer ?? base.steer), ...againSteer(base, asked) } } : {}) }));
   if (!assets.length) throw new Error("clip source cleared");
   return {
     ...base,
@@ -347,7 +370,7 @@ async function buildAgainSpec(env: Env, jobId: string, dumpId: string, clipId: s
     skipped_assets: [],
     target_clips: { min: 1, max: 1 },
     change_request: notes.slice(0, 1000),
-    avoid_windows: clipParts(clip).map(([start, end]) => ({ asset_id: clip.asset_id, start, end })),
+    avoid_windows: clipParts(clip).map(([start, end], i) => ({ asset_id: partOwners.length === clipParts(clip).length ? partOwners[i]! : clip.asset_id, start, end })),
   };
 }
 
@@ -383,6 +406,7 @@ interface ClipSourceDb {
   hook_text: string;
   r2_key: string;
   parts: string | null;
+  part_assets: string | null;
   layout: string | null;
   pending_look: string | null;
   pending_layout: string | null;
@@ -394,7 +418,7 @@ interface ClipSourceDb {
   asset_duration: number | null;
 }
 
-const CLIP_SOURCE_SQL = `SELECT c.id, c.dump_id, c.asset_id, c.start_s, c.end_s, c.recipe, c.hook_text, c.r2_key, c.parts, c.layout, c.pending_look, c.pending_layout, c.pending_music, c.music, c.muted,
+const CLIP_SOURCE_SQL = `SELECT c.id, c.dump_id, c.asset_id, c.start_s, c.end_s, c.recipe, c.hook_text, c.r2_key, c.parts, c.part_assets, c.layout, c.pending_look, c.pending_layout, c.pending_music, c.music, c.muted,
   c.media_version, a.r2_key AS raw_key, a.raw_deleted_at, a.duration_s AS asset_duration FROM clips c JOIN assets a ON a.id = c.asset_id`;
 
 /** The file names a re-render writes: the clip's id and the next version, inside its dump's folder. */
@@ -414,6 +438,22 @@ export function clipParts(c: { start_s: number; end_s: number; parts: string | n
 export function clipSource(c: Pick<ClipSourceDb, "raw_key" | "raw_deleted_at" | "r2_key" | "start_s" | "end_s">, length: number): RerenderStretch {
   if (!c.raw_deleted_at) return { src: c.raw_key, start: c.start_s, end: c.start_s + length };
   return { src: c.r2_key, start: 0, end: Math.min(length, c.end_s - c.start_s) };
+}
+
+/**
+ * Where each part of a clip is read from for a new look: its own video. A clip joining several
+ * videos (before -> after, clips.part_assets) reads each part from that part's upload.
+ */
+async function partSources(env: Env, clip: Pick<ClipSourceDb, "raw_key" | "part_assets" | "dump_id">, parts: [number, number][]): Promise<RerenderStretch[]> {
+  const owners = parseJson<unknown>(clip.part_assets, null);
+  if (!Array.isArray(owners) || owners.length !== parts.length) return parts.map(([start, end]) => ({ src: clip.raw_key, start, end }));
+  const out: RerenderStretch[] = [];
+  for (const [i, [start, end]] of parts.entries()) {
+    const a = await env.DB.prepare("SELECT r2_key, raw_deleted_at FROM assets WHERE id = ? AND dump_id = ?").bind(String(owners[i]), clip.dump_id).first<{ r2_key: string; raw_deleted_at: string | null }>();
+    if (!a || a.raw_deleted_at) throw new Error("clip source cleared");
+    out.push({ src: a.r2_key, start, end });
+  }
+  return out;
 }
 
 async function buildRerenderSpec(env: Env, jobId: string, dumpId: string, clipId: string): Promise<RerenderSpec> {
@@ -462,7 +502,7 @@ async function buildRerenderSpec(env: Env, jobId: string, dumpId: string, clipId
     hook_text: clip.hook_text,
     look_id: clip.pending_look,
     look,
-    parts: parts.map(([start, end]) => ({ src: clip.raw_key, start, end })),
+    parts: await partSources(env, clip, parts),
     cells,
     voice,
     branding: ctx.branding,
@@ -502,6 +542,15 @@ export interface CutResultClip {
   speech?: number | null;
   /** Cut with the camera sound off (none of the video's own sound is in it). */
   muted?: boolean;
+  /** Studio intelligence (jobs/see.py, jobs/plan.py): the story shape and the service it shows. */
+  shape?: string | null;
+  service?: string | null;
+  /** What the shot sheet says is on screen (a voice over may describe only that). */
+  on_screen?: string | null;
+  /** The video each part comes from, when a clip joins several (before -> after). */
+  part_assets?: string[] | null;
+  /** Why the studio hid it (the critic, layer 6), in plain words. */
+  hidden_reason?: string | null;
 }
 
 export interface CutResult {
@@ -513,6 +562,11 @@ export interface CutResult {
   assets?: { id: string; duration_s: number }[];
   /** Platform watermarks and @handles the job read on sampled frames (worker/domain/sourceCheck.ts). */
   source_marks?: SourceMark[];
+  /** The dump's plain line (shared/looksLike.ts) and each video's shot sheet (jobs/see.py). */
+  looks_like?: unknown;
+  shot_sheets?: Record<string, unknown>;
+  /** Free-model calls this cut made, by kind (vision, critic, text, failed). */
+  calls?: Record<string, number>;
 }
 
 /**
@@ -561,6 +615,11 @@ export interface CleanClip {
   music: string | null;
   speech: number | null;
   muted: boolean;
+  shape: Shape | null;
+  service: string | null;
+  on_screen: string | null;
+  part_assets: string[] | null;
+  hidden_reason: string | null;
 }
 
 export class CutResultError extends Error {
@@ -649,6 +708,10 @@ export function parseCutResult(
     const s = Math.max(0, Math.min(1, score));
     const alt = str(c.hook_alt, 200);
     const look = isLookId(c.look) ? c.look : null;
+    const parts = cleanParts(c.parts, start, end);
+    // Each part's video must be one of this dump's (the Worker never trusts the job).
+    const partAssets = Array.isArray(c.part_assets) && c.part_assets.length === parts.length && c.part_assets.every((a) => typeof a === "string" && ctx.allowed.has(a)) ? (c.part_assets as string[]) : null;
+    const hiddenReason = str(c.hidden_reason, 200) || null;
     clips.push({
       id: c.id!,
       asset_id: String(c.asset_id),
@@ -661,16 +724,21 @@ export function parseCutResult(
       hashtags: normalizeHashtags(c.hashtags),
       platforms,
       score: Math.round(s * 1000) / 1000,
-      hidden: s < QUALITY_BAR,
+      hidden: s < QUALITY_BAR || !!hiddenReason,
       r2_key: c.r2_key!,
       cover_r2_key: c.cover_r2_key ?? null,
       look,
-      parts: cleanParts(c.parts, start, end),
+      parts,
       layout: look && isGridLook(look) ? (cleanGridLayout(look, c.layout) ?? defaultGridLayout(look, [])) : null,
       music: songKey(c.music),
       // A muted clip has no talking of its own (automatic voice over applies), whatever the job said.
       speech: c.muted === true ? 0 : typeof c.speech === "number" && Number.isFinite(c.speech) && c.speech >= 0 && c.speech <= 1 ? Math.round(c.speech * 1000) / 1000 : null,
       muted: c.muted === true,
+      shape: isShape(c.shape) ? c.shape : null,
+      service: str(c.service, 60) || null,
+      on_screen: str(c.on_screen, 400) || null,
+      part_assets: partAssets,
+      hidden_reason: hiddenReason,
     });
   }
   return { clips, dropped };
@@ -740,11 +808,12 @@ export async function applyDumpClips(env: Env, jobId: string, dumpId: string, re
   for (const c of clips) {
     stmts.push(
       env.DB.prepare(
-        `INSERT INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, hook_text, hook_alt, caption, hashtags, platforms, score, r2_key, cover_r2_key, media_token, status, hidden, look, parts, layout, edited_with, music, speech, muted)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, hook_text, hook_alt, caption, hashtags, platforms, score, r2_key, cover_r2_key, media_token, status, hidden, look, parts, layout, edited_with, music, speech, muted, shape, service, on_screen, part_assets, hidden_reason)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         c.id, c.asset_id, dumpId, c.start_s, c.end_s, c.recipe, c.hook_text, c.hook_alt, c.caption, c.hashtags, JSON.stringify(c.platforms), c.score, c.r2_key, c.cover_r2_key, mediaToken(), c.hidden ? 1 : 0,
         opts.editor ? null : c.look, JSON.stringify(c.parts), opts.editor ? null : c.layout ? JSON.stringify(c.layout) : null, opts.editor ?? null, c.music, c.speech, c.muted ? 1 : 0,
+        c.shape, c.service, c.on_screen, c.part_assets ? JSON.stringify(c.part_assets) : null, c.hidden_reason,
       ),
     );
   }
@@ -757,6 +826,16 @@ export async function applyDumpClips(env: Env, jobId: string, dumpId: string, re
     const d = Number(a?.duration_s);
     if (allowed.has(String(a?.id)) && Number.isFinite(d) && d > 0) stmts.push(env.DB.prepare("UPDATE assets SET duration_s = ? WHERE id = ? AND dump_id = ?").bind(d, String(a.id), dumpId));
   }
+  // What the studio saw (kept, so "Change" re-plans without looking again) and its plain line.
+  const sheets = (result as CutResult).shot_sheets;
+  if (sheets && typeof sheets === "object") {
+    for (const [assetId, sheet] of Object.entries(sheets)) {
+      const json = JSON.stringify(sheet ?? null);
+      if (allowed.has(assetId) && json.length <= 60_000) stmts.push(env.DB.prepare("UPDATE assets SET shot_sheet = ? WHERE id = ? AND dump_id = ?").bind(json, assetId, dumpId));
+    }
+  }
+  const looksLike = cleanLooksLike((result as CutResult).looks_like);
+  stmts.push(env.DB.prepare("UPDATE dumps SET looks_like = ? WHERE id = ?").bind(looksLike ? JSON.stringify(looksLike) : null, dumpId));
   const readyAt = nowIso();
   stmts.push(env.DB.prepare("UPDATE dumps SET status = 'ready', clips_made = ?, ready_at = ?, error_summary = NULL WHERE id = ?").bind(clips.length, readyAt, dumpId));
   // Never silently dropped: what her notes asked that could not be done, and what the job could not find.
@@ -767,7 +846,8 @@ export async function applyDumpClips(env: Env, jobId: string, dumpId: string, re
   const visible = clips.filter((c) => !c.hidden).length;
   const engine = (result as CutResult).engine ?? {};
   const looks = new Set(clips.map((c) => c.look).filter(Boolean)).size;
-  await recordEvent(env.DB, "dump.cut", dumpId, { clips: clips.length, visible, dropped, door: dump.door, engine, looks, editor: opts.editor ?? "built-in", held_videos: held.filter((h) => h.owner === "other").length });
+  const calls = (result as CutResult).calls ?? {};
+  await recordEvent(env.DB, "dump.cut", dumpId, { clips: clips.length, visible, dropped, door: dump.door, engine, looks, editor: opts.editor ?? "built-in", held_videos: held.filter((h) => h.owner === "other").length, calls, hidden_by_critic: clips.filter((c) => c.hidden_reason).length });
   if (opts.editor) await env.DB.prepare("UPDATE editor_jobs SET status = 'done', updated_at = ? WHERE dump_id = ? AND capability = 'cut_from_source' AND status = 'importing'").bind(nowIso(), dumpId).run();
   else await queueClipEditors(env, clips.map((c) => c.id), env.PUBLIC_BASE_URL);
   // Automatic voice overs: every new clip with no talking, in one voice job run (worker/lib/autoVoice.ts).
@@ -887,7 +967,8 @@ export const AGAIN_FAILED = "The new version didn't finish, so your clip is unch
 async function applyAgain(env: Env, jobId: string, dumpId: string, clipId: string, result: unknown): Promise<void> {
   const clip = await env.DB.prepare("SELECT id, status, r2_key, cover_r2_key, asset_id, rerender_job_id FROM clips WHERE id = ? AND dump_id = ?").bind(clipId, dumpId).first<{ id: string; status: string; r2_key: string; cover_r2_key: string | null; asset_id: string; rerender_job_id: string | null }>();
   const got = (result as { again?: unknown } | null)?.again;
-  const parsed = parseCutResult({ clips: got ? [got] : [] }, { dumpId, allowed: new Map([[clip?.asset_id ?? "", [...PLATFORMS]]]), rawKeys: new Set() });
+  const { results: dumpAssets } = await env.DB.prepare("SELECT id FROM assets WHERE dump_id = ?").bind(dumpId).all<{ id: string }>();
+  const parsed = parseCutResult({ clips: got ? [got] : [] }, { dumpId, allowed: new Map([[clip?.asset_id ?? "", [...PLATFORMS]], ...dumpAssets.map((a) => [a.id, [...PLATFORMS]] as [string, Platform[]])]), rawKeys: new Set() });
   const fresh = parsed.clips[0];
   if (!clip || clip.status === "deleted" || clip.rerender_job_id !== jobId || !fresh) {
     if (fresh) await env.FILES.delete([fresh.r2_key, fresh.cover_r2_key].filter((k): k is string => !!k));
@@ -896,10 +977,10 @@ async function applyAgain(env: Env, jobId: string, dumpId: string, clipId: strin
     return;
   }
   await env.DB.prepare(
-    `UPDATE clips SET start_s = ?, end_s = ?, recipe = ?, hook_text = ?, hook_alt = ?, caption = ?, hashtags = ?, score = ?, r2_key = ?, cover_r2_key = ?, look = ?, parts = ?, layout = ?,
-       music = ?, speech = ?, muted = ?, pending_look = NULL, pending_layout = NULL, pending_music = NULL, rerender_job_id = NULL, rerender_error = NULL, media_version = media_version + 1, edited_with = NULL WHERE id = ?`,
+    `UPDATE clips SET asset_id = ?, start_s = ?, end_s = ?, recipe = ?, hook_text = ?, hook_alt = ?, caption = ?, hashtags = ?, score = ?, r2_key = ?, cover_r2_key = ?, look = ?, parts = ?, layout = ?,
+       music = ?, speech = ?, muted = ?, shape = ?, service = ?, on_screen = ?, part_assets = ?, hidden_reason = ?, hidden = ?, pending_look = NULL, pending_layout = NULL, pending_music = NULL, rerender_job_id = NULL, rerender_error = NULL, media_version = media_version + 1, edited_with = NULL WHERE id = ?`,
   )
-    .bind(fresh.start_s, fresh.end_s, fresh.recipe, fresh.hook_text, fresh.hook_alt, fresh.caption, fresh.hashtags, fresh.score, fresh.r2_key, fresh.cover_r2_key, fresh.look, JSON.stringify(fresh.parts), fresh.layout ? JSON.stringify(fresh.layout) : null, fresh.music, fresh.speech, fresh.muted ? 1 : 0, clipId)
+    .bind(fresh.asset_id, fresh.start_s, fresh.end_s, fresh.recipe, fresh.hook_text, fresh.hook_alt, fresh.caption, fresh.hashtags, fresh.score, fresh.r2_key, fresh.cover_r2_key, fresh.look, JSON.stringify(fresh.parts), fresh.layout ? JSON.stringify(fresh.layout) : null, fresh.music, fresh.speech, fresh.muted ? 1 : 0, fresh.shape, fresh.service, fresh.on_screen, fresh.part_assets ? JSON.stringify(fresh.part_assets) : null, fresh.hidden_reason, fresh.hidden ? 1 : 0, clipId)
     .run();
   const old = [clip.r2_key, clip.cover_r2_key].filter((k): k is string => !!k && k !== fresh.r2_key && k !== fresh.cover_r2_key);
   if (old.length) await env.FILES.delete(old);

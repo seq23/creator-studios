@@ -526,6 +526,80 @@ def check_steer(tmp: Path, problems: list[str], heavy: dict) -> None:
     log("selftest.steer", grid_clips=len([1 for _ in r["clips"]]), reported=len(told))
 
 
+def check_planned(tmp: Path, problems: list[str], heavy: dict) -> None:
+    """Studio intelligence (layers 2 and 4) end to end on synthetic footage, with no model: the shot
+    sheets come in the spec (as on a re-plan), one video BEFORE and one AFTER. The planner must make a
+    before -> after clip that joins both videos, before first and the reveal last, rendered from each
+    part's own video, with grounded words and the plain line sure. Then the 22 Oct live-test case:
+    a test pattern nobody could read, camera sound off, must get a neutral hook ("Not sure")."""
+    import see as V
+
+    work = tmp / "planned"
+    src = work / "src"
+    src.mkdir(parents=True, exist_ok=True)
+    make_sample(src / "before.mp4", 12, "720x1280", None)
+    make_sample(src / "after.mp4", 16, "720x1280", None)
+    out = work / "r2"
+
+    def download(key: str, dest: Path) -> Path:
+        shutil.copy(src / key, dest)
+        return dest
+
+    def upload(path: Path, key: str, _ct: str) -> None:
+        dst = out / key
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(path, dst)
+
+    services = ["alpha work", "beta work"]
+    sheets = {
+        "ast_before": V.ShotSheet("ast_before", 12.0, [V.Shot(0.0, 12.0, what="an empty bare corner", subject="corner", state="before", service="unsure", confidence=0.9)], "vision:selftest").to_json(),
+        "ast_after": V.ShotSheet("ast_after", 16.0, [V.Shot(0.0, 8.0, what="the finished corner, wide", state="after", service="alpha work", confidence=0.9), V.Shot(8.0, 16.0, what="the finished corner, close", state="after", service="alpha work", confidence=0.9)], "vision:selftest").to_json(),
+    }
+    all_p = ["tiktok", "instagram", "youtube"]
+    spec = spec_for("new", "dmp_planned", [{"id": "ast_before", "r2_key": "before.mp4", "allowed_platforms": all_p, "file_note": None}, {"id": "ast_after", "r2_key": "after.mp4", "allowed_platforms": all_p, "file_note": None}])
+    spec.update({"services": services, "shot_sheets": sheets, "camera": "off", "rotation": ["clean", "grid_four"], "target_clips": {"min": 3, "max": 4},
+                 "brand_profile": {"ctas": "Book your beta work.\nMessage us to book your date.", "do_dont": "#SampleStudio"}})
+    r = cut.cut_dump(spec, work / "w1", download, upload, FakeJob().progress, heavy)
+    ll = r.get("looks_like") or {}
+    if ll != {"service": "alpha work", "shape": "transformation", "camera": "off", "sure": True}:
+        problems.append(f"planned: the plain line is wrong ({ll})")
+    trans = [c for c in r["clips"] if c.get("shape") == "transformation"]
+    if not trans:
+        problems.append("planned: no before -> after clip from a before video and an after video")
+    for c in trans:
+        if not c.get("part_assets") or c["part_assets"][0] != "ast_before" or c["part_assets"][-1] != "ast_after":
+            problems.append("planned: a before -> after clip does not start on the before video and end on the reveal")
+        want = sum(e - s for s, e in c["parts"])
+        got = cut.probe(out / c["r2_key"])["duration"]
+        if abs(got - want) > 2.5:
+            problems.append(f"planned: a joined clip plays {got:.1f}s, its parts add to {want:.1f}s")
+        if c["asset_id"] != "ast_after":
+            problems.append("planned: a joined clip's video is not the reveal's")
+    for c in r["clips"]:
+        if c.get("shape") != "transformation" and "ast_before" in (c.get("part_assets") or [c["asset_id"]]):
+            problems.append("planned: a before shot is in a clip that is not a before -> after")
+        text = " ".join([c["hook_text"], c.get("hook_alt") or "", c["caption"]]).lower()
+        if "beta" in text or "automatic" in text:
+            problems.append("planned: a clip's words name another service or mention automation")
+        if not c.get("on_screen"):
+            problems.append("planned: a clip does not say what is on screen (the voice over needs it)")
+    if r.get("calls", {}).get("vision", 0) != 0:
+        problems.append("planned: saved shot sheets were looked at again")
+
+    # Nobody could look (no key, no local model) and the camera sound is off: neutral words only.
+    blind = spec_for("new", "dmp_blind", [{"id": "ast_blind", "r2_key": "after.mp4", "allowed_platforms": all_p, "file_note": None}])
+    blind.update({"services": services, "camera": "off", "rotation": ["clean"], "target_clips": {"min": 1, "max": 2}, "notes": "Empty corner? Watch it glow up! alpha work",
+                  "brand_profile": {"ctas": "Book your alpha work."}})
+    r2 = cut.cut_dump(blind, work / "w2", download, upload, FakeJob().progress, heavy)
+    if (r2.get("looks_like") or {}).get("sure"):
+        problems.append("planned: a video nobody could read was called sure")
+    for c in r2["clips"]:
+        t = c["hook_text"].lower()
+        if any(w in t for w in ("empty", "glow", "alpha", "beta")):
+            problems.append("planned: an unsure clip's hook guessed what it shows")
+    log("selftest.planned", clips=len(r["clips"]), transformation=len(trans), blind=len(r2["clips"]))
+
+
 def main() -> int:
     write_fixture = "--write-fixture" in sys.argv
     tmp = Path(tempfile.mkdtemp(prefix="cut-selftest-"))
@@ -589,6 +663,7 @@ def main() -> int:
         if "--looks-only" not in sys.argv:
             check_import(tmp, problems)
             check_steer(tmp, problems, heavy)
+            check_planned(tmp, problems, heavy)
         all_platforms = ["tiktok", "instagram", "youtube"]
         runs = [] if "--looks-only" in sys.argv else [
             spec_for("new", "dmp_selftestnew", [{"id": "ast_selftestwide", "r2_key": "wide.mp4", "allowed_platforms": all_platforms, "file_note": None}]),

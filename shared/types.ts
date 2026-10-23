@@ -1,6 +1,7 @@
 // API shapes shared by the React app and the Worker. Keep these plain (JSON-safe).
 import type { BrandProfileKey, DealStage, Platform, Recipe } from "./constants";
 import type { NotFollowed, SteerControls, Understood } from "./steer";
+import type { LooksLike, PlanOverride } from "./looksLike";
 
 export type Light = "green" | "yellow" | "red" | "grey";
 
@@ -100,6 +101,10 @@ export interface DumpSummary {
   tried: string | null;
   /** Archived (by her or by the tidy rules): out of the list unless "Show archived". */
   archived_at?: string | null;
+  /** What the studio thinks the footage shows (the plain line, shared/looksLike.ts); null before a cut. */
+  looks_like?: LooksLike | null;
+  /** What she picked on "Change" (the next cut follows it). */
+  plan_override?: PlanOverride;
 }
 
 /** A page of a long list: the rows, and the TRUE count for what she asked (day 358). */

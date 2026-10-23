@@ -61,7 +61,15 @@ export default async function ({ root }) {
 
   // 3. the measurement reaches the rule
   items++;
-  if (!(await read("jobs/cut.py")).includes('"speech": speech_share(')) problems.push("jobs/cut.py: clips no longer carry their measured speech share");
+  const cutPy = await read("jobs/cut.py");
+  if (!cutPy.includes('"speech": speech_share(')) problems.push("jobs/cut.py: clips no longer carry their measured speech share");
+  // A clip joining several videos (before -> after) measures each part with speech_share too.
+  if (cutPy.includes("mixed_speech(")) {
+    const body = (cutPy.split("def mixed_speech(")[1] ?? "").split("\ndef ")[0] ?? "";
+    // Its only return is the measured share: each part through speech_share, over the clip's length.
+    const returns = body.match(/^\s+return .*$/gm) ?? [];
+    if (!/speech_share\(srcs\[/.test(body) || returns.length !== 1 || !/got \/ total/.test(returns[0])) problems.push("jobs/cut.py: mixed_speech no longer measures each part with speech_share");
+  }
   items++;
   if (!/INSERT INTO clips[\s\S]{0,400}\bspeech\b/.test(await read("worker/jobs/cut.ts"))) problems.push("worker/jobs/cut.ts: clips.speech is no longer stored");
 

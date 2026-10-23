@@ -15,6 +15,9 @@ on:
       - jobs/looks.py
       - jobs/looks.json
       - jobs/common.py
+      - jobs/see.py
+      - jobs/plan.py
+      - shared/grounded.json
       - jobs/selftest_cut.py
       - jobs/music/**
       - .github/scripts/apt-install.sh
@@ -66,6 +69,8 @@ jobs:
           # Which studio started this job: it picks that studio's shared secret (JOB_SHARED_SECRET_<SLUG>, or
           # JOB_SHARED_SECRET in a studio's own job repository). Storage and keys come through that Worker's signed spec.
           JOB_STUDIO: ${{ github.event.client_payload.studio }}
+          # The shot sheet's backup (jobs/see.py): a local CPU zero-shot model, installed only when no free vision model answers.
+          VISION_LOCAL: "1"
           JOB_SHARED_SECRET: ${{ secrets[format('JOB_SHARED_SECRET_{0}', github.event.client_payload.studio)] || secrets.JOB_SHARED_SECRET }}
 
   selftest:

@@ -46,6 +46,8 @@ from typing import Any, Callable
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import WORK, Job, download_input, json_object_in, log, openrouter_content, run, upload_output  # noqa: E402
 import looks as L  # noqa: E402
+import plan as P  # noqa: E402  (layer 4: plan the story from the shot sheet)
+import see as V  # noqa: E402  (layer 2: see the footage, a shot sheet per video)
 
 OUT_W, OUT_H = 1080, 1920
 FPS = 30
@@ -255,6 +257,16 @@ class Moment:
     caption: str = ""
     hashtags: list[str] = field(default_factory=list)
     hook_strength: float | None = None
+    # Studio intelligence (jobs/see.py, jobs/plan.py): the story shape, the service it shows, what is
+    # on screen (the voice over may describe only that), and per part the video it comes from (a
+    # before -> after clip joins shots of several videos; None = all from asset_id).
+    shape: str | None = None
+    service: str | None = None
+    on_screen: str = ""
+    part_assets: list[str] | None = None
+    plan_score: float | None = None
+    hidden_reason: str | None = None
+    captions_off: bool = False
 
 
 def coverage(runs: list[tuple[float, float]], s: float, e: float) -> float:
@@ -823,7 +835,13 @@ def music_for(spec: dict[str, Any], k: int, work: Path, download: "Downloader", 
     return cache[key]
 
 
-def render_moment(m: "Moment", src: Source, opts: dict[str, Any], brand: L.Branding, work: Path, clip_id: str, mediapipe: bool, *, cells: list[L.Seg] | None = None, voice: int = 0, voice_src: Source | None = None, music: Path | None = None) -> L.Rendered:
+def render_moment(m: "Moment", src: Source, opts: dict[str, Any], brand: L.Branding, work: Path, clip_id: str, mediapipe: bool, *, cells: list[L.Seg] | None = None, voice: int = 0, voice_src: Source | None = None, music: Path | None = None, srcs: dict[str, Source] | None = None) -> L.Rendered:
+    if m.part_assets and srcs:
+        # A planned clip joining shots of several videos (before -> after): each part from its own video.
+        psrc = [srcs.get(a, src) for a in m.part_assets]
+        parts = [ps.seg(s, e, mediapipe) for ps, (s, e) in zip(psrc, m.parts)]
+        words = [] if opts.get("mute") or m.captions_off else L.timeline_words([ps.transcript.words_in(s, e) for ps, (s, e) in zip(psrc, m.parts)], parts, opts)
+        return L.render_look(opts, parts, words, m.hook, brand, work, clip_id, cells=None, voice=0, inset=None, music=music if opts.get("music") else None)
     parts = [src.seg(s, e, mediapipe) for s, e in m.parts]
     if cells:
         vs = voice_src or src
@@ -831,7 +849,7 @@ def render_moment(m: "Moment", src: Source, opts: dict[str, Any], brand: L.Brand
         words = [Word(round(w.start - c.start, 3), round(w.end - c.start, 3), w.text) for w in vs.transcript.words_in(c.start, c.end)]
     else:
         words = words_on_timeline(src, m.parts, opts)
-    if opts.get("mute"):
+    if opts.get("mute") or m.captions_off:
         words = []  # camera sound off: no word captions from what the camera heard
     inset = inset_for(src, m, mediapipe) if opts["layout"] == "pip" else None
     return L.render_look(opts, parts, words, m.hook, brand, work, clip_id, cells=cells, voice=voice, inset=inset, music=music if opts.get("music") else None)
@@ -1036,6 +1054,68 @@ Downloader = Callable[[str, Path], Path]
 Progress = Callable[[str, int, int], None]
 
 
+# ---------------------------------------------------------------- see + plan glue (jobs/see.py, jobs/plan.py)
+
+SHAPE_WORDS = {"transformation": "before and after", "walkthrough": "a walk-through", "talking": "talking to camera", "montage": "close-ups"}
+
+
+def ask_text(key: str, payload: dict[str, Any]) -> str:
+    text, _ = openrouter_content(key, payload, timeout=120, usable=json_object_in)
+    return text
+
+
+def plan_moment(pl: "P.Plan") -> Moment:
+    """A planned clip as a Moment: asset_id is the video of its last (reveal) shot; part_assets
+    names each part's own video when they differ."""
+    aid = pl.parts[-1].asset_id
+    parts = [(p.start, p.end) for p in pl.parts]
+    mixed = any(p.asset_id != aid for p in pl.parts)
+    start = pl.parts[-1].start if mixed else min(s for s, _e in parts)
+    end = round(start + pl.length, 2) if mixed else max(e for _s, e in parts)
+    m = Moment(aid, pl.recipe, round(start, 2), round(end, 2), parts, hook=pl.hook, hook_alt=pl.hook_alt, caption=pl.caption, hashtags=list(pl.hashtags))
+    m.shape, m.service, m.on_screen, m.plan_score = pl.shape, pl.service, pl.on_screen, pl.score
+    m.part_assets = [p.asset_id for p in pl.parts] if mixed or len({p.asset_id for p in pl.parts}) > 1 else None
+    return m
+
+
+def ground_speech_moment(m: Moment, sheet: "V.ShotSheet | None", src: Source, service: str | None, shape: str, services: list[str], profile: dict[str, Any], j: int) -> None:
+    """A moment picked from the speech (or with nobody able to look): its words may say only what
+    was said to the camera and what the sheet shows there; anything else becomes the neutral lines."""
+    if (sheet is None or sheet.source == "none") and src.muted:
+        # Nothing seen and nothing heard: only the neutral lines, never a guess from the notes.
+        base = P.neutral_copy(P.Plan("unsure", None, [P.Part(m.asset_id, m.start, m.end, V.UNSURE, "")]), profile, services, j)
+        m.hook, m.hook_alt, m.caption, m.hashtags = base["hook"], base["hook_alt"], base["caption"], base["hashtags"]
+        m.shape, m.service, m.on_screen = None, None, ""
+        return
+    shots = [x for x in (sheet.shots if sheet else []) if x.end > m.start and x.start < m.end]
+    on_screen = " · ".join(dict.fromkeys(x.what for x in shots if x.what))
+    said = src.transcript.text_in(m.start, m.end)
+    states = [x.state for x in shots]
+    m.shape = "talking" if any(x.people == "to_camera" for x in shots) else ("montage" if sheet and sheet.source != "none" else None)
+    m.service = service
+    m.on_screen = on_screen[:400]
+    pl = P.Plan(m.shape or "unsure", service, [P.Part(m.asset_id, m.start, m.end, st, "") for st in states] or [P.Part(m.asset_id, m.start, m.end, V.UNSURE, "")])
+    g = P.Ground(service, services, f"{on_screen} {said}", "before" in states, "after" in states)
+    base = P.neutral_copy(pl, profile, services, j)
+    for k in ("hook", "hook_alt", "caption"):
+        v = getattr(m, k) or ""
+        if not P.grounded_ok(v, g)[0] or (not service and any(t in P.banned_tokens(None, services, f"{on_screen} {said}") for t in P.tokens(v))):
+            setattr(m, k, base[k])
+    own = {h.lower().lstrip("#") for h in P.profile_hashtags(profile)}
+    m.hashtags = [h for h in m.hashtags if P.hashtag_ok(h, g, own)] or base["hashtags"]
+
+
+def mixed_speech(m: Moment, srcs: dict[str, Source]) -> float:
+    """Talking share of a clip joining several videos: each part measured in its own video."""
+    total = sum(e - s for s, e in m.parts) or 1.0
+    got = sum(speech_share(srcs[a], [(s, e)]) * (e - s) for a, (s, e) in zip(m.part_assets or [], m.parts) if a in srcs)
+    return round(min(1.0, got / total), 3)
+
+
+def clip_score(m: Moment, src: Source, recipes: dict[str, Any]) -> float:
+    return m.plan_score if m.plan_score is not None else score_moment(m, src.transcript, src.runs, recipes)
+
+
 def rotation_of(spec: dict[str, Any]) -> tuple[list[str], dict[str, dict[str, Any]]]:
     """The Worker sends the rotation (worker/domain/looks.ts rotationFor: her enabled Looks,
     shuffled per dump, singles and grids two to one) and each Look resolved with her Settings >
@@ -1084,7 +1164,12 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
     log("cut.prepared", assets=len(prepared))
 
     total_dur = sum(p[2]["duration"] for p in prepared) or 1.0
-    moments: list[tuple[Moment, Source]] = []
+    key = spec.get("llm_key") or os.environ.get("OPENROUTER_API_KEY")
+    services = [str(x)[:60] for x in (spec.get("services") or []) if str(x).strip()][:12]
+    override = spec.get("plan_override") if isinstance(spec.get("plan_override"), dict) else {}
+    cached = spec.get("shot_sheets") if isinstance(spec.get("shot_sheets"), dict) else {}
+    sheets: dict[str, V.ShotSheet] = {}
+    srcs: dict[str, Source] = {}
     for i, (a, norm, info, wav) in enumerate(prepared):
         # 3. transcribe
         progress("Listening", i, len(prepared))
@@ -1098,41 +1183,76 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
             # Camera sound off: nothing it heard is used, not for captions, not for picking moments.
             tr, runs = Transcript(engine="muted"), []
         log("cut.camera", n=i, keep=keep, why=why)
-        src = Source(norm, info, tr, runs, detect_bars(norm, info["duration"]), muted=not keep)
-        # 4. pick
-        progress("Finding the best moments", i, len(prepared))
-        st = steer_of(spec, a)
-        a_recipes = {**recipes, **(st.get("recipes") or {})}
-        quota = 2 if door == "recycle" else max(1, round(target * info["duration"] / total_dur))
-        if (a.get("steer") or {}).get("count"):
-            quota = int(a["steer"]["count"])
-        picked = llm_moments(a, info["duration"], tr, spec, quota, runs)
-        if picked:
-            engine["picker"] = "openrouter"
-        else:
-            picked = fallback_moments(a, info["duration"], runs, tr, a_recipes, quota, door, st.get("allowed_recipes"))
-        picked, told = apply_steer(picked, a, tr, st, a_recipes, info["duration"])
-        steer_report.extend(told)
+        # 3b. SEE: one picture grid, one free vision call (or the saved sheet on a re-plan)
+        progress("Looking at your videos", i, len(prepared))
+        sheet = V.see_video(key, norm, a["id"], info["duration"], services, " ".join(x for x in (spec.get("notes", ""), a.get("file_note") or "") if x), work, cached.get(a["id"]))
+        sheets[a["id"]] = sheet
+        if keep and sheet.source != "none":
+            # Only someone talking to the camera becomes captions; background talk never does.
+            words = P.keep_to_camera(tr.words, sheet)
+            wins = sheet.to_camera_windows()
+            tr = Transcript(words=words, segments=[sg for sg in tr.segments if any(ws - 0.1 <= sg[0] and sg[1] <= we + 0.1 for ws, we in wins)], engine=tr.engine)
+        srcs[a["id"]] = Source(norm, info, tr, runs, detect_bars(norm, info["duration"]), muted=not keep)
+    sheet_list = [sheets[a["id"]] for a, *_ in prepared]
+    seen = [sh for sh in sheet_list if sh.source != "none"]
+    engine["vision"] = (seen[0].source.split(":")[0] if seen else "none")
+    # 4. PLAN: the service, the shape, the shots in each clip (jobs/plan.py)
+    service, sure = P.dump_service(sheet_list, override.get("service"), services)
+    shape, why_not = P.choose_shape(sheet_list, service, {aid: s_.muted for aid, s_ in srcs.items()}, override.get("shape"))
+    if why_not:
+        steer_report.append({"what": SHAPE_WORDS.get(str(override.get("shape")), "that kind of video"), "why": why_not})
+    profile = spec.get("brand_profile") or {}
+    moments: list[tuple[Moment, Source]] = []
+    if seen and shape != "talking" and door != "recycle":
+        plans = P.plan_clips(sheet_list, shape, service, target if spec.get("mode") != "again" else 3)
         if avoid_windows:
-            # Try another version: a different moment than the one she has, when the video has one.
-            picked.sort(key=lambda m: avoid_overlap(m, avoid_windows))
-            fresh = [m for m in picked if avoid_overlap(m, avoid_windows) < 0.5]
-            picked = fresh or picked
-        if src.muted and picked:
-            for m, it in zip(picked, llm_copy(a, spec, len(picked)) or []):
-                m.hook = str(it.get("hook", ""))[:120]
-                m.hook_alt = str(it.get("hook_alt", ""))[:120]
-                m.caption = str(it.get("caption", ""))[:300]
-                m.hashtags = [str(h) for h in (it.get("hashtags") or [])][:6]
-        for j, m in enumerate(picked):
-            fill_copy(m, tr, spec, j)
-            moments.append((m, src))
+            plans.sort(key=lambda pl: sum(avoid_overlap(Moment(pt.asset_id, "montage", pt.start, pt.end, [(pt.start, pt.end)]), avoid_windows) for pt in pl.parts))
+            plans = plans[:1]
+        P.write_copy(key, plans, profile, services, OPENROUTER_MODEL, ask_text, feedback={0: spec.get("change_request")} if spec.get("change_request") and plans else None)
+        for pl in plans:
+            moments.append((plan_moment(pl), srcs[pl.parts[-1].asset_id]))
+        if plans:
+            engine["picker"] = "shot-sheet"
+    if not moments:
+        for i, (a, norm, info, wav) in enumerate(prepared):
+            src = srcs[a["id"]]
+            tr, runs = src.transcript, src.runs
+            # 4b. pick from the speech (talking to camera, an old post, or nobody could look)
+            progress("Finding the best moments", i, len(prepared))
+            st = steer_of(spec, a)
+            a_recipes = {**recipes, **(st.get("recipes") or {})}
+            quota = 2 if door == "recycle" else max(1, round(target * info["duration"] / total_dur))
+            if (a.get("steer") or {}).get("count"):
+                quota = int(a["steer"]["count"])
+            picked = llm_moments(a, info["duration"], tr, spec, quota, runs)
+            if picked:
+                engine["picker"] = "openrouter"
+            else:
+                picked = fallback_moments(a, info["duration"], runs, tr, a_recipes, quota, door, st.get("allowed_recipes"))
+            picked, told = apply_steer(picked, a, tr, st, a_recipes, info["duration"])
+            steer_report.extend(told)
+            if avoid_windows:
+                # Try another version: a different moment than the one she has, when the video has one.
+                picked.sort(key=lambda m: avoid_overlap(m, avoid_windows))
+                fresh = [m for m in picked if avoid_overlap(m, avoid_windows) < 0.5]
+                picked = fresh or picked
+            if src.muted and picked:
+                for m, it in zip(picked, llm_copy(a, spec, len(picked)) or []):
+                    m.hook = str(it.get("hook", ""))[:120]
+                    m.hook_alt = str(it.get("hook_alt", ""))[:120]
+                    m.caption = str(it.get("caption", ""))[:300]
+                    m.hashtags = [str(h) for h in (it.get("hashtags") or [])][:6]
+            for j, m in enumerate(picked):
+                fill_copy(m, tr, spec, j)
+                ground_speech_moment(m, sheets.get(a["id"]), src, service if sure else None, shape, services, profile, j)
+                moments.append((m, src))
     if not moments:
         raise NoUsableMoments("no moments")
+    looks_like = P.looks_like(service, sure, shape, camera)
     # How many: her number, the moments she asked to include first, then the strongest.
     want = (spec.get("steer") or {}).get("count")
     if want and len(moments) > int(want):
-        moments.sort(key=lambda ms: (0 if getattr(ms[0], "included", None) else 1, -score_moment(ms[0], ms[1].transcript, ms[1].runs, recipes)))
+        moments.sort(key=lambda ms: (0 if getattr(ms[0], "included", None) else 1, -clip_score(ms[0], ms[1], recipes)))
         moments = moments[: int(want)]
     elif want and len(moments) < int(want):
         steer_report.append({"what": f"{int(want)} clips", "why": f"we found {len(moments)} good moments in these videos, so {len(moments)} were made"})
@@ -1148,6 +1268,9 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         asset = next((x for x in assets if x["id"] == m.asset_id), None)
         a_steer = (asset or {}).get("steer") or {}
         rot = [r for r in (a_steer.get("rotation") or []) if r in L.LOOKS] or rotation
+        if m.part_assets:
+            # Shots of several videos play one after another: a full-frame Look (a grid or an inset would mix them).
+            rot = [r for r in rot if L.look_options(r)["layout"] in ("fill", "blur_fill")] or [r for r in L.LOOK_IDS if L.look_options(r)["layout"] == "fill"][:1] or rot
         look_id = rot[k % len(rot)]
         opts = look_opts.get(f"{m.asset_id}:{look_id}") or look_opts.get(look_id) or L.look_options(look_id)
         clip_id = ids[k]
@@ -1156,8 +1279,8 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         voice = 0
         voice_src = src
         try:
-            if opts["layout"] == "grid":
-                others = [(ids[x], om, osrc) for x, (om, osrc) in enumerate(moments) if x != k]
+            if opts["layout"] == "grid" and not m.part_assets:
+                others = [(ids[x], om, osrc) for x, (om, osrc) in enumerate(moments) if x != k and not om.part_assets]
                 cells, layout = grid_cells(k, m, src, others, len(L.cells_of(opts)), mediapipe)
                 voice = layout["voice"]
                 if voice > 0 and layout["cells"][voice]["kind"] == "clip":
@@ -1167,7 +1290,7 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
                 # No sound of its own: always a music bed (her songs, else the built-in library), never silent.
                 opts = {**opts, "music": True, "mute": True}
             song = music_key(songs, k, src.muted) if opts.get("music") else None
-            r = render_moment(m, src, opts, brand, work, clip_id, mediapipe, cells=cells, voice=voice, voice_src=voice_src, music=music_for(songs, k, work, download, music_cache, src.muted) if song else None)
+            r = render_moment(m, src, opts, brand, work, clip_id, mediapipe, cells=cells, voice=voice, voice_src=voice_src, music=music_for(songs, k, work, download, music_cache, src.muted) if song else None, srcs=srcs)
         except subprocess.CalledProcessError:
             log("cut.render.failed", n=k, look=look_id)
             continue
@@ -1188,15 +1311,21 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
                 "caption": m.caption[:2200],
                 "hashtags": m.hashtags,
                 "platforms": allowed,
-                "score": score_moment(m, src.transcript, src.runs, recipes),
+                "score": clip_score(m, src, recipes),
                 "r2_key": f"{prefix}{clip_id}.mp4",
                 "cover_r2_key": f"{prefix}{clip_id}.jpg",
                 "look": look_id,
                 "parts": [[round(s, 2), round(e, 2)] for s, e in m.parts],
                 "layout": layout,
                 "music": song if r.music_used else None,
-                "speech": speech_share(src if src.muted else voice_src, [(cells[voice].start, cells[voice].end)] if cells else list(m.parts)),
+                "speech": speech_share(src if src.muted else voice_src, [(cells[voice].start, cells[voice].end)] if cells else list(m.parts)) if not m.part_assets else mixed_speech(m, srcs),
                 "muted": src.muted,
+                # Studio intelligence: the shape, the service, what is on screen, each part's video, why it is hidden.
+                "shape": m.shape,
+                "service": m.service,
+                "on_screen": m.on_screen[:400],
+                "part_assets": m.part_assets,
+                "hidden_reason": m.hidden_reason,
                 "_files": (r.mp4, r.cover),
             }
         )
@@ -1210,7 +1339,7 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         upload(mp4, c["r2_key"], "video/mp4")
         upload(jpg, c["cover_r2_key"], "image/jpeg")
     progress("Saving clips", len(clips), len(clips))
-    log("cut.done", clips=len(clips), looks=len(looks_used), transcript=engine["transcript"], picker=engine["picker"], crop=engine["crop"], subtitles=engine["subtitles"])
+    log("cut.done", clips=len(clips), looks=len(looks_used), transcript=engine["transcript"], picker=engine["picker"], crop=engine["crop"], subtitles=engine["subtitles"], vision=engine.get("vision"), vision_calls=V.CALLS.get("vision", 0), text_calls=V.CALLS.get("text", 0))
     return {
         "clips": clips,
         "engine": engine,
@@ -1219,6 +1348,9 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         "source_marks": marks,
         "steer_report": steer_report,
         "camera": camera,
+        "looks_like": looks_like,
+        "shot_sheets": {aid: sh.to_json() for aid, sh in sheets.items() if sh.source != "none"},
+        "calls": dict(V.CALLS),
     }
 
 

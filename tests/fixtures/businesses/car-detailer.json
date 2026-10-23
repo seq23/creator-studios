@@ -1,0 +1,14 @@
+{
+  "_why": "A fixture business (made up): a mobile car detailer, with an explicit services section.",
+  "slug": "car-detailer",
+  "profile": {
+    "who": "Shine Squad is a mobile car detailer run by Marcus.",
+    "services": "Interior detailing\nCeramic coating\nHeadlight restoration",
+    "voice": "Direct and proud of the work.",
+    "themes": "1. Full details | 2. Coating tips",
+    "do_dont": "DO: use #ShineSquad.",
+    "off_limits": "License plates, customers' faces.",
+    "ctas": "\"Text us for a quote.\" | \"Book your ceramic coating.\""
+  },
+  "services": ["Interior detailing", "Ceramic coating", "Headlight restoration"]
+}

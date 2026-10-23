@@ -18,6 +18,7 @@
 //
 // Nothing reaches the Calendar without approval (worker/domain/approval.ts decides every move).
 // Every decision is an event, so the learning loop reads one table.
+import { cleanLooksLike, type LooksLike } from "@shared/looksLike";
 import { Hono, type Context } from "hono";
 import type { Env, Vars } from "../env";
 import { requireUser } from "../lib/auth";
@@ -128,6 +129,10 @@ export interface ReviewClip extends ClipRow {
   muted: boolean;
   /** What she asked to change the last time she tapped Try another version. */
   again_notes: string | null;
+  /** Studio intelligence: the story shape, the service it shows (null = not sure), and why the studio hid it. */
+  shape: string | null;
+  service: string | null;
+  hidden_reason: string | null;
   /** Her voice over's script (Edit the script in Review) and whether it was made automatically. */
   voice_script: string | null;
   voice_auto: boolean;
@@ -153,7 +158,7 @@ export interface FullVideoView extends Omit<FullVideoDetails, "thumbnails"> {
 }
 export interface ReviewGroup {
   /** held_note: "Looks like someone else's video" (worker/domain/sourceCheck.ts), or null. */
-  dump: { id: string; door: "new" | "recycle" | "youtube"; created_at: string; ready_at: string | null; status: string; held_note: string | null };
+  dump: { id: string; door: "new" | "recycle" | "youtube"; created_at: string; ready_at: string | null; status: string; held_note: string | null; looks_like: LooksLike | null };
   clips: ReviewClip[];
 }
 export interface ReviewList {
@@ -195,6 +200,7 @@ interface ClipDb {
   door: "new" | "recycle";
   dump_created_at: string;
   dump_ready_at: string | null;
+  dump_looks_like: string | null;
   dump_status: string;
   source_owner: string | null;
   source_note: string | null;
@@ -213,6 +219,9 @@ interface ClipDb {
   pending_music: string | null;
   muted: number;
   again_notes: string | null;
+  shape: string | null;
+  service: string | null;
+  hidden_reason: string | null;
   voice_script: string | null;
   voice_auto: number | null;
   full_video: number;
@@ -275,6 +284,9 @@ function toView(r: ClipDb): ReviewClip {
     music_library: libraryTrack(r.music)?.title ?? null,
     muted: !!r.muted,
     again_notes: r.again_notes,
+    shape: r.shape,
+    service: r.service,
+    hidden_reason: r.hidden_reason,
     voice_script: r.voice_script,
     voice_auto: !!r.voice_auto,
     full_video: r.full_video ? fullVideoView(r) : null,
@@ -307,7 +319,7 @@ function fullVideoView(r: ClipDb): FullVideoView {
 
 const CLIP_SELECT = `SELECT c.id, c.asset_id, c.dump_id, c.start_s, c.end_s, c.recipe, c.hook_text, c.hook_alt, c.caption, c.hashtags,
   c.platforms, c.score, c.status, c.reject_reason, c.paid_partnership, c.hidden, c.created_at, c.reviewed_at, c.media_token, c.cover_r2_key,
-  c.look, c.layout, c.pending_look, c.rerender_error, c.media_version, c.edited_with, c.music, c.pending_music, c.muted, c.again_notes, a.raw_deleted_at,
+  c.look, c.layout, c.pending_look, c.rerender_error, c.media_version, c.edited_with, c.music, c.pending_music, c.muted, c.again_notes, c.shape, c.service, c.hidden_reason, a.raw_deleted_at,
   (SELECT e.editor FROM editor_jobs e WHERE e.clip_id = c.id AND e.status IN ('submitted', 'importing') ORDER BY e.created_at DESC LIMIT 1) AS busy_editor,
   (SELECT e.capability FROM editor_jobs e WHERE e.clip_id = c.id AND e.status IN ('submitted', 'importing') ORDER BY e.created_at DESC LIMIT 1) AS busy_capability,
   a.file_name AS source_file, a.source_owner, a.source_note,
@@ -319,7 +331,7 @@ const CLIP_SELECT = `SELECT c.id, c.asset_id, c.dump_id, c.start_s, c.end_s, c.r
   (SELECT json_object('status', p.status, 'url', p.url, 'scheduled_at', p.scheduled_at) FROM posts p WHERE p.clip_id = c.id AND c.full_video = 1 ORDER BY p.created_at DESC LIMIT 1) AS yt_post,
   (SELECT json_object('status', u.status, 'video_id', u.video_id, 'note', u.note, 'thumbnail', u.thumbnail, 'publish_at', u.publish_at, 'privacy', u.privacy) FROM youtube_uploads u WHERE u.clip_id = c.id AND c.full_video = 1) AS yt_upload,
   (SELECT cn.status FROM connections cn WHERE cn.service = 'youtube') AS yt_conn,
-  CASE WHEN d.kind = 'full_video' THEN 'youtube' ELSE d.door END AS door, d.created_at AS dump_created_at, d.ready_at AS dump_ready_at, d.status AS dump_status
+  CASE WHEN d.kind = 'full_video' THEN 'youtube' ELSE d.door END AS door, d.created_at AS dump_created_at, d.ready_at AS dump_ready_at, d.status AS dump_status, d.looks_like AS dump_looks_like
   FROM clips c JOIN assets a ON a.id = c.asset_id JOIN dumps d ON d.id = c.dump_id`;
 
 clips.get("/", async (c) => {
@@ -370,7 +382,7 @@ clips.get("/", async (c) => {
   for (const r of results) {
     let g = byDump.get(r.dump_id);
     if (!g) {
-      g = { dump: { id: r.dump_id, door: r.door, created_at: r.dump_created_at, ready_at: r.dump_ready_at, status: r.dump_status, held_note: null }, clips: [] };
+      g = { dump: { id: r.dump_id, door: r.door, created_at: r.dump_created_at, ready_at: r.dump_ready_at, status: r.dump_status, held_note: null, looks_like: cleanLooksLike(parseJson(r.dump_looks_like, null)) }, clips: [] };
       byDump.set(r.dump_id, g);
       groups.push(g);
     }
