@@ -189,26 +189,36 @@ def vision_models() -> list[str]:
 def ask_vision(key: str | None, system: str, text: str, image: Path, kind: str, max_tokens: int = 3000, local: bool = True) -> tuple[dict[str, Any] | None, str]:
     """One picture + one question, down the model ladder (jobs/ai.py): a free OpenRouter vision
     model within the job's budget, else (local=True, VISION_LOCAL=1) the local open model on the
-    runner. Returns (answer, "<provider>:<model>") or (None, "") when neither answered with JSON."""
+    runner. Returns (answer, "<provider>:<model>") or (None, "") when neither answered with JSON.
+    CALLS counts only questions a model was actually asked."""
     if not image or not image.exists():
         return None, ""
     if not key and not (local and os.environ.get("VISION_LOCAL") == "1"):
         return None, ""  # nobody to ask: not a call
-    CALLS[kind] = CALLS.get(kind, 0) + 1
+    asked_before = sum(A.CALLS_BY.values())
 
     def payload(model: str) -> dict[str, Any]:
         return {"model": model, "max_tokens": max_tokens, "messages": [{"role": "system", "content": system}, {"role": "user", "content": [{"type": "text", "text": text}, image_part(image)]}]}
+
+    def counted(ok: bool) -> None:
+        asked = sum(A.CALLS_BY.values()) - asked_before
+        if asked:
+            CALLS[kind] = CALLS.get(kind, 0) + 1
+            if not ok:
+                CALLS["failed"] = CALLS.get("failed", 0) + 1
 
     content, model = A.ask_openrouter(key, payload, vision_models(), kind)
     QUOTA_OUT["out"] = A.STATE["quota_out"]
     answer = A.first_json(content) if content else None
     if answer is not None:
+        counted(True)
         return answer, f"openrouter:{model}"
     if local:
         answer = A.first_json(A.ask_local_vlm(system, text, image, kind, max_tokens))
         if answer is not None:
+            counted(True)
             return answer, f"local_vlm:{A.LOCAL_VLM.split('/')[-1]}"
-    CALLS["failed"] = CALLS.get("failed", 0) + 1
+    counted(False)
     return None, ""
 
 
@@ -677,7 +687,9 @@ def local_vlm_sheet(b: dict[str, Any], services: list[str], looks: dict[str, str
             return None
         text = json.dumps({"services": services, **({"what_each_service_looks_like": looks} if looks else {}), "owner_note": (b.get("notes") or "")[:300]})
         answer = A.first_json(A.ask_local_vlm(LOCAL_SYSTEM, text, grid, "vision", 400))
+        CALLS["vision"] = CALLS.get("vision", 0) + 1
         if answer is None:
+            CALLS["failed"] = CALLS.get("failed", 0) + 1
             return None
         if not confidence_of(answer.get("confidence")):
             # The small model often leaves confidence out (23 Oct 2026 golden run: 5 of 11 answers),
