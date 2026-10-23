@@ -55,7 +55,7 @@ jobs:
           path: ~/.cache/huggingface
           key: whisper-${{ env.WHISPER_MODEL }}-v1
       - name: "Local vision model cache (jobs/ai.py, the $0 backup when the free quota is used up)"
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ~/.cache/vlm
           key: vlm-qwen2-vl-2b-instruct-v1
@@ -78,6 +78,13 @@ jobs:
           # The shot sheet's backup (jobs/see.py): a local CPU zero-shot model, installed only when no free vision model answers.
           VISION_LOCAL: "1"
           JOB_SHARED_SECRET: ${{ secrets[format('JOB_SHARED_SECRET_{0}', github.event.client_payload.studio)] || secrets.JOB_SHARED_SECRET }}
+      - name: "Keep the local vision model for the next run"
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/vlm
+          key: vlm-qwen2-vl-2b-instruct-v1
+        continue-on-error: true
 
   selftest:
     if: github.event_name != 'repository_dispatch'

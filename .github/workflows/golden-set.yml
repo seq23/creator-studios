@@ -31,12 +31,13 @@ jobs:
         with:
           python-version: "3.12"
       - name: "Local vision model cache (jobs/ai.py, the $0 backup when the free quota is used up)"
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ~/.cache/vlm
           key: vlm-qwen2-vl-2b-instruct-v1
-      - name: System tools
-        run: bash .github/scripts/apt-install.sh ffmpeg fonts-dejavu-core
+      - name: ffmpeg (static build, no apt; the runners' apt mirror hung again 23 Oct 2026)
+        timeout-minutes: 6
+        run: bash .github/scripts/ffmpeg-static.sh
       - run: python3 -m pip install -q pillow
       - name: Golden set (score, compare with the baseline)
         run: python3 jobs/golden.py
@@ -44,3 +45,10 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.GOLDEN_OPENROUTER_API_KEY }}
           VISION_LOCAL: "1"
           OPENROUTER_JOB_BUDGET: ${{ inputs.local_only && '0' || '16' }}
+      - name: "Keep the local vision model for the next run (saved even when the score drops)"
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/vlm
+          key: vlm-qwen2-vl-2b-instruct-v1
+        continue-on-error: true
