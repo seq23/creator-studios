@@ -163,7 +163,9 @@ test("Review: Change music and Try another version re-render just that clip", as
   expect(after.look).toBe(clip.look);
 
   await page.reload();
+  // Try another version opens its notes box (#21); with no notes it is a different look.
   await card.getByRole("button", { name: "Try another version" }).click();
+  await page.getByRole("dialog", { name: "Try another version" }).getByRole("button", { name: "Make another version" }).click();
   await expect(page.locator(".toast").first()).toContainText("Trying another version");
   await runCut(page.request, `${dumpId}/${clip.id}`);
   after = (await clipsOf(page.request, dumpId)).find((c) => c.id === clip.id)!;

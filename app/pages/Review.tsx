@@ -656,7 +656,7 @@ function ClipCard(props: {
           {c.paid_partnership ? <span className="pill ok">Paid partnership</span> : null}
           {c.voice_over === "ready" ? (
             <span className="pill ok" data-voice-over="ready">
-              With a voice over · Made with AI
+              With a voice over{c.voice_auto ? " · added automatically" : ""} · Made with AI
             </span>
           ) : null}
           {c.muted ? (
