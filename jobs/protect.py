@@ -181,6 +181,7 @@ def privacy_regions(video: Path, duration: float, rules: Rules, sheet: Any, work
         return [], False
     out: list[tuple[float, float, tuple[int, int, int, int]]] = []
     ok = True
+    failed: set[str] = set()
     work.mkdir(parents=True, exist_ok=True)
     t = SAMPLE_S / 2
     i = 0
@@ -188,7 +189,10 @@ def privacy_regions(video: Path, duration: float, rules: Rules, sheet: Any, work
         shot = sheet.shot_at(t) if sheet is not None and getattr(sheet, "source", "none") != "none" else None
         try:
             img = _frame(video, t, work / f"p_{i:04d}.png")
-        except Exception:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
+            if "frame" not in failed:
+                log("protect.finder", ok=False, which="frame", error=type(e).__name__, detail=str(e)[:160])
+            failed.add("frame")
             ok = False
             t += SAMPLE_S
             i += 1
@@ -198,8 +202,9 @@ def privacy_regions(video: Path, duration: float, rules: Rules, sheet: Any, work
             try:
                 boxes += find_faces(img)
             except Exception as e:  # noqa: BLE001
-                if ok:
+                if "faces" not in failed:
                     log("protect.finder", ok=False, which="faces", error=type(e).__name__, detail=str(e)[:160])
+                failed.add("faces")
                 ok = False
         if rules.block_addresses:
             try:
@@ -208,8 +213,9 @@ def privacy_regions(video: Path, duration: float, rules: Rules, sheet: Any, work
                     if NUMBER_RUN.search(txt) or (flagged and ANY_DIGIT.search(txt)):
                         boxes.append(box)
             except Exception as e:  # noqa: BLE001
-                if ok:
+                if "numbers" not in failed:
                     log("protect.finder", ok=False, which="numbers", error=type(e).__name__, detail=str(e)[:160])
+                failed.add("numbers")
                 ok = False
         for b in boxes:
             out.append((round(max(0.0, t - HOLD_S), 2), round(min(duration, t + HOLD_S), 2), b))
@@ -298,11 +304,16 @@ def blur_video(video: Path, regions: list[tuple[float, float, tuple[int, int, in
     return src
 
 
-def protect_video(video: Path, info: dict[str, Any], rules: Rules, sheet: Any, work: Path, tag: str) -> tuple[Path, bool, int]:
-    """(video to cut from, ok, boxes blurred). ok=False on a strict studio = its clips are hidden."""
+def protect_video(video: Path, info: dict[str, Any], rules: Rules, sheet: Any, work: Path, tag: str, face_finder: Any = None) -> tuple[Path, bool, int]:
+    """(video to cut from, ok, boxes blurred). ok=False on a strict studio = its clips are hidden.
+    face_finder: the cut's MediaPipe face detector (jobs/cut.py mp_faces) when it loaded; else the
+    photo job's OpenCV finder (23 Oct 2026: MediaPipe's OpenCV build has no Haar files)."""
     if not rules.strict:
         return video, True, 0
-    regions, ok = privacy_regions(video, float(info.get("duration") or 0), rules, sheet, work / f"protect_{tag}")
+    finders = None
+    if face_finder is not None:
+        finders = (face_finder, numbers_with_text)
+    regions, ok = privacy_regions(video, float(info.get("duration") or 0), rules, sheet, work / f"protect_{tag}", finders)
     try:
         out = blur_video(video, regions, int(info.get("width") or 1080), int(info.get("height") or 1920), work / f"safe_{tag}.mp4")
     except Exception as e:  # noqa: BLE001

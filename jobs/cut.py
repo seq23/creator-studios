@@ -590,6 +590,28 @@ def face_detector(available: bool) -> Any:
     return _DETECTOR
 
 
+def mp_faces(available: bool) -> Any:
+    """Faces in a picture as boxes, with the MediaPipe detector the crop uses (layer 5's face finder
+    in the cut). None when the detector did not load (protect.py then tries the OpenCV finder)."""
+    d = face_detector(available)
+    if not d:
+        return None
+    mp, det = d
+
+    def find(img: Any) -> list[tuple[int, int, int, int]]:
+        import numpy as np  # type: ignore
+
+        arr = np.ascontiguousarray(np.array(img.convert("RGB")))
+        res = det.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=arr))
+        out = []
+        for x in res.detections or []:
+            bb = x.bounding_box
+            out.append((int(bb.origin_x), int(bb.origin_y), int(bb.origin_x + bb.width), int(bb.origin_y + bb.height)))
+        return out
+
+    return find
+
+
 def face_center(src: Path, s: float, e: float, available: bool) -> float | None:
     """Median horizontal face centre (0..1) across the clip, sampled every 0.5 s; None when
     the detector is unavailable or no face is found (then the centre crop is used)."""
@@ -1372,7 +1394,7 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
             tr = Transcript(words=words, segments=[sg for sg in tr.segments if any(ws - 0.1 <= sg[0] and sg[1] <= we + 0.1 for ws, we in wins)], engine=tr.engine)
             runs = [(s_, e_) for s_, e_ in runs if any(ws < e_ and we > s_ for ws, we in wins)] if sheet.source != "none" else runs
         # 3d. PROTECT: faces (not hers, when her profile allows) and house numbers blurred before anything is cut.
-        safe, ok, _boxes = PR.protect_video(norm, info, rules, sheet, work, str(i))
+        safe, ok, _boxes = PR.protect_video(norm, info, rules, sheet, work, str(i), mp_faces(mediapipe))
         if not ok:
             unsafe.add(a["id"])  # the finder could not run on a strict studio: its clips are hidden, never shown unchecked
         srcs[a["id"]] = Source(safe, info, tr, runs, detect_bars(norm, info["duration"]), muted=not keep)

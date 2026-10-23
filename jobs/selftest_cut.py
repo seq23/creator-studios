@@ -600,7 +600,7 @@ def check_planned(tmp: Path, problems: list[str], heavy: dict) -> None:
     log("selftest.planned", clips=len(r["clips"]), transformation=len(trans), blind=len(r2["clips"]))
 
 
-def check_protect(tmp: Path, problems: list[str], samples: Path) -> None:
+def check_protect(tmp: Path, problems: list[str], samples: Path, heavy: dict[str, bool]) -> None:
     """Layer 5 in the cut's own environment (23 Oct 2026: on the live runner the face finder failed and a
     blur pass died, so a client's clips were all hidden): a frame with a face and a house number must
     come back with both found and blurred, the finders must load, and the blur must render."""
@@ -625,7 +625,7 @@ def check_protect(tmp: Path, problems: list[str], samples: Path) -> None:
     src = tmp / "protect.mp4"
     cut.ffmpeg(["-loop", "1", "-i", str(still), "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "3", "-r", "30", "-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-shortest", str(src)])
     rules = PR.rules_from({"content_rules": {"blockFaces": True, "blockAddresses": True, "ownerFace": "show"}})
-    out, ok, boxes = PR.protect_video(src, {"duration": 3.0, "width": 1080, "height": 1920}, rules, None, tmp, "selftest")
+    out, ok, boxes = PR.protect_video(src, {"duration": 3.0, "width": 1080, "height": 1920}, rules, None, tmp, "selftest", cut.mp_faces(heavy["mediapipe"]))
     if not ok:
         problems.append("protect: the face or number finder did not run in the cut's environment")
     if boxes < (2 if portrait.exists() else 1):
@@ -696,7 +696,7 @@ def main() -> int:
         if "--skip-looks" not in sys.argv:
             check_looks(tmp, problems, write_thumbs)
         if "--looks-only" not in sys.argv and "--require-heavy" in sys.argv:
-            check_protect(tmp, problems, samples)
+            check_protect(tmp, problems, samples, heavy)
         if "--looks-only" not in sys.argv:
             check_import(tmp, problems)
             check_steer(tmp, problems, heavy)
