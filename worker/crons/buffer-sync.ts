@@ -17,6 +17,7 @@ import { mediaToken, nowIso } from "../lib/ids";
 import { log } from "../lib/log";
 import { planAhead } from "../routes/posts";
 import { POSTABLE_CLIP_SQL } from "../domain/sourceCheck";
+import { withAiLabel } from "@shared/contentRules";
 import { readSettings } from "../routes/settings";
 import { bufferRequests, getBuffer, type BufferChannel, type BufferClient } from "../services/buffer";
 import { emailFrame, sendEmail } from "../services/email";
@@ -213,7 +214,8 @@ export async function bufferSync(env: Env, opts: { force?: boolean } = {}): Prom
       await env.DB.prepare("UPDATE clips SET media_token = ? WHERE id = ? AND media_token IS NULL").bind(token, row.clip_id).run();
       token = (await env.DB.prepare("SELECT media_token FROM clips WHERE id = ?").bind(row.clip_id).first<{ media_token: string }>())?.media_token ?? token;
     }
-    const text = [row.caption, row.hashtags].filter((x) => x && x.trim()).join("\n\n");
+    // Layer 5: a clip carrying an AI voice over says so in its caption, once.
+    const text = withAiLabel([row.caption, row.hashtags].filter((x) => x && x.trim()).join("\n\n"), row.ai_voice > 0);
     const r = await client.createPost({ channelId: buf.channels[row.platform]!.id, platform: row.platform, title: row.hook_text, text, mediaUrl: `${env.PUBLIC_BASE_URL}/media/${token}`, scheduledAt: bufferDueAt(row.scheduled_at, now), aiGenerated: row.ai_voice > 0, ...fullVideoArgs(row) });
     if (r.ok && r.id) {
       await env.DB.prepare("UPDATE posts SET status = 'in_buffer', buffer_post_id = ?, error = NULL WHERE id = ?").bind(r.id, row.id).run();
@@ -254,7 +256,7 @@ export async function bufferSync(env: Env, opts: { force?: boolean } = {}): Prom
       if (d.next === "retry") {
         retried++;
         const ch = buf.channels[p.platform];
-        const again = ready[p.platform] && ch && p.media_token ? await client.createPost({ channelId: ch.id, platform: p.platform, title: p.hook_text, text: [p.caption, p.hashtags].filter((x) => x && x.trim()).join("\n\n"), mediaUrl: `${env.PUBLIC_BASE_URL}/media/${p.media_token}`, scheduledAt: bufferDueAt(p.scheduled_at, now), aiGenerated: p.ai_voice > 0, ...fullVideoArgs(p) }) : null;
+        const again = ready[p.platform] && ch && p.media_token ? await client.createPost({ channelId: ch.id, platform: p.platform, title: p.hook_text, text: withAiLabel([p.caption, p.hashtags].filter((x) => x && x.trim()).join("\n\n"), p.ai_voice > 0), mediaUrl: `${env.PUBLIC_BASE_URL}/media/${p.media_token}`, scheduledAt: bufferDueAt(p.scheduled_at, now), aiGenerated: p.ai_voice > 0, ...fullVideoArgs(p) }) : null;
         if (again?.ok && again.id) await env.DB.prepare("UPDATE posts SET buffer_post_id = ?, retries = ?, error = ? WHERE id = ?").bind(again.id, d.retries, st.error, p.id).run();
         else await env.DB.prepare("UPDATE posts SET status = 'planned', buffer_post_id = NULL, retries = ?, error = ? WHERE id = ?").bind(d.retries, again?.error ?? st.error, p.id).run();
         continue;

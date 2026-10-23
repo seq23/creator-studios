@@ -50,6 +50,8 @@ import plan as P  # noqa: E402  (layer 4: plan the story from the shot sheet)
 import see as V  # noqa: E402  (layer 2: see the footage, a shot sheet per video)
 import critic as C  # noqa: E402  (layer 6: check its own work, re-cut or hide)
 import ai as A  # noqa: E402  (the model ladder; calls counted per provider)
+import hear as H  # noqa: E402  (layer 3: talking to camera / chatter / music / silence)
+import protect as PR  # noqa: E402  (layer 5: blur faces and house numbers, the never-list, real prices only)
 import copy
 
 OUT_W, OUT_H = 1080, 1920
@@ -732,16 +734,20 @@ def camera_mode(spec: dict[str, Any], asset: dict[str, Any] | None) -> str:
     return m if m in CAMERA_MODES else "keep"
 
 
-def camera_keep(mode: str, transcript: "Transcript", duration: float) -> tuple[bool, str]:
+def camera_keep(mode: str, transcript: "Transcript", duration: float, talk_share: float | None = None) -> tuple[bool, str]:
     """Whether a video keeps its own sound, and why (a code for the log and the dump's line).
     off: never. keep: always. auto: only when clear talk covers enough of it; with no transcript
-    (the speech tools are not installed) the sound is kept, since talk cannot be told from noise."""
+    (the speech tools are not installed) the sound is kept, since talk cannot be told from noise.
+    talk_share (layer 3, jobs/hear.py): the share of the video that is talk TO THE CAMERA; chatter
+    and music never keep the camera sound under Automatic."""
     if mode == "off":
         return False, "off"
     if mode != "auto":
         return True, "keep"
     if transcript.engine in ("none", "muted"):
         return True, "unmeasured"
+    if talk_share is not None:
+        return (True, "talking") if talk_share >= TALK_SHARE_KEEP else (False, "no_talk_to_camera")
     talk = sum(max(0.0, w.end - w.start) for w in transcript.words) / max(1.0, duration)
     return (True, "talking") if talk >= TALK_SHARE_KEEP else (False, "little_talk")
 
@@ -1122,6 +1128,15 @@ def ground_speech_moment(m: Moment, sheet: "V.ShotSheet | None", src: Source, se
     m.hashtags = [h for h in m.hashtags if P.hashtag_ok(h, g, own)] or base["hashtags"]
 
 
+def guard_moment(m: Moment, text_ok: Any, profile: dict[str, Any], services: list[str], j: int) -> None:
+    """Layer 5 on a speech-picked moment: a line that breaks the studio's rules takes the neutral line."""
+    pl = P.Plan(m.shape or "unsure", m.service, [P.Part(m.asset_id, m.start, m.end, V.UNSURE, "")])
+    base = P.neutral_copy(pl, profile, services, j)
+    for k in ("hook", "hook_alt", "caption"):
+        if getattr(m, k) and not text_ok(getattr(m, k)):
+            setattr(m, k, base[k] if text_ok(base[k]) else (P.NEUTRAL["unsure"][0][0] if k == "hook" else ("" if k == "hook_alt" else P.NEUTRAL["unsure"][2])))
+
+
 # ---------------------------------------------------------------- the critic's glue (jobs/critic.py)
 
 def part_owners(m: Moment) -> list[str]:
@@ -1186,7 +1201,7 @@ def critic_round(_pairs: Any) -> int:
     return _ROUND["n"]
 
 
-def recut_batch(reqs: list[tuple[tuple[int, Moment], list[str], int]], key: str | None, srcs: dict[str, Source], sheets: dict[str, "V.ShotSheet"], services: list[str], profile: dict[str, Any]) -> list[tuple[int, Moment] | None]:
+def recut_batch(reqs: list[tuple[tuple[int, Moment], list[str], int]], key: str | None, srcs: dict[str, Source], sheets: dict[str, "V.ShotSheet"], services: list[str], profile: dict[str, Any], text_ok: Any = None, rules: dict[str, Any] | None = None) -> list[tuple[int, Moment] | None]:
     """A round's re-cuts together: the shots fixed per clip (no model), then ONE text call re-writes
     the words of every first re-cut (the reasons fed back); later attempts take the neutral lines."""
     out: list[tuple[int, Moment] | None] = []
@@ -1201,7 +1216,7 @@ def recut_batch(reqs: list[tuple[tuple[int, Moment], list[str], int]], key: str 
             plans.append((len(out), n, pl, reasons))
         out.append((k, n))
     if plans and key:
-        P.write_copy(key, [pl for _i, _n, pl, _r in plans], profile, services, OPENROUTER_MODEL, ask_text, feedback={j: "; ".join(C.REASON_WORDS.get(r, r) for r in rs) for j, (_i, _n, _pl, rs) in enumerate(plans)})
+        P.write_copy(key, [pl for _i, _n, pl, _r in plans], profile, services, OPENROUTER_MODEL, ask_text, feedback={j: "; ".join(C.REASON_WORDS.get(r, r) for r in rs) for j, (_i, _n, _pl, rs) in enumerate(plans)}, guard=text_ok, rules=rules)
         for _i, n, pl, _r in plans:
             n.hook, n.hook_alt, n.caption, n.hashtags = pl.hook, pl.hook_alt, pl.caption, list(pl.hashtags)
     return out
@@ -1319,36 +1334,48 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
     override = spec.get("plan_override") if isinstance(spec.get("plan_override"), dict) else {}
     cached = spec.get("shot_sheets") if isinstance(spec.get("shot_sheets"), dict) else {}
     service_looks = P.service_looks(spec.get("brand_profile"), services)
+    rules = PR.rules_from(spec)
+    text_ok = PR.guard(rules, spec.get("brand_profile"))
+    unsafe: set[str] = set()
     sheets: dict[str, V.ShotSheet] = {}
     srcs: dict[str, Source] = {}
-    heard: dict[str, tuple[Transcript, list[tuple[float, float]], bool]] = {}
+    heard: dict[str, tuple[Transcript, list[tuple[float, float]], str]] = {}
     for i, (a, norm, info, wav) in enumerate(prepared):
-        # 3. transcribe
+        # 3. transcribe (what the camera heard; layer 3 decides below what of it is talk to the camera)
         progress("Listening", i, len(prepared))
         tr = transcribe(wav, heavy.get("whisper", False))
         if tr.engine != "none":
             engine["transcript"] = tr.engine
-        runs = speech_runs(wav, info["duration"])
-        keep, why = camera_keep(camera_mode(spec, a), tr, info["duration"])
-        camera[a["id"]] = "kept" if keep else "off"
-        if not keep:
-            # Camera sound off: nothing it heard is used, not for captions, not for picking moments.
-            tr, runs = Transcript(engine="muted"), []
-        log("cut.camera", n=i, keep=keep, why=why)
-        heard[a["id"]] = (tr, runs, keep)
+        heard[a["id"]] = (tr, speech_runs(wav, info["duration"]), camera_mode(spec, a))
     # 3b. SEE: the saved sheet, else up to 3 videos per free vision call, else the local model (jobs/see.py)
     progress("Looking at your videos", 0, len(prepared))
     sheets.update(V.see_videos(key, [{"asset_id": a["id"], "video": norm, "duration": info["duration"], "notes": " ".join(x for x in (spec.get("notes", ""), a.get("file_note") or "") if x)} for a, norm, info, _w in prepared], services, work, cached, service_looks))
     progress("Looking at your videos", len(prepared), len(prepared))
-    for a, norm, info, wav in prepared:
-        tr, runs, keep = heard[a["id"]]
+    sound_labels: dict[str, dict[str, float]] = {}
+    for i, (a, norm, info, wav) in enumerate(prepared):
+        tr, runs, mode = heard[a["id"]]
         sheet = sheets[a["id"]]
-        if keep and sheet.source != "none":
-            # Only someone talking to the camera becomes captions; background talk never does.
-            words = P.keep_to_camera(tr.words, sheet)
-            wins = sheet.to_camera_windows()
+        # 3c. HEAR: talking to camera / chatter / music / silence (jobs/hear.py, layer 3)
+        sounds = H.sound_segments(info["duration"], runs, tr.words, sheet.to_camera_windows(), sheet.source != "none")
+        sound_labels[a["id"]] = H.summary(sounds)
+        keep, why = camera_keep(mode, tr, info["duration"], H.share(sounds, "talking_to_camera", info["duration"]) if sheet.source != "none" else None)
+        camera[a["id"]] = "kept" if keep else "off"
+        log("cut.camera", n=i, keep=keep, why=why)
+        log("hear.labels", n=i, **{k: v for k, v in sound_labels[a["id"]].items()})
+        if not keep:
+            # Camera sound off: nothing it heard is used, not for captions, not for picking moments.
+            tr, runs = Transcript(engine="muted"), []
+        elif tr.engine not in ("none", "muted"):
+            # Only talk to the camera becomes captions or picks moments; chatter and music never do.
+            words = H.caption_words(tr.words, sounds)
+            wins = H.talk_windows(sounds)
             tr = Transcript(words=words, segments=[sg for sg in tr.segments if any(ws - 0.1 <= sg[0] and sg[1] <= we + 0.1 for ws, we in wins)], engine=tr.engine)
-        srcs[a["id"]] = Source(norm, info, tr, runs, detect_bars(norm, info["duration"]), muted=not keep)
+            runs = [(s_, e_) for s_, e_ in runs if any(ws < e_ and we > s_ for ws, we in wins)] if sheet.source != "none" else runs
+        # 3d. PROTECT: faces (not hers, when her profile allows) and house numbers blurred before anything is cut.
+        safe, ok, _boxes = PR.protect_video(norm, info, rules, sheet, work, str(i))
+        if not ok:
+            unsafe.add(a["id"])  # the finder could not run on a strict studio: its clips are hidden, never shown unchecked
+        srcs[a["id"]] = Source(safe, info, tr, runs, detect_bars(norm, info["duration"]), muted=not keep)
     sheet_list = [sheets[a["id"]] for a, *_ in prepared]
     seen = [sh for sh in sheet_list if sh.source != "none"]
     engine["vision"] = (seen[0].source.split(":")[0] if seen else "none")
@@ -1365,7 +1392,7 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         if avoid_windows:
             plans.sort(key=lambda pl: sum(avoid_overlap(Moment(pt.asset_id, "montage", pt.start, pt.end, [(pt.start, pt.end)]), avoid_windows) for pt in pl.parts))
             plans = plans[:1]
-        P.write_copy(key, plans, profile, services, OPENROUTER_MODEL, ask_text, feedback={0: spec.get("change_request")} if spec.get("change_request") and plans else None)
+        P.write_copy(key, plans, profile, services, OPENROUTER_MODEL, ask_text, feedback={0: spec.get("change_request")} if spec.get("change_request") and plans else None, guard=text_ok, rules=PR.copy_rules(rules))
         for pl in plans:
             moments.append((plan_moment(pl), srcs[pl.parts[-1].asset_id]))
         if plans:
@@ -1402,6 +1429,7 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
             for j, m in enumerate(picked):
                 fill_copy(m, tr, spec, j)
                 ground_speech_moment(m, sheets.get(a["id"]), src, service if sure else None, shape, services, profile, j)
+                guard_moment(m, text_ok, profile, services, j)
                 moments.append((m, src))
     if not moments:
         raise NoUsableMoments("no moments")
@@ -1472,7 +1500,7 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         render_k,
         lambda item, rr: critic_rules(item[1], srcs, sheets, services),
         lambda pairs: C.vision_check_batch(key, [critic_item(item[1], rr, srcs, sheets) for item, rr in pairs], work, f"r{critic_round(pairs)}"),
-        lambda reqs: recut_batch(reqs, key, srcs, sheets, services, profile),
+        lambda reqs: recut_batch(reqs, key, srcs, sheets, services, profile, text_ok, PR.copy_rules(rules)),
     )
     for k, checked in enumerate(checked_all):
         if checked is None:
@@ -1482,6 +1510,8 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         clip_id = ids[k]
         r, m = checked.rendered, checked.moment[1]
         m.hidden_reason = checked.hidden_reason
+        if not m.hidden_reason and any(a in unsafe for a in part_owners(m)):
+            m.hidden_reason = C.REASON_WORDS["privacy"]
         src = srcs.get(m.asset_id, c["src"])
         critic_stats["checked"] += 1
         critic_stats["recuts"] += checked.recuts
@@ -1545,6 +1575,7 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         "shot_sheets": {aid: sh.to_json() for aid, sh in sheets.items() if V.worth_saving(sh)},
         "calls": {**dict(V.CALLS), **{f"by_{k}": v for k, v in A.report().items()}},
         "critic": critic_stats,
+        "sound_labels": sound_labels,
     }
 
 

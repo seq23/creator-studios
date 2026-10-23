@@ -485,10 +485,11 @@ COPY_SYSTEM = (
 )
 
 
-def copy_prompt(plans: list[Plan], profile: dict[str, str] | None, feedback: dict[int, str] | None = None) -> str:
+def copy_prompt(plans: list[Plan], profile: dict[str, str] | None, feedback: dict[int, str] | None = None, rules: dict[str, Any] | None = None) -> str:
     prof = profile or {}
     return json.dumps(
         {
+            **({"studio_rules": rules} if rules else {}),
             "voice": prof.get("voice", "")[:600],
             "do_dont": prof.get("do_dont", "")[:600],
             "off_limits": prof.get("off_limits", "")[:400],
@@ -508,7 +509,7 @@ def copy_prompt(plans: list[Plan], profile: dict[str, str] | None, feedback: dic
     )
 
 
-def apply_copy(plans: list[Plan], answer: Any, profile: dict[str, str] | None, services: list[str]) -> int:
+def apply_copy(plans: list[Plan], answer: Any, profile: dict[str, str] | None, services: list[str], guard: Any = None) -> int:
     """The model's lines where they pass grounded_ok; the neutral lines everywhere else.
     Returns how many fields fell back (logged as a count)."""
     items = {}
@@ -525,7 +526,7 @@ def apply_copy(plans: list[Plan], answer: Any, profile: dict[str, str] | None, s
         it = items.get(i, {})
         for k, limit in (("hook", 120), ("hook_alt", 120), ("caption", 300)):
             v = re.sub(r"\s+", " ", str(it.get(k, "") or "")).strip()[:limit]
-            ok = bool(v) and grounded_ok(v, g)[0]
+            ok = bool(v) and grounded_ok(v, g)[0] and (guard is None or guard(v))
             if not pl.service and v:
                 # Nothing sure: the model's words are kept only when they name no service at all.
                 ok = ok and not any(t in banned_tokens(None, services, "") for t in tokens(v))
@@ -535,7 +536,9 @@ def apply_copy(plans: list[Plan], answer: Any, profile: dict[str, str] | None, s
             if ok:
                 setattr(pl, k, v)
             else:
-                setattr(pl, k, base[k])
+                # Layer 5: the neutral line too must pass the studio's rules (never-list, prices, addresses).
+                safe = base[k] if guard is None or guard(base[k]) else (NEUTRAL["unsure"][0][0] if k == "hook" else ("" if k == "hook_alt" else NEUTRAL["unsure"][2]))
+                setattr(pl, k, safe)
                 fell += 1
             if k in ("hook", "hook_alt") and getattr(pl, k):
                 used.add(getattr(pl, k).lower().rstrip(".!"))
@@ -549,12 +552,12 @@ def apply_copy(plans: list[Plan], answer: Any, profile: dict[str, str] | None, s
     return fell
 
 
-def write_copy(key: str | None, plans: list[Plan], profile: dict[str, str] | None, services: list[str], model: str, ask: Any, feedback: dict[int, str] | None = None) -> int:
+def write_copy(key: str | None, plans: list[Plan], profile: dict[str, str] | None, services: list[str], model: str, ask: Any, feedback: dict[int, str] | None = None, guard: Any = None, rules: dict[str, Any] | None = None) -> int:
     """ONE text call for every clip of the dump (or a re-cut's clips). `ask(key, payload)` returns
     the model's text (common.openrouter_content in the job, a fake in tests)."""
     answer = None
     if key and plans:
-        payload = {"model": model, "max_tokens": 2500, "response_format": {"type": "json_object"}, "messages": [{"role": "system", "content": COPY_SYSTEM}, {"role": "user", "content": copy_prompt(plans, profile, feedback)}]}
+        payload = {"model": model, "max_tokens": 2500, "response_format": {"type": "json_object"}, "messages": [{"role": "system", "content": COPY_SYSTEM}, {"role": "user", "content": copy_prompt(plans, profile, feedback, rules)}]}
         try:
             CALLS["text"] = CALLS.get("text", 0) + 1
             text = ask(key, payload)
@@ -563,7 +566,7 @@ def write_copy(key: str | None, plans: list[Plan], profile: dict[str, str] | Non
         except Exception:  # noqa: BLE001
             CALLS["failed"] = CALLS.get("failed", 0) + 1
             answer = None
-    return apply_copy(plans, answer, profile, services)
+    return apply_copy(plans, answer, profile, services, guard)
 
 
 # ---------------------------------------------------------------- speech: only talking to camera

@@ -53,10 +53,13 @@
   "sound": {
     "_why": "Owner, 22 Oct 2026: this studio's phone videos carry only background talk, so the camera sound is off by default (music plays instead; a voice over is added), and voice overs use a stock voice (Kokoro preset, Apache-2.0) until the owner picks another or records her own (Settings > Sound). shared/sound.ts.",
     "cameraSound": "off",
-    "voice": { "source": "stock", "stock": "af_heart" }
+    "voice": {
+      "source": "stock",
+      "stock": "af_heart"
+    }
   },
   "contentRules": {
-    "_why": "Porch & Party's rules, enforced in code (shared/contentRules.ts): never the word insured, no customer address, house number or face, prices only from this one list. Host's word, 22 Oct 2026.",
+    "_why": "Porch & Party's rules, enforced in code (shared/contentRules.ts): never the word insured, no customer address, house number or face, prices only from this one list. Host's word, 22 Oct 2026. Her own face may show (her Brand Profile says the owner herself is fine to show), ownerFace \"show\": only the person working or talking to the camera, customers' faces are always blurred (jobs/protect.py).",
     "banWords": [
       "insured"
     ],
@@ -67,7 +70,8 @@
         "name": "Grand Holiday Porch",
         "usd": 1050
       }
-    ]
+    ],
+    "ownerFace": "show"
   },
   "whatsNew": {
     "id": "2026-10-photo-posts",

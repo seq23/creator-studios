@@ -123,10 +123,12 @@ def _local_vlm() -> Any:
         return None
     pip = [sys.executable, "-m", "pip", "install", "-q", "--disable-pip-version-check"]
     try:
+        # torchvision too: the Qwen2-VL image processor imports it (23 Oct 2026 run: ImportError without it).
         try:
             __import__("torch")
+            __import__("torchvision")
         except Exception:  # noqa: BLE001
-            subprocess.run([*pip, "torch", "--index-url", "https://download.pytorch.org/whl/cpu"], capture_output=True, timeout=900, check=True)
+            subprocess.run([*pip, "torch", "torchvision", "--index-url", "https://download.pytorch.org/whl/cpu"], capture_output=True, timeout=900, check=True)
         subprocess.run([*pip, "transformers>=4.45,<5", "pillow", "accelerate"], capture_output=True, timeout=600, check=True)
         import importlib
 
@@ -140,7 +142,7 @@ def _local_vlm() -> Any:
         _VLM["ready"] = (model, proc)
         log("ai.local_ready", provider="local_vlm", ok=True)
     except Exception as e:  # noqa: BLE001
-        log("ai.local_ready", provider="local_vlm", ok=False, error=type(e).__name__)
+        log("ai.local_ready", provider="local_vlm", ok=False, error=type(e).__name__, detail=str(e)[:160])
     return _VLM["ready"]
 
 

@@ -60,6 +60,8 @@ import { readSound } from "../routes/settings";
 import { libraryTrack, type CameraSound } from "@shared/sound";
 import { parseNotes } from "../domain/steer";
 import { servicesOf } from "@shared/services";
+import { textProblems, type ContentRules } from "@shared/contentRules";
+import { contentRules } from "../lib/photoPosts";
 import { cleanLooksLike, cleanOverride, isShape, type PlanOverride, type Shape } from "@shared/looksLike";
 
 /** A cut job's ref: a dump ("dmp_…"), or one clip of it to re-render ("dmp_…/clp_…"). */
@@ -150,6 +152,8 @@ export interface CutSpec {
   camera: CameraSound;
   /** The services the footage can show, from the locked Brand Profile only (shared/services.ts). */
   services: string[];
+  /** The studio's content rules (shared/contentRules.ts), enforced by jobs/protect.py. */
+  content_rules: ContentRules;
   /** What the vision model saw in each video before (jobs/see.py), so a re-plan looks no again. */
   shot_sheets: Record<string, unknown>;
   /** Her pick on "Change" (the plain line): the service and/or the story shape. */
@@ -343,6 +347,8 @@ async function buildDumpSpec(env: Env, jobId: string, dumpId: string): Promise<C
     steer,
     camera: dumpCtl.camera ?? (await readSound(env)).camera,
     services,
+    // Layer 5 (jobs/protect.py): faces and house numbers blurred, the never-list, real prices only.
+    content_rules: contentRules(env),
     shot_sheets: sheets,
     plan_override: cleanOverride(parseJson(dump.plan_override, {}), services),
   };
@@ -658,7 +664,7 @@ export function normalizeHashtags(v: unknown): string {
  */
 export function parseCutResult(
   result: unknown,
-  ctx: { dumpId: string; allowed: Map<string, Platform[]>; rawKeys: Set<string> },
+  ctx: { dumpId: string; allowed: Map<string, Platform[]>; rawKeys: Set<string>; rules?: ContentRules },
 ): { clips: CleanClip[]; dropped: number } {
   if (!result || typeof result !== "object" || !Array.isArray((result as CutResult).clips)) throw new CutResultError("result has no clip list");
   const list = (result as CutResult).clips;
@@ -711,7 +717,9 @@ export function parseCutResult(
     const parts = cleanParts(c.parts, start, end);
     // Each part's video must be one of this dump's (the Worker never trusts the job).
     const partAssets = Array.isArray(c.part_assets) && c.part_assets.length === parts.length && c.part_assets.every((a) => typeof a === "string" && ctx.allowed.has(a)) ? (c.part_assets as string[]) : null;
-    const hiddenReason = str(c.hidden_reason, 200) || null;
+    // Layer 5, checked again here (the Worker never trusts the job): words that break the studio's rules hide the clip.
+    const broke = ctx.rules && [c.hook_text, c.hook_alt, c.caption].some((t) => typeof t === "string" && textProblems(t, ctx.rules!).length > 0);
+    const hiddenReason = str(c.hidden_reason, 200) || (broke ? RULES_HIDDEN : null);
     clips.push({
       id: c.id!,
       asset_id: String(c.asset_id),
@@ -802,7 +810,7 @@ export async function applyDumpClips(env: Env, jobId: string, dumpId: string, re
   const spec = await buildDumpSpec(env, jobId, dumpId);
   const allowed = new Map(spec.assets.map((a) => [a.id, a.allowed_platforms]));
   const rawKeys = new Set(spec.assets.map((a) => a.r2_key));
-  const parsed = parseCutResult(result, { dumpId, allowed, rawKeys });
+  const parsed = parseCutResult(result, { dumpId, allowed, rawKeys, rules: contentRules(env) });
   // An editor's import may bring back only the clips planned for it, never extra ones.
   const clips = opts.planned ? parsed.clips.filter((c) => opts.planned!.has(c.id)) : parsed.clips;
   const dropped = parsed.dropped + (parsed.clips.length - clips.length);
@@ -922,6 +930,9 @@ export async function remixVoiceOver(env: Env, clipId: string): Promise<number> 
 }
 
 /** The sentence on the clip when a re-render fails; the old version stays. */
+/** Why a clip whose words broke the studio's rules is hidden (Review says "Hidden because …"). */
+export const RULES_HIDDEN = "the words broke one of this studio's rules";
+
 export const RERENDER_FAILED = "The new look didn't finish, so your clip is unchanged. Try Change look again.";
 
 async function applyRerender(env: Env, _jobId: string, dumpId: string, clipId: string, result: unknown): Promise<void> {
@@ -972,7 +983,7 @@ async function applyAgain(env: Env, jobId: string, dumpId: string, clipId: strin
   const clip = await env.DB.prepare("SELECT id, status, r2_key, cover_r2_key, asset_id, rerender_job_id FROM clips WHERE id = ? AND dump_id = ?").bind(clipId, dumpId).first<{ id: string; status: string; r2_key: string; cover_r2_key: string | null; asset_id: string; rerender_job_id: string | null }>();
   const got = (result as { again?: unknown } | null)?.again;
   const { results: dumpAssets } = await env.DB.prepare("SELECT id FROM assets WHERE dump_id = ?").bind(dumpId).all<{ id: string }>();
-  const parsed = parseCutResult({ clips: got ? [got] : [] }, { dumpId, allowed: new Map([[clip?.asset_id ?? "", [...PLATFORMS]], ...dumpAssets.map((a) => [a.id, [...PLATFORMS]] as [string, Platform[]])]), rawKeys: new Set() });
+  const parsed = parseCutResult({ clips: got ? [got] : [] }, { dumpId, allowed: new Map([[clip?.asset_id ?? "", [...PLATFORMS]], ...dumpAssets.map((a) => [a.id, [...PLATFORMS]] as [string, Platform[]])]), rawKeys: new Set(), rules: contentRules(env) });
   const fresh = parsed.clips[0];
   if (!clip || clip.status === "deleted" || clip.rerender_job_id !== jobId || !fresh) {
     if (fresh) await env.FILES.delete([fresh.r2_key, fresh.cover_r2_key].filter((k): k is string => !!k));
