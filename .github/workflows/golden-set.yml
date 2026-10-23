@@ -1,0 +1,33 @@
+# The weekly golden set (studio intelligence layer 9 seed, owner's plan 22 Oct 2026): synthetic CC0
+# clips per fixture business go through the real shot sheet (free vision model, local backup) and the
+# real planner; job type, before/after and caption noise are scored against jobs/golden/baseline.json.
+# A drop fails this run (red, loudly), never a merge gate. $0: the free models only
+# (GOLDEN_OPENROUTER_API_KEY is a $0-limit key), the local model on the runner's CPU.
+name: golden-set
+
+on:
+  schedule:
+    - cron: "23 6 * * 1"   # Mondays 06:23 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: golden-set
+  cancel-in-progress: false
+
+jobs:
+  golden:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40    # fault detector (~4x a normal run incl. the local model install), never a budget
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: System tools
+        run: bash .github/scripts/apt-install.sh ffmpeg fonts-dejavu-core
+      - run: python3 -m pip install -q pillow
+      - name: Golden set (score, compare with the baseline)
+        run: python3 jobs/golden.py
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.GOLDEN_OPENROUTER_API_KEY }}
+          VISION_LOCAL: "1"

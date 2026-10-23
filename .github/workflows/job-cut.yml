@@ -17,6 +17,7 @@ on:
       - jobs/common.py
       - jobs/see.py
       - jobs/plan.py
+      - jobs/critic.py
       - shared/grounded.json
       - jobs/selftest_cut.py
       - jobs/music/**

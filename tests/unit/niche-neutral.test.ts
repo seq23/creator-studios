@@ -90,7 +90,7 @@ describe("e2e seed data (what the help pictures show) is niche-neutral", () => {
 // carries NO business words. Every service word comes from a studio's Brand Profile. The guard reads
 // the services of the four fixture businesses (tests/fixtures/businesses) and of a decor/party
 // profile like the first live studio's, and fails on any of their words in these files.
-const INTEL_FILES = ["jobs/see.py", "jobs/plan.py", "shared/services.ts", "shared/looksLike.ts", "shared/grounded.ts", "shared/grounded.json", "app/components/LooksLikeLine.tsx"];
+const INTEL_FILES = ["jobs/see.py", "jobs/plan.py", "jobs/critic.py", "shared/services.ts", "shared/looksLike.ts", "shared/grounded.ts", "shared/grounded.json", "app/components/LooksLikeLine.tsx"];
 const BUSINESS_DIR = path.join("tests", "fixtures", "businesses");
 const BUSINESS_WORDS = [
   ...readdirSync(BUSINESS_DIR)
