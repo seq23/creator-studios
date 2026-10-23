@@ -15,6 +15,7 @@ export const REGISTER = {
   "bot-prs-get-checks": "a PR opened by a workflow gets no checks, so land can never see it green (help-screenshots PR #21, live test 26 Sep 2026)",
   "design-tokens": "a raw colour, font or off-scale size outside tokens.css is how screens drift apart (docs/design/DESIGN.md)",
   "editors-documented": "a connected editor nobody researched, or a key box for a tool with no API, sends her to a dead end (owner, 25 Sep 2026: only the most popular, honestly)",
+  "free-quota-budgeted": "the free OpenRouter tier allows 50 calls a day for every studio and the golden set; one dump used ~45 (a call per video, per clip, six retries per failure) and golden-set went red at 0e0eebb (23 Oct 2026): calls are batched, budgeted per job, counted per provider, with a $0 local model behind",
   "full-video-uncut": "a full video sent through the cutter or reframed to 9:16 is not the video she made (owner, 26 Sep 2026: the full-video door posts it whole)",
   "help-targets-exist": "a guide step pointing at a label the screen no longer has fails the post-merge screenshot job and reds main (#42, 26 Sep 2026); caught before merge instead",
   "help-guides-exist": "every screen's ? button and every fix_guide slug must open a real guide (section 12c)",
@@ -22,6 +23,7 @@ export const REGISTER = {
   "host-keys-host-only": "the host's personal OpenRouter, Resend, Firecrawl and Hunter run Hadiyah's studio only (owner decision 7 Oct 2026); a client studio carrying or reading them spends the host's money on, and sends as the host for, someone else's studio",
   "home-caps": "Home grew with everything a year of use piles up (3.7 phone screens, five year-old follow-ups, no dismiss): every Home list must be capped by HOME_CAPS and proven on a year of data (owner, 26 Sep 2026, day-358 review)",
   "login-never-open": "studio brief §4/§6c: every studio logs in with the email code; an AUTH_MODE \"open\" anywhere, or an \"open\" branch in the login code, makes anyone with the URL the owner",
+  "intelligence-layers": "each studio-intelligence layer (owner's plan 22 Oct 2026) must be called by the cut, not merely written: a layer nothing invokes leaves her clips as blind as before",
   "jobs-no-direct-storage": "a job holding storage keys needs an R2 token the owner cannot mint and a public repo can leak; jobs reach storage only through the Worker",
   "jobs-one-openrouter-client": "three hand-rolled OpenRouter clients in jobs each lost the end of a reasoning model's answer (live test 25 Sep 2026); one client in common.py asks again with more room",
   "jobs-registered": "every job type in the schema must have a handler or dispatch silently does nothing",
@@ -47,6 +49,7 @@ export const REGISTER = {
   "voice-engines": "a narration row without its engine, or an ElevenLabs call that drops a 401 / 402 / 429, shows her the wrong voice tag or a failure with no fallback",
   "voice-script": "the read-aloud script must stay about 3 minutes with a question and a number, and the Voice screen must show it, or her sample makes a thin voice",
   "web-research-optional": "the brand finder and the Research Brief must work with no web-research key (Firecrawl is an optional speed-up, owner 26 Sep 2026); a job or route that needs it goes silent without it",
+  "workflow-yaml-plain": "a step name with \": \" in it made golden-set.yml unparseable: a zero-job red run on every push and no workflow_dispatch (23 Oct 2026)",
   "workflows-dispatchable": "every job type must have an Actions workflow listening for its repository_dispatch event",
   "youtube-direct": "full videos go straight to her own YouTube channel (owner, 26 Sep 2026): a refresh token in a public repo's job, a deleted video, an upload past YouTube's daily allowance, a Calendar move YouTube never hears about, or a failure shape nobody tested is a video she loses or a light that lies",
 };

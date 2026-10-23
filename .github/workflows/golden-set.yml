@@ -1,6 +1,8 @@
 # The weekly golden set (studio intelligence layer 9 seed, owner's plan 22 Oct 2026): synthetic CC0
 # clips per fixture business go through the real shot sheet (free vision model, local backup) and the
 # real planner; job type, before/after and caption noise are scored against jobs/golden/baseline.json.
+# Calls go down the jobs/ai.py ladder: free OpenRouter models (batched, budgeted), then the local open
+# vision model on the runner's CPU, so a used-up daily quota no longer turns the run red.
 # A drop fails this run (red, loudly), never a merge gate. $0: the free models only
 # (GOLDEN_OPENROUTER_API_KEY is a $0-limit key), the local model on the runner's CPU.
 name: golden-set
@@ -9,6 +11,11 @@ on:
   schedule:
     - cron: "23 6 * * 1"   # Mondays 06:23 UTC
   workflow_dispatch:
+    inputs:
+      local_only:
+        description: "Score with the local vision model only (proves the $0 backup; no OpenRouter calls)"
+        type: boolean
+        default: false
 
 concurrency:
   group: golden-set
@@ -17,17 +24,31 @@ concurrency:
 jobs:
   golden:
     runs-on: ubuntu-latest
-    timeout-minutes: 40    # fault detector (~4x a normal run incl. the local model install), never a budget
+    timeout-minutes: 90    # fault detector (~4x a run where the local vision model answers every picture on CPU), never a budget
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: System tools
-        run: bash .github/scripts/apt-install.sh ffmpeg fonts-dejavu-core
+      - name: "Local vision model cache (jobs/ai.py, the $0 backup when the free quota is used up)"
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/vlm
+          key: vlm-qwen2-vl-2b-instruct-v1
+      - name: ffmpeg (static build, no apt; the runners' apt mirror hung again 23 Oct 2026)
+        timeout-minutes: 6
+        run: bash .github/scripts/ffmpeg-static.sh
       - run: python3 -m pip install -q pillow
       - name: Golden set (score, compare with the baseline)
         run: python3 jobs/golden.py
         env:
           OPENROUTER_API_KEY: ${{ secrets.GOLDEN_OPENROUTER_API_KEY }}
           VISION_LOCAL: "1"
+          OPENROUTER_JOB_BUDGET: ${{ inputs.local_only && '0' || '16' }}
+      - name: "Keep the local vision model for the next run (saved even when the score drops)"
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/vlm
+          key: vlm-qwen2-vl-2b-instruct-v1
+        continue-on-error: true

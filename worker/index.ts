@@ -38,6 +38,7 @@ import { legal } from "./routes/legal";
 import { photos } from "./routes/photos";
 import { skipPage } from "./routes/skip";
 import { whatsNew } from "./routes/whatsNew";
+import { ops } from "./routes/ops";
 import { runCron } from "./crons/index";
 
 const app = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -64,6 +65,7 @@ app.route("/api/home", home);
 app.route("/api/dumps", dumps);
 app.route("/api/uploads", uploads);
 app.route("/api/jobs", jobs);
+app.route("/api/ops", ops);
 app.route("/api/settings", settings);
 app.route("/api/connections", connections);
 app.route("/api/clips", clips);

@@ -21,7 +21,7 @@ import { pendingRefusal, spaceLine } from "../domain/fullVideo";
 import { PLAN_AHEAD_WEEKS } from "./posts";
 import { storageUsed } from "../lib/storage";
 import { notesWithStartOver, startOverPlan } from "../domain/startOver";
-import { cleanLooksLike, cleanOverride, type PlanOverride } from "@shared/looksLike";
+import { answerQuestion, cleanLooksLike, cleanOverride, questionsFor, type PlanOverride, type QuestionVideo } from "@shared/looksLike";
 import { servicesOf } from "@shared/services";
 import { removeVoiceOver, voiceAllInDump, voiceReady } from "../lib/autoVoice";
 
@@ -316,9 +316,66 @@ dumps.post("/:id/looks-like", async (c) => {
   const profile = await c.env.DB.prepare("SELECT sections FROM brand_profile WHERE locked = 1 ORDER BY version DESC LIMIT 1").first<{ sections: string }>();
   const pick = cleanOverride(body ?? {}, servicesOf(profile ? parseJson<Record<string, string>>(profile.sections, {}) : null));
   if (!pick.service && !pick.shape) return fail(c, 400, "Pick what these videos show, or the kind of video.", "review-and-approve-clips");
-  const now = await c.env.DB.prepare("SELECT plan_override FROM dumps WHERE id = ?").bind(id).first<{ plan_override: string | null }>();
+  const now = await c.env.DB.prepare("SELECT plan_override, looks_like FROM dumps WHERE id = ?").bind(id).first<{ plan_override: string | null; looks_like: string | null }>();
   const merged = { ...parseJson<PlanOverride>(now?.plan_override ?? null, {}), ...pick };
+  if (pick.service && pick.service !== "unsure") {
+    // Studio Memory (layer 8): a service she corrected on "Change" counts like a one-tap answer.
+    const seen = cleanLooksLike(parseJson(now?.looks_like ?? null, null));
+    await recordEvent(c.env.DB, "dump.question_answered", id, { question: "service", yes: false, from_service: seen?.sure ? seen.service : null, to_service: pick.service, before_videos: 0, replan: true }, c.get("user").email);
+  }
   await c.env.DB.prepare("UPDATE dumps SET plan_override = ? WHERE id = ?").bind(JSON.stringify(merged), id).run();
+  return startOver(c, id, "", "dump.looks_like_changed");
+});
+
+/** The dump's videos as the one-tap questions show them: a number and what the studio saw (layer 7). */
+async function questionVideos(env: Env, id: string): Promise<QuestionVideo[]> {
+  const { results } = await env.DB.prepare("SELECT id, shot_sheet FROM assets WHERE dump_id = ? AND upload_status = 'uploaded' AND raw_deleted_at IS NULL ORDER BY created_at").bind(id).all<{ id: string; shot_sheet: string | null }>();
+  return results.map((r, i) => {
+    const sh = parseJson<{ shots?: { what?: string; state?: string; confidence?: number }[] }>(r.shot_sheet, {});
+    const shots = Array.isArray(sh.shots) ? sh.shots : [];
+    const what = shots.map((x) => (typeof x.what === "string" ? x.what.trim() : "")).find(Boolean) ?? "";
+    return { id: r.id, n: i + 1, what: what.slice(0, 120) || "We couldn't tell what this one shows", before: shots.some((x) => x.state === "before") };
+  });
+}
+
+async function profileServices(env: Env): Promise<string[]> {
+  const profile = await env.DB.prepare("SELECT sections FROM brand_profile WHERE locked = 1 ORDER BY version DESC LIMIT 1").first<{ sections: string }>();
+  return servicesOf(profile ? parseJson<Record<string, string>>(profile.sections, {}) : null);
+}
+
+/** GET /:id/questions: the one-tap questions under the plain line (layer 7), never one already answered. */
+dumps.get("/:id/questions", async (c) => {
+  const id = c.req.param("id");
+  const d = await c.env.DB.prepare("SELECT looks_like, plan_override, status FROM dumps WHERE id = ?").bind(id).first<{ looks_like: string | null; plan_override: string | null; status: string }>();
+  if (!d) return fail(c, 404, "That dump no longer exists.");
+  const services = await profileServices(c.env);
+  const videos = await questionVideos(c.env, id);
+  const override = cleanOverride(parseJson(d.plan_override, {}), services, videos.map((v) => v.id));
+  const questions = d.status === "ready" ? questionsFor(cleanLooksLike(parseJson(d.looks_like, null)), override, videos, services) : [];
+  return c.json({ questions, services, videos });
+});
+
+/**
+ * POST /:id/answer {id, yes?, service?, before_assets?}: one tap. "Yes" only records it; a service
+ * or before videos re-plan the dump at once from the saved shot sheets (no new picture reading).
+ * Every answer is remembered (Studio Memory, layer 8: events "dump.question_answered").
+ */
+dumps.post("/:id/answer", async (c) => {
+  const id = c.req.param("id");
+  const body = await readJson<{ id?: string; yes?: boolean; service?: string; before_assets?: string[] }>(c);
+  if (body?.id !== "service" && body?.id !== "before") return fail(c, 400, "That question isn't one we asked.", "review-and-approve-clips");
+  const d = await c.env.DB.prepare("SELECT looks_like, plan_override FROM dumps WHERE id = ?").bind(id).first<{ looks_like: string | null; plan_override: string | null }>();
+  if (!d) return fail(c, 404, "That dump no longer exists.");
+  const services = await profileServices(c.env);
+  const videos = await questionVideos(c.env, id);
+  const now = cleanOverride(parseJson(d.plan_override, {}), services, videos.map((v) => v.id));
+  const asked = cleanOverride({ service: body.service, before_assets: body.before_assets }, services, videos.map((v) => v.id));
+  if (body.id === "service" && body.service && !asked.service) return fail(c, 400, "Pick one of the services in your Brand Profile.", "review-and-approve-clips");
+  const { override, replan } = answerQuestion(now, { id: body.id, yes: body.yes, service: asked.service, before_assets: asked.before_assets });
+  await c.env.DB.prepare("UPDATE dumps SET plan_override = ? WHERE id = ?").bind(JSON.stringify(override), id).run();
+  const seen = cleanLooksLike(parseJson(d.looks_like, null));
+  await recordEvent(c.env.DB, "dump.question_answered", id, { question: body.id, yes: body.yes === true, from_service: seen?.sure ? seen.service : null, to_service: asked.service ?? null, before_videos: asked.before_assets?.length ?? 0, replan }, c.get("user").email);
+  if (!replan) return c.json({ ok: true, replan: false });
   return startOver(c, id, "", "dump.looks_like_changed");
 });
 
@@ -328,7 +385,7 @@ dumps.get("/:id/services", async (c) => {
   return c.json({ services: servicesOf(profile ? parseJson<Record<string, string>>(profile.sections, {}) : null) });
 });
 
-async function startOver(c: Context<{ Bindings: Env; Variables: Vars }>, id: string, notesIn: string, event: "dump.start_over" | "dump.looks_like_changed"): Promise<Response> {
+export async function startOver(c: Context<{ Bindings: Env; Variables: Vars }>, id: string, notesIn: string, event: "dump.start_over" | "dump.looks_like_changed"): Promise<Response> {
   const dump = await c.env.DB.prepare("SELECT id, status, kind, notes FROM dumps WHERE id = ?").bind(id).first<{ id: string; status: string; kind: string; notes: string }>();
   const { results: rows } = await c.env.DB.prepare("SELECT id, status, r2_key, cover_r2_key FROM clips WHERE dump_id = ?").bind(id).all<{ id: string; status: string; r2_key: string; cover_r2_key: string | null }>();
   const clipsNow = [];

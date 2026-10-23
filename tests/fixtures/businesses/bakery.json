@@ -1,0 +1,12 @@
+{
+  "_why": "A fixture business (made up): a home bakery whose videos are close-ups of finished bakes, no before shot and nobody talking.",
+  "slug": "bakery",
+  "profile": {
+    "who": "Rise & Shine is a home bakery: sourdough loaves, frosted cakes and cookie tins.",
+    "service_looks": "Sourdough loaves: round crusty loaves with a scored top\nFrosted cakes: tall cakes with piped decoration on a stand\nCookie tins: a tin of iced cookies in neat rows",
+    "video_shapes": "All: close-ups, walk-through",
+    "voice": "Sweet and cosy.",
+    "ctas": "\"Order for Saturday pickup.\""
+  },
+  "services": ["Sourdough loaves", "Frosted cakes", "Cookie tins"]
+}

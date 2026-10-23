@@ -80,6 +80,9 @@ npm run studio:deploy <slug>        # one studio (build, migrate, deploy, smoke)
 npm run deploy:all                  # every studio (what deploy.yml runs on green main)
 npm run studio:secrets <slug>       # set the secrets it is missing (never rotates SECRETS_KEY)
 npm run studio:invite <slug>        # a new first-login link for a client studio (single use, 14 days)
+node scripts/studio.mjs start-over <slug> <dumpId> [--service="<a Brand Profile service>"] [--shape=transformation|walkthrough|talking|montage]
+                                    # the studio's own Start over, signed with its 0600 JOB_SHARED_SECRET (worker/routes/ops.ts):
+                                    # New clips go, approved/posted/rejected clips and uploads stay; no browser login needed
 
 # read a studio's D1 (example: who owns sample1, which services are set up; never secret values)
 npx wrangler d1 execute creator-studios-sample1-db --remote --env sample1 --json \
@@ -133,6 +136,18 @@ GitHub repo secrets: `CLOUDFLARE_API_TOKEN` (already set; the deploy token),
 `CLOUDFLARE_ACCOUNT_ID`, `JOB_SHARED_SECRET_HADIYAH` (set by `studio:create`; the job workflows pick
 `JOB_SHARED_SECRET_<STUDIO>` from the dispatch). A client studio's jobs run in the client's own
 repository (Setup → Clip cutting), never here; until then its practice cutter runs in the Worker.
+
+## Free-model quota (studio intelligence)
+
+The OpenRouter key is on the free tier: 50 calls a day for the whole account (every host studio and
+the golden set), reset 00:00 UTC. A dump needs about 11 (3 batched shot-sheet calls, 1 copy call, 3
+batched critic calls, re-cuts), capped at 16 per job (`OPENROUTER_JOB_BUDGET`, jobs/ai.py). When the
+day's quota is used, a 429 "free-models-per-day" stops further calls at once and the local open
+vision model (Qwen2-VL-2B, Apache-2.0, on the runner's CPU, about 1 to 2 minutes a picture) reads the
+footage instead; the words fall back to the grounded neutral lines and the critic to its rules.
+Every cut logs `ai.calls` per provider. Ruled out 23 Oct 2026: Workers AI (the account's included
+neurons were already used that day by other Workers; more is billed), Hugging Face (no credits left,
+the account cannot pay), GitHub Models (no longer answers).
 
 ## Deploy pipeline
 

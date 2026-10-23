@@ -1,6 +1,6 @@
 """Studio intelligence, layers 2 and 4 (owner's plan, 22 Oct 2026): the shot sheet and the story plan.
 
-Four unlike fixture businesses (tests/fixtures/businesses, the same files tests/unit/services-of.test.ts
+Six unlike fixture businesses (tests/fixtures/businesses, the same files tests/unit/services-of.test.ts
 reads) each with their own services. Pinned here:
   * before/after fires only when both a before and an after shot are present;
   * a before shot is never last and never in a clip that is not a before/after;
@@ -12,6 +12,7 @@ reads) each with their own services. Pinned here:
 from __future__ import annotations
 
 import json
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -47,8 +48,12 @@ def decor_dump(with_before=True):
 
 
 class FixturesTest(unittest.TestCase):
-    def test_four_unlike_businesses_with_their_own_services(self):
-        self.assertEqual(sorted(FIX), ["car-detailer", "event-decor", "hair-salon", "talking-head"])
+    def test_six_unlike_businesses_with_their_own_services(self):
+        self.assertEqual(sorted(FIX), ["bakery", "car-detailer", "event-decor", "hair-salon", "landscaper", "talking-head"])
+        # The golden set scores exactly these (layer 9).
+        import golden as G
+
+        self.assertEqual(sorted(G.SCENES), sorted(FIX))
         labels = [s.lower() for f in FIX.values() for s in f["services"]]
         self.assertEqual(len(labels), len(set(labels)))
 
@@ -211,7 +216,11 @@ class SheetParseTest(unittest.TestCase):
         services = FIX["hair-salon"]["services"]
         sh = sheet("s", 10, shot(0, 10, "after", services[0], "sleek hair"))
         back = V.ShotSheet.from_json(json.loads(json.dumps(sh.to_json())), "s", 10, services)
-        self.assertEqual((back.source, back.shots[0].service, back.shots[0].state), ("cached", services[0], "after"))
+        # Where it came from survives the round trip (it decides whether the sheet is saved again).
+        self.assertEqual((back.source, back.shots[0].service, back.shots[0].state), (sh.source, services[0], "after"))
+        self.assertNotEqual(sh.source, "cached")
+        old = dict(sh.to_json(), source="cached")  # rows saved before 23 Oct 2026
+        self.assertEqual(V.ShotSheet.from_json(old, "s", 10, services).source, "cached")
 
     def test_local_labels_under_the_floor_are_unsure(self):
         services = FIX["event-decor"]["services"]
@@ -238,26 +247,220 @@ if __name__ == "__main__":
 
 
 class QuotaTest(unittest.TestCase):
-    def test_a_round_of_429s_stops_further_model_calls(self):
+    """The quota fix (23 Oct 2026): the free account allows 50 calls a day for every studio."""
+
+    def setUp(self):
+        import ai as A
+
+        self.A = A
+        self.old = (A.openrouter_content, A.time.sleep, A.OPENROUTER_JOB_BUDGET)
+        A.time.sleep = lambda *_: None
+        A.reset()
+        V.QUOTA_OUT["out"] = False
+        os.environ.pop("VISION_LOCAL", None)
+        A._VLM.clear()
+
+    def tearDown(self):
+        self.A.openrouter_content, self.A.time.sleep, self.A.OPENROUTER_JOB_BUDGET = self.old
+        self.A.reset()
+        V.QUOTA_OUT["out"] = False
+        self.A._VLM.clear()
+
+    def _raise(self, calls, body=b"busy"):
+        import io
         import urllib.error
+
+        def f(*_a, **_k):
+            calls.append(1)
+            raise urllib.error.HTTPError("u", 429, "busy", {}, io.BytesIO(body))
+
+        return f
+
+    def test_a_round_of_429s_stops_further_model_calls(self):
+        calls = []
+        self.A.openrouter_content = self._raise(calls)
+        img = Path(__file__)
+        self.assertEqual(V.ask_vision("k", "s", "t", img, "vision"), (None, ""))
+        first = len(calls)
+        self.assertEqual(first, 2)  # two models at most, no pause-and-retry round
+        self.assertTrue(V.QUOTA_OUT["out"])
+        self.assertEqual(V.ask_vision("k", "s", "t", img, "critic"), (None, ""))
+        self.assertEqual(len(calls), first)  # no call once the quota is out
+        self.assertEqual(self.A.CALLS_BY["openrouter"], 2)
+        self.assertEqual(self.A.CALLS_BY["openrouter_failed"], 2)
+
+    def test_the_daily_quota_message_trips_at_once(self):
+        calls = []
+        self.A.openrouter_content = self._raise(calls, b'{"error":{"message":"Rate limit exceeded: free-models-per-day. Add 10 credits"}}')
+        self.assertEqual(V.ask_vision("k", "s", "t", Path(__file__), "vision"), (None, ""))
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(self.A.STATE["quota_out"])
+
+    def test_the_job_budget_caps_calls(self):
         calls = []
 
-        def busy(*_a, **_k):
+        def ok(*_a, **_k):
             calls.append(1)
-            raise urllib.error.HTTPError("u", 429, "busy", {}, None)
+            return '{"shots": []}', {}
 
-        img = Path(__file__)
-        old, old_pause, old_sleep = V.openrouter_content, V.VISION_PAUSE_S, V.time.sleep
-        V.openrouter_content, V.VISION_PAUSE_S = busy, 0
-        V.time.sleep = lambda *_: None
+        self.A.openrouter_content = ok
+        self.A.OPENROUTER_JOB_BUDGET = 3
+        for _ in range(6):
+            V.ask_vision("k", "s", "t", Path(__file__), "vision")
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(self.A.report()["openrouter"], 3)
+
+    def test_no_local_model_without_vision_local(self):
+        self.assertIsNone(self.A.ask_local_vlm("s", "t", Path(__file__), "vision"))
+        self.assertEqual(self.A.CALLS_BY["local_vlm"], 0)
+
+
+class BatchSheetTest(unittest.TestCase):
+    def test_parse_batch_covers_each_video_with_its_own_frames(self):
+        batch = [{"asset_id": "a", "duration": 8.0, "times": [1.0, 3.0, 5.0, 7.0]}, {"asset_id": "b", "duration": 4.0, "times": [1.0, 3.0]}]
+        ans = {"videos": [
+            {"video": 1, "shots": [{"frames": [1, 2], "state": "before", "service": "alpha work", "confidence": 0.9}, {"frames": [3, 4], "state": "after", "service": "alpha work", "confidence": 0.9}]},
+            {"video": 2, "shots": [{"frames": [1, 2], "state": "after", "service": "alpha work", "confidence": 0.8}]},
+            {"video": 7, "shots": [{"frames": [1, 1]}]},
+        ]}
+        got = V.parse_batch(ans, batch, ["alpha work"], "vision:x")
+        self.assertEqual(sorted(got), ["a", "b"])
+        self.assertEqual([s.state for s in got["a"].shots], ["before", "after"])
+        self.assertEqual(got["a"].shots[-1].end, 8.0)
+        self.assertEqual(got["b"].shots[0].end, 4.0)
+        self.assertEqual(V.parse_batch({"shots": []}, batch, [], "x"), {})
+
+    def test_three_videos_take_one_call_and_cached_sheets_none(self):
+        import ai as A
+
+        calls = []
+        old = V.ask_vision, V.extract_frames, V.labelled_grid
         try:
-            V.QUOTA_OUT["out"] = False
-            self.assertEqual(V.ask_vision("k", "s", "t", img, "vision"), (None, ""))
-            first = len(calls)
-            self.assertGreater(first, 0)
-            self.assertTrue(V.QUOTA_OUT["out"])
-            self.assertEqual(V.ask_vision("k", "s", "t", img, "critic"), (None, ""))
-            self.assertEqual(len(calls), first)  # no call once the quota is out
+            V.extract_frames = lambda video, d, out, max_cells=None: ([Path(__file__)], [1.0])
+            V.labelled_grid = lambda groups, out, cols=6: Path(__file__)
+
+            def fake(key, system, text, image, kind, max_tokens=3000, local=True):
+                calls.append(json.loads(text))
+                return {"videos": [{"video": i + 1, "shots": [{"frames": [1, 1], "state": "after", "service": "alpha work", "confidence": 0.9}]} for i in range(len(calls[-1]["videos"]))]}, "openrouter:m"
+
+            V.ask_vision = fake
+            items = [{"asset_id": f"v{i}", "video": Path(__file__), "duration": 2.0, "notes": ""} for i in range(4)]
+            cached = {"v3": V.ShotSheet("v3", 2.0, [V.Shot(0, 2, state="after", service="alpha work", confidence=0.9)], "vision:openrouter:m").to_json()}
+            got = V.see_videos("k", items, ["alpha work"], Path("/tmp"), cached, {"alpha work": "a tidy finished corner"})
+            self.assertEqual(len(calls), 1)  # v0..v2 in one picture; v3 was saved and never looked at again
+            self.assertEqual(len(calls[0]["videos"]), 3)
+            self.assertEqual(calls[0]["what_each_service_looks_like"], {"alpha work": "a tidy finished corner"})
+            self.assertEqual(got["v3"].source, "vision:openrouter:m")  # provenance kept, not "cached"
+            self.assertTrue(all(V.worth_saving(got[k]) for k in got))
         finally:
-            V.openrouter_content, V.VISION_PAUSE_S, V.time.sleep = old, old_pause, old_sleep
-            V.QUOTA_OUT["out"] = False
+            V.ask_vision, V.extract_frames, V.labelled_grid = old
+            A.reset()
+
+    def test_only_a_vision_sheet_is_saved(self):
+        self.assertTrue(V.worth_saving(V.ShotSheet("a", 1.0, [V.Shot(0, 1)], "vision:openrouter:m")))
+        self.assertTrue(V.worth_saving(V.ShotSheet("a", 1.0, [V.Shot(0, 1)], "vision:local_vlm:m")))
+        self.assertFalse(V.worth_saving(V.ShotSheet("a", 1.0, [V.Shot(0, 1)], "local")))
+        self.assertFalse(V.worth_saving(V.unsure_sheet("a", 1.0)))
+
+
+class KnowTheBusinessTest(unittest.TestCase):
+    """Layer 1: the Brand Profile says what each service looks like and which shapes fit."""
+
+    services = ["alpha work", "beta work", "gamma kits"]
+    profile = {
+        "service_looks": "• Alpha work: a finished corner with soft lights\nBeta work: a tidy shelf, labels facing out\nNot a service: ignored",
+        "video_shapes": "Alpha work: walk-through, before and after\nAll: close-ups",
+    }
+
+    def test_service_looks(self):
+        self.assertEqual(P.service_looks(self.profile, self.services), {"alpha work": "a finished corner with soft lights", "beta work": "a tidy shelf, labels facing out"})
+        self.assertEqual(P.service_looks({}, self.services), {})
+
+    def test_shapes_fit(self):
+        self.assertEqual(P.shapes_fit(self.profile, "alpha work"), ["walkthrough", "transformation"])
+        self.assertEqual(P.shapes_fit(self.profile, "beta work"), ["montage"])
+        self.assertIsNone(P.shapes_fit({}, "alpha work"))
+
+    def test_fit_picks_among_possible_shapes(self):
+        sh = V.ShotSheet("a", 20.0, [V.Shot(0, 4, state="before", confidence=0.9), V.Shot(4, 20, state="after", service="alpha work", confidence=0.9)], "vision:x")
+        self.assertEqual(P.choose_shape([sh], "alpha work")[0], "transformation")
+        self.assertEqual(P.choose_shape([sh], "alpha work", fit=["walkthrough", "transformation"])[0], "walkthrough")
+        # A shape the footage cannot make is never picked: no talking here, so the natural shape stays.
+        self.assertEqual(P.choose_shape([sh], "alpha work", fit=["talking"])[0], "transformation")
+        # Her own pick still wins over the profile.
+        self.assertEqual(P.choose_shape([sh], "alpha work", override="montage", fit=["walkthrough"])[0], "montage")
+
+    def test_copy_prompt_carries_what_the_service_looks_like(self):
+        pl = P.Plan("montage", "alpha work", [P.Part("a", 0, 4, "after", "a corner")])
+        self.assertEqual(json.loads(P.copy_prompt([pl], self.profile))["clips"][0]["what_this_service_looks_like"], "a finished corner with soft lights")
+
+
+class AnswersAndMemoryTest(unittest.TestCase):
+    """Layers 7-9 in the planner: her before answer, the shapes she keeps, a corrected service, careful mode."""
+
+    def test_her_before_answer_makes_a_before_and_after(self):
+        a = V.ShotSheet("a", 6.0, [V.Shot(0, 6, what="an empty corner", state=V.UNSURE, confidence=0.2)], "vision:x")
+        b = V.ShotSheet("b", 8.0, [V.Shot(0, 8, what="the finished corner", state="after", service="alpha work", confidence=0.9)], "vision:x")
+        self.assertNotEqual(P.choose_shape([a, b], "alpha work")[0], "transformation")
+        self.assertEqual(P.mark_before([a, b], ["a"]), 1)
+        self.assertEqual(P.choose_shape([a, b], "alpha work")[0], "transformation")
+        plans = P.plan_clips([a, b], "transformation", "alpha work", 4)
+        self.assertTrue(any(p.parts[0].state == "before" and p.parts[-1].state == "after" for p in plans))
+
+    def test_memory_fit_and_careful_order(self):
+        mem = {"shapes": {"walkthrough": {"approved": 4, "rejected": 1, "views": 50}, "montage": {"approved": 1, "rejected": 4, "views": 5}, "transformation": {"approved": 1, "rejected": 0}}}
+        self.assertEqual(P.memory_fit(mem), ["walkthrough"])  # montage kept under half the time; 1 review is too few
+        self.assertEqual(P.combined_fit(["transformation"], mem), ["transformation", "walkthrough"])
+        self.assertEqual(P.combined_fit(["transformation"], {**mem, "approach": "careful"}), ["walkthrough", "transformation"])
+        self.assertIsNone(P.combined_fit(None, {}))
+        self.assertEqual(P.careful_quota(10, {"approach": "careful"}), 5)
+        self.assertEqual(P.careful_quota(10, {}), 10)
+
+    def test_relabel_and_turned_down_hooks(self):
+        self.assertEqual(P.relabel("alpha work", {"relabel": {"alpha work": "Beta work"}}, ["alpha work", "beta work"]), "beta work")
+        self.assertEqual(P.relabel("alpha work", {}, ["alpha work"]), "alpha work")
+        pl = P.Plan("montage", "alpha work", [P.Part("a", 0, 4, "after", "a corner")])
+        P.apply_copy([pl], {"items": [{"n": 0, "hook": "Same old hook", "caption": "x"}]}, {}, ["alpha work"], None, ["same old hook"])
+        self.assertNotEqual(pl.hook.lower(), "same old hook")
+        prompt = json.loads(P.copy_prompt([pl], {}, memory={"kept_hooks": ["Walk in to this"], "turned_down_hooks": ["Same old hook"]}))
+        self.assertEqual(prompt["what_the_owner_kept_and_turned_down"]["kept_hooks"], ["Walk in to this"])
+
+
+class LocalModelSheetTest(unittest.TestCase):
+    """The $0 backup: the local open model answers one flat question per stretch of a video."""
+
+    def test_segments_and_flat_answers_join(self):
+        import ai as A
+
+        self.assertEqual(V.segments(12.0), [(0.0, 12.0)])
+        self.assertEqual(V.segments(46.0), [(0.0, 15.33), (15.33, 30.67), (30.67, 46.0)])
+        answers = iter(['{"what":"an empty room","state":"before","people":"none","service":"unsure"}',
+                        '{"what":"the finished room","state":"after","people":"none","service":"alpha work","confidence":0.9}',
+                        '{"what":"the finished room, close","state":"after","people":"none","service":"alpha work","confidence":0.7}'])
+        old = A.ask_local_vlm, V.contact_sheet, os.environ.get("VISION_LOCAL")
+        try:
+            A.ask_local_vlm = lambda *a, **k: next(answers)
+            V.contact_sheet = lambda frames, out: Path(__file__)
+            os.environ["VISION_LOCAL"] = "1"
+            import tempfile
+
+            work = Path(tempfile.mkdtemp())
+            f = work / "x.jpg"
+            f.write_bytes(b"jpg")
+            b = {"asset_id": "a", "duration": 46.0, "frames": [f] * 12, "times": [i * 4.0 + 2 for i in range(12)], "notes": ""}
+            sh = V.local_vlm_sheet(b, ["alpha work"], None, work)
+        finally:
+            A.ask_local_vlm, V.contact_sheet = old[0], old[1]
+            if old[2] is None:
+                os.environ.pop("VISION_LOCAL", None)
+            else:
+                os.environ["VISION_LOCAL"] = old[2]
+        self.assertTrue(sh.source.startswith("vision:local_vlm:"))
+        self.assertEqual([(s.state, s.service) for s in sh.shots], [("before", V.UNSURE), ("after", "alpha work")])
+        self.assertEqual((sh.shots[1].start, sh.shots[1].end), (15.33, 46.0))
+        self.assertEqual(sh.shots[0].confidence, V.LOCAL_DEFAULT_CONFIDENCE)  # no confidence given: fairly sure, not unsure
+        self.assertTrue(V.worth_saving(sh))
+
+    def test_no_local_model_without_the_switch(self):
+        os.environ.pop("VISION_LOCAL", None)
+        self.assertIsNone(V.local_vlm_sheet({"asset_id": "a", "duration": 5.0, "frames": [], "times": []}, [], None, Path("/tmp")))

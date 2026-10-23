@@ -127,3 +127,118 @@ def critic_loop(m: Any, render: Callable[[Any], Any], critique: Callable[[Any, A
     hidden = None if verdict.ok else REASON_WORDS.get(verdict.reasons[0] if verdict.reasons else "", REASON_WORDS["text_mismatch"])
     log("critic.clip", ok=verdict.ok, recuts=recuts, source=verdict.source, reason=(verdict.reasons[0] if verdict.reasons else None))
     return Checked(rendered, m, recuts, verdict, hidden)
+
+
+# ---------------------------------------------------------------- several clips, one call (quota fix)
+
+# One critic call looks at up to BATCH_CLIPS finished clips (CRITIC_CELLS frames each, every clip
+# under its own heading): 12 clips cost 3 calls instead of 12 (jobs/ai.py budgets the account).
+BATCH_CLIPS = 4
+CRITIC_CELLS = 6
+
+CRITIC_BATCH_SYSTEM = CRITIC_SYSTEM.replace(
+    "The picture is a grid of frames from the finished clip, in time order (left to right, top to bottom); text at the top is its on-screen hook. You also get its caption, the words burned in as captions, and what each shot was planned to show. Answer JSON only: {",
+    "The picture shows SEVERAL finished clips, each under its own black heading (CLIP 1, CLIP 2, ...), its frames in time order "
+    "(left to right, top to bottom); text at the top of a frame is that clip's on-screen hook. For each clip you also get its caption, "
+    "the words burned in as captions, and what each shot was planned to show. Judge every clip on its own; if the owner turned down "
+    "clips like one of these before, say text_matches_picture false and why. Answer JSON only: "
+    "{\"clips\":[{\"clip\":int,",
+).replace("\"why\":str}.", "\"why\":str}]}.")
+
+
+def parse_batch_verdicts(answer: Any, n: int) -> list[list[str] | None]:
+    out: list[list[str] | None] = [None] * n
+    if not isinstance(answer, dict) or not isinstance(answer.get("clips"), list):
+        return out
+    for c in answer["clips"]:
+        if not isinstance(c, dict):
+            continue
+        try:
+            i = int(c.get("clip")) - 1
+        except (TypeError, ValueError):
+            continue
+        if 0 <= i < n:
+            out[i] = parse_verdict(c)
+    return out
+
+
+def vision_check_batch(key: str | None, items: list[dict[str, Any]], work: Path, tag: str, memory: dict[str, Any] | None = None) -> list[list[str] | None]:
+    """The critic on several finished clips per call. items: {mp4, duration, hook, caption, said,
+    plan_text}. None for a clip no model judged (the rules alone decide it)."""
+    out: list[list[str] | None] = [None] * len(items)
+    if not key:
+        return out
+    for i in range(0, len(items), BATCH_CLIPS):
+        chunk = items[i : i + BATCH_CLIPS]
+        groups = []
+        for j, it in enumerate(chunk):
+            frames, _t = V.extract_frames(it["mp4"], it["duration"], work / f"critic_{tag}_{i + j}", max_cells=CRITIC_CELLS)
+            groups.append((f"CLIP {j + 1}", frames))
+        grid = V.labelled_grid(groups, work / f"critic_{tag}_{i}.jpg")
+        if not grid:
+            continue
+        learned = {k: (memory or {}).get(k, [])[:6] for k in ("reject_reasons", "turned_down_hooks") if (memory or {}).get(k)}
+        prompt = json.dumps({**({"the_owner_turned_down_clips_like_these": learned} if learned else {}), "clips": [{"clip": j + 1, "hook": it["hook"], "caption": it["caption"], "burned_captions": it["said"][:400], "planned_shots": it["plan_text"][:8]} for j, it in enumerate(chunk)]})
+        answer, _model = V.ask_vision(key, CRITIC_BATCH_SYSTEM, prompt, grid, "critic", max_tokens=1600, local=False)
+        for j, v in enumerate(parse_batch_verdicts(answer, len(chunk))):
+            out[i + j] = v
+    return out
+
+
+def critic_rounds(
+    ms: list[Any],
+    render: Callable[[Any], Any],
+    rules: Callable[[Any, Any], list[str]],
+    vision: Callable[[list[tuple[Any, Any]]], list[list[str] | None]],
+    recut: Callable[[list[tuple[Any, list[str], int]]], list[Any | None]],
+    max_recuts: int = MAX_RECUTS,
+) -> list[Checked | None]:
+    """The critic over a whole dump, in rounds: render every clip, check them all (rules first, then
+    ONE batched vision pass for the clips the rules passed), re-cut the failures together (one batched
+    re-write), and again, at most `max_recuts` rounds. A clip that still fails is hidden with the
+    reason; a clip whose first render failed comes back as None. Same bound as critic_loop."""
+    st: list[dict[str, Any]] = []
+    for m in ms:
+        r = render(m)
+        st.append({"m": m, "r": r, "recuts": 0, "v": Verdict(False, ["render"], "rules"), "done": r is None, "dead": r is None})
+    while True:
+        pending = [x for x in st if not x["done"]]
+        if not pending:
+            break
+        to_vision = []
+        for x in pending:
+            rr = rules(x["m"], x["r"])
+            x["v"] = Verdict(False, rr, "rules") if rr else None
+            if not rr:
+                to_vision.append(x)
+        found = vision([(x["m"], x["r"]) for x in to_vision]) if to_vision else []
+        for x, f in zip(to_vision, [*found, *([None] * len(to_vision))]):
+            x["v"] = Verdict(True, [], "rules") if f is None else Verdict(not f, f, "vision")
+        again = []
+        for x in pending:
+            if x["v"].ok or x["recuts"] >= max_recuts:
+                x["done"] = True
+            else:
+                again.append(x)
+        if not again:
+            break
+        news = recut([(x["m"], x["v"].reasons, x["recuts"]) for x in again])
+        for x, n in zip(again, [*news, *([None] * len(again))]):
+            if n is None:
+                x["done"] = True
+                continue
+            r = render(n)
+            if r is None:
+                x["done"] = True  # the re-cut did not render: the last render stays, hidden with its reason
+                continue
+            x["m"], x["r"], x["recuts"] = n, r, x["recuts"] + 1
+    out: list[Checked | None] = []
+    for x in st:
+        if x["dead"]:
+            out.append(None)
+            continue
+        v = x["v"]
+        hidden = None if v.ok else REASON_WORDS.get(v.reasons[0] if v.reasons else "", REASON_WORDS["text_mismatch"])
+        log("critic.clip", ok=v.ok, recuts=x["recuts"], source=v.source, reason=(v.reasons[0] if v.reasons else None))
+        out.append(Checked(x["r"], x["m"], x["recuts"], v, hidden))
+    return out

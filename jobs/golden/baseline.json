@@ -1,5 +1,5 @@
 {
-  "_why": "jobs/golden.py: the last accepted golden-set score; a drop of more than 0.15, or a passing check turning to a fail, fails the weekly job.",
+  "_why": "jobs/golden.py: the last accepted golden-set score; a drop of more than 0.15, or a passing check turning to a fail, fails the weekly job. Six businesses since 23 Oct 2026 (layer 9): landscaper and bakery join at full marks; anything less there is a defect, fixed at source.",
   "score": 1.0,
   "passing": {
     "event-decor": [
@@ -19,6 +19,44 @@
       "job_type",
       "before_after",
       "to_camera"
+    ],
+    "landscaper": [
+      "job_type",
+      "before_after"
+    ],
+    "bakery": [
+      "job_type",
+      "before_after"
     ]
+  },
+  "backup": {
+    "_why": "The $0 backup (Qwen2-VL-2B on the runner's CPU) when the day's free OpenRouter quota is used, measured 23 Oct 2026 (run 39924966581, local only): 12 of 14. It is held to this; the free model to the top-level baseline.",
+    "score": 0.857,
+    "passing": {
+      "event-decor": [
+        "job_type",
+        "before_after",
+        "caption_noise"
+      ],
+      "hair-salon": [
+        "job_type",
+        "before_after"
+      ],
+      "car-detailer": [
+        "job_type",
+        "before_after"
+      ],
+      "talking-head": [
+        "job_type",
+        "before_after",
+        "to_camera"
+      ],
+      "landscaper": [
+        "job_type"
+      ],
+      "bakery": [
+        "before_after"
+      ]
+    }
   }
 }

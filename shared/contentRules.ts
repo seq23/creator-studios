@@ -20,9 +20,14 @@ export interface ContentRules {
   blockFaces: boolean;
   /** When set, every dollar amount must be one of these (the studio's one price list). */
   prices: Price[];
+  /**
+   * The owner's own face (layer 5, jobs/protect.py): "show" when her Brand Profile allows it (only
+   * the person working or talking to the camera, never a customer), "blur" to blur every face.
+   */
+  ownerFace: "show" | "blur";
 }
 
-export const NO_RULES: ContentRules = { banWords: [], blockAddresses: false, blockFaces: false, prices: [] };
+export const NO_RULES: ContentRules = { banWords: [], blockAddresses: false, blockFaces: false, prices: [], ownerFace: "show" };
 
 /** The studio's rules from its var. A malformed value fails CLOSED: every rule on, no price allowed. */
 export function parseRules(raw: string | undefined | null): ContentRules {
@@ -35,9 +40,10 @@ export function parseRules(raw: string | undefined | null): ContentRules {
       blockAddresses: j.blockAddresses === true,
       blockFaces: j.blockFaces === true,
       prices,
+      ownerFace: j.ownerFace === "blur" ? "blur" : "show",
     };
   } catch {
-    return { banWords: ["insured"], blockAddresses: true, blockFaces: true, prices: [] };
+    return { banWords: ["insured"], blockAddresses: true, blockFaces: true, prices: [], ownerFace: "blur" };
   }
 }
 
