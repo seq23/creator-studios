@@ -751,9 +751,13 @@ export function songKey(v: unknown): string | null {
   return libraryTrack(v) ? v : null;
 }
 
-/** The parts a clip plays: at most 4, each inside the source's 0 … end_s + 1 h, else [start, end]. */
+/**
+ * The parts a clip plays: at most MAX_PARTS (a before -> after joins up to 6 shots, jobs/plan.py
+ * MAX_PARTS), each inside the source's 0 … end_s + 1 h, else [start, end].
+ */
+export const MAX_PARTS = 8;
 export function cleanParts(v: unknown, start: number, end: number): [number, number][] {
-  if (Array.isArray(v) && v.length >= 1 && v.length <= 4) {
+  if (Array.isArray(v) && v.length >= 1 && v.length <= MAX_PARTS) {
     const out: [number, number][] = [];
     for (const p of v) {
       const a = Number(Array.isArray(p) ? p[0] : NaN);

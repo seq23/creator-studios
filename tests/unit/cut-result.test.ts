@@ -3,7 +3,7 @@
 // this file fails.
 import fixtureJson from "./fixtures/cut-result.sample.json";
 import { describe, expect, it } from "vitest";
-import { allowedPlatformsFor, CutResultError, MAX_CLIPS_PER_DUMP, normalizeHashtags, parseCutResult, plainFailure, targetClips, type CutResultClip } from "@worker/jobs/cut";
+import { allowedPlatformsFor, CutResultError, MAX_CLIPS_PER_DUMP, MAX_PARTS, normalizeHashtags, parseCutResult, plainFailure, targetClips, type CutResultClip } from "@worker/jobs/cut";
 import { PLATFORMS, QUALITY_BAR, type Platform } from "@shared/constants";
 import { cellCount, isGridLook } from "@worker/domain/looks";
 
@@ -131,6 +131,14 @@ describe("studio intelligence fields (shot sheet, plan, critic)", () => {
     expect(ok.clips[0]!.part_assets).toEqual(["ast_otherone", c0.asset_id]);
     expect(parseCutResult(one({ parts, part_assets: ["ast_notinthisdump", c0.asset_id] }), twoAssets()).clips[0]!.part_assets).toBeNull();
     expect(parseCutResult(one({ parts, part_assets: [c0.asset_id] }), twoAssets()).clips[0]!.part_assets).toBeNull();
+  });
+  it("a before -> after clip keeps all its parts (up to MAX_PARTS) and each part's video", () => {
+    const c0 = fixture.result.clips[0]!;
+    const parts: [number, number][] = [[0, 3], [1, 3], [0, 2.5], [0, 4], [5, 9], [c0.start_s, c0.start_s + 6]];
+    const r = parseCutResult(one({ parts, part_assets: ["ast_otherone", "ast_otherone", "ast_otherone", c0.asset_id, c0.asset_id, c0.asset_id] }), twoAssets());
+    expect(r.clips[0]!.parts).toEqual(parts);
+    expect(r.clips[0]!.part_assets).toHaveLength(6);
+    expect(MAX_PARTS).toBe(8);
   });
   it("a clip the critic hid stays hidden whatever its score, with the reason in plain words", () => {
     const r = parseCutResult(one({ score: 0.95, hidden_reason: "the words did not match the picture" }), ctx());
