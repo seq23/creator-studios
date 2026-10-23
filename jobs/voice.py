@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from common import WORK, Job, download_input, log, run, upload_output
+import script_clean as SCL  # the words are cleaned before they are spoken (studio fix, 23 Oct 2026)
 
 import json
 import urllib.request
@@ -220,7 +221,13 @@ def batch(job: Job, spec: dict[str, Any]) -> dict[str, Any]:
             voice_path = work / f"{nid}.mp3"
             seconds = None
             if it.get("speak"):
-                seconds = speak(model, str(it["script"]), voice_path)
+                script = SCL.clean_script(str(it.get("script") or ""), str(it.get("caption") or ""), it.get("ctas") or [])
+                if not script:
+                    # Reasoning-shaped or empty (a model's "thinking"): never spoken (jobs/script_clean.py).
+                    log("voice.batch.script_rejected", n=k)
+                    results.append({"narration_id": nid, "ok": False, "reason": "script_rejected"})
+                    continue
+                seconds = speak(model, script, voice_path)
                 upload_output(voice_path, str(it["narration_key"]), "audio/mpeg")
             else:
                 download_input(str(it["narration_key"]), voice_path)
@@ -243,9 +250,10 @@ def main(job: Job, spec: dict[str, Any]) -> dict[str, Any]:
         return mix(job, spec)
     if spec.get("mode") == "batch":
         return batch(job, spec)
-    script = str(spec.get("script") or "").strip()
+    script = SCL.clean_script(str(spec.get("script") or ""), str(spec.get("caption") or ""), spec.get("ctas") or [])
     if not script:
-        raise RuntimeError("empty_script")
+        # Empty, or reasoning-shaped ("1. **Analyze the Request:** ..."): never spoken (jobs/script_clean.py).
+        raise RuntimeError("empty_script" if not str(spec.get("script") or "").strip() else "script_rejected")
     work = WORK / "voice"
     work.mkdir(parents=True, exist_ok=True)
     job.progress("preparing", 0, 4)

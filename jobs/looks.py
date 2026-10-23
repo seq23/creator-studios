@@ -1,11 +1,12 @@
 """Render one clip in one Look (jobs/looks.json). Used by jobs/cut.py for every clip of a dump and
 for a single-clip re-render, and by jobs/selftest_cut.py to render every Look.
 
-A Look is a set of options: caption style (clean / karaoke / boxed / none) and position, the bold
-hook at the top, a layout (fill = face-follow 9:16 crop; blur_fill = the whole frame over a blurred
+A Look is a set of options: caption style (clean / karaoke / boxed / none) and position, the big
+centred hook in the safe area, a layout (fill = face-follow 9:16 crop; blur_fill = the whole frame over a blurred
 copy; pip = a small inset replaying the strongest line; grid = several moments tiled, one of them
 the voice), motion (punch-in on sentence starts, a progress bar, crossfades), a warm grade, her
-end card (logo + handle, last 1.5 s) and a music bed from her own uploaded songs.
+end (the last 2 s over the clip's HERO shot, never a blank card: the call to action big, the link
+under it, the studio's logo when it has one) and a music bed from her own uploaded songs.
 
 Everything is ffmpeg (+ libass for burned text). Low-resolution sources (the owner's test videos
 were 320x568 to 576x1024) are upscaled with lanczos and a light sharpen, never stretched: every
@@ -35,7 +36,17 @@ DEFAULT_FONT: str = DATA["defaults"]["font"]
 LOGO = HERE.parent / "public" / "assets" / "brand" / "studio-mark.png"
 OPTION_KEYS = ("captions", "caption_position", "hook", "layout", "grid", "punch_in", "progress_bar", "crossfade", "grade", "end_card")
 HOOK_SECONDS = 2.5
-CARD_SECONDS = 1.5
+# The end: the hero shot held at least this long with the call to action over it (owner, 23 Oct 2026:
+# never a blank or near-blank card; the finished result, with a big readable CTA in the safe area).
+CARD_SECONDS = 2.0
+# Safe area of a 1080x1920 frame (platform buttons cover the right edge and the bottom ~380 px).
+SAFE = {"x0": 90, "x1": 960, "y0": 260, "y1": 1500}
+HOOK_Y = 760
+HOOK_SIZE = 104
+CTA_SIZE = 96
+LINK_SIZE = 58
+CTA_Y = 1180
+LINK_Y = 1330
 FADE = 0.35
 
 # Brand fonts a Brand Profile may name, fetched from Google Fonts' public repo at render time.
@@ -80,8 +91,12 @@ class Branding:
     font: str = DEFAULT_FONT
     handle: str = ""
     cta: str = ""
+    # The studio's request link under the call to action on the end (spec.studio_rules.cta_link).
+    link: str = ""
     fontsdir: Path | None = None
-    logo: Path | None = field(default_factory=lambda: LOGO if LOGO.exists() else None)
+    # The studio's own logo, only when the spec provides one (spec.branding.logo_r2_key, downloaded by
+    # cut.py); never the platform's mark.
+    logo: Path | None = None
 
 
 HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -98,6 +113,10 @@ def branding_from(spec_branding: dict[str, Any] | None, work: Path) -> Branding:
     if b.handle and not b.handle.startswith("@"):
         b.handle = "@" + b.handle
     b.cta = str(sb.get("cta") or "")[:60]
+    b.link = re.sub(r"^https?://(www\.)?", "", str(sb.get("link") or "")).rstrip("/")[:60]
+    lp = sb.get("logo_path")
+    if lp and Path(str(lp)).exists():
+        b.logo = Path(str(lp))
     font = str(sb.get("font") or "").strip()
     if font and font.lower() in FONT_URLS:
         path = ensure_font(font.lower(), work / "fonts")
@@ -215,13 +234,15 @@ def build_ass(words: list[Word], hook: str, opts: dict[str, Any], b: Branding, d
     }
     lines = ["[Script Info]", "ScriptType: v4.00+", f"PlayResX: {OUT_W}", f"PlayResY: {OUT_H}", "WrapStyle: 0", "", "[V4+ Styles]", fmt]
     lines.append(styles.get(style, styles["clean"]))
-    lines.append(f"Style: Hook,{f},88,{ink},{white},{prim},{prim},-1,0,0,0,100,100,0,0,3,20,0,8,70,70,190,1")
-    lines.append(f"Style: Card,{f},66,{ink},{ink},{paper},{paper},-1,0,0,0,100,100,0,0,1,0,0,5,60,60,0,1")
-    lines.append(f"Style: Cta,{f},44,{ass_color(b.accent)},{ink},{paper},{paper},0,0,0,0,100,100,0,0,1,0,0,5,60,60,0,1")
+    # Big, centred hook inside the safe area (owner, 23 Oct 2026: tiny top-corner hooks were unreadable).
+    lines.append(f"Style: Hook,{f},{HOOK_SIZE},{ink},{white},{prim},{prim},-1,0,0,0,100,100,0,0,3,22,0,5,{SAFE['x0'] + 20},{OUT_W - SAFE['x1'] + 20},0,1")
+    # The end: a big call to action and the link, on boxes so they read over any footage.
+    lines.append(f"Style: Card,{f},{CTA_SIZE},{ink},{ink},{paper},{paper},-1,0,0,0,100,100,0,0,3,24,0,5,{SAFE['x0']},{OUT_W - SAFE['x1']},0,1")
+    lines.append(f"Style: Cta,{f},{LINK_SIZE},{paper},{paper},{ink},{ink},-1,0,0,0,100,100,0,0,3,16,0,5,{SAFE['x0']},{OUT_W - SAFE['x1']},0,1")
     lines += ["", "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"]
     n = 0
     if opts["hook"] == "top_bold" and hook:
-        lines.append(f"Dialogue: 2,{ass_time(0)},{ass_time(min(HOOK_SECONDS, until))},Hook,,0,0,0,,{ass_text(hook)}")
+        lines.append(f"Dialogue: 2,{ass_time(0)},{ass_time(min(HOOK_SECONDS, until))},Hook,,0,0,0,,{{\\pos(540,{HOOK_Y})}}{ass_text(hook)}")
         n += 1
     if style != "none":
         size = {"clean": 4, "karaoke": 3, "boxed": 3}.get(style, 3)
@@ -252,12 +273,14 @@ def build_ass(words: list[Word], hook: str, opts: dict[str, Any], b: Branding, d
                 lines.append(f"Dialogue: 0,{ass_time(w.start)},{ass_time(end)},Sub,,0,0,0,,{' '.join(parts)}")
                 n += 1
     if card:
-        s = dur - CARD_SECONDS + 0.2
-        if b.handle:
-            lines.append(f"Dialogue: 3,{ass_time(s)},{ass_time(dur)},Card,,0,0,0,,{{\\pos(540,1150)\\fad(250,0)}}{ass_text(b.handle)}")
-            n += 1
+        s = max(0.0, dur - CARD_SECONDS)
+        # Over the hero (never a blank card): the call to action big, the link (else the handle) under it.
         if b.cta:
-            lines.append(f"Dialogue: 3,{ass_time(s)},{ass_time(dur)},Cta,,0,0,0,,{{\\pos(540,1250)\\fad(250,0)}}{ass_text(b.cta)}")
+            lines.append(f"Dialogue: 3,{ass_time(s)},{ass_time(dur)},Card,,0,0,0,,{{\\pos(540,{CTA_Y})\\fad(200,0)}}{ass_text(b.cta)}")
+            n += 1
+        under = b.link or b.handle
+        if under:
+            lines.append(f"Dialogue: 3,{ass_time(s)},{ass_time(dur)},Cta,,0,0,0,,{{\\pos(540,{LINK_Y})\\fad(200,0)}}{ass_text(under)}")
             n += 1
     return "\n".join(lines) + "\n" if n else None
 
@@ -370,6 +393,7 @@ def render_look(
     voice: int = 0,
     inset: Seg | None = None,
     music: Path | None = None,
+    ending: Seg | None = None,
 ) -> Rendered:
     """One clip in one Look. `parts` are the moment's stretches in order (a hook-first clip has the
     best line, then the body). A grid Look uses `cells` (cell `voice` plays its sound and is
@@ -382,6 +406,11 @@ def render_look(
     if grid:
         parts = [cells[voice]]
     dur = output_duration(opts, parts)
+    # A grid has no last shot of its own: it ends on the clip's hero, full frame (`ending`).
+    tail = ending if grid and ending is not None else None
+    body_dur = dur
+    if tail is not None:
+        dur = round(dur + tail.dur, 3)
     card = bool(opts["end_card"]) and dur >= 4.0
     args: list[str] = []
     chains: list[str] = []
@@ -397,6 +426,7 @@ def render_look(
         return add(["-ss", f"{seg.start:.3f}", "-t", f"{seg.dur:.3f}", "-i", str(seg.path.resolve())])
 
     paper = ff_color(brand.paper)
+    alabel = "ac"
     if grid:
         chains.append(f"color=c={paper}:s={OUT_W}x{OUT_H}:r={FPS}:d={dur:.3f}[g0]")
         geo = cells_of(opts)
@@ -412,6 +442,14 @@ def render_look(
             if j == voice:
                 chains.append(silence(dur, "ac") if mute else f"[{i}:a]aresample=48000,aformat=channel_layouts=stereo,apad,atrim=duration={dur:.3f}[ac]")
         v = last
+        if tail is not None:
+            i = seg_input(tail)
+            chains.append(f"[{v}]trim=duration={body_dur:.3f},setpts=PTS-STARTPTS[gb]")
+            chains.append(f"[ac]atrim=duration={body_dur:.3f},asetpts=PTS-STARTPTS[gba]")
+            chains.append(f"[{i}:v]{crop_to(tail, OUT_W, OUT_H)},fps={FPS},format=yuv420p,setpts=PTS-STARTPTS[gt]")
+            chains.append(silence(tail.dur, "gta") if mute else f"[{i}:a]aresample=48000,aformat=channel_layouts=stereo,asetpts=PTS-STARTPTS[gta]")
+            chains.append("[gb][gba][gt][gta]concat=n=2:v=1:a=1[gv][ac2]")
+            v, alabel = "gv", "ac2"
     else:
         for k, seg in enumerate(parts):
             i = seg_input(seg)
@@ -468,17 +506,12 @@ def render_look(
         chains.append(f"color=c={ff_color(brand.primary)}:s={OUT_W}x12:r={FPS}:d={dur:.3f}[pb]")
         chains.append(f"[{v}][pb]overlay=x='-w+w*t/{dur:.3f}':y=H-h:eof_action=pass[vb]")
         v = "vb"
-    if card:
-        chains.append(f"color=c={paper}:s={OUT_W}x{OUT_H}:r={FPS}:d={dur:.3f}[k0]")
-        k = "k0"
-        if brand.logo:
-            li = add(["-loop", "1", "-framerate", str(FPS), "-t", f"{dur:.3f}", "-i", str(brand.logo.resolve())])
-            chains.append(f"[{li}:v]scale=-2:620:flags=lanczos,format=rgba[logo]")
-            chains.append(f"[k0][logo]overlay=(W-w)/2:360:shortest=1[k1]")
-            k = "k1"
-        st = dur - CARD_SECONDS
-        chains.append(f"[{k}]format=yuva420p,fade=t=in:st={st:.3f}:d=0.35:alpha=1[card]")
-        chains.append(f"[{v}][card]overlay=0:0:enable='gte(t,{st:.3f})':eof_action=pass[vk]")
+    if card and brand.logo:
+        # The studio's own logo, small, above the call to action, over the hero (never a blank card).
+        st = max(0.0, dur - CARD_SECONDS)
+        li = add(["-loop", "1", "-framerate", str(FPS), "-t", f"{dur:.3f}", "-i", str(brand.logo.resolve())])
+        chains.append(f"[{li}:v]scale=-2:200:flags=lanczos,format=rgba,fade=t=in:st={st:.3f}:d=0.3:alpha=1[logo]")
+        chains.append(f"[{v}][logo]overlay=(W-w)/2:{CTA_Y - 330}:enable='gte(t,{st:.3f})':shortest=1[vk]")
         v = "vk"
     # Burned text last, so captions, the hook and the handle sit on top of everything.
     subs = "none"
@@ -490,14 +523,15 @@ def render_look(
         chains.append(f"[{v}]subtitles={name}.ass{fonts}[vs]")
         v = "vs"
         subs = "burned" if opts["captions"] != "none" and words else "hook-only"
-    elif ass is not None:
-        (work / f"{name}.srt").write_text(build_srt(words if opts["captions"] != "none" else [], hook if opts["hook"] != "none" else "", dur), encoding="utf-8")
+    elif ass is not None and (srt := build_srt(words if opts["captions"] != "none" else [], hook if opts["hook"] != "none" else "", dur)).strip():
+        # No libass: soft subtitles, only when there is a line to show (an empty file is not a subtitle track).
+        (work / f"{name}.srt").write_text(srt, encoding="utf-8")
         si = add(["-i", f"{name}.srt"])
         sub_map = ["-map", f"{si}:s", "-c:s", "mov_text"]
         subs = "soft"
     # Audio: her voice, a music bed (her own songs, or the built-in library when the camera sound is
     # off) ducked under it, then -14 LUFS.
-    a = "ac"
+    a = alabel
     music_used = music is not None and music.exists()
     if music_used:
         mi = add(["-stream_loop", "-1", "-i", str(music.resolve())])
@@ -505,7 +539,7 @@ def render_look(
             f"[{mi}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=duration={dur:.3f},volume=0.22,"
             f"afade=t=in:d=0.8,afade=t=out:st={max(0.0, dur - 1.5):.3f}:d=1.5[mb]"
         )
-        chains.append("[ac]asplit=2[vo1][vo2]")
+        chains.append(f"[{a}]asplit=2[vo1][vo2]")
         chains.append("[mb][vo2]sidechaincompress=threshold=0.02:ratio=8:attack=15:release=350[duck]")
         chains.append("[vo1][duck]amix=inputs=2:duration=first:normalize=0[am]")
         a = "am"
