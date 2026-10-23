@@ -255,7 +255,15 @@ describe("Review: voice over for the whole dump, another version with notes, sta
     expect(after.pending_look).toBeNull();
     expect(after.status).toBe("draft");
     expect(after.start_s).not.toBe(clip.start_s);
-    expect(await r2.FILES.head(clip.r2_key)).toBeNull(); // the old file goes once the new one is in
+    // Studio fix: the version it replaced is KEPT to compare (5 → 5b), file and all, until the clip goes.
+    expect(await r2.FILES.head(clip.r2_key)).not.toBeNull();
+    const kept = one<{ version: number; r2_key: string }>("SELECT version, r2_key FROM clip_versions WHERE clip_id = ?", clip.id);
+    expect(kept).toMatchObject({ version: 1, r2_key: clip.r2_key });
+    expect(one<{ version: number; number: number }>("SELECT version, number FROM clips WHERE id = ?", clip.id).version).toBe(2);
+    // Deleting the clip removes every version's file too.
+    expect((await call("DELETE", `/api/clips/${clip.id}`)).status).toBe(200);
+    expect(await r2.FILES.head(clip.r2_key)).toBeNull();
+    expect(await r2.FILES.head(after.r2_key)).toBeNull();
   });
 
   it("Try another version with no notes is the old behaviour: a new look, same moment", async () => {

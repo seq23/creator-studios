@@ -206,6 +206,8 @@ export interface PostRow {
   cover_url: string | null;
   recipe: Recipe;
   door: "new" | "recycle";
+  /** "Oct 22 · Clip 5b" (shared/clipNumber.ts); "" for clips made before numbers. */
+  clip_label?: string;
 }
 
 export interface SettingsShape {

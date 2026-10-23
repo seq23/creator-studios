@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 // The cut job's result is the contract between jobs/cut.py and the Worker. The fixture is a real
 // run of the Python pipeline (jobs/selftest_cut.py --write-fixture), so if either side drifts
 // this file fails.
@@ -98,7 +99,9 @@ describe("cut result guard rails", () => {
   });
 
   it("clamps the score to 0..1 and hides clips under the quality bar", () => {
-    expect(parseCutResult(one({ score: 3 }), ctx()).clips[0]).toMatchObject({ score: 1, hidden: false });
+    // Over 1 is the studio-fix engine's 0..100 scale (stored 0..1): 3 is 3/100, 150 clamps to 1.
+    expect(parseCutResult(one({ score: 3 }), ctx()).clips[0]).toMatchObject({ score: 0.03, hidden: true });
+    expect(parseCutResult(one({ score: 150 }), ctx()).clips[0]).toMatchObject({ score: 1, hidden: false });
     expect(parseCutResult(one({ score: -1 }), ctx()).clips[0]).toMatchObject({ score: 0, hidden: true });
     expect(parseCutResult(one({ score: QUALITY_BAR - 0.01 }), ctx()).clips[0].hidden).toBe(true);
     expect(parseCutResult(one({ score: QUALITY_BAR }), ctx()).clips[0].hidden).toBe(false);
@@ -161,9 +164,13 @@ describe("cut spec rules", () => {
     const ours = [{ platform: "youtube" as const, posted_at: "2026-09-01T00:00:00Z" }];
     expect(allowedPlatformsFor({ original_platform: "instagram", original_posted_at: null }, ours, "recycle", now, 90)).toEqual(["tiktok"]);
   });
-  it("makes 2–3× the weekly need", () => {
-    expect(targetClips(10)).toEqual({ min: 20, max: 30 });
-    expect(targetClips(0)).toEqual({ min: 2, max: 3 });
+  it("sizes the cut to the studio's own clips-per-dump setting, never to the calendar's need", () => {
+    expect(targetClips({ clip_target: { min: 15, max: 30 } })).toEqual({ min: 15, max: 30 });
+    expect(targetClips({ clip_target: { min: 8, max: 15 } })).toEqual({ min: 8, max: 15 });
+    // The old "2–3 per open slot" sizing is gone from the spec builder.
+    const cut = readFileSync("worker/jobs/cut.ts", "utf8");
+    expect(cut).toMatch(/target_clips: steerTarget\(dumpCtl, targetClips\(rules\)\)/);
+    expect(cut).not.toMatch(/targetClips\(need\)/);
   });
 });
 

@@ -1208,7 +1208,17 @@ const FAKE_HOOKS: [string, string][] = [
 const FAKE_TAGS = ["#dayinmylife #realtalk #creator", "#motivation #mindset #womeninbusiness", "#behindthescenes #vlog #storytime", "#tips #lifehacks #smallbusiness"];
 const FAKE_RECIPES: Recipe[] = ["talking_head", "hook_first", "story", "montage"];
 // Fixed spread so every fake dump has a clear best, a middle and at least two under the bar.
-const FAKE_SCORES = [0.92, 0.86, 0.81, 0.74, 0.68, 0.61, 0.55, 0.5, 0.41, 0.33, 0.78, 0.64];
+/** 0..100, as the studio-fix engine scores; two of every twelve under a bar of 70, with their reasons. */
+const FAKE_SCORES = [92, 86, 81, 78, 75, 72, 71, 74, 48, 40, 79, 73];
+const FAKE_REASONS: Record<number, string[]> = { 48: ["ends on a blurry shot"], 40: ["the hook is small and hard to read", "the same shot twice"] };
+const FAKE_TYPES = ["payoff-first before→after", "POV walk-in reveal", "set up with me", "finished walk-through", "photo-moment details", "photo slideshow"];
+
+/** The engine's final caption layout (shared/postText.ts): body, CTA + link, hashtags, then "—" and Made with AI where it applies. */
+export function fakeFinalCaption(body: string, tags: string, rules: StudioRules, i: number, aiMade: boolean): string {
+  const phrase = rules.cta_phrases[i % rules.cta_phrases.length] ?? "";
+  const cta = [phrase, rules.cta_link].filter(Boolean).join(": ");
+  return [body, cta, tags].filter(Boolean).join("\n\n") + (aiMade ? "\n\n—\nMade with AI" : "");
+}
 
 function hashNum(s: string): number {
   let h = 0;
@@ -1231,7 +1241,7 @@ async function fakeRun(env: Env, jobId: string, refId: string | null, options: R
     const muted = spec.camera === "off";
     const start = (spec.avoid_windows[0]?.end ?? 0) + 1;
     return {
-      again: { id, asset_id: spec.assets[0]!.id, start_s: start, end_s: start + 20, recipe: "montage", hook_text: spec.change_request ? "A fresh take" : "Another take", hook_alt: null, caption: "Another version.", hashtags: "#creator", platforms: spec.assets[0]!.allowed_platforms, score: 0.7, r2_key: key, cover_r2_key: cover, look: spec.rotation[0], parts: [[start, start + 20]], layout: null, music: muted ? "library/bright-morning" : null, speech: muted ? 0 : 0.6, muted },
+      again: { id, asset_id: spec.assets[0]!.id, start_s: start, end_s: start + 20, recipe: "montage", hook_text: spec.change_request ? "A fresh take" : "Another take", hook_alt: null, caption: "Another version.", hashtags: "#creator", platforms: spec.assets[0]!.allowed_platforms, score: 76, score_reasons: spec.fixes.length ? spec.fixes.map((f) => `fixed: ${f.replace(/_/g, " ")}`) : ["a fresh moment"], clip_type: "finished walk-through", r2_key: key, cover_r2_key: cover, look: spec.rotation[0], parts: [[start, start + 20]], layout: null, music: muted ? "library/bright-morning" : null, speech: muted ? 0 : 0.6, muted },
     };
   }
   if (ref.clipId) {
@@ -1262,6 +1272,13 @@ async function fakeRun(env: Env, jobId: string, refId: string | null, options: R
     await env.FILES.put(cover, unb64(FAKE_JPG_B64[i % FAKE_JPG_B64.length]), { httpMetadata: { contentType: "image/jpeg" } });
     const [hook, alt] = FAKE_HOOKS[(i + hashNum(spec.dump_id)) % FAKE_HOOKS.length];
     const look = lookForClip(spec.rotation, i);
+    // Photos of the dump join clips as their ending (the hero), as the engine does.
+    const photo = spec.assets.find((a) => a.mime_type.startsWith("image/"));
+    const used = [...new Set([asset.id, ...(photo ? [photo.id] : [])])];
+    const aiImages = used.some((id) => spec.assets.find((a) => a.id === id)?.exif_camera === false);
+    const score = FAKE_SCORES[i % FAKE_SCORES.length];
+    const tags = FAKE_TAGS[i % FAKE_TAGS.length];
+    const body = `${hook}. ${spec.door === "recycle" ? "A favourite, back with a new opening." : "Straight from this week."}`;
     clips.push({
       id,
       asset_id: asset.id,
@@ -1270,10 +1287,16 @@ async function fakeRun(env: Env, jobId: string, refId: string | null, options: R
       recipe,
       hook_text: hook,
       hook_alt: alt,
-      caption: `${hook}. ${spec.door === "recycle" ? "A favourite, back with a new opening." : "Straight from this week."}`,
-      hashtags: FAKE_TAGS[i % FAKE_TAGS.length],
+      caption: fakeFinalCaption(body, tags, spec.studio_rules, i, spec.studio_rules.ai_note === "all" || aiImages),
+      hashtags: tags,
       platforms: asset.allowed_platforms,
-      score: FAKE_SCORES[i % FAKE_SCORES.length],
+      score,
+      score_reasons: FAKE_REASONS[score] ?? ["ends on the finished result, held 2 seconds"],
+      clip_type: FAKE_TYPES[i % FAKE_TYPES.length],
+      hero_asset_id: photo?.id ?? asset.id,
+      files_used: used,
+      uses_ai_images: aiImages,
+      event_group: "event-1",
       r2_key: key,
       cover_r2_key: cover,
       look,
@@ -1291,7 +1314,8 @@ async function fakeRun(env: Env, jobId: string, refId: string | null, options: R
   }
   // A test can ask the fake to "see" a watermark on the first video (the real job reads it by OCR).
   const marks = Array.isArray(options.source_marks) ? (options.source_marks as Omit<SourceMark, "asset_id">[]).map((m) => ({ ...m, asset_id: spec.assets[0]!.id })) : undefined;
-  return { clips, engine: { transcript: "fake", picker: "fake", crop: "fake", subtitles: "fake" }, skipped: spec.skipped_assets.map((s) => ({ asset_id: s.id, reason: s.reason })), ...(marks ? { source_marks: marks } : {}) };
+  const roles = Object.fromEntries(spec.assets.map((a, i) => [a.id, a.mime_type.startsWith("image/") ? "hero" : ["arrival", "prep", "process", "finished"][i % 4]]));
+  return { clips, asset_roles: roles, clip_counts: { distinct: clips.length, by_type: {} }, engine: { transcript: "fake", picker: "fake", crop: "fake", subtitles: "fake" }, skipped: spec.skipped_assets.map((s) => ({ asset_id: s.id, reason: s.reason })), ...(marks ? { source_marks: marks } : {}) };
 }
 
 export const cutJob: JobHandler = { buildSpec, applyResult, onFailure, fakeRun };

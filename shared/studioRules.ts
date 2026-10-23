@@ -10,7 +10,7 @@
 export type AiNote = "all" | "ai_images";
 
 export interface StudioRules {
-  /** Phrases the end card and caption rotate or combine ("Request a quote"). Never empty: a neutral fallback stands in. */
+  /** Phrases the end card and caption rotate or combine ("Book now"). Never empty: a neutral fallback stands in. */
   cta_phrases: string[];
   /** The one link every call to action points at; "" = none set yet (no link in captions). */
   cta_link: string;
@@ -20,7 +20,7 @@ export interface StudioRules {
   clip_target: { min: number; max: number };
   /** The review bar, 0..100: under it a clip is re-cut once, then hidden with its reason. */
   bar: number;
-  /** Local and niche words for captions, on-screen words and voice ("Memphis"). */
+  /** Local and niche words for captions, on-screen words and voice ("Springfield"). */
   place_words: string[];
   /** May a clip say a price at all. */
   prices: boolean;

@@ -29,6 +29,11 @@ describe("layer 5: protect", () => {
     expect(cut).toMatch(/content_rules: contentRules\(env\)/);
     expect((cut.match(/, rules: contentRules\(env\)/g) ?? []).length).toBe(2); // the cut and the re-render imports
     const buf = readFileSync("worker/crons/buffer-sync.ts", "utf8");
-    expect((buf.match(/withAiLabel\(\[[a-z]+\.caption, [a-z]+\.hashtags\][^)]*\)[^,]*, [a-z]+\.ai_voice > 0\)/g) ?? []).length).toBe(2);
+    // Both Buffer paths (first load and retry) build the text through clipPostText, which labels an AI
+    // voice over (and an AI picture, or every clip where the studio says so) after the "—" line.
+    expect((buf.match(/clipPostText\(env, [a-z]+, [a-z]+\.platform\)/g) ?? []).length).toBe(2);
+    expect(buf).not.toMatch(/withAiLabel\(\[/);
+    const lib = readFileSync("worker/lib/postText.ts", "utf8");
+    expect(lib).toMatch(/const aiMade = row\.ai_voice > 0 \|\| rules\.ai_note === "all" \|\| !!row\.uses_ai_images;/);
   });
 });
