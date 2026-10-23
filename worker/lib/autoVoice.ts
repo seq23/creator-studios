@@ -27,6 +27,8 @@ import { kitName, lockedProfile } from "../routes/mediakit";
 import { DEFAULT_FEATURES } from "@shared/constants";
 import type { Features } from "@shared/types";
 import { readSound } from "../routes/settings";
+import { cleanScript } from "@shared/clipWords";
+import { readStudioRules } from "./studioRules";
 
 export const AUTO_BATCH_PREFIX = "auto/";
 
@@ -63,11 +65,21 @@ interface TargetClip {
   /** What the shot sheet says is on screen, and the clip's story shape (null for clips made before). */
   on_screen?: string | null;
   shape?: string | null;
+  /** The clip engine's own script for this clip (jobs/script_clean.py), spoken first when it passes. */
+  voice_script?: string | null;
 }
 
-/** A script for one clip with no talking, in her voice, fitted to the clip. Never empty. */
+/**
+ * A script for one clip with no talking, in her voice, fitted to the clip. Never empty.
+ * The clip engine's voice_script comes first; every script, the engine's or drafted here, passes
+ * jobs/script_rules.json (shared/clipWords.ts cleanScript): reasoning-shaped text is never spoken,
+ * no sentence twice, the call to action once, the caption never read back.
+ */
 export async function draftScript(env: Env, clip: TargetClip): Promise<string> {
   const seconds = clip.end_s - clip.start_s;
+  const ctas = (await readStudioRules(env)).cta_phrases;
+  const own = clip.voice_script ? cleanScript(clip.voice_script, clip.caption, ctas, maxWords(seconds)) : "";
+  if (own.length >= 10) return fitScript(own, seconds);
   const profile = await lockedProfile(env);
   const cta = (profile?.ctas ?? "").split("\n").map((l) => l.replace(/^[\s\-•]+/, "").trim()).find(Boolean) ?? null;
   // Grounded (studio intelligence layer 4): no sentence mentions automation, none claims a finished
@@ -81,7 +93,7 @@ export async function draftScript(env: Env, clip: TargetClip): Promise<string> {
     user: `On-screen hook: ${clip.hook_text}\nCaption: ${clip.caption}${clip.on_screen ? `\nOn screen, in order: ${clip.on_screen}` : ""}`,
     maxTokens: 300,
   });
-  const text = r.ok ? groundScript(r.text.trim().replace(/^["“]|["”]$/g, ""), ground) : "";
+  const text = r.ok ? cleanScript(groundScript(r.text.trim().replace(/^["“]|["”]$/g, ""), ground), clip.caption, ctas, maxWords(seconds)) : "";
   return text.length >= 10 ? fitScript(text, seconds) : starter;
 }
 
@@ -148,7 +160,7 @@ export async function autoVoiceDump(env: Env, dumpId: string): Promise<{ state: 
     return { state: [plans.dump, ...plans.assets.values()].includes("needs_voice") ? "needs_voice" : "off", clips: 0 };
   }
   const { results } = await env.DB.prepare(
-    "SELECT c.id, c.asset_id, c.hook_text, c.caption, c.start_s, c.end_s, c.speech, c.on_screen, c.shape FROM clips c WHERE c.dump_id = ? AND c.status IN ('draft', 'approved') AND NOT EXISTS (SELECT 1 FROM narrations n WHERE n.clip_id = c.id)",
+    "SELECT c.id, c.asset_id, c.hook_text, c.caption, c.start_s, c.end_s, c.speech, c.on_screen, c.shape, c.voice_script FROM clips c WHERE c.dump_id = ? AND c.status IN ('draft', 'approved') AND c.words_pending = 0 AND NOT EXISTS (SELECT 1 FROM narrations n WHERE n.clip_id = c.id)",
   )
     .bind(dumpId)
     .all<TargetClip & { asset_id: string }>();
@@ -169,7 +181,7 @@ export async function autoVoiceDump(env: Env, dumpId: string): Promise<{ state: 
  */
 export async function voiceAllInDump(env: Env, dumpId: string): Promise<{ clips: number; started: boolean }> {
   const { results } = await env.DB.prepare(
-    "SELECT c.id, c.hook_text, c.caption, c.start_s, c.end_s, c.speech, c.on_screen, c.shape FROM clips c WHERE c.dump_id = ? AND c.status IN ('draft', 'approved') AND c.full_video = 0 AND NOT EXISTS (SELECT 1 FROM narrations n WHERE n.clip_id = c.id)",
+    "SELECT c.id, c.hook_text, c.caption, c.start_s, c.end_s, c.speech, c.on_screen, c.shape, c.voice_script FROM clips c WHERE c.dump_id = ? AND c.status IN ('draft', 'approved') AND c.full_video = 0 AND c.words_pending = 0 AND NOT EXISTS (SELECT 1 FROM narrations n WHERE n.clip_id = c.id)",
   )
     .bind(dumpId)
     .all<TargetClip>();

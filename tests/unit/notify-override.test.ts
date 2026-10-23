@@ -11,7 +11,7 @@ import { sqliteD1 } from "./helpers/sqlite-d1";
 
 const OWNER = "owner@owner.example";
 const HOST = "host@host.example";
-const KINDS: EmailKind[] = ["time_to_dump", "clips_ready", "posting_problem", "connection_needs_you", "weekly_recap", "brief_ready", "heads_up"];
+const KINDS: EmailKind[] = ["time_to_dump", "clips_ready", "posting_problem", "connection_needs_you", "weekly_recap", "brief_ready", "heads_up", "niche_note"];
 
 let d: ReturnType<typeof sqliteD1>;
 const env = (over: Partial<Env> = {}) => ({ DB: d.DB, FAKE_SERVICES: "1", OWNER_EMAIL: OWNER, ...over }) as unknown as Env;

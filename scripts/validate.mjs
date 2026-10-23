@@ -41,6 +41,8 @@ export const REGISTER = {
   "routes-mounted": "a route file nothing mounts is code that exists but nothing invokes",
   "sample-clean": "studio brief §6a: a client studio must carry none of the host's identifiers (emails, names, the former business name, Sheila, the host's channel and account ids) in its config or the shipped bundle, and no host key bound as a secret",
   "screens-registered": "every page file must be routed in App.tsx or it is unreachable",
+  // studio fix B
+  "studio-rules-wired": "the owner's rulings (23 Oct 2026): each studio's call to action, Made with AI, clips per dump and review bar must reach every cut and every post; the Oct 22 cut sized clips to the calendar, said Message us instead of the request link, and had no clip rules at all",
   "studio-isolation": "studio brief §6b: studio A's D1 or R2 bound by studio B is one client reading another's footage and keys",
   "studios-generated": "the registry is the one list of studios; a hand-edited wrangler.jsonc deploys a studio with another's config",
   "seed-year-local-only": "the year of demo data must never reach staging or production and must be removable row by row",
@@ -53,6 +55,10 @@ export const REGISTER = {
   "workflow-yaml-plain": "a step name with \": \" in it made golden-set.yml unparseable: a zero-job red run on every push and no workflow_dispatch (23 Oct 2026)",
   "workflows-dispatchable": "every job type must have an Actions workflow listening for its repository_dispatch event",
   "youtube-direct": "full videos go straight to her own YouTube channel (owner, 26 Sep 2026): a refresh token in a public repo's job, a deleted video, an upload past YouTube's daily allowance, a Calendar move YouTube never hears about, or a failure shape nobody tested is a video she loses or a light that lies",
+  // studio fix A
+  "studio-engine-contract": "the Oct 22 cut read a model's thinking aloud, tiled one picture into a grid, ended every clip on a near-blank card and scored a shape bonus (owner, 23 Oct 2026): each fix and every contract field must stay wired into the clip engine",
+  // studio fix A+B
+  "studio-fix-ab": "the clip engine and the Worker were built apart (23 Oct 2026): a 0..100 score stored as 0..1, a words-pending clip dropped for having no hook, an own-shot grid thrown away, a re-render with no hero ending or link; both sides must read one list and every cross-dependency must stay wired",
 };
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");

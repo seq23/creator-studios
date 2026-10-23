@@ -38,10 +38,12 @@ interface CellOptions {
   zooms: number[];
 }
 
-type CellSource = { kind: "self" } | { kind: "clip"; clip_id: string } | { kind: "zoom"; zoom: number };
+type CellSource = { kind: "self" } | { kind: "clip"; clip_id: string } | { kind: "zoom"; zoom: number } | { kind: "part"; asset_id: string; start: number; end: number };
 interface GridLayout {
   cells: CellSource[];
   voice: number;
+  /** The hero the grid ends on (the clip engine's); kept when she changes the cells. */
+  ending?: { asset_id: string; start: number; end: number } | null;
 }
 
 const FRAME_W = 1080;
@@ -135,11 +137,12 @@ function CellPicker({ clip, look, busy, onBack, onClose, onConfirm }: { clip: Re
     return m;
   }, [options.data]);
   const cells = look.cells ?? [];
-  const hasSelf = current?.cells.some((c) => c.kind === "self") ?? false;
+  const hasSelf = current?.cells.some((c) => c.kind === "self" || c.kind === "part") ?? false;
 
   function describe(src: CellSource): { label: string; cover: string | null; zoom: number } {
     if (src.kind === "self") return { label: "This clip", cover: clip.cover_url, zoom: 1 };
     if (src.kind === "zoom") return { label: `This clip, closer (${src.zoom}×)`, cover: clip.cover_url, zoom: src.zoom };
+    if (src.kind === "part") return { label: `One of this clip's shots (${Math.round(src.start)}–${Math.round(src.end)} s)`, cover: clip.cover_url, zoom: 1 };
     const o = byId.get(src.clip_id);
     return { label: o ? `“${o.hook_text}”` : "Another clip", cover: o?.cover_url ?? null, zoom: 1 };
   }

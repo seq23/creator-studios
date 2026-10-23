@@ -206,6 +206,8 @@ export interface PostRow {
   cover_url: string | null;
   recipe: Recipe;
   door: "new" | "recycle";
+  /** "Oct 22 · Clip 5b" (shared/clipNumber.ts); "" for clips made before numbers. */
+  clip_label?: string;
 }
 
 export interface SettingsShape {
@@ -340,7 +342,7 @@ export interface HelpGuideMeta {
 
 export interface JobRow {
   id: string;
-  type: "cut" | "extract" | "research" | "brand_finder" | "voice" | "help_screenshots" | "metrics" | "fullvideo" | "ytupload" | "photopack";
+  type: "cut" | "extract" | "research" | "brand_finder" | "voice" | "help_screenshots" | "metrics" | "fullvideo" | "ytupload" | "photopack" | "niche";
   status: "queued" | "dispatched" | "running" | "done" | "failed";
   ref_id: string | null;
   safe_error: string | null;

@@ -1,6 +1,7 @@
 // Calendar + scheduling (section 10). The dashboard holds the whole calendar; the hourly
 // Buffer sync (crons/buffer-sync.ts) hands Buffer only the next 7 days. Every rule that
 // decides something lives in domain/slotting.ts and domain/sync.ts; this file gathers rows.
+import { clipLabel, parseClipSearch } from "@shared/clipNumber";
 import { POSTABLE_CLIP_SQL } from "../domain/sourceCheck";
 import { reconcileClip } from "../lib/youtubeDirect";
 import { Hono } from "hono";
@@ -26,7 +27,12 @@ const MAX_PLAN_WEEKS = 12;
 
 const ACTIVE_SQL = `(${ACTIVE_STATUSES.map((s) => `'${s}'`).join(",")})`;
 
-export type PoolClip = Pick<ClipRow, "id" | "hook_text" | "cover_url" | "recipe" | "door" | "platforms" | "score">;
+export type PoolClip = Pick<ClipRow, "id" | "hook_text" | "cover_url" | "recipe" | "door" | "platforms" | "score"> & { clip_label: string };
+
+/** "Oct 22 · Clip 5b" for a row carrying number, version and its dump's created_at (shared/clipNumber.ts). */
+const labelOf = (env: Env, r: { number?: number | null; version?: number | null; dump_created_at?: string | null }) => clipLabel(r.dump_created_at ?? "", r.number ?? null, r.version ?? 1, env.AUDIENCE_TIMEZONE);
+const NUM_COLS = "c.number, c.version, d.created_at AS dump_created_at";
+type Num = { number: number | null; version: number | null; dump_created_at: string | null };
 
 function coverUrl(token: string | null, coverKey: string | null): string | null {
   return token && coverKey ? `/media/${token}?cover=1` : null;
@@ -119,14 +125,14 @@ posts.get("/", async (c) => {
   if (Date.parse(to) - Date.parse(from) > 62 * 86400_000) return fail(c, 400, "Show at most two months at a time.");
   const { results } = await c.env.DB.prepare(
     `SELECT p.id, p.clip_id, p.platform, p.scheduled_at, p.status, p.url, p.error,
-       c.hook_text, c.recipe, c.media_token, c.cover_r2_key, d.door
+       c.hook_text, c.recipe, c.media_token, c.cover_r2_key, d.door, ${NUM_COLS}
      FROM posts p JOIN clips c ON c.id = p.clip_id JOIN dumps d ON d.id = c.dump_id
      WHERE p.scheduled_at >= ? AND p.scheduled_at < ? AND p.status != 'unscheduled'
      ORDER BY p.scheduled_at, p.platform`,
   )
     .bind(new Date(from).toISOString(), new Date(to).toISOString())
-    .all<Omit<PostRow, "cover_url"> & { media_token: string | null; cover_r2_key: string | null }>();
-  const out: PostRow[] = results.map(({ media_token, cover_r2_key, ...r }) => ({ ...r, cover_url: coverUrl(media_token, cover_r2_key) }));
+    .all<Omit<PostRow, "cover_url"> & { media_token: string | null; cover_r2_key: string | null } & Num>();
+  const out: PostRow[] = results.map(({ media_token, cover_r2_key, number, version, dump_created_at, ...r }) => ({ ...r, cover_url: coverUrl(media_token, cover_r2_key), clip_label: labelOf(c.env, { number, version, dump_created_at }) }));
   return c.json(out);
 });
 
@@ -155,25 +161,29 @@ posts.get("/history", async (c) => {
     where.push("p.platform = ?");
     binds.push(platform);
   }
-  if (q) {
+  const num = q ? parseClipSearch(q) : null;
+  if (num) {
+    where.push(num.version ? "(c.number = ? AND c.version = ?)" : "c.number = ?");
+    binds.push(num.n, ...(num.version ? [num.version] : []));
+  } else if (q) {
     where.push("c.hook_text LIKE ?");
     binds.push(`%${q}%`);
   }
   const w = where.join(" AND ");
   const { results } = await c.env.DB.prepare(
-    `SELECT p.id, p.clip_id, p.platform, p.scheduled_at, p.status, p.url, p.error, p.posted_at, c.hook_text, c.recipe, c.media_token, c.cover_r2_key, c.file_deleted_at, d.door
+    `SELECT p.id, p.clip_id, p.platform, p.scheduled_at, p.status, p.url, p.error, p.posted_at, c.hook_text, c.recipe, c.media_token, c.cover_r2_key, c.file_deleted_at, d.door, ${NUM_COLS}
      FROM posts p JOIN clips c ON c.id = p.clip_id JOIN dumps d ON d.id = c.dump_id WHERE ${w} ORDER BY p.scheduled_at DESC LIMIT ? OFFSET ?`,
   )
     .bind(...binds, limit, offset)
-    .all<Omit<PostRow, "cover_url"> & { media_token: string | null; cover_r2_key: string | null; file_deleted_at: string | null; posted_at: string | null }>();
-  const total = (await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM posts p JOIN clips c ON c.id = p.clip_id WHERE ${w}`).bind(...binds).first<{ n: number }>())?.n ?? 0;
+    .all<Omit<PostRow, "cover_url"> & { media_token: string | null; cover_r2_key: string | null; file_deleted_at: string | null; posted_at: string | null } & Num>();
+  const total = (await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM posts p JOIN clips c ON c.id = p.clip_id JOIN dumps d ON d.id = c.dump_id WHERE ${w}`).bind(...binds).first<{ n: number }>())?.n ?? 0;
   const counts = await c.env.DB.prepare(
     "SELECT SUM(CASE WHEN status = 'posted' THEN 1 ELSE 0 END) AS posted, SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed, SUM(CASE WHEN status = 'unscheduled' AND scheduled_at < ? THEN 1 ELSE 0 END) AS unscheduled FROM posts",
   )
     .bind(now)
     .first<{ posted: number | null; failed: number | null; unscheduled: number | null }>();
   return c.json({
-    items: results.map(({ media_token, cover_r2_key, file_deleted_at, ...r }) => ({ ...r, cover_url: media_token ? coverUrl(media_token, cover_r2_key) : cover_r2_key ? `/api/clips/${r.clip_id}/cover` : null, file_cleared: !!file_deleted_at })),
+    items: results.map(({ media_token, cover_r2_key, file_deleted_at, number, version, dump_created_at, ...r }) => ({ ...r, clip_label: labelOf(c.env, { number, version, dump_created_at }), cover_url: media_token ? coverUrl(media_token, cover_r2_key) : cover_r2_key ? `/api/clips/${r.clip_id}/cover` : null, file_cleared: !!file_deleted_at })),
     total,
     limit,
     offset,
@@ -184,12 +194,12 @@ posts.get("/history", async (c) => {
 /** Approved clips that are not on the calendar (the "Approved, not scheduled" column). */
 posts.get("/pool", async (c) => {
   const { results } = await c.env.DB.prepare(
-    `SELECT c.id, c.hook_text, c.recipe, c.platforms, c.score, c.media_token, c.cover_r2_key, d.door
+    `SELECT c.id, c.hook_text, c.recipe, c.platforms, c.score, c.media_token, c.cover_r2_key, d.door, ${NUM_COLS}
      FROM clips c JOIN dumps d ON d.id = c.dump_id
      WHERE ${POSTABLE_CLIP_SQL} AND NOT EXISTS (SELECT 1 FROM posts p WHERE p.clip_id = c.id AND p.status IN ${ACTIVE_SQL})
      ORDER BY c.score DESC LIMIT 500`,
-  ).all<{ id: string; hook_text: string; recipe: ClipRow["recipe"]; platforms: string; score: number; media_token: string | null; cover_r2_key: string | null; door: "new" | "recycle" }>();
-  const out: PoolClip[] = results.map((r) => ({ id: r.id, hook_text: r.hook_text, recipe: r.recipe, door: r.door, score: r.score, platforms: parseJson<Platform[]>(r.platforms, [...PLATFORMS]), cover_url: coverUrl(r.media_token, r.cover_r2_key) }));
+  ).all<{ id: string; hook_text: string; recipe: ClipRow["recipe"]; platforms: string; score: number; media_token: string | null; cover_r2_key: string | null; door: "new" | "recycle" } & Num>();
+  const out: PoolClip[] = results.map((r) => ({ id: r.id, hook_text: r.hook_text, recipe: r.recipe, door: r.door, score: r.score, platforms: parseJson<Platform[]>(r.platforms, [...PLATFORMS]), cover_url: coverUrl(r.media_token, r.cover_r2_key), clip_label: labelOf(c.env, r) }));
   return c.json(out);
 });
 

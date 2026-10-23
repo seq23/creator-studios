@@ -1,0 +1,73 @@
+/* What I dumped (studio fix): the summary first, then one list; phone first, 44 px targets. */
+.files-summary {
+  margin: 0 0 var(--space-sm);
+  color: var(--text);
+}
+.files-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-xs);
+}
+.file-row {
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  gap: var(--space-xs);
+  padding: var(--space-xs);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.file-thumb {
+  position: relative;
+  width: 112px;
+  height: 140px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--ink);
+  cursor: pointer;
+}
+.file-thumb img,
+.file-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.file-tap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: var(--space-3xs);
+  font-size: var(--text-sm);
+  color: var(--paper);
+  background: var(--scrim);
+}
+.file-gone {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--paper);
+}
+.file-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.file-role,
+.file-used {
+  margin-top: var(--space-3xs);
+}
+.file-used a {
+  display: inline-block;
+  min-height: var(--touch);
+  line-height: var(--touch);
+}
+.file-full {
+  width: 100%;
+  max-height: 75vh;
+  object-fit: contain;
+}

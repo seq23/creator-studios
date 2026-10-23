@@ -16,6 +16,7 @@ import { metricsJob } from "./metrics";
 import { fullVideoJob } from "./fullvideo";
 import { ytUploadJob } from "./ytupload";
 import { photoPackJob } from "./photopack";
+import { nicheJob } from "./niche";
 
 export interface JobHandler {
   buildSpec(env: Env, jobId: string, refId: string | null): Promise<unknown>;
@@ -36,4 +37,5 @@ export const JOB_HANDLERS: Record<JobType, JobHandler> = {
   fullvideo: fullVideoJob,
   ytupload: ytUploadJob,
   photopack: photoPackJob,
+  niche: nicheJob,
 };

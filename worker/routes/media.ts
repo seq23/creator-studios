@@ -11,7 +11,7 @@ export const media = new Hono<{ Bindings: Env; Variables: Vars }>();
 export const SOURCE_LINK_HOURS = 6;
 
 /** Stream an R2 object with Range support (players seek; editors download in pieces). */
-async function stream(c: { req: { header: (n: string) => string | undefined; raw: Request }; text: (t: string, s: 404) => Response }, files: R2Bucket, key: string, fallbackType: string, disposition?: string): Promise<Response> {
+export async function stream(c: { req: { header: (n: string) => string | undefined; raw: Request }; text: (t: string, s: 404) => Response }, files: R2Bucket, key: string, fallbackType: string, disposition?: string): Promise<Response> {
   const range = c.req.header("range");
   const obj = await files.get(key, range ? { range: c.req.raw.headers } : undefined);
   if (!obj) return c.text("Not found", 404);

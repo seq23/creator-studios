@@ -13,11 +13,13 @@ import { bufferSync } from "./buffer-sync";
 import { dailyMaintenance } from "./daily";
 import { weekly } from "./weekly";
 import { briefDraftNotice, monthlyBriefRefresh, weeklyBriefAdjust } from "./brief";
+import { monthlyNicheRefresh } from "../lib/niche";
 import { pollEditorJobs } from "../lib/editorJobs";
 import { dailyBrandRefresh } from "./deals";
 import { refreshPublicStats } from "../lib/publicStats";
 import { youtubeDirectSync } from "../lib/youtubeDirect";
 import { photoPostsTick, photoStopLights } from "../lib/photoPosts";
+import { wordsPass } from "../lib/wordsPass";
 
 /**
  * The "Last <lane> run" note: "OK · Wed, Oct 7, 1:00 PM" in her audience time zone, the same parts
@@ -47,12 +49,16 @@ export async function runCron(env: Env, cron: string): Promise<void> {
       await photoPostsTick(env);
       await photoStopLights(env);
       await briefDraftNotice(env);
+      // Studio fix: clips that came back with no words of their own get them (worker/lib/wordsPass.ts).
+      await wordsPass(env).catch(() => log.warn("cron.words_failed"));
       // Connected editors (docs/EDITORS.md): the screens ask while they are open; this catches the rest.
       const e = await pollEditorJobs(env);
       if (e.polled) log.info("cron.editors", e);
     } else if (lane === "daily") {
       await dailyMaintenance(env);
       await monthlyBriefRefresh(env);
+      // Studio fix: what converts in this studio's niche, researched monthly (worker/lib/niche.ts).
+      await monthlyNicheRefresh(env).catch(() => log.warn("cron.niche_failed"));
       // No-login stats, daily: YouTube's public numbers; Instagram's at most once a day.
       await refreshPublicStats(env);
       await dailyBrandRefresh(env);

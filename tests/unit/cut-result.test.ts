@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 // The cut job's result is the contract between jobs/cut.py and the Worker. The fixture is a real
 // run of the Python pipeline (jobs/selftest_cut.py --write-fixture), so if either side drifts
 // this file fails.
@@ -6,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { allowedPlatformsFor, CutResultError, MAX_CLIPS_PER_DUMP, MAX_PARTS, normalizeHashtags, parseCutResult, plainFailure, targetClips, type CutResultClip } from "@worker/jobs/cut";
 import { PLATFORMS, QUALITY_BAR, type Platform } from "@shared/constants";
 import { cellCount, isGridLook } from "@worker/domain/looks";
+import { CLIP_TYPE_IDS } from "@shared/clipWords";
 
 const fixture = fixtureJson as unknown as {
   dump_id: string;
@@ -26,11 +28,29 @@ function one(over: Partial<CutResultClip>): { clips: CutResultClip[] } {
 }
 
 describe("cut result from the real pipeline", () => {
-  it("the fixture is a real multi-recipe run with every engine stage reported", () => {
-    expect(fixture.result.clips.length).toBeGreaterThanOrEqual(4);
-    expect(new Set(fixture.result.clips.map((c) => c.recipe)).size).toBeGreaterThanOrEqual(3);
+  // Studio fix A+B (23 Oct 2026): the engine now makes DISTINCT cuts only (the Oct 22 cut gave the
+  // same cut in several looks), so this one-video dump yields fewer clips than before, each typed,
+  // scored 0..100 with its reasons, and ending on its hero. The pins below are that new truth.
+  it("the fixture is a real studio-fix run: distinct typed clips, 0..100 scores with reasons, every engine stage reported", () => {
+    const clips = fixture.result.clips as (CutResultClip & { voice_script?: string | null })[];
+    expect(clips.length).toBeGreaterThanOrEqual(2);
+    for (const c of clips) {
+      expect(CLIP_TYPE_IDS as readonly string[], c.id).toContain(c.clip_type);
+      expect(Number.isInteger(c.score) && c.score >= 0 && c.score <= 100, `${c.id} score ${c.score}`).toBe(true);
+      expect((c.score_reasons ?? []).length, c.id).toBeGreaterThan(0);
+      expect(c.hero_asset_id, c.id).toBe(fixture.assets[0].id);
+      expect(c.words_pending, c.id).toBe(false);
+      // The caption is final: body, blank line, CTA line, blank line, the hashtags (no AI picture here, so no note).
+      expect(c.caption, c.id).toMatch(/\S\n\n\S[^\n]*\n\n#\S/);
+      expect(c.caption).not.toMatch(/Made with AI/);
+    }
+    // No two clips are the same cut.
+    expect(new Set(clips.map((c) => JSON.stringify(c.parts))).size).toBe(clips.length);
     for (const k of ["transcript", "picker", "crop", "subtitles"]) expect(fixture.result.engine[k], k).toBeTruthy();
     expect(fixture.result.assets[0].duration_s).toBeGreaterThan(50);
+    const r = fixture.result as unknown as { asset_roles: Record<string, string>; clip_counts: { distinct: number } };
+    expect(["arrival", "prep", "team", "process", "finished", "detail", "hero"]).toContain(r.asset_roles[fixture.assets[0].id]);
+    expect(r.clip_counts.distinct).toBe(clips.length);
   });
 
   it("every clip comes back in a Look, with its parts; the dump's clips use several Looks", () => {
@@ -97,12 +117,36 @@ describe("cut result guard rails", () => {
     expect(parseCutResult(one({ platforms: ["tiktok"] }), ctx(["instagram"])).dropped).toBe(1);
   });
 
-  it("clamps the score to 0..1 and hides clips under the quality bar", () => {
-    expect(parseCutResult(one({ score: 3 }), ctx()).clips[0]).toMatchObject({ score: 1, hidden: false });
+  it("stores every score as an integer 0..100 and hides clips under the quality bar", () => {
+    // The studio-fix engine scores 0..100 (it sends a clip type and reasons): stored as it is, clamped, whole.
+    expect(parseCutResult(one({ score: 3 }), ctx()).clips[0]).toMatchObject({ score: 3, hidden: true });
+    expect(parseCutResult(one({ score: 150 }), ctx()).clips[0]).toMatchObject({ score: 100, hidden: false });
     expect(parseCutResult(one({ score: -1 }), ctx()).clips[0]).toMatchObject({ score: 0, hidden: true });
-    expect(parseCutResult(one({ score: QUALITY_BAR - 0.01 }), ctx()).clips[0].hidden).toBe(true);
+    expect(parseCutResult(one({ score: 72.6 }), ctx()).clips[0].score).toBe(73);
+    expect(parseCutResult(one({ score: QUALITY_BAR - 1 }), ctx()).clips[0].hidden).toBe(true);
     expect(parseCutResult(one({ score: QUALITY_BAR }), ctx()).clips[0].hidden).toBe(false);
+    // The studio's own bar wins for the engine's results.
+    expect(parseCutResult(one({ score: 69 }), { ...ctx(), bar: 70 }).clips[0].hidden).toBe(true);
+    expect(parseCutResult(one({ score: 70 }), { ...ctx(), bar: 70 }).clips[0].hidden).toBe(false);
+    // An older engine's 0..1 score (no clip type, no reasons) lands on the same 0..100 scale.
+    const old = { clip_type: undefined, score_reasons: undefined };
+    expect(parseCutResult(one({ ...old, score: 0.752 }), ctx()).clips[0]).toMatchObject({ score: 75, hidden: false });
+    expect(parseCutResult(one({ ...old, score: 0.44 }), ctx()).clips[0]).toMatchObject({ score: 44, hidden: true });
     expect(parseCutResult(one({ score: Number.NaN }), ctx()).dropped).toBe(1);
+    // An editor's finished cut was never scored here: the bar never hides it.
+    expect(parseCutResult(one({ clip_type: "imported", score: 50 }), { ...ctx(), bar: 70 }).clips[0]).toMatchObject({ score: 50, hidden: false, hidden_reason: null });
+  });
+
+  it("keeps a words-pending clip that has no hook yet (the words pass writes it); an empty hook otherwise is dropped", () => {
+    const r = parseCutResult(one({ hook_text: "", caption: "", words_pending: true, voice_script: "1. **Analyze the Request:** * **Format:** short" } as Partial<CutResultClip>), ctx());
+    expect(r.dropped).toBe(0);
+    expect(r.clips[0]).toMatchObject({ hook_text: "", caption: "", words_pending: true, voice_script: null });
+    expect(parseCutResult(one({ hook_text: "", words_pending: false }), ctx()).dropped).toBe(1);
+  });
+
+  it("stores the engine's voice script only when it is fit to speak (the Oct 22 failure string is rejected)", () => {
+    expect(parseCutResult(one({ voice_script: "Watch the room come together. Book your date." } as Partial<CutResultClip>), ctx()).clips[0].voice_script).toBe("Watch the room come together. Book your date.");
+    expect(parseCutResult(one({ voice_script: "1. **Analyze the Request:** * **Format:** a voice over" } as Partial<CutResultClip>), ctx()).clips[0].voice_script).toBeNull();
   });
 
   it("normalizes hashtags from a list or a string, deduped, max 15", () => {
@@ -141,9 +185,9 @@ describe("studio intelligence fields (shot sheet, plan, critic)", () => {
     expect(MAX_PARTS).toBe(8);
   });
   it("a clip the critic hid stays hidden whatever its score, with the reason in plain words", () => {
-    const r = parseCutResult(one({ score: 0.95, hidden_reason: "the words did not match the picture" }), ctx());
-    expect(r.clips[0]).toMatchObject({ hidden: true, hidden_reason: "the words did not match the picture" });
-    expect(parseCutResult(one({ score: 0.95 }), ctx()).clips[0]!.hidden).toBe(false);
+    const r = parseCutResult(one({ score: 95, hidden_reason: "the words did not match the picture" }), ctx());
+    expect(r.clips[0]).toMatchObject({ score: 95, hidden: true, hidden_reason: "the words did not match the picture" });
+    expect(parseCutResult(one({ score: 95 }), ctx()).clips[0]!).toMatchObject({ score: 95, hidden: false });
   });
 });
 
@@ -161,9 +205,13 @@ describe("cut spec rules", () => {
     const ours = [{ platform: "youtube" as const, posted_at: "2026-09-01T00:00:00Z" }];
     expect(allowedPlatformsFor({ original_platform: "instagram", original_posted_at: null }, ours, "recycle", now, 90)).toEqual(["tiktok"]);
   });
-  it("makes 2–3× the weekly need", () => {
-    expect(targetClips(10)).toEqual({ min: 20, max: 30 });
-    expect(targetClips(0)).toEqual({ min: 2, max: 3 });
+  it("sizes the cut to the studio's own clips-per-dump setting, never to the calendar's need", () => {
+    expect(targetClips({ clip_target: { min: 15, max: 30 } })).toEqual({ min: 15, max: 30 });
+    expect(targetClips({ clip_target: { min: 8, max: 15 } })).toEqual({ min: 8, max: 15 });
+    // The old "2–3 per open slot" sizing is gone from the spec builder.
+    const cut = readFileSync("worker/jobs/cut.ts", "utf8");
+    expect(cut).toMatch(/target_clips: steerTarget\(dumpCtl, targetClips\(rules\)\)/);
+    expect(cut).not.toMatch(/targetClips\(need\)/);
   });
 });
 

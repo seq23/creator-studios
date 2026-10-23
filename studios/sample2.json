@@ -14,5 +14,18 @@
   },
   "r2": {
     "bucket": "creator-studios-sample2-files"
+  },
+  "studioRules": {
+    "_why": "Studio fix defaults, 23 Oct 2026 (shared/studioRules.ts): no call to action of its own yet (the neutral fallback stands in until she sets one in Settings > Your clips), Made with AI only on clips that use an AI picture, 8 to 15 distinct clips per dump, review bar 70, no prices.",
+    "cta_phrases": [],
+    "cta_link": "",
+    "ai_note": "ai_images",
+    "clip_target": {
+      "min": 8,
+      "max": 15
+    },
+    "bar": 70,
+    "place_words": [],
+    "prices": false
   }
 }

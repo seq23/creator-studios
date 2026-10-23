@@ -37,7 +37,8 @@ export function jobStorageScope(type: JobRow["type"], jobId: string, refId: stri
           // An import reads only her uploaded edit for that clip (a connected editor's files come by their own links).
           if (clipId) scope.read.push(`edits/${clipId}/`);
         } else {
-          scope.read.push(clipId ? "raw/" : `raw/${dumpId}/`, "music/");
+          // brand/logo/: the studio's end-card logo (shared/studioRules.ts logo_r2_key).
+          scope.read.push(clipId ? "raw/" : `raw/${dumpId}/`, "music/", "brand/logo/");
           if (clipId) scope.read.push("clips/");
         }
         scope.write.push(`clips/${dumpId}/`);

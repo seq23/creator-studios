@@ -206,13 +206,30 @@ export function lookDistribution(looks: readonly (string | null)[]): Record<stri
 
 // ---------------------------------------------------------------- grid cells
 
-/** One cell's source. `moment` = another clip's moment (by clip id), `zoom` = the voice clip's own moment, closer. */
-export type CellSource = { kind: "clip"; clip_id: string } | { kind: "zoom"; zoom: number } | { kind: "self" };
+/**
+ * One cell's source. `clip` = another clip's moment (by clip id), `zoom` = the voice clip's own
+ * moment, closer, `self` = the clip's own moment, `part` = one of the clip's OWN different shots
+ * (the clip engine's grids, studio fix: a grid only from as many different shots as cells).
+ */
+export type CellSource =
+  | { kind: "clip"; clip_id: string }
+  | { kind: "zoom"; zoom: number }
+  | { kind: "self" }
+  | { kind: "part"; asset_id: string; start: number; end: number };
+
+/** A stretch of one of the dump's files (the hero a grid ends on, full frame). */
+export interface GridEnding {
+  asset_id: string;
+  start: number;
+  end: number;
+}
 
 export interface GridLayout {
   cells: CellSource[];
   /** Which cell's sound plays; its words are the captions. */
   voice: number;
+  /** The hero the grid ends on, full frame, held (the clip engine's layout.ending); re-renders send it. */
+  ending?: GridEnding | null;
 }
 
 /** The cell with the clearest speech (highest score) is the voice; ties go to the first. */
@@ -224,15 +241,29 @@ export function pickVoiceCell(speech: readonly number[]): number {
 
 export const ZOOMS = [1.35, 1.7, 2.1] as const;
 
+const ASSET_ID = /^[A-Za-z0-9_]{3,60}$/;
+
+/** A stretch of a file of this dump: a known asset id shape (and one of `allowed`, when given), 0 <= start < end, at most 10 minutes. */
+function cleanStretch(v: unknown, allowed?: { has(id: string): boolean }): GridEnding | null {
+  const x = (v ?? {}) as { asset_id?: unknown; start?: unknown; end?: unknown };
+  const start = Number(x.start);
+  const end = Number(x.end);
+  if (typeof x.asset_id !== "string" || !ASSET_ID.test(x.asset_id) || (allowed && !allowed.has(x.asset_id))) return null;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start || end - start > 600) return null;
+  return { asset_id: x.asset_id, start: Math.round(start * 100) / 100, end: Math.round(end * 100) / 100 };
+}
+
 /**
- * Her cell picks from Review, made safe for a grid Look: exactly the grid's number of cells,
- * each a known kind (a clip id shape, a zoom from ZOOMS), the voice inside the grid. The clip's
- * own moment ("self") must stay in at least one cell. null = refuse with a plain sentence.
+ * Her cell picks from Review, or the clip engine's grid, made safe for a grid Look: exactly the
+ * grid's number of cells, each a known kind (a clip id shape, a zoom from ZOOMS, one of the clip's
+ * own shots), the voice inside the grid. The clip's own moment ("self", or its own shots as
+ * "part" cells) must stay in at least one cell. `ending` (the hero) is kept when it is a stretch of
+ * one of the dump's files. null = refuse with a plain sentence.
  */
-export function cleanGridLayout(lookId: LookId, input: unknown): GridLayout | null {
+export function cleanGridLayout(lookId: LookId, input: unknown, allowed?: { has(id: string): boolean }): GridLayout | null {
   const n = cellCount(lookId);
   if (!isGridLook(lookId)) return null;
-  const v = (input ?? {}) as { cells?: unknown; voice?: unknown };
+  const v = (input ?? {}) as { cells?: unknown; voice?: unknown; ending?: unknown };
   if (!Array.isArray(v.cells) || v.cells.length !== n) return null;
   const cells: CellSource[] = [];
   for (const raw of v.cells as unknown[]) {
@@ -240,12 +271,18 @@ export function cleanGridLayout(lookId: LookId, input: unknown): GridLayout | nu
     if (c.kind === "self") cells.push({ kind: "self" });
     else if (c.kind === "clip" && typeof c.clip_id === "string" && /^clp_[a-z0-9]{8,32}$/.test(c.clip_id)) cells.push({ kind: "clip", clip_id: c.clip_id });
     else if (c.kind === "zoom" && typeof c.zoom === "number" && (ZOOMS as readonly number[]).includes(c.zoom)) cells.push({ kind: "zoom", zoom: c.zoom });
-    else return null;
+    else if (c.kind === "part") {
+      const st = cleanStretch(raw, allowed);
+      if (!st) return null;
+      cells.push({ kind: "part", ...st });
+    } else return null;
   }
-  if (!cells.some((c) => c.kind === "self")) return null;
+  if (!cells.some((c) => c.kind === "self" || c.kind === "part")) return null;
   const voice = Number(v.voice);
   if (!Number.isInteger(voice) || voice < 0 || voice >= n) return null;
-  return { cells, voice };
+  const ending = v.ending == null ? null : cleanStretch(v.ending, allowed);
+  if (v.ending != null && !ending) return null;
+  return ending ? { cells, voice, ending } : { cells, voice };
 }
 
 /** A default grid for a clip: itself first, then the other clips given, then closer zooms. */
@@ -295,6 +332,8 @@ export interface Branding {
   font: string | null;
   handle: string | null;
   cta: string | null;
+  /** The studio's own logo for end cards (studio_rules.logo_r2_key); the engine puts it on only when given. */
+  logo_r2_key?: string | null;
 }
 
 /** Fonts the cut job can fetch for captions (jobs/looks.py FONT_URLS). */

@@ -84,5 +84,27 @@
     ]
   },
   "aiBudget": 3500,
-  "_aiBudget": "Neurons a day of the Cloudflare account's free 10,000 (owner, 23 Oct 2026: \"use the cloudflare free allowance too\"). The four shares sum to 8,500, leaving headroom; past 10,000 the account is billed, so worker/lib/freeAi.ts refuses any call this share cannot cover."
+  "_aiBudget": "Neurons a day of the Cloudflare account's free 10,000 (owner, 23 Oct 2026: \"use the cloudflare free allowance too\"). The four shares sum to 8,500, leaving headroom; past 10,000 the account is billed, so worker/lib/freeAi.ts refuses any call this share cannot cover.",
+  "studioRules": {
+    "_why": "Owner's rulings 23 Oct 2026 (studio fix): the call to action rotates these phrases and points at the one universal request form, on the end card and in the caption; every clip says Made with AI; 15 to 30 distinct clips per dump; the review bar is 70; local words; no prices. Settings > Your clips changes them (shared/studioRules.ts).",
+    "cta_phrases": [
+      "Book your date",
+      "Request a quote",
+      "Get in touch with us"
+    ],
+    "cta_link": "https://porchandparty901.com/request",
+    "ai_note": "all",
+    "clip_target": {
+      "min": 15,
+      "max": 30
+    },
+    "bar": 70,
+    "place_words": [
+      "Memphis",
+      "Germantown",
+      "Collierville",
+      "Bartlett"
+    ],
+    "prices": false
+  }
 }

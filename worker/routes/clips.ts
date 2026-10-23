@@ -19,6 +19,7 @@
 // Nothing reaches the Calendar without approval (worker/domain/approval.ts decides every move).
 // Every decision is an event, so the learning loop reads one table.
 import { cleanLooksLike, type LooksLike } from "@shared/looksLike";
+import { clipTypeLabel } from "@shared/clipWords";
 import { Hono, type Context } from "hono";
 import type { Env, Vars } from "../env";
 import { requireUser } from "../lib/auth";
@@ -39,6 +40,11 @@ import { editingNote, pollEditorJobs, startHandback } from "../lib/editorJobs";
 import { probeR2 } from "../lib/mp4";
 import { clipFileAction, FILES } from "../domain/tidy";
 import { libraryTrack } from "@shared/sound";
+import { clipCode, clipLabel, parseClipSearch } from "@shared/clipNumber";
+import { cleanFixes, fixWords, type FixKey } from "@shared/fixes";
+import { listVersions, restoreVersion, versionFiles } from "../lib/clipVersions";
+import { stream } from "./media";
+import { autoVoiceDump } from "../lib/autoVoice";
 import { FULL_VIDEO_PRIVACY, cleanTags, cleanTitle, composeDescription, studioLink, DESCRIPTION_MAX, type FullVideoDetails, type FullVideoPrivacy } from "../domain/fullVideo";
 
 export const clips = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -142,6 +148,39 @@ export interface ReviewClip extends ClipRow {
   file_cleared: boolean;
   /** An unapproved draft whose file is cleared on this date unless she approves it or taps Keep. */
   clears_on: string | null;
+  // ---- studio fix (23 Oct 2026) ----
+  /** Its number in the dump's own sequence and its version (5, 5b): "Oct 22 · Clip 5b". */
+  number: number | null;
+  version: number;
+  code: string;
+  label: string;
+  /** The engine's clip type (from the library), its 0..100 score and the plain reasons. */
+  clip_type: string | null;
+  /** Its label from the clip-type library (jobs/playbook.json), "From your editor" for an import. */
+  clip_type_label: string | null;
+  score_100: number;
+  score_reasons: string[];
+  /** Its words are still being written: shown, and Approve waits. */
+  words_pending: boolean;
+  /** It uses a picture with no camera EXIF (its caption says Made with AI where the studio asks). */
+  uses_ai_images: boolean;
+  /** Other looks of the same cut: options of this clip, never separate clips. */
+  styles: StyleOption[];
+  /** Earlier versions kept to compare (Compare versions). */
+  versions: number;
+  /** Her one-tap fixes asked last time (shared/fixes.ts keys). */
+  fixes: string[];
+  /** The posts' sends and saves so far (from her stats), when posted. */
+  sends: number | null;
+  saves: number | null;
+}
+export interface StyleOption {
+  id: string;
+  look: string | null;
+  look_name: string | null;
+  media_url: string;
+  cover_url: string | null;
+  score_100: number;
 }
 export interface FullVideoView extends Omit<FullVideoDetails, "thumbnails"> {
   thumbnails: { url: string; t: number }[];
@@ -232,6 +271,17 @@ interface ClipDb {
   yt_conn: string | null;
   keep_until: string | null;
   delete_warned_at: string | null;
+  number: number | null;
+  version: number;
+  clip_type: string | null;
+  score_reasons: string | null;
+  words_pending: number;
+  uses_ai_images: number;
+  styles: string | null;
+  versions: number;
+  again_fixes: string | null;
+  sends: number | null;
+  saves: number | null;
 }
 
 /** "?v=<file version>.<voice over>": changes when the file is swapped or a voice over is mixed in. */
@@ -292,8 +342,35 @@ function toView(r: ClipDb): ReviewClip {
     full_video: r.full_video ? fullVideoView(r) : null,
     file_cleared: !r.full_video && !!r.file_deleted_at,
     clears_on: clearsOn(r),
+    number: r.number,
+    version: r.version ?? 1,
+    code: clipCode(r.number, r.version ?? 1),
+    label: clipLabel(r.dump_created_at, r.number, r.version ?? 1, TZ.zone),
+    clip_type: r.clip_type,
+    score_100: Math.round(Number(r.score) || 0),
+    clip_type_label: clipTypeLabel(r.clip_type),
+    score_reasons: parseJson<string[]>(r.score_reasons, []),
+    words_pending: !!r.words_pending,
+    uses_ai_images: !!r.uses_ai_images,
+    styles: parseJson<{ id: string; look: string | null; token: string | null; cover: string | null; mv: number; score: number }[]>(r.styles, [])
+      .filter((x) => x && x.id)
+      .map((x) => ({
+        id: x.id,
+        look: x.look,
+        look_name: lookById(x.look)?.name ?? null,
+        media_url: x.token ? `/media/${x.token}${x.mv ? `?v=${x.mv}` : ""}` : "",
+        cover_url: x.token && x.cover ? `/media/${x.token}?cover=1${x.mv ? `&v=${x.mv}` : ""}` : null,
+        score_100: Math.round(Number(x.score) || 0),
+      })),
+    versions: Number(r.versions) || 0,
+    fixes: parseJson<string[]>(r.again_fixes, []),
+    sends: r.sends ?? null,
+    saves: r.saves ?? null,
   };
 }
+
+/** The audience's time zone for clip labels ("Oct 22"), set per request. */
+const TZ = { zone: "America/New_York" };
 
 /** A draft in its warning window: the date its file goes (worker/domain/tidy.ts clipFileAction). */
 function clearsOn(r: ClipDb): string | null {
@@ -325,9 +402,14 @@ const CLIP_SELECT = `SELECT c.id, c.asset_id, c.dump_id, c.start_s, c.end_s, c.r
   a.file_name AS source_file, a.source_owner, a.source_note,
   (SELECT n.mix_status FROM narrations n WHERE n.clip_id = c.id AND n.mix_status IS NOT NULL ORDER BY n.created_at DESC LIMIT 1) AS voice_mix,
   (SELECT n.id FROM narrations n WHERE n.clip_id = c.id AND n.mix_status IS NOT NULL ORDER BY n.created_at DESC LIMIT 1) AS voice_nid,
-  (SELECT n.script FROM narrations n WHERE n.clip_id = c.id AND n.mix_status IS NOT NULL ORDER BY n.created_at DESC LIMIT 1) AS voice_script,
+  COALESCE((SELECT n.script FROM narrations n WHERE n.clip_id = c.id AND n.mix_status IS NOT NULL ORDER BY n.created_at DESC LIMIT 1), c.voice_script) AS voice_script,
   (SELECT n.auto FROM narrations n WHERE n.clip_id = c.id AND n.mix_status IS NOT NULL ORDER BY n.created_at DESC LIMIT 1) AS voice_auto,
   c.full_video, c.youtube, c.file_deleted_at, c.keep_until, c.delete_warned_at,
+  c.number, c.version, c.clip_type, c.score_reasons, c.words_pending, c.uses_ai_images, c.again_fixes,
+  (SELECT json_group_array(json_object('id', s.id, 'look', s.look, 'token', s.media_token, 'cover', s.cover_r2_key, 'mv', s.media_version, 'score', s.score)) FROM clips s WHERE s.style_of = c.id AND s.status != 'deleted') AS styles,
+  (SELECT COUNT(*) FROM clip_versions v WHERE v.clip_id = c.id) AS versions,
+  (SELECT SUM(m.shares) FROM posts p JOIN metrics m ON m.post_id = p.id AND m.captured_at = (SELECT MAX(m2.captured_at) FROM metrics m2 WHERE m2.post_id = p.id) WHERE p.clip_id = c.id) AS sends,
+  (SELECT SUM(m.saves) FROM posts p JOIN metrics m ON m.post_id = p.id AND m.captured_at = (SELECT MAX(m2.captured_at) FROM metrics m2 WHERE m2.post_id = p.id) WHERE p.clip_id = c.id) AS saves,
   (SELECT json_object('status', p.status, 'url', p.url, 'scheduled_at', p.scheduled_at) FROM posts p WHERE p.clip_id = c.id AND c.full_video = 1 ORDER BY p.created_at DESC LIMIT 1) AS yt_post,
   (SELECT json_object('status', u.status, 'video_id', u.video_id, 'note', u.note, 'thumbnail', u.thumbnail, 'publish_at', u.publish_at, 'privacy', u.privacy) FROM youtube_uploads u WHERE u.clip_id = c.id AND c.full_video = 1) AS yt_upload,
   (SELECT cn.status FROM connections cn WHERE cn.service = 'youtube') AS yt_conn,
@@ -348,7 +430,9 @@ clips.get("/", async (c) => {
   const platform = c.req.query("platform");
   const showHidden = c.req.query("hidden") === "1";
 
-  const where = ["c.status = ?"];
+  TZ.zone = c.env.AUDIENCE_TIMEZONE || "America/New_York";
+  // Styles are options inside their clip's card, never a card of their own.
+  const where = ["c.status = ?", "c.style_of IS NULL"];
   const binds: unknown[] = [status];
   if (door === "new" || door === "recycle") {
     where.push("d.door = ?");
@@ -365,14 +449,19 @@ clips.get("/", async (c) => {
   // Under the quality bar stays tucked away in "new" unless she asks; decided clips always show.
   if (status === "draft" && !showHidden) where.push("c.hidden = 0");
   const q = (c.req.query("q") ?? "").trim().slice(0, 80);
-  if (q) {
+  // "5", "clip 5", "5b": a clip number (shared/clipNumber.ts); any other words search the text.
+  const num = q ? parseClipSearch(q) : null;
+  if (num) {
+    where.push(num.version ? "(c.number = ? AND c.version = ?)" : "c.number = ?");
+    binds.push(num.n, ...(num.version ? [num.version] : []));
+  } else if (q) {
     where.push("(c.hook_text LIKE ? OR c.caption LIKE ? OR c.hashtags LIKE ?)");
     binds.push(`%${q}%`, `%${q}%`, `%${q}%`);
   }
   const limit = Math.min(100, Math.max(1, Number(c.req.query("limit") ?? REVIEW_PAGE) || REVIEW_PAGE));
   const offset = Math.max(0, Number(c.req.query("offset") ?? 0) || 0);
 
-  const { results } = await c.env.DB.prepare(`${CLIP_SELECT} WHERE ${where.join(" AND ")} ORDER BY d.created_at DESC, c.score DESC LIMIT ? OFFSET ?`)
+  const { results } = await c.env.DB.prepare(`${CLIP_SELECT} WHERE ${where.join(" AND ")} ORDER BY d.created_at DESC, c.hidden ASC, c.score DESC LIMIT ? OFFSET ?`)
     .bind(...binds, limit, offset)
     .all<ClipDb>();
   const total = (await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM clips c JOIN assets a ON a.id = c.asset_id JOIN dumps d ON d.id = c.dump_id WHERE ${where.join(" AND ")}`).bind(...binds).first<{ n: number }>())?.n ?? 0;
@@ -396,7 +485,7 @@ clips.get("/", async (c) => {
        SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS approved,
        SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejected,
        SUM(CASE WHEN status = 'draft' AND hidden = 1 THEN 1 ELSE 0 END) AS hidden
-     FROM clips`,
+     FROM clips WHERE style_of IS NULL`,
   ).first<{ new: number | null; approved: number | null; rejected: number | null; hidden: number | null }>();
 
   const out: ReviewList = {
@@ -457,7 +546,7 @@ async function lockedByBuffer(env: Env, id: string): Promise<boolean> {
 /** A dump is "reviewed" once no visible draft clip is left; back to "ready" if one returns. */
 async function syncDumpStatus(env: Env, dumpIds: Iterable<string>) {
   for (const dumpId of new Set(dumpIds)) {
-    const left = await env.DB.prepare("SELECT COUNT(*) AS n FROM clips WHERE dump_id = ? AND status = 'draft' AND hidden = 0").bind(dumpId).first<{ n: number }>();
+    const left = await env.DB.prepare("SELECT COUNT(*) AS n FROM clips WHERE dump_id = ? AND status = 'draft' AND hidden = 0 AND style_of IS NULL").bind(dumpId).first<{ n: number }>();
     if ((left?.n ?? 0) === 0) await env.DB.prepare("UPDATE dumps SET status = 'reviewed' WHERE id = ? AND status = 'ready'").bind(dumpId).run();
     else await env.DB.prepare("UPDATE dumps SET status = 'ready' WHERE id = ? AND status = 'reviewed'").bind(dumpId).run();
   }
@@ -469,7 +558,8 @@ async function removeFiles(env: Env, keys: (string | null)[]) {
 }
 
 async function decide(env: Env, id: string, to: ClipStatus, actor: string, reason: string | null, touched: Set<string>): Promise<Decision> {
-  const clip = await env.DB.prepare("SELECT id, dump_id, status, recipe, score, r2_key, cover_r2_key, hidden FROM clips WHERE id = ?").bind(id).first<{
+  const clip = await env.DB.prepare("SELECT id, dump_id, status, recipe, score, r2_key, cover_r2_key, hidden, words_pending FROM clips WHERE id = ?").bind(id).first<{
+    words_pending: number;
     id: string;
     dump_id: string;
     status: ClipStatus;
@@ -485,9 +575,20 @@ async function decide(env: Env, id: string, to: ClipStatus, actor: string, reaso
   if ((to === "rejected" || to === "deleted" || to === "draft") && (await lockedByBuffer(env, id)))
     return { ok: false, status: 409, error: "This clip is already loaded into Buffer. Remove it from the Calendar first." };
 
+  // Its words are still being written: approving now would post a half caption.
+  if (to === "approved" && clip.words_pending) return { ok: false, status: 409, error: "This clip's words are still being written. It can be approved as soon as they are in, usually within the hour." };
+
   const now = nowIso();
+  if (to === "rejected" || to === "deleted") {
+    // Its other looks (styles) go with it: they are options of this clip, not clips of their own.
+    const { results: styles } = await env.DB.prepare("SELECT id, r2_key, cover_r2_key FROM clips WHERE style_of = ? AND status = 'draft'").bind(id).all<{ id: string; r2_key: string; cover_r2_key: string | null }>();
+    for (const st of styles) {
+      if (to === "deleted") await removeFiles(env, [st.r2_key, st.cover_r2_key, ...(await versionFiles(env, st.id))]);
+      await env.DB.prepare(`UPDATE clips SET status = ?, ${to === "deleted" ? "media_token = NULL, " : ""}reviewed_at = ? WHERE id = ?`).bind(to, now, st.id).run();
+    }
+  }
   if (to === "deleted") {
-    await removeFiles(env, [clip.r2_key, clip.cover_r2_key]);
+    await removeFiles(env, [clip.r2_key, clip.cover_r2_key, ...(await versionFiles(env, id))]);
     await env.DB.batch([
       env.DB.prepare("UPDATE clips SET status = 'deleted', media_token = NULL, reviewed_at = ? WHERE id = ?").bind(now, id),
       env.DB.prepare("UPDATE posts SET status = 'unscheduled' WHERE clip_id = ? AND status = 'planned'").bind(id),
@@ -818,19 +919,79 @@ clips.post("/:id/another", async (c) => {
   return rerender(c, id, pick, undefined, {});
 });
 
+/**
+ * One-tap fixes (shared/fixes.ts): "End on the finished room", "Less blur", "Different opening",
+ * "Shorter", "Use a photo ending". Each re-plans the clip through Try another version, with the
+ * keys for the engine and the same words in the notes. The current version is kept to compare.
+ */
+clips.post("/:id/fix", async (c) => {
+  const id = c.req.param("id");
+  const body = await readJson<{ fixes?: unknown; notes?: string }>(c);
+  const fixes = cleanFixes(body?.fixes);
+  if (!fixes.length) return fail(c, 422, "Pick what to fix.", "review-and-approve-clips");
+  const notes = String(body?.notes ?? "").replace(/\s+/g, " ").trim().slice(0, 600);
+  return againWithNotes(c, id, await rerenderRow(c.env, id), notes, fixes);
+});
+
+/** Compare versions: the earlier versions of this clip, each playable. */
+clips.get("/:id/versions", async (c) => c.json({ versions: await listVersions(c.env, c.req.param("id")) }));
+
+/** One earlier version's video (or its cover with ?cover=1), for her own screens. */
+clips.get("/:id/versions/:vid/media", async (c) => {
+  const v = await c.env.DB.prepare("SELECT r2_key, cover_r2_key FROM clip_versions WHERE id = ? AND clip_id = ?").bind(c.req.param("vid"), c.req.param("id")).first<{ r2_key: string; cover_r2_key: string | null }>();
+  const key = c.req.query("cover") ? v?.cover_r2_key : v?.r2_key;
+  if (!key) return c.text("Not found", 404);
+  return stream(c, c.env.FILES, key, c.req.query("cover") ? "image/jpeg" : "video/mp4");
+});
+
+/** "Keep this one": an earlier version goes back on the clip; the one it replaces is kept to compare. */
+clips.post("/:id/versions/:vid/keep", async (c) => {
+  const id = c.req.param("id");
+  const row = await c.env.DB.prepare("SELECT dump_id, status, pending_look FROM clips WHERE id = ?").bind(id).first<{ dump_id: string; status: ClipStatus; pending_look: string | null }>();
+  if (!row || row.status === "deleted") return fail(c, 404, "That clip is gone.", "review-and-approve-clips");
+  if (row.pending_look) return fail(c, 409, "A new version is still being made. Wait for it, then compare.", "review-and-approve-clips");
+  if (await lockedByBuffer(c.env, id)) return fail(c, 409, "This clip is already loaded into Buffer. Remove it from the Calendar first.", "review-and-approve-clips");
+  if (!(await restoreVersion(c.env, id, c.req.param("vid")))) return fail(c, 404, "That version is gone.", "review-and-approve-clips");
+  // A voice over made for the other version no longer fits.
+  await removeVoiceOver(c.env, id);
+  await autoVoiceDump(c.env, row.dump_id);
+  await recordEvent(c.env.DB, "clip.version_kept", id, {}, c.get("user").email);
+  const updated = await c.env.DB.prepare(`${CLIP_SELECT} WHERE c.id = ?`).bind(id).first<ClipDb>();
+  return c.json({ clip: updated ? toView(updated) : null });
+});
+
+/** Pick another style (look) of the same cut as this clip's main one; the old main becomes a style. */
+clips.post("/:id/style", async (c) => {
+  const id = c.req.param("id");
+  const body = await readJson<{ style_id?: string }>(c);
+  const main = await c.env.DB.prepare("SELECT id, status FROM clips WHERE id = ? AND style_of IS NULL").bind(id).first<{ id: string; status: ClipStatus }>();
+  const pick = body?.style_id ? await c.env.DB.prepare("SELECT id, status FROM clips WHERE id = ? AND style_of = ?").bind(body.style_id, id).first<{ id: string; status: ClipStatus }>() : null;
+  if (!main || !pick) return fail(c, 404, "That style is gone.", "looks-and-styles");
+  if (main.status !== "draft") return fail(c, 409, "Pick a style before you approve the clip. Move it back to New first.", "looks-and-styles");
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE clips SET style_of = ? WHERE style_of = ? AND id != ?").bind(pick.id, id, pick.id),
+    c.env.DB.prepare("UPDATE clips SET style_of = NULL, hidden = 0 WHERE id = ?").bind(pick.id),
+    c.env.DB.prepare("UPDATE clips SET style_of = ? WHERE id = ?").bind(pick.id, id),
+  ]);
+  await recordEvent(c.env.DB, "clip.style_picked", pick.id, {}, c.get("user").email);
+  const updated = await c.env.DB.prepare(`${CLIP_SELECT} WHERE c.id = ?`).bind(pick.id).first<ClipDb>();
+  return c.json({ clip: updated ? toView(updated) : null });
+});
+
 /** Try another version with her notes: one new cut of this clip's video, swapped in when ready (worker/jobs/cut.ts applyAgain). */
-async function againWithNotes(c: Ctx, id: string, row: RerenderRow | null, notes: string) {
+async function againWithNotes(c: Ctx, id: string, row: RerenderRow | null, notes: string, fixes: FixKey[] = []) {
   const refused = againRefusal(row ? { ...row, in_buffer: await lockedByBuffer(c.env, id) } : null);
   if (refused) return fail(c, refused.status, refused.error, "review-and-approve-clips");
   // pending_look keeps its current look: Review shows "working on it" and the buttons wait.
-  await c.env.DB.prepare("UPDATE clips SET again_notes = ?, pending_look = ?, pending_layout = NULL, pending_music = NULL, rerender_error = NULL WHERE id = ?").bind(notes, row!.look ?? "clean", id).run();
+  // One-tap fixes ride as keys (again_fixes → spec.fixes) and as words in the notes (change_request).
+  await c.env.DB.prepare("UPDATE clips SET again_notes = ?, again_fixes = ?, pending_look = ?, pending_layout = NULL, pending_music = NULL, rerender_error = NULL WHERE id = ?").bind(fixWords(fixes, notes), JSON.stringify(fixes), row!.look ?? "clean", id).run();
   const job = await dispatchJob(c.env, "cut", `${row!.dump_id}/${id}/again`);
   if (!job.dispatched) {
     await c.env.DB.prepare("UPDATE clips SET pending_look = NULL, rerender_error = ? WHERE id = ?").bind("We couldn't start the new version. Try again in a minute.", id).run();
     return fail(c, 502, "We couldn't start the new version. Try again in a minute.", "reconnect-github");
   }
   await c.env.DB.prepare("UPDATE clips SET rerender_job_id = ? WHERE id = ?").bind(job.jobId, id).run();
-  await recordEvent(c.env.DB, "clip.again_requested", id, { words: notes.split(" ").length }, c.get("user").email);
+  await recordEvent(c.env.DB, "clip.again_requested", id, { words: notes ? notes.split(" ").length : 0, fixes }, c.get("user").email);
   log.info("clip.again", {});
   const updated = await c.env.DB.prepare(`${CLIP_SELECT} WHERE c.id = ?`).bind(id).first<ClipDb>();
   return c.json({ jobId: job.jobId, clip: updated ? toView(updated) : null });
@@ -842,8 +1003,13 @@ async function rerender(c: Ctx, id: string, look: unknown, layoutInput: unknown,
   let layout: GridLayout | null = null;
   if (row && isLookId(look) && isGridLook(look)) {
     if (layoutInput !== undefined) {
-      layout = cleanGridLayout(look, layoutInput);
+      // The clip's own shots ("part" cells) and its hero ending must be files of this clip's dump.
+      const { results: own } = await c.env.DB.prepare("SELECT id FROM assets WHERE dump_id = ?").bind(row.dump_id).all<{ id: string }>();
+      layout = cleanGridLayout(look, layoutInput, new Set(own.map((a) => a.id)));
       if (!layout) return fail(c, 422, `Pick something for all ${cellCount(look)} cells, with this clip in at least one of them.`, "looks-and-styles");
+      // Her new picks keep the hero ending the engine gave the grid (every clip ends on its hero).
+      const saved = parseJson<GridLayout | null>(row.layout, null);
+      if (!layout.ending && saved?.ending) layout = { ...layout, ending: saved.ending };
       for (const cell of layout.cells) {
         if (cell.kind !== "clip") continue;
         const other = await c.env.DB.prepare("SELECT dump_id, status FROM clips WHERE id = ?").bind(cell.clip_id).first<{ dump_id: string; status: ClipStatus }>();

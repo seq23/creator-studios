@@ -13,6 +13,7 @@ import { serviceHealthRows } from "./buffer-sync";
 import { recheckElevenLabs } from "../lib/premiumVoice";
 import { fullVideoRetention } from "../lib/fullVideo";
 import { clipFileRules, enforceBudget, measureStorage, storageHealth, tidyDaily } from "../lib/storage";
+import { versionFiles } from "../lib/clipVersions";
 import { CLIP_RETENTION_AFTER_POST_DAYS, RAW_RETENTION_DAYS, REJECTED_RETENTION_DAYS, TIME_TO_DUMP_REPEAT_DAYS } from "@shared/constants";
 
 export async function dailyMaintenance(env: Env): Promise<void> {
@@ -86,6 +87,9 @@ async function retention(env: Env) {
   for (const cl of rejected) {
     await env.FILES.delete(cl.r2_key);
     if (cl.cover_r2_key) await env.FILES.delete(cl.cover_r2_key);
+    // Its kept versions (Compare versions in Review) go with it.
+    const kept = await versionFiles(env, cl.id);
+    if (kept.length) await env.FILES.delete(kept);
     await env.DB.prepare("UPDATE clips SET status = 'deleted', media_token = NULL WHERE id = ?").bind(cl.id).run();
   }
 

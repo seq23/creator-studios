@@ -142,6 +142,18 @@ npm run studio:create <slug>
 
 A host-run studio also needs its owner email file first (see "Owner email").
 
+### A studio's clip rules (`studioRules`)
+
+Each registry entry carries `studioRules` (shared/studioRules.ts, var `STUDIO_RULES`): the call to
+action (`cta_phrases` + one `cta_link`), when a caption says "Made with AI" (`ai_note`: `all` or
+`ai_images`, a photo with no camera EXIF), how many distinct clips a dump gives (`clip_target`), the
+review bar (`bar`, 0..100), local words (`place_words`), `prices`, and the end-card logo. They are
+the defaults; the owner changes them in Settings → Your clips. They reach every cut as
+`spec.studio_rules`, with the monthly niche research as `spec.niche_playbook`
+(jobs/niche_research.py, $0) and `exif_camera` on each file. At posting, the caption's link becomes
+a per-platform tracking link (utm_source = the platform, utm_medium=social, utm_campaign = the
+studio slug, utm_content = the clip tag, e.g. clip-1022-5b). Guard: tests/unit/studio-rules.test.ts.
+
 ## Rename a studio (a sample taken by a client)
 
 One registry change, one command. Edit `hostname` (and `appName`, `theme`, `ownerName` as wanted) in

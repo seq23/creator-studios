@@ -14,6 +14,7 @@ import { EditingCard } from "../components/EditingSettings";
 import { AUTO_VOICE_HINT } from "@shared/autoVoice";
 import { StorageSection } from "../components/StorageSection";
 import { SoundCard } from "../components/SoundSettings";
+import { ClipRulesCard } from "../components/ClipRulesSettings";
 import "../styles/settings.css";
 
 export function Settings() {
@@ -166,6 +167,7 @@ export function Settings() {
         </div>
 
         <div className="settings-col">
+          <ClipRulesCard owner={owner} />
           <SoundCard sound={draft.sound} owner={owner} onSave={save} />
           <EditingCard owner={owner} />
           <StorageSection owner={owner} />

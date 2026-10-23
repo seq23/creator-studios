@@ -1,0 +1,346 @@
+{
+  "_contract": {
+    "what": "The clip-type library and the research playbook (owner's studio fix, 23 Oct 2026). One file, read by the planner (jobs/clipmaker.py plan_typed) AND the critic (jobs/clipmaker.py score_clip): each clip type's opening, length, pacing, ending and loop are the template a clip is planned from and scored against. A studio's niche_playbook (spec.niche_playbook, from the weekly niche research) is merged on top (jobs/playbook.py load). Business-neutral: no service words; every service word comes from a studio's settings.",
+    "stages": "arrival = the space or subject before anything is done | prep = materials laid out, unloading, getting ready | team = people doing the work on camera | process = the work happening, no one in focus | finished = the finished result | detail = a close-up of the finished result | hero = the single most polished, steady, finished view of an event (a clip ENDS here, held >= 2 s)",
+    "opening": "the stages the first shot may be (payoff first: flash the finished result in the first 1-2 s)",
+    "length_s": "[min, max] seconds for the whole clip",
+    "pacing_s": "[before_reveal, after_reveal] seconds per cut: fast before the reveal, slower after",
+    "middle": "the stages the middle shots are drawn from, in story order",
+    "ending": "always hero, held >= hero_hold_s",
+    "loop": "true = the last frame matches the first (the payoff flash), so the clip loops cleanly",
+    "needs": "what the footage must have for this type to be made"
+  },
+  "hero_hold_s": 2.0,
+  "payoff_window_s": 2.0,
+  "send_line_every": 3,
+  "types": {
+    "payoff_first": {
+      "label": "payoff-first before -> after",
+      "opening": [
+        "hero",
+        "finished"
+      ],
+      "middle": [
+        "arrival",
+        "prep",
+        "process",
+        "team"
+      ],
+      "length_s": [
+        9,
+        30
+      ],
+      "pacing_s": [
+        1.2,
+        2.5
+      ],
+      "ending": "hero",
+      "loop": true,
+      "needs": {
+        "stages_any": [
+          [
+            "arrival",
+            "prep"
+          ]
+        ],
+        "videos": true
+      }
+    },
+    "pov_walk_in": {
+      "label": "POV walk-in reveal",
+      "opening": [
+        "arrival",
+        "process",
+        "finished",
+        "hero",
+        "detail"
+      ],
+      "middle": [
+        "finished",
+        "detail"
+      ],
+      "length_s": [
+        8,
+        25
+      ],
+      "pacing_s": [
+        3.0,
+        8.0
+      ],
+      "ending": "hero",
+      "loop": false,
+      "needs": {
+        "long_steady_finished": true,
+        "videos": true
+      }
+    },
+    "set_up_with_me": {
+      "label": "set up with me (sped up)",
+      "opening": [
+        "hero",
+        "finished"
+      ],
+      "middle": [
+        "prep",
+        "team",
+        "process"
+      ],
+      "length_s": [
+        10,
+        30
+      ],
+      "pacing_s": [
+        0.9,
+        2.5
+      ],
+      "ending": "hero",
+      "loop": true,
+      "needs": {
+        "stages_min": {
+          "prep": 0,
+          "team": 0,
+          "process": 0
+        },
+        "middle_shots": 2,
+        "videos": true
+      }
+    },
+    "prep_only": {
+      "label": "prep only",
+      "opening": [
+        "prep",
+        "hero"
+      ],
+      "middle": [
+        "prep"
+      ],
+      "length_s": [
+        7,
+        20
+      ],
+      "pacing_s": [
+        1.5,
+        2.5
+      ],
+      "ending": "hero",
+      "loop": false,
+      "needs": {
+        "stages_any": [
+          [
+            "prep"
+          ]
+        ],
+        "middle_shots": 2
+      }
+    },
+    "team_working": {
+      "label": "team working",
+      "opening": [
+        "team",
+        "hero"
+      ],
+      "middle": [
+        "team",
+        "process"
+      ],
+      "length_s": [
+        7,
+        25
+      ],
+      "pacing_s": [
+        1.5,
+        3.0
+      ],
+      "ending": "hero",
+      "loop": false,
+      "needs": {
+        "stages_any": [
+          [
+            "team"
+          ]
+        ],
+        "videos": true
+      }
+    },
+    "finished_walkthrough": {
+      "label": "finished walk-through",
+      "opening": [
+        "finished",
+        "hero",
+        "detail"
+      ],
+      "middle": [
+        "finished",
+        "detail"
+      ],
+      "length_s": [
+        8,
+        30
+      ],
+      "pacing_s": [
+        2.5,
+        4.0
+      ],
+      "ending": "hero",
+      "loop": false,
+      "needs": {
+        "stages_any": [
+          [
+            "finished"
+          ]
+        ],
+        "middle_shots": 1
+      }
+    },
+    "photo_details": {
+      "label": "photo-moment details",
+      "opening": [
+        "detail",
+        "hero"
+      ],
+      "middle": [
+        "detail",
+        "finished"
+      ],
+      "length_s": [
+        7,
+        20
+      ],
+      "pacing_s": [
+        1.5,
+        2.5
+      ],
+      "ending": "hero",
+      "loop": true,
+      "needs": {
+        "stages_any": [
+          [
+            "detail"
+          ]
+        ],
+        "middle_shots": 2
+      }
+    },
+    "moving_photo": {
+      "label": "moving photo pan",
+      "opening": [
+        "hero",
+        "finished",
+        "detail"
+      ],
+      "middle": [],
+      "length_s": [
+        5,
+        12
+      ],
+      "pacing_s": [
+        4.0,
+        6.0
+      ],
+      "ending": "hero",
+      "loop": true,
+      "needs": {
+        "photos": true
+      }
+    },
+    "video_to_photo": {
+      "label": "video -> photo ending",
+      "opening": [
+        "process",
+        "team",
+        "finished",
+        "hero"
+      ],
+      "middle": [
+        "process",
+        "team",
+        "finished"
+      ],
+      "length_s": [
+        7,
+        25
+      ],
+      "pacing_s": [
+        1.5,
+        3.0
+      ],
+      "ending": "hero",
+      "loop": false,
+      "needs": {
+        "videos": true,
+        "photo_hero": true
+      }
+    },
+    "photo_slideshow": {
+      "label": "photo slideshow",
+      "opening": [
+        "hero",
+        "finished"
+      ],
+      "middle": [
+        "finished",
+        "detail",
+        "prep",
+        "team"
+      ],
+      "length_s": [
+        8,
+        20
+      ],
+      "pacing_s": [
+        1.8,
+        2.6
+      ],
+      "ending": "hero",
+      "loop": true,
+      "photos_min": 4,
+      "photos_max": 6,
+      "needs": {
+        "photos_min": 4
+      }
+    },
+    "talk_to_camera": {
+      "label": "talk to camera",
+      "opening": [
+        "any"
+      ],
+      "middle": [
+        "any"
+      ],
+      "length_s": [
+        8,
+        45
+      ],
+      "pacing_s": [
+        3.0,
+        8.0
+      ],
+      "ending": "hero",
+      "loop": false,
+      "needs": {
+        "real_speech": true
+      }
+    }
+  },
+  "research": [
+    "Payoff in the first 1-2 seconds: flash the finished result, then empty -> building -> reveal.",
+    "Clips run 7-30 seconds; reveals 20-40 seconds.",
+    "Fast cuts before the reveal, slower after it.",
+    "Loopable endings: the last frame matches the first.",
+    "POV: you walk in reveals.",
+    "Set up with me: a sped-up install.",
+    "Photo-moment details.",
+    "Photo slideshows (strong on TikTok), one event or theme each.",
+    "Team on camera: original content is ranked up.",
+    "Local and niche words in the caption, the on-screen text and the voice.",
+    "The call to action on screen in the safe zone AND in the caption, linking straight to the request page.",
+    "Some captions carry a 'send this to...' line: Reels rank on watch time and sends.",
+    "Measure sends, saves and requests, not likes."
+  ],
+  "send_lines": [
+    "Send this to someone who needs to see it.",
+    "Send this to the friend who'd love this.",
+    "Send this to whoever you'd do this with.",
+    "Send this to someone planning something."
+  ]
+}

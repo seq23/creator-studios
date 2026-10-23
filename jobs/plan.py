@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import script_clean as SC  # noqa: E402
 from see import CALLS, UNSURE, Shot, ShotSheet  # noqa: E402
 
 GROUNDED = json.loads((Path(__file__).resolve().parent.parent / "shared" / "grounded.json").read_text(encoding="utf-8"))
@@ -366,6 +367,10 @@ class Part:
     end: float
     state: str
     what: str
+    # Studio fix (jobs/stages.py, jobs/clipmaker.py): the shot's stage, which shot it is, and whether it is a photo.
+    stage: str = ""
+    key: str = ""
+    photo: bool = False
 
     @property
     def length(self) -> float:
@@ -385,6 +390,13 @@ class Plan:
     # Set by the critic loop (jobs/critic.py): captions off after noise was seen, and why it was hidden.
     captions_off: bool = False
     hidden_reason: str | None = None
+    # Studio fix (jobs/clipmaker.py): the clip type from the playbook, its event, its hero ending,
+    # the voice-over script written with the words, and words_pending (no AI words came: no stock lines).
+    clip_type: str = ""
+    event_group: str = ""
+    hero_asset_id: str = ""
+    voice: str = ""
+    words_pending: bool = False
 
     @property
     def recipe(self) -> str:
@@ -545,16 +557,22 @@ COPY_SYSTEM = (
     "shot's state is after; say before or empty ONLY if a shot's state is before. Never write people's names, addresses or prices. "
     "Never mention automation, software or how the video was made. Follow studio_rules exactly. Learn from what the owner kept and turned down (never reuse a turned-down hook). Every clip's hook must be different from every other clip's "
     "and describe that clip's own shots; do not reuse lines from the voice examples. hook and hook_alt: on-screen text, max 8 words each. caption: "
-    "max 150 characters in their voice, ending with one call to action from their list. 3-5 hashtags. Answer JSON only: "
-    "{\"items\":[{\"n\":int,\"hook\":str,\"hook_alt\":str,\"caption\":str,\"hashtags\":[str]}]}."
+    "max 150 characters in their voice. When the clips list a clip_type, write for that kind of clip and follow the playbook "
+    "(payoff first, local words: use the place_words naturally when given). When studio_rules names cta_phrases, do NOT put a call to action "
+    "or a link in the caption (it is added after); otherwise end the caption with one call to action from their list. For each clip n listed "
+    "in send_line_clips, add one short 'Send this to...' line to its caption. voice: a voice-over script for that clip, plain spoken "
+    "sentences only (no lists, no numbering, no markdown, no notes about the task), about 2 words per second of the clip, telling the same "
+    "story as the hook and caption in different words, never the caption word for word, no call to action and no link. 3-5 hashtags. "
+    "Answer JSON only: {\"items\":[{\"n\":int,\"hook\":str,\"hook_alt\":str,\"caption\":str,\"voice\":str,\"hashtags\":[str]}]}."
 )
 
 
-def copy_prompt(plans: list[Plan], profile: dict[str, str] | None, feedback: dict[int, str] | None = None, rules: dict[str, Any] | None = None, memory: dict[str, Any] | None = None) -> str:
+def copy_prompt(plans: list[Plan], profile: dict[str, str] | None, feedback: dict[int, str] | None = None, rules: dict[str, Any] | None = None, memory: dict[str, Any] | None = None, extra: dict[str, Any] | None = None) -> str:
     prof = profile or {}
     return json.dumps(
         {
             **({"studio_rules": rules} if rules else {}),
+            **(extra or {}),
             **memory_prompt(memory),
             "voice": prof.get("voice", "")[:600],
             "do_dont": prof.get("do_dont", "")[:600],
@@ -566,6 +584,7 @@ def copy_prompt(plans: list[Plan], profile: dict[str, str] | None, feedback: dic
                     "service": pl.service or "not sure (do not name a service)",
                     **({"what_this_service_looks_like": service_looks(profile, [pl.service]).get(pl.service, "")} if pl.service else {}),
                     "shape": pl.shape,
+                    **({"clip_type": pl.clip_type, "seconds": round(pl.length)} if pl.clip_type else {}),
                     "shots": [{"state": p.state, "what": p.what or "not sure what this shows"} for p in pl.parts],
                     **({"last_try_was_rejected_because": feedback[i]} if feedback and i in feedback else {}),
                 }
@@ -577,7 +596,9 @@ def copy_prompt(plans: list[Plan], profile: dict[str, str] | None, feedback: dic
 
 def apply_copy(plans: list[Plan], answer: Any, profile: dict[str, str] | None, services: list[str], guard: Any = None, avoid: list[str] | None = None) -> int:
     """The model's lines where they pass grounded_ok; the neutral lines everywhere else.
-    Returns how many fields fell back (logged as a count)."""
+    Reasoning-shaped answers (a model's "thinking": numbered steps, markdown, "Analyze the request")
+    are rejected, never used (jobs/script_clean.py). A clip whose hook or caption fell back is
+    marked words_pending (no stock lines ship). Returns how many fields fell back (logged as a count)."""
     items = {}
     if isinstance(answer, dict):
         for it in answer.get("items") or []:
@@ -591,8 +612,10 @@ def apply_copy(plans: list[Plan], answer: Any, profile: dict[str, str] | None, s
         g = pl.ground(services)
         base = neutral_copy(pl, profile, services, i)
         it = items.get(i, {})
+        pl.words_pending = False
         for k, limit in (("hook", 120), ("hook_alt", 120), ("caption", 300)):
-            v = re.sub(r"\s+", " ", str(it.get(k, "") or "")).strip()[:limit]
+            v = SC.clean_line(str(it.get(k, "") or ""), 2000)
+            v = re.sub(r"\s+", " ", v).strip()[:limit]
             ok = bool(v) and grounded_ok(v, g)[0] and (guard is None or guard(v))
             if not pl.service and v:
                 # Nothing sure: the model's words are kept only when they name no service at all.
@@ -607,6 +630,8 @@ def apply_copy(plans: list[Plan], answer: Any, profile: dict[str, str] | None, s
                 safe = base[k] if guard is None or guard(base[k]) else (NEUTRAL["unsure"][0][0] if k == "hook" else ("" if k == "hook_alt" else NEUTRAL["unsure"][2]))
                 setattr(pl, k, safe)
                 fell += 1
+                if k in ("hook", "caption"):
+                    pl.words_pending = True
             if k in ("hook", "hook_alt") and getattr(pl, k):
                 used.add(getattr(pl, k).lower().rstrip(".!"))
         tags = [str(h) if str(h).startswith("#") else f"#{h}" for h in (it.get("hashtags") or [])]
@@ -616,15 +641,19 @@ def apply_copy(plans: list[Plan], answer: Any, profile: dict[str, str] | None, s
             if t.lower() not in [m.lower() for m in merged]:
                 merged.append(t)
         pl.hashtags = merged[:5]
+        # The voice over tells the same story as the hook and caption, never reads the caption back,
+        # never says a call to action twice, never speaks reasoning (jobs/script_clean.py).
+        pl.voice = SC.clean_script(str(it.get("voice", "") or ""), pl.caption, ctas(profile), max(8, int(pl.length * 2.6))) if not pl.words_pending else ""
     return fell
 
 
-def write_copy(key: str | None, plans: list[Plan], profile: dict[str, str] | None, services: list[str], model: str, ask: Any, feedback: dict[int, str] | None = None, guard: Any = None, rules: dict[str, Any] | None = None, memory: dict[str, Any] | None = None) -> int:
+def write_copy(key: str | None, plans: list[Plan], profile: dict[str, str] | None, services: list[str], model: str, ask: Any, feedback: dict[int, str] | None = None, guard: Any = None, rules: dict[str, Any] | None = None, memory: dict[str, Any] | None = None, extra: dict[str, Any] | None = None) -> int:
     """ONE text call for every clip of the dump (or a re-cut's clips). `ask(key, payload)` returns
-    the model's text (cut.ask_text in the job, a fake in tests)."""
+    the model's text (cut.ask_text in the job: the $0 ladder, OpenRouter free then the studio's
+    Cloudflare share, so it is asked even with no OpenRouter key; a fake in tests)."""
     answer = None
-    if key and plans:
-        payload = {"model": model, "max_tokens": 2500, "response_format": {"type": "json_object"}, "messages": [{"role": "system", "content": COPY_SYSTEM}, {"role": "user", "content": copy_prompt(plans, profile, feedback, rules, memory)}]}
+    if plans:
+        payload = {"model": model, "max_tokens": 3500, "response_format": {"type": "json_object"}, "messages": [{"role": "system", "content": COPY_SYSTEM}, {"role": "user", "content": copy_prompt(plans, profile, feedback, rules, memory, extra)}]}
         try:
             CALLS["text"] = CALLS.get("text", 0) + 1
             text = ask(key, payload)

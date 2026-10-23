@@ -14,6 +14,7 @@
 //   POST   /api/brain/profile/lock | unlock
 //   POST   /api/brain/profile/rollback/:v     copy version v → new version (source "rollback")
 // Rule: the profile only changes while unlocked, and only the newest version can be locked.
+import { nicheView } from "../lib/niche";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { requireUser } from "../lib/auth";
@@ -199,3 +200,6 @@ brain.post("/profile/rollback/:version", async (c) => {
   await recordEvent(c.env.DB, "profile.rollback", String(res.meta.last_row_id), { from: v }, c.get("user").email);
   return c.json({ ok: true, version: res.meta.last_row_id });
 });
+
+/** "What's working in your niche" (studio fix): the newest monthly research, in plain lines. */
+brain.get("/niche", async (c) => c.json(await nicheView(c.env)));
