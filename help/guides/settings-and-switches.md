@@ -48,12 +48,6 @@ Every Monday: last week's posts, what worked and your follow-ups.
 
 Plays your own song quietly under clips. It turns on when you add a song under **My music**.
 
-Under **Sound**:
-
-**Camera sound**: **Automatic** keeps someone talking to the camera and drops background talk or noise; **Keep it** keeps every clip's own sound; **Off, music instead** drops it, with music under every clip (your songs, or the free music that comes with your studio) and no captions from what the camera heard. You can change it for one dump with the **Camera sound** choice on the Dump screen.
-
-**Voice for voice overs**: **A studio voice** is a free voice that comes with your studio (tap play to listen, then **Use this voice**); **My recorded voice** uses the recording on **Voice overs**. Voice overs are always labelled **Made with AI** when they post.
-
 ## Where emails go
 
 ![Step 6](/help/screenshots/settings-and-switches-6.png)

@@ -64,12 +64,6 @@ Open **Rejected** to bring a clip back. Rejected clips are removed after 7 days.
 
 Switch on **Show hidden** to see clips under the quality bar too.
 
-**Try another version, with notes**: Tap **Try another version** on a clip. Leave the box empty to get the same moment in a new look, or write what should change (for example *Start with the best moment. Shorter.*) and we cut that video again with your notes. Your clip stays as it is until the new one is ready.
-
-**Add a voice over to every clip in a dump**: Tap **Add voice over to all clips in this dump** under the dump's heading. Every clip with no talking gets a short voice over, in the voice you picked under **Settings → Sound**, with the music softly underneath. Each one is labelled **Made with AI** when it posts.
-
-**Start over with the same videos**: Tap **Start over with these videos** under the dump's heading, then **Yes, start over**. The dump's new clips are removed; clips you approved or posted stay, and your videos stay. We cut the same videos again with your current settings (and anything you write in the box) and email you when they are ready.
-
 ## Did this work?
 
 If not, tap **No** below and we'll open the matching fix-it guide or email your helper.
