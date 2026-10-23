@@ -8,6 +8,9 @@ import { fail, isEmail, readJson } from "../lib/http";
 import { DEFAULT_FEATURES, DEFAULT_RECYCLE_COOLDOWN_DAYS, DEFAULT_RUNWAY_THRESHOLD_WEEKS, DEFAULT_WEEKLY_CAPS, HARD_CAP_PER_CHANNEL_PER_WEEK, PLATFORMS } from "@shared/constants";
 import type { Features, SettingsShape } from "@shared/types";
 import { cleanSound, soundSettings, type SoundSettings } from "@shared/sound";
+import { cleanRules, rulesProblem, studioRules } from "@shared/studioRules";
+import { readStudioRules } from "../lib/studioRules";
+import { stream } from "./media";
 
 /** Camera sound and voice: the studio's registry defaults with anything saved in Settings on top. */
 export async function readSound(env: Env): Promise<SoundSettings> {
@@ -72,6 +75,33 @@ settings.patch("/", requireOwner, async (c) => {
   }
   await recordEvent(c.env.DB, "settings.changed", null, { keys: Object.keys(body) }, c.get("user").email);
   return c.json(await readSettings(c.env));
+});
+
+/** Settings → Your clips (shared/studioRules.ts): the call to action, Made with AI, clips per dump, the bar, local words, prices, logo. */
+settings.get("/rules", async (c) => {
+  const rules = await readStudioRules(c.env);
+  return c.json({ rules, defaults: studioRules(c.env.STUDIO_RULES, null), logo_url: rules.logo_r2_key ? "/api/settings/rules/logo" : null });
+});
+
+settings.patch("/rules", requireOwner, async (c) => {
+  const body = await readJson<Record<string, unknown>>(c);
+  if (!body) return fail(c, 400, "Nothing to save.");
+  const problem = rulesProblem(body);
+  if (problem) return fail(c, 422, problem, "your-clips");
+  if (typeof body.logo_r2_key === "string" && !(await c.env.FILES.head(body.logo_r2_key))) return fail(c, 422, "That logo didn't finish uploading. Choose it again.", "your-clips");
+  const current = await readStudioRules(c.env);
+  const next = cleanRules(body, current);
+  if (current.logo_r2_key && current.logo_r2_key !== next.logo_r2_key) await c.env.FILES.delete(current.logo_r2_key);
+  await setSetting(c.env.DB, "studio_rules", next);
+  await recordEvent(c.env.DB, "settings.rules_changed", null, { keys: Object.keys(body) }, c.get("user").email);
+  return c.json({ rules: next, defaults: studioRules(c.env.STUDIO_RULES, null), logo_url: next.logo_r2_key ? "/api/settings/rules/logo" : null });
+});
+
+/** The end-card logo, for the Settings screen. */
+settings.get("/rules/logo", async (c) => {
+  const rules = await readStudioRules(c.env);
+  if (!rules.logo_r2_key) return c.text("Not found", 404);
+  return stream(c, c.env.FILES, rules.logo_r2_key, "image/png");
 });
 
 settings.get("/health", async (c) => c.json(await listHealth(c.env.DB)));

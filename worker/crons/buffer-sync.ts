@@ -17,7 +17,7 @@ import { mediaToken, nowIso } from "../lib/ids";
 import { log } from "../lib/log";
 import { planAhead } from "../routes/posts";
 import { POSTABLE_CLIP_SQL } from "../domain/sourceCheck";
-import { withAiLabel } from "@shared/contentRules";
+import { clipPostText, POST_TEXT_COLUMNS } from "../lib/postText";
 import { readSettings } from "../routes/settings";
 import { bufferRequests, getBuffer, type BufferChannel, type BufferClient } from "../services/buffer";
 import { emailFrame, sendEmail } from "../services/email";
@@ -191,9 +191,9 @@ export async function bufferSync(env: Env, opts: { force?: boolean } = {}): Prom
   const used = queueUsed(local, buf.remoteQueue);
   const { results: plannedRows } = await env.DB.prepare(
     `SELECT p.id, p.platform, p.scheduled_at, p.retries, c.id AS clip_id, c.caption, c.hashtags, c.media_token, c.hook_text,
-            (SELECT COUNT(*) FROM narrations n WHERE n.clip_id = c.id AND n.mix_status = 'ready' AND n.ai_generated = 1) AS ai_voice, c.full_video, c.youtube
+            (SELECT COUNT(*) FROM narrations n WHERE n.clip_id = c.id AND n.mix_status = 'ready' AND n.ai_generated = 1) AS ai_voice, c.full_video, c.youtube, ${POST_TEXT_COLUMNS}
      FROM posts p JOIN clips c ON c.id = p.clip_id WHERE p.status = 'planned' AND ${POSTABLE_CLIP_SQL}`,
-  ).all<{ id: string; platform: Platform; scheduled_at: string; retries: number; clip_id: string; caption: string; hashtags: string; media_token: string | null; hook_text: string; ai_voice: number; full_video: number; youtube: string | null }>();
+  ).all<{ id: string; platform: Platform; scheduled_at: string; retries: number; clip_id: string; caption: string; hashtags: string; media_token: string | null; hook_text: string; ai_voice: number; full_video: number; youtube: string | null; uses_ai_images: number | null; number: number | null; version: number | null; dump_created_at: string | null }>();
   // A full video Buffer can't post (landscape or over 3 minutes: Buffer posts YouTube Shorts only)
   // never goes to Buffer: it is hers to upload (Home: Upload it yourself), and it stays on the
   // Calendar as the day to do it. Sending it anyway failed twice and emailed her (staging, 26 Sep).
@@ -214,11 +214,12 @@ export async function bufferSync(env: Env, opts: { force?: boolean } = {}): Prom
       await env.DB.prepare("UPDATE clips SET media_token = ? WHERE id = ? AND media_token IS NULL").bind(token, row.clip_id).run();
       token = (await env.DB.prepare("SELECT media_token FROM clips WHERE id = ?").bind(row.clip_id).first<{ media_token: string }>())?.media_token ?? token;
     }
-    // Layer 5: a clip carrying an AI voice over says so in its caption, once.
-    const text = withAiLabel([row.caption, row.hashtags].filter((x) => x && x.trim()).join("\n\n"), row.ai_voice > 0);
+    // Layer 5: a clip made with AI (a voice over, an AI picture, or every clip where the studio says so)
+    // says so once, after the "—" line; the studio's link becomes this platform's tracking link.
+    const { text, link } = await clipPostText(env, row, row.platform);
     const r = await client.createPost({ channelId: buf.channels[row.platform]!.id, platform: row.platform, title: row.hook_text, text, mediaUrl: `${env.PUBLIC_BASE_URL}/media/${token}`, scheduledAt: bufferDueAt(row.scheduled_at, now), aiGenerated: row.ai_voice > 0, ...fullVideoArgs(row) });
     if (r.ok && r.id) {
-      await env.DB.prepare("UPDATE posts SET status = 'in_buffer', buffer_post_id = ?, error = NULL WHERE id = ?").bind(r.id, row.id).run();
+      await env.DB.prepare("UPDATE posts SET status = 'in_buffer', buffer_post_id = ?, error = NULL, tracked_link = ? WHERE id = ?").bind(r.id, link, row.id).run();
       loaded++;
       continue;
     }
@@ -232,9 +233,9 @@ export async function bufferSync(env: Env, opts: { force?: boolean } = {}): Prom
   // 4. read back posts whose time has come
   const { results: waiting } = await env.DB.prepare(
     `SELECT p.id, p.platform, p.scheduled_at, p.retries, p.buffer_post_id, c.id AS clip_id, c.caption, c.hashtags, c.media_token, c.hook_text,
-            (SELECT COUNT(*) FROM narrations n WHERE n.clip_id = c.id AND n.mix_status = 'ready' AND n.ai_generated = 1) AS ai_voice, c.full_video, c.youtube
+            (SELECT COUNT(*) FROM narrations n WHERE n.clip_id = c.id AND n.mix_status = 'ready' AND n.ai_generated = 1) AS ai_voice, c.full_video, c.youtube, ${POST_TEXT_COLUMNS}
      FROM posts p JOIN clips c ON c.id = p.clip_id WHERE p.status = 'in_buffer'`,
-  ).all<{ id: string; platform: Platform; scheduled_at: string; retries: number; buffer_post_id: string | null; clip_id: string; caption: string; hashtags: string; media_token: string | null; hook_text: string; ai_voice: number; full_video: number; youtube: string | null }>();
+  ).all<{ id: string; platform: Platform; scheduled_at: string; retries: number; buffer_post_id: string | null; clip_id: string; caption: string; hashtags: string; media_token: string | null; hook_text: string; ai_voice: number; full_video: number; youtube: string | null; uses_ai_images: number | null; number: number | null; version: number | null; dump_created_at: string | null }>();
   let posted = 0;
   let retried = 0;
   let failed = 0;
@@ -256,7 +257,7 @@ export async function bufferSync(env: Env, opts: { force?: boolean } = {}): Prom
       if (d.next === "retry") {
         retried++;
         const ch = buf.channels[p.platform];
-        const again = ready[p.platform] && ch && p.media_token ? await client.createPost({ channelId: ch.id, platform: p.platform, title: p.hook_text, text: withAiLabel([p.caption, p.hashtags].filter((x) => x && x.trim()).join("\n\n"), p.ai_voice > 0), mediaUrl: `${env.PUBLIC_BASE_URL}/media/${p.media_token}`, scheduledAt: bufferDueAt(p.scheduled_at, now), aiGenerated: p.ai_voice > 0, ...fullVideoArgs(p) }) : null;
+        const again = ready[p.platform] && ch && p.media_token ? await client.createPost({ channelId: ch.id, platform: p.platform, title: p.hook_text, text: (await clipPostText(env, p, p.platform)).text, mediaUrl: `${env.PUBLIC_BASE_URL}/media/${p.media_token}`, scheduledAt: bufferDueAt(p.scheduled_at, now), aiGenerated: p.ai_voice > 0, ...fullVideoArgs(p) }) : null;
         if (again?.ok && again.id) await env.DB.prepare("UPDATE posts SET buffer_post_id = ?, retries = ?, error = ? WHERE id = ?").bind(again.id, d.retries, st.error, p.id).run();
         else await env.DB.prepare("UPDATE posts SET status = 'planned', buffer_post_id = NULL, retries = ?, error = ? WHERE id = ?").bind(d.retries, again?.error ?? st.error, p.id).run();
         continue;

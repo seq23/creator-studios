@@ -14,6 +14,7 @@ import { ACCEPTED_DOC_TYPES, ACCEPTED_VIDEO_TYPES, UPLOAD_PART_SIZE } from "@sha
 import { MAX_EDIT_BYTES } from "../domain/editors";
 import { packPhotoKey, photoConfig } from "../lib/photoPosts";
 import { isPhoto, PACK_MAX_PHOTOS, PHOTO_MAX_BYTES } from "@shared/photoPosts";
+import { EXIF_SCAN_BYTES, readExif } from "@shared/exif";
 
 /** The stored type of a photo: iPhone Safari may send none for a HEIC, so the name decides. */
 const photoMime = (mime: string, name: string) => (mime && mime !== "application/octet-stream" ? mime.toLowerCase() : /\.png$/i.test(name) ? "image/png" : /\.jpe?g$/i.test(name) ? "image/jpeg" : "image/heic");
@@ -24,7 +25,10 @@ uploads.use("*", requireUser);
 /** Her own songs for the music bed (Settings > Editing > My music). */
 export const MUSIC_MAX_BYTES = 25 * 1024 * 1024;
 
-type Kind = "video" | "brand_doc" | "research_upload" | "voice_sample" | "kit_photo" | "music" | "edit" | "photo";
+type Kind = "video" | "brand_doc" | "research_upload" | "voice_sample" | "kit_photo" | "music" | "edit" | "photo" | "logo";
+
+/** The end-card logo (Settings → Your clips): a picture, at most this big. */
+export const LOGO_MAX_BYTES = 10 * 1024 * 1024;
 
 function keyFor(kind: Kind, parentId: string | null, id: string): string {
   switch (kind) {
@@ -44,11 +48,15 @@ function keyFor(kind: Kind, parentId: string | null, id: string): string {
       return `edits/${parentId}/${id}`;
     case "photo":
       return packPhotoKey(parentId ?? "", id);
+    case "logo":
+      return `brand/logo/${id}`;
   }
 }
 
 function acceptable(kind: Kind, mime: string, name = ""): boolean {
-  if (kind === "video") return ACCEPTED_VIDEO_TYPES.includes(mime) || mime.startsWith("video/");
+  // A dump takes videos AND photos, full quality, in one go (studio fix, 23 Oct 2026).
+  if (kind === "video") return ACCEPTED_VIDEO_TYPES.includes(mime) || mime.startsWith("video/") || isPhoto(mime, name) || /\.(mov|mp4|m4v|webm|3gp)$/i.test(name);
+  if (kind === "logo") return mime.startsWith("image/") || /\.(png|jpe?g|webp|svg)$/i.test(name);
   if (kind === "brand_doc" || kind === "research_upload") return ACCEPTED_DOC_TYPES.includes(mime) || mime.startsWith("text/");
   if (kind === "voice_sample") return mime.startsWith("audio/") || mime.startsWith("video/");
   if (kind === "kit_photo") return mime.startsWith("image/");
@@ -64,6 +72,7 @@ uploads.post("/start", async (c) => {
   if (!body?.kind || !body.fileName || !body.mimeType || typeof body.size !== "number") return fail(c, 400, "Missing file details.");
   if (!acceptable(body.kind, body.mimeType, body.fileName)) return fail(c, 422, body.kind === "photo" ? "That is not a photo we can use. Use a JPG, PNG or iPhone (HEIC) photo." : "That file type is not supported here.", body.kind === "photo" ? "photo-posts" : "clips-look-wrong");
   if (body.size <= 0) return fail(c, 422, "That file is empty.");
+  if (body.kind === "logo" && body.size > LOGO_MAX_BYTES) return fail(c, 413, "That logo is over 10 MB. Save a smaller PNG or JPG and try again.", "your-clips");
   if (body.kind === "music" && body.size > MUSIC_MAX_BYTES) return fail(c, 413, "That song is over 25 MB. Export it as an MP3 or M4A and try again.", "looks-and-styles");
   if (body.kind === "edit") {
     // Her edit from CapCut / InShot for one clip (Review > Edit in CapCut > Replace with my edit).
@@ -92,18 +101,20 @@ uploads.post("/start", async (c) => {
     if (dump.status !== "uploading") return fail(c, 409, "That dump was already sent for cutting. Start a new one.");
     if (body.contentHash) {
       const dup = await c.env.DB.prepare("SELECT id FROM assets WHERE content_hash = ? AND upload_status = 'uploaded' LIMIT 1").bind(body.contentHash).first();
-      if (dup) return fail(c, 409, "You already uploaded this exact video before. Recycled videos need a new file only if it changed.");
+      if (dup) return fail(c, 409, isPhoto(body.mimeType, body.fileName) ? "You already uploaded this exact photo before." : "You already uploaded this exact video before. Recycled videos need a new file only if it changed.");
     }
   }
 
   const key = keyFor(kind, parent, id);
-  const mp = await c.env.FILES.createMultipartUpload(key, { httpMetadata: { contentType: body.mimeType } });
+  // A photo from an iPhone may come with no type: the name decides (HEIC stays HEIC, full quality).
+  const mime = kind === "video" && isPhoto(body.mimeType, body.fileName) ? photoMime(body.mimeType, body.fileName) : kind === "video" && !body.mimeType.startsWith("video/") && body.mimeType === "application/octet-stream" ? "video/quicktime" : body.mimeType;
+  const mp = await c.env.FILES.createMultipartUpload(key, { httpMetadata: { contentType: mime } });
 
   if (kind === "video") {
     await c.env.DB.prepare(
       "INSERT INTO assets (id, dump_id, file_name, mime_type, size_bytes, r2_key, upload_id, upload_status, file_note, content_hash) VALUES (?, ?, ?, ?, ?, ?, ?, 'uploading', ?, ?)",
     )
-      .bind(id, parent, body.fileName.slice(0, 200), body.mimeType, body.size, key, mp.uploadId, body.fileNote ?? null, body.contentHash ?? null)
+      .bind(id, parent, body.fileName.slice(0, 200), mime, body.size, key, mp.uploadId, body.fileNote ?? null, body.contentHash ?? null)
       .run();
   } else if (kind === "brand_doc") {
     await c.env.DB.prepare("INSERT INTO brand_docs (id, file_name, mime_type, size_bytes, r2_key, extract_status) VALUES (?, ?, ?, ?, ?, 'pending')")
@@ -167,10 +178,39 @@ uploads.post("/:id/complete", async (c) => {
   const size = await completeParts(c.env.FILES, body.key, body.uploadId, body.parts);
   if (size === null) return fail(c, 502, "The upload could not be finished. Try again; your finished pieces are kept.");
   await c.env.DB.prepare("UPDATE assets SET upload_status = 'uploaded', size_bytes = ?, upload_id = NULL WHERE id = ?").bind(size, c.req.param("id")).run();
+  await readCamera(c.env, c.req.param("id"));
   await c.env.DB.prepare("UPDATE pack_photos SET upload_status = 'uploaded', size_bytes = ?, upload_id = NULL WHERE id = ?").bind(size, c.req.param("id")).run();
   log.info("upload.complete", { bytes: size });
   return c.json({ ok: true, size });
 });
+
+/**
+ * A dumped file's camera EXIF, read once from its first bytes (shared/exif.ts): a photo with no
+ * camera Make/Model is an AI picture (its clips say "Made with AI" where the studio asks for that).
+ * A video is camera footage. Never throws: an unreadable file is simply "no camera".
+ */
+export async function readCamera(env: Env, assetId: string): Promise<void> {
+  const a = await env.DB.prepare("SELECT r2_key, mime_type FROM assets WHERE id = ?").bind(assetId).first<{ r2_key: string; mime_type: string }>();
+  if (!a) return;
+  if (!a.mime_type.startsWith("image/")) {
+    await env.DB.prepare("UPDATE assets SET exif_camera = 1 WHERE id = ?").bind(assetId).run();
+    return;
+  }
+  let camera = false;
+  let taken: string | null = null;
+  try {
+    const obj = await env.FILES.get(a.r2_key, { range: { offset: 0, length: EXIF_SCAN_BYTES } });
+    if (obj) {
+      const r = readExif(new Uint8Array(await obj.arrayBuffer()));
+      camera = r.camera;
+      taken = r.taken_at;
+    }
+  } catch (e) {
+    log.warn("upload.exif", { err: e instanceof Error ? e.name : "error" });
+  }
+  await env.DB.prepare("UPDATE assets SET exif_camera = ?, taken_at = ? WHERE id = ?").bind(camera ? 1 : 0, taken, assetId).run();
+  log.info("upload.exif", { camera });
+}
 
 uploads.post("/:id/abort", async (c) => {
   const body = await readJson<{ key: string; uploadId: string }>(c);

@@ -24,6 +24,8 @@ import { notesWithStartOver, startOverPlan } from "../domain/startOver";
 import { answerQuestion, cleanLooksLike, cleanOverride, questionsFor, type PlanOverride, type QuestionVideo } from "@shared/looksLike";
 import { servicesOf } from "@shared/services";
 import { removeVoiceOver, voiceAllInDump, voiceReady } from "../lib/autoVoice";
+import { dumpFiles } from "../lib/dumpFiles";
+import { stream } from "./media";
 
 /** Is this clip already loaded into Buffer? (Then it is never removed from here.) */
 async function inBuffer(env: Env, clipId: string): Promise<boolean> {
@@ -429,4 +431,18 @@ dumps.post("/:id/voice-all", async (c) => {
   const r = await voiceAllInDump(c.env, id);
   if (r.clips && !r.started) return fail(c, 502, "The voice overs could not start. Try again in a minute.", "reconnect-github");
   return c.json({ ok: true, clips: r.clips });
+});
+
+/** What I dumped (studio fix): every file, its stage, which clips used it, when its original is cleared. */
+dumps.get("/:id/files", async (c) => {
+  const view = await dumpFiles(c.env, c.req.param("id"));
+  if (!view) return fail(c, 404, "That dump is gone.", "what-i-dumped");
+  return c.json(view);
+});
+
+/** One dumped file, for her own screens (signed in): the original while it is kept. Range requests work. */
+dumps.get("/:id/files/:assetId/view", async (c) => {
+  const a = await c.env.DB.prepare("SELECT r2_key, mime_type, raw_deleted_at FROM assets WHERE id = ? AND dump_id = ? AND upload_status = 'uploaded'").bind(c.req.param("assetId"), c.req.param("id")).first<{ r2_key: string; mime_type: string; raw_deleted_at: string | null }>();
+  if (!a || a.raw_deleted_at) return c.text("Not found", 404);
+  return stream(c, c.env.FILES, a.r2_key, a.mime_type || "application/octet-stream");
 });
