@@ -67,7 +67,7 @@ describe("Made with AI label", () => {
 describe("Porch & Party Studio (studios/sample1.json)", () => {
   it("owner's ruling 24 Oct 2026: no face blur (no customers in its videos); house numbers, the never-word and the one price stay", async () => {
     const { readFileSync } = await import("node:fs");
-    const j = JSON.parse(readFileSync(new URL("../../studios/sample1.json", import.meta.url), "utf8"));
+    const j = JSON.parse(readFileSync(`${process.cwd()}/studios/sample1.json`, "utf8"));
     const r = parseRules(JSON.stringify(j.contentRules));
     expect(r.blockFaces).toBe(false);
     expect(r.blockAddresses).toBe(true);
