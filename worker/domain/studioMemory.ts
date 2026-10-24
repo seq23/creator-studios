@@ -54,9 +54,31 @@ function clip(s: string, n: number): string {
   return s.replace(/\s+/g, " ").trim().slice(0, n);
 }
 
-/** The rejection rate over the most recent reviewed clips (newest first). */
+/** Decisions this close together, the same way for the same reason, are one decision (a clear-out). */
+export const BURST_S = 5;
+
+/**
+ * The reviewed clips as decisions (newest first): a run of the same decision for the same reason,
+ * each within BURST_S of the one before, counts once. Nobody watches a clip in under 5 seconds: 16
+ * "bad cut" rejections 0.7 s apart (23 Oct 2026, a dump cut by two since-fixed bugs, then Started
+ * over) are one "this cut is bad", not 16 tastes, and must not switch a studio to careful for 30 days.
+ */
+export function decisions<T extends Pick<ReviewedRow, "status" | "reject_reason" | "reviewed_at">>(rows: readonly T[]): T[] {
+  const out: T[] = [];
+  let prev: T | null = null;
+  for (const r of rows) {
+    const t = Date.parse(r.reviewed_at);
+    const pt = prev ? Date.parse(prev.reviewed_at) : NaN;
+    const same = !!prev && prev.status === r.status && (prev.reject_reason ?? "") === (r.reject_reason ?? "") && Number.isFinite(t) && Number.isFinite(pt) && Math.abs(pt - t) <= BURST_S * 1000;
+    if (!same) out.push(r);
+    prev = r;
+  }
+  return out;
+}
+
+/** The rejection rate over the most recent decisions (newest first; a clear-out counts once). */
 export function rejectionRate(rows: readonly ReviewedRow[]): { rate: number; reviewed: number } {
-  const recent = rows.slice(0, RECENT_REVIEWED);
+  const recent = decisions(rows).slice(0, RECENT_REVIEWED);
   const rejected = recent.filter((r) => r.status === "rejected").length;
   return { rate: recent.length ? Math.round((rejected / recent.length) * 1000) / 1000 : 0, reviewed: recent.length };
 }

@@ -12,7 +12,7 @@ import { memoryR2 } from "./helpers/r2-memory";
 import { ownerCookie } from "./helpers/owner-session";
 import { dumps as dumpsRoute } from "@worker/routes/dumps";
 import { cutJob, type CutSpec } from "@worker/jobs/cut";
-import { chooseApproach, loadMemory, summarize, type ReviewedRow } from "@worker/domain/studioMemory";
+import { chooseApproach, decisions, loadMemory, rejectionRate, summarize, type ReviewedRow } from "@worker/domain/studioMemory";
 import { answerQuestion, cleanOverride, questionsFor } from "@shared/looksLike";
 import { setSetting } from "@worker/lib/db";
 
@@ -52,6 +52,21 @@ describe("layer 8 + 9: memory and the switch (pure)", () => {
     expect(m.reject_reasons).toEqual(["Not my style"]);
     expect(m.notes).toEqual(["slower please"]);
     expect(m.relabel).toEqual({ "alpha work": "beta work" }); // once is not a pattern
+  });
+  it("a clear-out (the same decision for the same reason, seconds apart) is one decision, not many", () => {
+    const at = (s: number) => new Date(Date.UTC(2026, 9, 23, 23, 9, 0) - s * 1000).toISOString();
+    const row = (status: "approved" | "rejected", reason: string | null, s: number): ReviewedRow => ({ status, shape: null, service: null, hook_text: "", reject_reason: reason, reviewed_at: at(s), views: null });
+    // 23 Oct 2026: 16 "bad cut" 0.7 s apart, then 3 "not on brand" 1 s apart, two hours later.
+    const live = [...[0, 1, 2].map((i) => row("rejected", "not on brand", -7200 + i)), ...Array.from({ length: 16 }, (_, i) => row("rejected", "bad cut", i * 0.7))];
+    expect(decisions(live).length).toBe(2);
+    expect(rejectionRate(live)).toEqual({ rate: 1, reviewed: 2 });
+    expect(chooseApproach("standard", rejectionRate(live)).approach).toBe("standard"); // 2 decisions are too few to switch
+    // Deliberate reviews a minute apart each count, the same reason or not; a different reason or decision breaks a run.
+    const slow = Array.from({ length: 12 }, (_, i) => row("rejected", "bad cut", i * 60));
+    expect(rejectionRate(slow)).toEqual({ rate: 1, reviewed: 12 });
+    expect(chooseApproach("standard", rejectionRate(slow)).approach).toBe("careful");
+    const mixed = [row("rejected", "bad cut", 0), row("rejected", "bad hook", 1), row("approved", null, 2), row("rejected", "bad hook", 3)];
+    expect(decisions(mixed).length).toBe(4);
   });
   it("over half turned down (10+ reviewed) switches to careful; back only at 35% or under", () => {
     expect(chooseApproach("standard", { rate: 0.6, reviewed: 12 }).approach).toBe("careful");
@@ -120,7 +135,8 @@ describe("the routes and the spec", () => {
     expect((await call("POST", "/api/dumps/dmp_q/answer", { id: "nope" })).status).toBe(400);
   });
   it("the live switch is recorded with why, once", async () => {
-    for (let i = 0; i < 12; i++) db.raw.exec(`INSERT INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, r2_key, status, reviewed_at, hook_text) VALUES ('clp_${i}', 'ast_1', 'dmp_q', 0, 5, 'montage', 'k${i}', '${i < 8 ? "rejected" : "approved"}', '${new Date().toISOString()}', 'h${i}')`);
+    // One decision a minute (a clear-out within BURST_S counts once: see the test below).
+    for (let i = 0; i < 12; i++) db.raw.exec(`INSERT INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, r2_key, status, reviewed_at, hook_text) VALUES ('clp_${i}', 'ast_1', 'dmp_q', 0, 5, 'montage', 'k${i}', '${i < 8 ? "rejected" : "approved"}', '${new Date(Date.now() - i * 60_000).toISOString()}', 'h${i}')`);
     const m = await loadMemory(env);
     expect(m.approach).toBe("careful");
     expect(m.rejection).toMatchObject({ rate: 0.667, reviewed: 12 });
