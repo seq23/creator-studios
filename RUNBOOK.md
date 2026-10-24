@@ -72,6 +72,19 @@ studio: `node scripts/studio.mjs secrets --all --refresh --only=PLATFORM_RESEND_
 
 D1 `creator-studios-<slug>-db`, R2 `creator-studios-<slug>-files`, Worker `<slug>studio`, all on the host's Cloudflare account `8d147e242033699dd37c6f5a451f48d2`.
 
+## Held clips are redone on their own
+
+Owner's standing rule (23 Oct 2026): a clip that is not up to par, or was held by something broken,
+is redone by the studio itself, never by asking her. The hourly lane runs `worker/lib/autoRedo.ts`
+in every studio: up to 3 held clips an hour go through Try another version (a different moment, a
+different look, the cause's one-tap fixes), at most 2 times per clip per check version, never a
+clip she approved, rejected or put on the Calendar, her own edit, or one whose video was cleared.
+No email; the redone clip appears in Review. The **Clip redo** light says what each run did.
+
+**When a build fixes a check that held clips** (a bug in the face check, the critic, the bar): bump
+that cause's `check` in `shared/holdCauses.ts` and add its `history` line. Clips held under the
+older version are redone automatically on the next hourly run, with a fresh allowance of 2.
+
 ## Common tasks
 
 ```bash
