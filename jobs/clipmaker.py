@@ -470,6 +470,21 @@ def hook_points(hook: str, max_words: int = 8) -> int:
     return pts
 
 
+def copies_pattern(hook: str, patterns: list[str]) -> str | None:
+    """The niche pattern a hook copies word for word (three or more of its own words in a row; "…"
+    marks the part that changes), or None. Twin of shared/clipWords.ts copiesPattern."""
+    def words(t: str) -> list[str]:
+        return re.findall(r"[a-z0-9]+", (t or "").lower().replace("\u2019", "").replace("'", ""))
+    hw = " " + " ".join(words(hook)) + " "
+    for p in patterns or []:
+        for seg in re.split(r"…|\.\.\.", str(p)):
+            w = words(seg)
+            for i in range(len(w) - 2):
+                if " " + " ".join(w[i : i + 3]) + " " in hw:
+                    return str(p)
+    return None
+
+
 def crowded_hooks(hooks: list[str], exempt: list[str] | None = None) -> list[int]:
     """The indexes whose hook makes the dump read alike next to the EARLIER kept ones (a near
     repeat, a crowded opening or a crowded word); the first ones keep theirs."""

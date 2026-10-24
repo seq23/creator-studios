@@ -1685,7 +1685,7 @@ def distinct_hooks(moments: list[tuple[Moment, Source]], spec: dict[str, Any], k
 
     def fits(h: str, said: str) -> bool:
         return (
-            bool(h) and CM._readable_hook(h, maxw) and CM.hook_variety_problem(h, kept, place) is None and (text_ok is None or text_ok(h))
+            bool(h) and CM._readable_hook(h, maxw) and CM.hook_variety_problem(h, kept, place) is None and CM.copies_pattern(h, pb.get("niche_hooks") or []) is None and (text_ok is None or text_ok(h))
             and not CM.is_stock(h, "x") and h.lower() not in stock and not CM.echoes_speech(h, said)
         )
 
