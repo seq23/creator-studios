@@ -239,12 +239,12 @@ def selftest() -> None:
 
         def search(self, q: str, n: int) -> list[dict[str, str]]:
             return [
-                {"url": "https://hotel.example.com/creators", "title": "Creator program | Example Hotel", "description": "Our creator program hosts creators for free stays."},
+                {"url": "https://hotel.example/creators", "title": "Creator program | Example Hotel", "description": "Our creator program hosts creators for free stays."},
                 {"url": "https://news.example.org/a", "title": "News", "description": "Something else"},
             ]
 
         def read(self, url: str) -> str:
-            return "Write to creators@hotel.example.com to apply." if "hotel.example.com" in url else ""
+            return "Write to creators@hotel.example to apply." if "hotel.example" in url else ""
 
     spec = {"kind": "experience", "ask": {"title": "Spring break trip", "when_label": "Mar 2027", "medical": False}, "profile": {"off_limits": ["vape"]}, "numbers": [], "max_brands": 12, "today": "2026-10-23"}
     qs = queries(spec)
@@ -253,12 +253,12 @@ def selftest() -> None:
     silent = research(spec, FakeWeb(), lambda p: None)
     assert silent["madeBy"] == "rules" and silent["brands"], silent
     b = silent["brands"][0]
-    assert b["proof"][0]["url"] == "https://hotel.example.com/creators", b
-    assert b["wayIn"] == {"kind": "email", "value": "creators@hotel.example.com", "foundOn": "https://hotel.example.com/creators", "label": "Public business email"}, b
+    assert b["proof"][0]["url"] == "https://hotel.example/creators", b
+    assert b["wayIn"] == {"kind": "email", "value": "creators@hotel.example", "foundOn": "https://hotel.example/creators", "label": "Public business email"}, b
     invented = json.dumps({"brands": [
         {"name": "Made Up Co", "website": "https://madeup.example.net", "proof": [{"text": "hosts creators", "url": "https://madeup.example.net/x"}]},
-        {"name": "Vape Brand", "website": "https://vape.example.com", "proof": [{"text": "creator program", "url": "https://hotel.example.com/creators"}]},
-        {"name": "Example Hotel", "website": "https://hotel.example.com", "fit": "best", "what": "Hotel · comped stay", "proof": [{"text": "Creator program hosts creators", "url": "https://hotel.example.com/creators"}]},
+        {"name": "Vape Brand", "website": "https://vape.example.com", "proof": [{"text": "creator program", "url": "https://hotel.example/creators"}]},
+        {"name": "Example Hotel", "website": "https://hotel.example", "fit": "best", "what": "Hotel · comped stay", "proof": [{"text": "Creator program hosts creators", "url": "https://hotel.example/creators"}]},
     ], "videos": [{"title": "Hotel GRWM", "hook": "Getting ready", "shots": ["mirror"]}], "rules": ["should not appear"], "firstMove": {"text": "Pitch Example Hotel first.", "by": "2026-11-02"}})
     spoke = research(spec, FakeWeb(), lambda p: invented)
     assert [x["name"] for x in spoke["brands"]] == ["Example Hotel"], spoke["brands"]

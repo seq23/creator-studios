@@ -71,7 +71,7 @@ describe("the gate on the job's result", () => {
     expect(cleanSponsorResult(null)).toBeNull();
   });
   it("a personal address is never a way in: 'Needs a way in'; a role address with its page is", () => {
-    const r = cleanSponsorResult({ brands: [{ ...brand, wayIn: { kind: "email", value: "jane.doe@gmail.com", foundOn: "https://resort.example.com/c" } }, { ...brand, name: "B Co", wayIn: { kind: "email", value: "partnerships@b.example.com", foundOn: "https://b.example.com/c" } }, { ...brand, name: "C Co", wayIn: { kind: "email", value: "pr@c.example.com" } }] })!;
+    const r = cleanSponsorResult({ brands: [{ ...brand, wayIn: { kind: "email", value: "jane.doe@gmail.com", foundOn: "https://resort.example.com/c" } }, { ...brand, name: "B Co", wayIn: { kind: "email", value: "partnerships@b.example", foundOn: "https://b.example/c" } }, { ...brand, name: "C Co", wayIn: { kind: "email", value: "pr@c.example" } }] })!;
     expect(r.brands.map((b) => [b.name, b.wayIn.kind, b.wayIn.label])).toEqual([
       ["Example Resort", "none", "Needs a way in"],
       ["B Co", "email", "Public business email"],
