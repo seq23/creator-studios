@@ -1917,7 +1917,7 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         r, m, sc, why = scored[k]
         m.hidden_reason = m.hidden_reason or checked.hidden_reason
         if not m.hidden_reason and any(a in unsafe for a in part_owners(m)):
-            m.hidden_reason = C.REASON_WORDS["privacy"]
+            m.hidden_reason = C.REASON_WORDS["unprotected"]
         src = srcs.get(m.asset_id, c["src"])
         critic_stats["checked"] += 1
         critic_stats["recuts"] += checked.recuts

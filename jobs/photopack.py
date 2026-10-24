@@ -245,16 +245,12 @@ def clip_privacy_boxes(video: Path) -> list[tuple[int, int, int, int]]:
 
 
 def blur_regions(video: Path, boxes: list[tuple[int, int, int, int]], dst: Path) -> None:
-    """The clip with each box blurred hard for its whole length (the photo check, applied to motion)."""
-    chain, last = "", "[0:v]"
-    for i, (x0, y0, x1, y1) in enumerate(boxes):
-        pw, ph = int((x1 - x0) * 0.35) + 12, int((y1 - y0) * 0.35) + 12
-        x, y = max(0, x0 - pw), max(0, y0 - ph)
-        w, h = min(W - x, x1 - x0 + 2 * pw), min(H - y, y1 - y0 + 2 * ph)
-        w, h = max(2, w - w % 2), max(2, h - h % 2)
-        chain += f"[0:v]crop={w}:{h}:{x}:{y},boxblur=24:3[b{i}];{last}[b{i}]overlay={x}:{y}[o{i}];"
-        last = f"[o{i}]"
-    sh(["ffmpeg", "-y", "-loglevel", "error", "-i", str(video), "-filter_complex", chain.rstrip(";"), "-map", last, "-map", "0:a", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(dst)])
+    """The clip with each box blurred hard for its whole length (the photo check, applied to motion).
+    The patches are jobs/protect.py's (radii ffmpeg accepts on a small box, 23 Oct 2026)."""
+    import protect as PR
+
+    chain, last = PR.blur_filter([(0.0, 86400.0, b) for b in boxes], W, H)
+    sh(["ffmpeg", "-y", "-loglevel", "error", "-i", str(video), "-filter_complex", chain, "-map", last, "-map", "0:a", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(dst)])
 
 
 def _run_with_timeout(fn, timeout: float):

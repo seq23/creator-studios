@@ -307,17 +307,65 @@ def merge_regions(regions: list[tuple[float, float, tuple[int, int, int, int]]])
     return [(r[0], r[1], r[2]) for r in out]
 
 
+MIN_BOX = 48
+BLUR_RADIUS = 24
+
+
+def blur_box(box: tuple[int, int, int, int], width: int, height: int) -> tuple[int, int, int, int]:
+    """(x, y, w, h) of the blurred patch: the box padded 35 % + 12 px, at least MIN_BOX a side, even
+    sizes, never outside the frame."""
+    x0, y0, x1, y1 = box
+    pw, ph = int((x1 - x0) * 0.35) + 12, int((y1 - y0) * 0.35) + 12
+
+    def span(lo: int, hi: int, pad: int, size: int) -> tuple[int, int]:
+        lo, hi = lo - pad, hi + pad
+        if hi - lo < MIN_BOX:
+            mid = (lo + hi) // 2
+            lo, hi = mid - MIN_BOX // 2, mid + MIN_BOX // 2
+        if lo < 0:  # slide inside the frame, never shrink against its edge
+            lo, hi = 0, hi - lo
+        if hi > size:
+            lo, hi = max(0, lo - (hi - size)), size
+        n = hi - lo
+        n = max(2, n - n % 2)
+        return lo, n
+
+    x, w = span(x0, x1, pw, width)
+    y, h = span(y0, y1, ph, height)
+    return x, y, w, h
+
+
+def blur_radii(w: int, h: int) -> tuple[int, int]:
+    """(luma, chroma) boxblur radius for a w x h yuv420p patch. ffmpeg refuses a radius that is not
+    under half the plane's short side (chroma planes are half size), and a refused filter fails the
+    whole pass, which hides every clip of the video (23 Oct 2026: 7 of 45 videos of one dump, every
+    one a small house-number box, each with "radius value 24, must be >= 0 and < 16")."""
+    luma = max(0, min(BLUR_RADIUS, (min(w, h) - 1) // 2))
+    chroma = max(0, min(BLUR_RADIUS, (min(w // 2, h // 2) - 1) // 2))
+    return luma, chroma
+
+
 def blur_filter(regions: list[tuple[float, float, tuple[int, int, int, int]]], width: int, height: int) -> tuple[str, str]:
-    """The ffmpeg filter graph: each box blurred hard only while it is on screen."""
-    chain, last = "", "[0:v]"
-    for i, (t0, t1, (x0, y0, x1, y1)) in enumerate(regions):
-        pw, ph = int((x1 - x0) * 0.35) + 12, int((y1 - y0) * 0.35) + 12
-        x, y = max(0, x0 - pw), max(0, y0 - ph)
-        w, h = min(width - x, x1 - x0 + 2 * pw), min(height - y, y1 - y0 + 2 * ph)
-        w, h = max(2, w - w % 2), max(2, h - h % 2)
-        chain += f"[0:v]crop={w}:{h}:{x}:{y},boxblur=24:3[b{i}];{last}[b{i}]overlay={x}:{y}:enable='between(t,{t0:.2f},{t1:.2f})'[o{i}];"
+    """The ffmpeg filter graph: each box blurred hard only while it is on screen. The source is
+    split once per use (a filter pad is read once)."""
+    n = len(regions)
+    chain = f"[0:v]split={n + 1}[base]" + "".join(f"[s{i}]" for i in range(n)) + ";"
+    last = "[base]"
+    for i, (t0, t1, box) in enumerate(regions):
+        x, y, w, h = blur_box(box, width, height)
+        lr, cr = blur_radii(w, h)
+        chain += f"[s{i}]crop={w}:{h}:{x}:{y},boxblur=luma_radius={lr}:luma_power=3:chroma_radius={cr}:chroma_power=3[b{i}];{last}[b{i}]overlay={x}:{y}:enable='between(t,{t0:.2f},{t1:.2f})'[o{i}];"
         last = f"[o{i}]"
     return chain.rstrip(";"), last
+
+
+def ffmpeg_error(stderr: str) -> str:
+    """ffmpeg's cause, not its last line ("Nothing was written..." hid "radius value 24" on 23 Oct 2026)."""
+    lines = [ln.strip() for ln in (stderr or "").splitlines() if ln.strip()]
+    for ln in lines:
+        if any(k in ln for k in ("Invalid", "Error", "error", "Failed", "failed")) and "Nothing was written" not in ln:
+            return ln
+    return lines[-1] if lines else "ffmpeg failed"
 
 
 BLUR_PASS = 6
@@ -334,7 +382,7 @@ def blur_video(video: Path, regions: list[tuple[float, float, tuple[int, int, in
         out = dst.with_name(f"{dst.stem}_{i // BLUR_PASS}{dst.suffix}")
         r = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", str(src), "-filter_complex", chain, "-map", last, "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-pix_fmt", "yuv420p", "-c:a", "copy", str(out)], capture_output=True, text=True, timeout=1800)
         if r.returncode != 0:
-            raise RuntimeError((r.stderr or "ffmpeg failed").strip().splitlines()[-1] if (r.stderr or "").strip() else "ffmpeg failed")
+            raise RuntimeError(ffmpeg_error(r.stderr))
         src = out
     return src
 
