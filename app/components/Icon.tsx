@@ -3,6 +3,7 @@
 // first build used, which rendered differently on every phone. Decorative by default
 // (aria-hidden); the button or link around an icon carries the name.
 export type IconName =
+  | "connect"
   | "home"
   | "dump"
   | "review"
@@ -46,6 +47,7 @@ const PATHS: Record<IconName, string> = {
   check: "M5.5 12.5l4 4 9-9",
   arrow: "M5 12h13M13 6.5l5.5 5.5-5.5 5.5",
   search: "M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM15.2 15.2 20 20",
+  connect: "M10 14l4-4M10.5 7l1.6-1.6a3.5 3.5 0 0 1 5 5L15.5 12M13.5 17l-1.6 1.6a3.5 3.5 0 0 1-5-5L8.5 12",
   archive: "M4.5 5.5h15v3.5h-15zM6 9v9.5A1.5 1.5 0 0 0 7.5 20h9a1.5 1.5 0 0 0 1.5-1.5V9M10 12.5h4",
 };
 

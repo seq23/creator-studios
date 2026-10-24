@@ -18,13 +18,14 @@ import "../styles/settings.css";
 import { useApp } from "../state";
 import { PLATFORM_LABEL, type Platform } from "@shared/constants";
 import { EDITORS as EDITOR_LIST, HANDOFF } from "@shared/editors";
+import { WhyBuffer } from "../components/WhyBuffer";
 
 type Service = ConnectionView["service"];
 
 // `title` is the section-and-vendor name the key box is labelled with (guides and specs find the
 // box by it); `name` is the vendor alone, shown as the card title under the numbered step.
 const KEY_SERVICES: { service: Service; title: string; name: string; why: string; steps: string[]; guide: string; optional?: boolean; editor?: boolean }[] = [
-  { service: "buffer", title: "Posting · Buffer", name: "Buffer", why: "Buffer publishes your clips to TikTok, Instagram and YouTube.", steps: ["Open Buffer → Settings → API", "Click Create key, then copy it", "Paste it here"], guide: "connect-buffer" },
+  { service: "buffer", title: "Posting · Buffer", name: "Buffer", why: "This is how your clips post to Instagram, TikTok and YouTube. Instagram and TikTok don’t let apps post directly without a long approval, so Buffer (free) does the posting.", steps: ["Make a free Buffer account at buffer.com", "In Buffer, add your Instagram and TikTok", "Open Buffer → Settings → API", "Click Create key, then copy it", "Paste it here"], guide: "connect-buffer" },
   { service: "openrouter", title: "AI · OpenRouter", name: "OpenRouter", why: "Writes captions, hooks, your Research Brief and pitch drafts. Free models by default.", steps: ["Open openrouter.ai → Keys", "Create key, copy it", "Paste it here"], guide: "connect-openrouter" },
   { service: "firecrawl", title: "Web research · Firecrawl", name: "Firecrawl", why: "Optional, faster web research for your Research Brief and brand finder. 1,000 free credits a month. Without it the dashboard searches the web for free.", steps: ["Open firecrawl.dev → API Keys", "Copy your key", "Paste it here"], guide: "connect-firecrawl" },
   { service: "hunter", title: "Brand deals · Hunter.io", name: "Hunter.io", why: "Finds public partnership emails on brand websites. Free account: 50 lookups a month.", steps: ["Create a free Hunter account", "Open API → copy key", "Paste it here"], guide: "connect-hunter", optional: true },
@@ -272,6 +273,7 @@ function KeyCard({ def, conn, owner, primary, onChange }: { def: (typeof KEY_SER
         <StatusPill conn={conn} />
       </div>
       <p className="soft">{def.why}</p>
+      {def.service === "buffer" ? <WhyBuffer /> : null}
       {def.service === "elevenlabs" ? <ElevenLabsPlan conn={conn} /> : null}
       {credits !== undefined ? (
         <div className="hint nums">

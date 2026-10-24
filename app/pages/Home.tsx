@@ -10,6 +10,8 @@ import { Icon } from "../components/Icon";
 import { useApp } from "../state";
 import { PLATFORM_LABEL, PLATFORMS } from "@shared/constants";
 import "../styles/home.css";
+import { WhyBuffer } from "../components/WhyBuffer";
+import type { GetSetUpStep } from "@shared/types";
 
 type RecentDump = HomeSummary["recentDumps"]["items"][number];
 
@@ -47,10 +49,13 @@ export function Home() {
   return (
     <div className="page home">
       <PageHead eyebrow={fmtDate(new Date().toISOString(), { weekday: "long", month: "short", day: "numeric" })} title={firstName ? `Hi ${firstName}` : "Hi there"} lede="What needs you today, and how the week is going.">
-        <Link to="/dump" className="btn big" data-primary>
+        {/* One next step per screen: while setting up, it is the first unfinished setup step. */}
+        <Link to="/dump" className="btn big" data-primary={data?.getSetUp ? undefined : true}>
           + Dump videos
         </Link>
       </PageHead>
+
+      {data?.getSetUp ? <GetSetUp steps={data.getSetUp} /> : null}
 
       {loading && !data ? (
         <>
@@ -328,5 +333,53 @@ function YoutubeCardBody({ y: card }: { y: HomeYoutubeCard }) {
         </>
       )}
     </div>
+  );
+}
+
+
+const MARKS = ["①", "②", "③", "④"];
+
+/**
+ * First-run "Get set up" (owner, 23 Oct 2026): four steps at the top of Home, a ✓ on each one done,
+ * a link to its screen and its help guide. Gone once all four are done (getSetUp is null).
+ */
+function GetSetUp({ steps }: { steps: GetSetUpStep[] }) {
+  const left = steps.filter((s) => !s.done).length;
+  const next = steps.findIndex((s) => !s.done);
+  // Calm and one phone screen: every step is one short line (✓ when done, a link when not); only
+  // the next step opens up with what it means, its button, its help guide.
+  return (
+    <section className="card get-set-up" data-get-set-up aria-label="Get set up">
+      <strong>Get set up · {left === 1 ? "one step left" : `${left} steps left`}</strong>
+      <ol>
+        {steps.map((s, i) => (
+          <li key={s.key} data-step={s.key} data-done={s.done || undefined}>
+            <span className="mark" aria-hidden="true">
+              {s.done ? "✓" : MARKS[i]}
+            </span>
+            <span className="grow">
+              {s.done ? (
+                <span className="soft">{s.label}: done</span>
+              ) : i !== next ? (
+                <Link to={s.to}>{s.label}</Link>
+              ) : (
+                <>
+                  <span className="hint step-line">{s.line}</span>
+                  <span className="row wrap">
+                    <Link to={s.to} className="btn small" data-primary>
+                      {s.label} →
+                    </Link>
+                    <Link to={`/help/${s.guide}`} className="help-link">
+                      How to do this
+                    </Link>
+                  </span>
+                  {s.key === "connect" ? <WhyBuffer /> : null}
+                </>
+              )}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }

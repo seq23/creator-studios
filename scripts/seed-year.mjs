@@ -129,6 +129,7 @@ export function sampleResetSql() {
 export function clearYearSql({ before = false } = {}) {
   return [
     "DELETE FROM metrics WHERE id LIKE 'yr_%';",
+    "DELETE FROM connections WHERE service = 'buffer' AND meta LIKE '%\"seed\":\"year\"%';",
     "DELETE FROM platform_videos WHERE id LIKE 'yr_%';",
     "DELETE FROM posts WHERE id LIKE 'yr_%';",
     "DELETE FROM narrations WHERE id LIKE 'yr_%';",
@@ -403,6 +404,10 @@ export function yearSql(now = new Date(), { before = false, sample = false } = {
     // Her saved voice (consent given), so the Voice screen and the automatic voice overs read as ready.
     out.push(`UPDATE voice SET sample_r2_key = ${q(file("voice/yr_sample.mp3", "voice"))}, consent_at = ${q(iso(day0 + 4 * DAY))}, consent_text = 'This is my own voice and I consent to it being cloned for my narration', model_r2_key = 'voice/yr_model.pt', enabled = 1, updated_at = ${q(iso(day0 + 4 * DAY))} WHERE id = 1;`);
   }
+
+  // A year of posting went through Buffer: it is connected (no key: the fake lanes post), so Home's
+  // first-run "Get set up" is finished on day 358 like it would be for her.
+  out.push(`INSERT OR IGNORE INTO connections (service, status, meta, last_ok_at) VALUES ('buffer', 'ok', '{"seed":"year","channels":[]}', ${q(iso(T - 1800_000))});`);
 
   // The health board on day 358 (the daily lane rewrites Storage and Runway on its next run).
   const lights = [

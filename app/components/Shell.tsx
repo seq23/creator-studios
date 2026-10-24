@@ -35,6 +35,8 @@ const NAV: NavItem[] = [
   { to: "/research", label: "Research", icon: "research", group: "business" },
   { to: "/stats", label: "Stats", icon: "stats", group: "business" },
   { to: "/voice", label: "Voice overs", icon: "voice", group: "business" },
+  // Where a creator connects Instagram and TikTok (through Buffer), in the menu on phone and laptop (owner, 23 Oct 2026).
+  { to: "/settings/connections", label: "Connect Instagram & TikTok", icon: "connect", group: "setup" },
   { to: "/setup", label: "Setup", icon: "check", group: "setup" },
   { to: "/settings", label: "Settings", icon: "settings", group: "setup" },
   { to: "/help", label: "Help", icon: "help", group: "setup" },
@@ -103,7 +105,7 @@ export function Shell() {
   }, [menuOpen]);
 
   const link = (n: NavItem) => (
-    <NavLink key={n.to} to={n.to} end={n.to === "/"}>
+    <NavLink key={n.to} to={n.to} end={n.to === "/" || n.to === "/settings"}>
       <Icon name={n.icon} />
       {n.label}
       {badge(n) ? (

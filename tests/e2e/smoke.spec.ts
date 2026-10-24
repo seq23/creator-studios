@@ -49,9 +49,28 @@ test.describe("home and dump", () => {
     await expect(page.getByText("This week")).toBeVisible();
     await expect(page.getByText("Waiting for you")).toBeVisible();
     await expect(page.getByRole("link", { name: "+ Dump videos" })).toBeVisible();
-    // one next step per screen: the Dump link is the only primary action
+    // one next step per screen: while she is setting up, it is the first unfinished "Get set up"
+    // step (a fresh studio: Connect Instagram & TikTok); once set up, the Dump link.
+    const setUp = page.locator("[data-get-set-up]");
     await expect(page.locator("[data-primary]")).toHaveCount(1);
-    await expect(page.locator("[data-primary]")).toHaveText("+ Dump videos");
+    if (await setUp.count()) {
+      await expect(setUp.locator("[data-step]")).toHaveCount(4);
+      await expect(setUp.locator("[data-step]")).toContainText([/Connect Instagram & TikTok/, /Lock your Brand Profile/, /Approve your Research Brief/, /Upload your first videos/]);
+      // only the next step opens up: its button (the one primary), its help guide; the others are one line each
+      const next = setUp.locator("[data-step]:not([data-done])").first();
+      await expect(next.locator("[data-primary]")).toHaveCount(1);
+      await expect(next.getByRole("link", { name: "How to do this" })).toHaveAttribute("href", /^\/help\//);
+      await expect(setUp.getByRole("link", { name: "How to do this" })).toHaveCount(1);
+      for (const step of await setUp.locator("[data-step]:not([data-done])").all()) await expect(step.locator("a[href^='/']").first()).toBeVisible();
+      if ((await next.getAttribute("data-step")) === "connect") await expect(next.locator("[data-why-buffer] summary")).toHaveText("Why Buffer? ▾");
+    } else {
+      await expect(page.locator("[data-primary]")).toHaveText("+ Dump videos");
+    }
+    // Connect Instagram & TikTok is in the main menu (phone: under Menu).
+    if (test.info().project.name === "phone") await page.locator("[data-menu]").click();
+    const menuLink = page.locator("nav").getByRole("link", { name: "Connect Instagram & TikTok", exact: true });
+    await expect(menuLink).toBeVisible();
+    await expect(menuLink).toHaveAttribute("href", "/settings/connections");
   });
 
   test("every screen is reachable and has a ? help button", async ({ page }) => {

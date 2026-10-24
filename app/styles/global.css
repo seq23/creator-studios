@@ -1487,3 +1487,62 @@ a.list-row:hover .title {
 }
 .looks-q-video.on { border-color: var(--warning-ink); box-shadow: inset 0 0 0 1px var(--warning-ink); }
 .looks-q-check { font-size: var(--text-lg); line-height: 1; }
+
+/* "Why Buffer? ▾" (components/WhyBuffer.tsx): a calm fold, a 44 px tap target. */
+.why-buffer summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+}
+.why-buffer ul {
+  margin: 0 0 var(--space-2xs);
+  padding-left: var(--space-sm);
+}
+.why-buffer li {
+  margin: var(--space-3xs) 0;
+}
+
+/* Home's first-run "Get set up" checklist: one step per row, ✓ when done. */
+.get-set-up ol {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-xs) 0 0;
+  display: grid;
+  gap: var(--space-xs);
+}
+.get-set-up li {
+  display: flex;
+  gap: var(--space-2xs);
+  align-items: flex-start;
+}
+.get-set-up .mark {
+  flex: none;
+  width: 1.6em;
+  font-weight: 700;
+  text-align: center;
+}
+.get-set-up li[data-done] .mark {
+  color: var(--success);
+}
+.get-set-up .row.wrap {
+  margin-top: var(--space-3xs);
+}
+.get-set-up .btn,
+.get-set-up a.help-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.get-set-up .step-line {
+  display: block;
+}
+.get-set-up ol {
+  gap: var(--space-3xs);
+}
+.get-set-up li a:not(.btn) {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
