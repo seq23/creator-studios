@@ -333,3 +333,21 @@ export function hookPoints(hook: string, maxWords = 8): number {
   if (pull) pts += 2;
   return pts;
 }
+
+/**
+ * The niche pattern a hook copies word for word, or null (24 Oct 2026: "You asked, so here is style
+ * the secret", "The one thing I do every day" and "How I host in under a minute" were the niche
+ * playbook's patterns with one word dropped in). Copying = three or more of a pattern's own words in
+ * a row (the "…" marks the part that changes). The twin of jobs/clipmaker.py copies_pattern. Pure.
+ */
+export function copiesPattern(hook: string, patterns: string[]): string | null {
+  const words = (t: string) => (t.toLowerCase().replace(/[’']/g, "").match(/[a-z0-9]+/g) ?? []);
+  const hw = ` ${words(hook).join(" ")} `;
+  for (const p of patterns) {
+    for (const seg of String(p).split(/…|\.\.\./)) {
+      const w = words(seg);
+      for (let i = 0; i + 3 <= w.length; i++) if (hw.includes(` ${w.slice(i, i + 3).join(" ")} `)) return String(p);
+    }
+  }
+  return null;
+}

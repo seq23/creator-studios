@@ -12,7 +12,7 @@ import { harness } from "./helpers/studio-fix-env";
 import { saveConnection } from "@worker/lib/connections";
 import { scoreWithWords, wordsPass, WORDS_ASKS_PER_CLIP } from "@worker/lib/wordsPass";
 import { scoreWithoutWords } from "@worker/lib/rewriteWords";
-import { crowdedHookParts, HOOK_OPENING_MAX, HOOK_SHAPES, HOOK_WORD_MAX, hookOpening, hookPatternFor, hookPoints, hookStem, hookVarietyProblem } from "@shared/clipWords";
+import { copiesPattern, crowdedHookParts, HOOK_OPENING_MAX, HOOK_SHAPES, HOOK_WORD_MAX, hookOpening, hookPatternFor, hookPoints, hookStem, hookVarietyProblem } from "@shared/clipWords";
 
 // Mercedes's hooks for one dump, 24 Oct 2026 (the cut's own words).
 const MERCEDES = [
@@ -85,6 +85,27 @@ print(json.dumps([[CM.hook_opening(c["hook"]), CM.hook_variety_problem(c["hook"]
     const cut = readFileSync("jobs/cut.py", "utf8");
     expect(cut).toContain("crowded = set(CM.crowded_hooks(hooks, place)) - dups");
     expect(cut).toContain("CM.hook_variety_problem(h, kept, place) is None");
+  });
+});
+
+describe("niche patterns are shapes, never copied", () => {
+  const NICHE = ["POV: ... the instant you see the finished look", "The one thing I ... every day", "How I ... in under a minute", "You asked, so here is ... the secret", "Watch me ... the result in seconds"];
+  it("refuses a hook that is a pattern with a word dropped in, on both sides", () => {
+    const copied = ["You asked, so here is style the secret", "The one thing I do every day", "How I host in under a minute", "Watch me slip into the result in seconds"];
+    const own = ["How I pack for a boat day", "From wobbly deck to confident curve", "POV: the bass hits and the room goes", "Not just a sweatshirt, a statement"];
+    for (const h of copied) expect(copiesPattern(h, NICHE), h).not.toBeNull();
+    for (const h of own) expect(copiesPattern(h, NICHE), h).toBeNull();
+    const py = spawnSync("python3", ["-c", `
+import json, sys
+sys.path.insert(0, "jobs")
+import clipmaker as CM
+c = json.loads(sys.stdin.read())
+print(json.dumps([CM.copies_pattern(h, c["p"]) for h in c["h"]]))
+`], { input: JSON.stringify({ p: NICHE, h: [...copied, ...own] }), encoding: "utf8" });
+    expect(py.status, py.stderr).toBe(0);
+    expect(JSON.parse(py.stdout)).toEqual([...copied, ...own].map((h) => copiesPattern(h, NICHE)));
+    expect(readFileSync("worker/lib/wordsPass.ts", "utf8")).toContain("copiesPattern(d.words!.hook_text, patterns)");
+    expect(readFileSync("jobs/cut.py", "utf8")).toContain('CM.copies_pattern(h, pb.get("niche_hooks") or []) is None');
   });
 });
 

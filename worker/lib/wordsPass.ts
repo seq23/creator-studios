@@ -21,7 +21,7 @@ import { contentRules } from "./photoPosts";
 import { textProblems } from "@shared/contentRules";
 import { normalizeHashtags } from "../jobs/cut";
 import { autoVoiceDump } from "./autoVoice";
-import { clipTypeLabel, cleanLine, cleanScript, composeCaption, crowdedHookParts, ctaLine, hookPatternFor, hookPoints, hookVarietyProblem, isReasoning, sendLine, stripCta, wantsAiNote, type WordsRules } from "@shared/clipWords";
+import { clipTypeLabel, cleanLine, cleanScript, composeCaption, copiesPattern, crowdedHookParts, ctaLine, hookPatternFor, hookPoints, hookVarietyProblem, isReasoning, sendLine, stripCta, wantsAiNote, type WordsRules } from "@shared/clipWords";
 import { latestPlaybook } from "./niche";
 import { feelLine } from "@shared/videoFeel";
 
@@ -277,6 +277,8 @@ export async function wordsPass(env: Env, now = new Date(), opts: { deadline?: n
         const d = draftWords(parseDraft(asked.text), rules, { number: c.number, uses_ai_images: !!c.uses_ai_images }, (t) => textProblems(t, cr));
         // Practice mode's labelled stand-in names the clip type, so it is exempt from the variety check.
         why = d.why ?? (fakeServices(env) ? null : hookVarietyProblem(d.words.hook_text, used, rules.place_words));
+        const copied = !why && !fakeServices(env) ? copiesPattern(d.words!.hook_text, patterns) : null;
+        if (copied) why = `It copies the pattern “${copied}” word for word: use it as a shape only, in your own words.`;
         if (!why) words = d.words;
       }
       if (!words) {
