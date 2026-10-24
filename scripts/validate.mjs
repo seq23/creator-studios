@@ -16,7 +16,7 @@ export const REGISTER = {
   "design-tokens": "a raw colour, font or off-scale size outside tokens.css is how screens drift apart (docs/design/DESIGN.md)",
   "editors-documented": "a connected editor nobody researched, or a key box for a tool with no API, sends her to a dead end (owner, 25 Sep 2026: only the most popular, honestly)",
   "ffmpeg-not-from-apt": "the apt install of ffmpeg timed out three times and killed the live cut of a client's dump (23 Oct 2026); ffmpeg comes from the static build",
-  "free-quota-budgeted": "the free OpenRouter tier allows 50 calls a day for every studio and the golden set; one dump used ~45 (a call per video, per clip, six retries per failure) and golden-set went red at 0e0eebb (23 Oct 2026): calls are batched, budgeted per job, counted per provider, with a $0 local model behind",
+  "free-quota-budgeted": "the studios keep to ~500 of the $0-routing account's 1,000 free-model calls a day (it was a 50-a-day free-tier key until 24 Oct 2026); one dump used ~45 (a call per video, per clip, six retries per failure) and golden-set went red at 0e0eebb (23 Oct 2026): calls are batched, budgeted per job, counted per provider, with a $0 local model behind",
   "full-video-uncut": "a full video sent through the cutter or reframed to 9:16 is not the video she made (owner, 26 Sep 2026: the full-video door posts it whole)",
   "help-targets-exist": "a guide step pointing at a label the screen no longer has fails the post-merge screenshot job and reds main (#42, 26 Sep 2026); caught before merge instead",
   "help-guides-exist": "every screen's ? button and every fix_guide slug must open a real guide (section 12c)",

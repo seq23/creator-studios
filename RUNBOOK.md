@@ -159,9 +159,16 @@ repository (Setup → Clip cutting), never here; until then its practice cutter 
 
 ## Free-model quota (studio intelligence)
 
-The OpenRouter key is on the free tier: 50 calls a day for the whole account (every host studio and
-the golden set), reset 00:00 UTC. A dump needs about 11 (3 batched shot-sheet calls, 1 copy call, 3
-batched critic calls, re-cuts), capped at 16 per job (`OPENROUTER_JOB_BUDGET`, jobs/ai.py). When the
+The host OpenRouter key (Hadiyah, Porch & Party Studio, and the golden set's `GOLDEN_OPENROUTER_API_KEY`)
+is the owner's $0-routing account since 24 Oct 2026: not free tier, so 1,000 free-model calls a day,
+reset 00:00 UTC, with a $0 key limit (a paid model can never bill). The 1,000 is shared with her other
+repos; the studios keep to about 500 (`STUDIOS_DAILY_CEILING`, jobs/ai.py). Before that it was a
+free-tier key at 50 a day. A dump needs about 11 (3 batched shot-sheet calls, 1 copy call, 3 batched
+critic calls, re-cuts; a 19-video dump about 25), capped at 40 per job (`OPENROUTER_JOB_BUDGET`,
+jobs/ai.py) with 10 kept for the hooks and words check (`OPENROUTER_WORDS_RESERVE`). The Worker's
+hourly words pass writes at most 8 clips a run per studio. The key lives in each studio's 0600 file
+`<secrets dir>/<slug>/OPENROUTER_API_KEY` (`npm run studio:secrets <slug> --refresh
+--only=OPENROUTER_API_KEY`); Mercedes and Sheila carry no host OpenRouter key (only one pasted on their own Setup). When the
 day's quota is used, a 429 "free-models-per-day" stops further calls at once and the local open
 vision model (Qwen2-VL-2B, Apache-2.0, on the runner's CPU, about 1 to 2 minutes a picture) reads the
 footage instead; the words fall back to the grounded neutral lines and the critic to its rules.
