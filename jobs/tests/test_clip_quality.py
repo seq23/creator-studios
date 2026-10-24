@@ -29,7 +29,7 @@ DESCRIBED = "For brand deals: email someone@example.com with brand, category, ti
 def facts(**kw):
     base = {
         "clip_type": "talk_to_camera",
-        "parts": [{"stage": "flash", "start": 0, "end": 1.2, "quality": 1}, {"stage": "", "start": 0, "end": 12, "quality": 1}, {"stage": "hero", "start": 0, "end": 3, "quality": 1}],
+        "parts": [{"stage": "flash", "start": 0, "end": 1.2, "quality": 1}, {"stage": "", "start": 0, "end": 8, "quality": 1}, {"stage": "hero", "start": 0, "end": 3, "quality": 1}],
         "hook": "What I wear on a boat day", "caption": "My go-to for a day on the water.", "cta_link": "", "cta_phrases": [],
         "end_card": True, "overlap": 0.0, "repeats": False, "words_pending": False,
     }

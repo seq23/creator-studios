@@ -226,3 +226,110 @@ export function nearDuplicateHook(a: string, b: string): boolean {
   const pairs = new Set(wa.slice(0, -1).map((w, i) => `${w} ${wa[i + 1]}`));
   return wb.slice(0, -1).some((w, i) => pairs.has(`${w} ${wb[i + 1]}`));
 }
+
+// Varied hooks in one dump (owner, 24 Oct 2026: many opened "POV:" and reused glow / instant /
+// runway, which the near-duplicate check never caught). The TypeScript twin of jobs/clipmaker.py
+// hook_opening / hook_stem / hook_variety_problem; the limits and the varied hook shapes are one
+// list in jobs/playbook.json "hook_variety" (guard: tests/unit/hook-variety.test.ts reads both sides).
+const VARIETY = (playbook as { hook_variety?: { opening_max?: number; word_max?: number; shapes?: string[] } }).hook_variety ?? {};
+/** At most this many hooks in one dump open the same way. */
+export const HOOK_OPENING_MAX = Number(VARIETY.opening_max) || 2;
+/** At most this many hooks in one dump use the same distinctive word. */
+export const HOOK_WORD_MAX = Number(VARIETY.word_max) || 2;
+/** Varied hook patterns a clip is steered to in turn (after the niche playbook's own). */
+export const HOOK_SHAPES: string[] = (VARIETY.shapes ?? []).map(String);
+
+/** A hook's opening pattern: "pov" for any "POV:", else its first two words ("how i", "watch me"). */
+export function hookOpening(h: string): string {
+  const w = (h ?? "").toLowerCase().replace(/[’']/g, "").match(/[a-z0-9]+/g) ?? [];
+  if (!w.length) return "";
+  return w[0] === "pov" ? "pov" : w.slice(0, 2).join(" ");
+}
+
+/** A word's stem for the reuse count ("instantly" and "instant", "glows" and "glow" are one word). */
+export function hookStem(w: string): string {
+  const s = (w ?? "").toLowerCase().replace(/'/g, "");
+  if (s.endsWith("ly") && s.length >= 5) return s.slice(0, -2);
+  if (s.endsWith("ing") && s.length >= 6) return s.slice(0, -3);
+  if (/(ss|x|z|ch|sh)es$/.test(s)) return s.slice(0, -2);
+  if (s.endsWith("s") && !s.endsWith("ss") && s.length >= 4) return s.slice(0, -1);
+  return s;
+}
+
+function stems(h: string, exempt: Set<string>): Set<string> {
+  return new Set(hookWords(h).map(hookStem).filter((s) => s.length >= 3 && !exempt.has(s)));
+}
+
+/**
+ * Why a new hook would make its dump read alike, or null when it is fine: it nearly repeats another
+ * hook, opens the way HOOK_OPENING_MAX others already open, or uses a distinctive word that
+ * HOOK_WORD_MAX others already use. `exempt` words (the studio's place words, which the words pass
+ * asks for) are never counted. Pure.
+ */
+export function hookVarietyProblem(hook: string, others: string[], exempt: string[] = []): string | null {
+  const used = others.filter((o) => (o ?? "").trim());
+  const twin = used.find((u) => nearDuplicateHook(hook, u));
+  if (twin) return `It says nearly the same as “${twin}”.`;
+  const open = hookOpening(hook);
+  const sameOpen = used.filter((u) => hookOpening(u) === open).length;
+  if (open && sameOpen >= HOOK_OPENING_MAX) return `${sameOpen} hooks already open with “${open}”.`;
+  const ex = new Set(exempt.flatMap((e) => hookWords(e)).map(hookStem));
+  const mine = stems(hook, ex);
+  for (const s of mine) {
+    const n = used.filter((u) => stems(u, ex).has(s)).length;
+    if (n >= HOOK_WORD_MAX) return `${n} hooks already use “${hookWords(hook).find((w) => hookStem(w) === s) ?? s}”.`;
+  }
+  return null;
+}
+
+/** The openings and words a new hook must avoid in this dump (for the model's prompt). Pure. */
+export function crowdedHookParts(others: string[], exempt: string[] = []): { openings: string[]; words: string[] } {
+  const used = others.filter((o) => (o ?? "").trim());
+  const ex = new Set(exempt.flatMap((e) => hookWords(e)).map(hookStem));
+  const tally = (keys: string[]) => keys.reduce((m, k) => m.set(k, (m.get(k) ?? 0) + 1), new Map<string, number>());
+  const opens = tally(used.map(hookOpening).filter(Boolean));
+  const words = tally(used.flatMap((u) => [...stems(u, ex)]));
+  return {
+    openings: [...opens].filter(([, n]) => n >= HOOK_OPENING_MAX).map(([k]) => k),
+    words: [...words].filter(([, n]) => n >= HOOK_WORD_MAX).map(([k]) => k),
+  };
+}
+
+/**
+ * The hook pattern this clip is steered to: the niche playbook's patterns, then HOOK_SHAPES, taken
+ * in turn from `k` and skipping any that opens the way the dump's crowded openings do. Pure.
+ */
+export function hookPatternFor(k: number, nichePatterns: string[], crowdedOpenings: string[]): string | null {
+  const all = [...nichePatterns.map(String).filter(Boolean), ...HOOK_SHAPES];
+  if (!all.length) return null;
+  const crowded = new Set(crowdedOpenings);
+  for (let i = 0; i < all.length; i++) {
+    const p = all[(Math.max(0, k) + i) % all.length];
+    if (!crowded.has(hookOpening(p.replace(/^[^"“]*["“]/, "")))) return p;
+  }
+  return all[Math.max(0, k) % all.length];
+}
+
+const HYPE = new Set(((VARIETY as { hype?: string[] }).hype ?? []).map((w) => hookStem(String(w))));
+const PULL_OPENERS: string[] = ((VARIETY as { pull_openers?: string[] }).pull_openers ?? []).map((w) => String(w).toLowerCase());
+const NUMBER_WORDS = /\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b/;
+
+/**
+ * How strong a hook is, 0..10 (the score's on-screen-words check): 0 when it is empty or too long to
+ * read, else 6, +1 a word under the limit, +1 no vague hype word, +2 a pull (a number, "you", or a
+ * curiosity opener). The twin of jobs/clipmaker.py hook_points. Pure.
+ */
+export function hookPoints(hook: string, maxWords = 8): number {
+  const h = (hook ?? "").trim();
+  const words = h.split(/\s+/).filter(Boolean);
+  if (!h || words.length > Math.max(3, Math.min(10, maxWords)) || h.length > 56) return 0;
+  const low = h.toLowerCase().replace(/[’]/g, "'");
+  const raw = low.match(/[a-z0-9']+/g) ?? [];
+  let pts = 6;
+  if (words.length <= Math.max(3, Math.min(10, maxWords)) - 1) pts += 1;
+  if (!raw.some((w) => HYPE.has(hookStem(w)))) pts += 1;
+  const opener = raw.join(" ");
+  const pull = NUMBER_WORDS.test(low) || raw.some((w) => ["you", "your", "you'll", "you're", "you've"].includes(w)) || low.includes("?") || PULL_OPENERS.some((o) => opener === o || opener.startsWith(`${o} `));
+  if (pull) pts += 2;
+  return pts;
+}

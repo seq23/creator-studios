@@ -454,7 +454,8 @@ HOOK_RULES = (
     "make sense on its own (a mis-heard line). Open on the payoff: the hook "
     "names the strongest moment or what the viewer gets, in plain words. Use the niche hook patterns as patterns only, never "
     "word for word, and never copy another creator's words. Every hook in this dump is different from every other one and "
-    "from already_used_hooks: no shared two-word phrase, a different angle each time."
+    "from already_used_hooks: no shared two-word phrase, a different angle each time, never the same opening as two others "
+    "(not every hook a 'POV:'), and never an opening in never_open_with or a word in never_use_words."
 )
 
 
@@ -1632,7 +1633,22 @@ def reach_type_length(m: Moment, pb: dict[str, Any], duration: float) -> bool:
     return True
 
 
-def distinct_hooks(moments: list[tuple[Moment, Source]], spec: dict[str, Any], key: str | None, text_ok: Any, pb: dict[str, Any]) -> dict[str, int]:
+def crowded_parts(kept: list[str], place: list[str] | None) -> dict[str, list[str]]:
+    """The openings and words a new hook must avoid (the twin of shared/clipWords.ts crowdedHookParts)."""
+    ex = {CM.hook_stem(w) for e in (place or []) for w in CM.hook_words(e)}
+    opens: dict[str, int] = {}
+    words: dict[str, int] = {}
+    for h in kept:
+        o = CM.hook_opening(h)
+        if o:
+            opens[o] = opens.get(o, 0) + 1
+        for st in CM._stems(h, ex):
+            words[st] = words.get(st, 0) + 1
+    out = {"never_open_with": [o for o, n in opens.items() if n >= CM.HOOK_OPENING_MAX], "never_use_words": [w for w, n in words.items() if n >= CM.HOOK_WORD_MAX]}
+    return {k: v for k, v in out.items() if v}
+
+
+def distinct_hooks(moments: list[tuple[Moment, Source]], spec: dict[str, Any], key: str | None, text_ok: Any, pb: dict[str, Any], place: list[str] | None = None) -> dict[str, int]:
     """Every clip gets a WRITTEN hook, different from every other one in the dump (owner, 23-24 Oct
     2026: many latte / boat variants; then lines of speech such as "Go ahead." shipped as hooks).
     A clip needs one when its hook nearly repeats an earlier one (jobs/clipmaker.py near_duplicate),
@@ -1640,17 +1656,23 @@ def distinct_hooks(moments: list[tuple[Moment, Source]], spec: dict[str, Any], k
     Each takes, in turn: its own alternative hook when that one was written for it and fits; one
     batched write in her voice (HOOK_RULES, voice_context: Brand Profile, how her videos feel, the
     niche research), with a caption too when it has none; else its words wait (words_pending: the
-    hourly words pass writes them). Never a line of the transcript, never stock."""
-    stats = {"repeats": 0, "echoes": 0, "missing": 0, "alt": 0, "rewritten": 0, "pending": 0}
+    hourly words pass writes them). Never a line of the transcript, never stock. Varied too (owner,
+    24 Oct 2026: many opened "POV:" and reused glow / instant): a hook that opens the way two others
+    already do, or reuses a word two others use (clipmaker.hook_variety_problem; place words exempt),
+    needs a new one like a repeat does."""
+    stats = {"repeats": 0, "crowded": 0, "echoes": 0, "missing": 0, "alt": 0, "rewritten": 0, "pending": 0}
     for m, src in moments:
         if not m.said:
             m.said = src.transcript.text_in(0.0, 1e9)
     hooks = [m.hook for m, _ in moments]
     dups = set(CM.duplicate_hooks(hooks))
+    crowded = set(CM.crowded_hooks(hooks, place)) - dups
+    stats["crowded"] = len(crowded)
+    dups |= crowded
     echoes = {i for i, (m, _s) in enumerate(moments) if m.hook and CM.echoes_speech(m.hook, m.said)}
     missing = {i for i, (m, _s) in enumerate(moments) if not m.hook or m.words_pending}
     need = sorted(dups | echoes | missing)
-    stats["repeats"], stats["echoes"], stats["missing"] = len(dups - echoes - missing), len(echoes), len(missing - echoes)
+    stats["repeats"], stats["echoes"], stats["missing"] = len(dups - crowded - echoes - missing), len(echoes), len(missing - echoes)
     if not need:
         return stats
     for i in echoes:
@@ -1663,7 +1685,7 @@ def distinct_hooks(moments: list[tuple[Moment, Source]], spec: dict[str, Any], k
 
     def fits(h: str, said: str) -> bool:
         return (
-            bool(h) and CM._readable_hook(h, maxw) and not any(CM.near_duplicate(h, k) for k in kept) and (text_ok is None or text_ok(h))
+            bool(h) and CM._readable_hook(h, maxw) and CM.hook_variety_problem(h, kept, place) is None and (text_ok is None or text_ok(h))
             and not CM.is_stock(h, "x") and h.lower() not in stock and not CM.echoes_speech(h, said)
         )
 
@@ -1682,7 +1704,7 @@ def distinct_hooks(moments: list[tuple[Moment, Source]], spec: dict[str, Any], k
             "messages": [
                 {"role": "system", "content": "You write on-screen hooks (and, where asked, captions) for short vertical videos by one creator. " + HOOK_RULES
                  + " A caption is one or two plain sentences in her voice, with no call to action, no links and no hashtags. Answer JSON only: {\"items\":[{\"n\":int,\"hook\":str,\"caption\":str}]}."},
-                {"role": "user", "content": json.dumps({**voice_context(spec), "already_used_hooks": kept, "clips": [
+                {"role": "user", "content": json.dumps({**voice_context(spec), "already_used_hooks": kept, **crowded_parts(kept, place), "clips": [
                     {"n": i, "on_screen": moments[i][0].on_screen[:300], "what_she_says_for_context_never_copy": moments[i][1].transcript.text_in(*moments[i][0].parts[0])[:300],
                      "hook_to_replace": moments[i][0].hook, "needs_caption": not moments[i][0].caption} for i in left]})},
             ],
@@ -2004,7 +2026,7 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
     moments = distinct_moments(moments)
     # Clip quality (owner, 23 Oct 2026): the payoff in the first 2 seconds, and no two hooks alike.
     flashed = sum(1 for m, _ in moments if payoff_first(m, pb))
-    hook_stats = distinct_hooks(moments, spec, key, text_ok, pb)
+    hook_stats = distinct_hooks(moments, spec, key, text_ok, pb, rules_s["place_words"])
     log("cut.quality", payoff_flashes=flashed, **{f"hooks_{k}": v for k, v in hook_stats.items()})
     if len(moments) < rules_s["clip_target"]["min"] and not (spec.get("steer") or {}).get("count"):
         steer_report.append({"what": f"{rules_s['clip_target']['min']} clips", "why": f"these videos hold {len(moments)} different cuts; the same cut is never made again in another look"})

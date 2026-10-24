@@ -333,6 +333,8 @@ def _readable_hook(hook: str, max_words: int = 8) -> bool:
 # A clip shorter than its type's range scores at most this, under any bar a studio can sensibly set,
 # and jobs/cut.py hides it with its plain reason whatever the bar (never shown in Review).
 SHORT_CAP = 40
+# The miss for a readable hook that could pull harder (hook_points under 10).
+HOOK_WEAK = "the hook could be more specific"
 # A clip whose hook is a copied line of speech scores at most this (under every studio's bar of 70:
 # the cut never ships one; this is the score's own guard). One still waiting for its words scores at
 # most WORDS_CAP until the words pass writes them (worker/lib/wordsPass.ts adds WORDS_POINTS back).
@@ -386,6 +388,101 @@ def echoes_speech(hook: str, said: str) -> bool:
     return any(sw[i : i + n] == hw for i in range(len(sw) - n + 1))
 
 
+# Varied hooks in one dump (owner, 24 Oct 2026: many opened "POV:" and reused glow / instant /
+# runway, which near_duplicate never caught). Twin of shared/clipWords.ts hookOpening / hookStem /
+# hookVarietyProblem / hookPoints; the limits and lists are jobs/playbook.json "hook_variety"
+# (guard: tests/unit/hook-variety.test.ts reads both sides).
+VARIETY = PB.BASE.get("hook_variety") or {}
+HOOK_OPENING_MAX = int(VARIETY.get("opening_max") or 2)
+HOOK_WORD_MAX = int(VARIETY.get("word_max") or 2)
+
+
+def hook_opening(h: str) -> str:
+    """"pov" for any "POV:", else the first two words ("how i", "watch me")."""
+    w = re.findall(r"[a-z0-9]+", (h or "").lower().replace("\u2019", "").replace("'", ""))
+    if not w:
+        return ""
+    return "pov" if w[0] == "pov" else " ".join(w[:2])
+
+
+def hook_stem(w: str) -> str:
+    s = (w or "").lower().replace("'", "")
+    if s.endswith("ly") and len(s) >= 5:
+        return s[:-2]
+    if s.endswith("ing") and len(s) >= 6:
+        return s[:-3]
+    if re.search(r"(ss|x|z|ch|sh)es$", s):
+        return s[:-2]
+    if s.endswith("s") and not s.endswith("ss") and len(s) >= 4:
+        return s[:-1]
+    return s
+
+
+def _stems(h: str, exempt: set[str]) -> set[str]:
+    return {x for x in (hook_stem(w) for w in hook_words(h)) if len(x) >= 3 and x not in exempt}
+
+
+def hook_variety_problem(hook: str, others: list[str], exempt: list[str] | None = None) -> str | None:
+    """Why a new hook would make its dump read alike, or None: it nearly repeats another hook, opens
+    the way HOOK_OPENING_MAX others already open, or uses a word HOOK_WORD_MAX others already use
+    (place words exempt)."""
+    used = [o for o in others if (o or "").strip()]
+    twin = next((u for u in used if near_duplicate(hook, u)), None)
+    if twin:
+        return f"It says nearly the same as “{twin}”."
+    op = hook_opening(hook)
+    same = sum(1 for u in used if hook_opening(u) == op)
+    if op and same >= HOOK_OPENING_MAX:
+        return f"{same} hooks already open with “{op}”."
+    ex = {hook_stem(w) for e in (exempt or []) for w in hook_words(e)}
+    mine = _stems(hook, ex)
+    for st in dict.fromkeys(hook_stem(w) for w in hook_words(hook) if hook_stem(w) in mine):
+        n = sum(1 for u in used if st in _stems(u, ex))
+        if n >= HOOK_WORD_MAX:
+            return f"{n} hooks already use “{next((w for w in hook_words(hook) if hook_stem(w) == st), st)}”."
+    return None
+
+
+HYPE = {hook_stem(str(w)) for w in VARIETY.get("hype") or []}
+PULL_OPENERS = [str(w).lower() for w in VARIETY.get("pull_openers") or []]
+NUMBER_WORDS = re.compile(r"\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b")
+
+
+def hook_points(hook: str, max_words: int = 8) -> int:
+    """0..10: 0 when empty or too long to read, else 6, +1 a word under the limit, +1 no vague hype
+    word, +2 a pull (a number, "you", or a curiosity opener). Twin of shared/clipWords.ts hookPoints."""
+    h = (hook or "").strip()
+    words = h.split()
+    lim = max(3, min(10, max_words))
+    if not h or len(words) > lim or len(h) > 56:
+        return 0
+    low = h.lower().replace("\u2019", "'")
+    raw = re.findall(r"[a-z0-9']+", low)
+    pts = 6
+    if len(words) <= lim - 1:
+        pts += 1
+    if not any(hook_stem(w) in HYPE for w in raw):
+        pts += 1
+    opener = " ".join(raw)
+    pull = bool(NUMBER_WORDS.search(low)) or any(w in ("you", "your", "you'll", "you're", "you've") for w in raw) or "?" in low or any(opener == o or opener.startswith(o + " ") for o in PULL_OPENERS)
+    if pull:
+        pts += 2
+    return pts
+
+
+def crowded_hooks(hooks: list[str], exempt: list[str] | None = None) -> list[int]:
+    """The indexes whose hook makes the dump read alike next to the EARLIER kept ones (a near
+    repeat, a crowded opening or a crowded word); the first ones keep theirs."""
+    out: list[int] = []
+    kept: list[str] = []
+    for i, h in enumerate(hooks):
+        if h and hook_variety_problem(h, kept, exempt):
+            out.append(i)
+        elif h:
+            kept.append(h)
+    return out
+
+
 def duplicate_hooks(hooks: list[str]) -> list[int]:
     """The indexes whose hook nearly repeats an EARLIER one in the same dump (the first keeps it)."""
     out: list[int] = []
@@ -408,14 +505,20 @@ def score_clip(f: dict[str, Any], pb: dict[str, Any]) -> tuple[int, list[str]]:
     got.append((round(20 * good), 20, "some shots are blurry or shaky", "sharp and steady throughout"))
     t0 = 0.0
     payoff = False
+    payoff_at = 0.0
+    window = float(pb.get("payoff_window_s", 2.0))
     for p in parts:
-        if t0 > float(pb.get("payoff_window_s", 2.0)) - 0.01:
+        if t0 > window - 0.01:
             break
         if p.get("stage") in ("hero", "flash", "finished", "detail"):
-            payoff = True
+            payoff, payoff_at = True, t0
+            break
         t0 += p["end"] - p["start"]
     opening_ok = bool(parts) and ("any" in t["opening"] or parts[0].get("stage") in t["opening"] or (parts[0].get("stage") == "flash" and "hero" in t["opening"]))
-    got.append((15 if payoff else (8 if opening_ok else 0), 15, "the payoff doesn't show in the first 2 seconds", "shows the payoff in the first 2 seconds"))
+    # Graded by WHEN the payoff lands (owner, 24 Oct 2026: most clips scored 90): first frame is the
+    # full 15, landing at the edge of the window is 10; never in the window is 8 or 0 as before.
+    pay_pts = (15 - round(5 * min(1.0, payoff_at / max(0.01, window)))) if payoff else (8 if opening_ok else 0)
+    got.append((pay_pts, 15, "the payoff doesn't show in the first 2 seconds" if not payoff else f"the payoff lands at {payoff_at:.1f} s, not in the first frame", "shows the payoff in the first 2 seconds"))
     last = parts[-1] if parts else {}
     hero_ok = last.get("stage") == "hero" and (last.get("end", 0) - last.get("start", 0)) >= hold - 0.01
     got.append((15 if hero_ok else 0, 15, "doesn't end on the finished result", "ends on the finished result"))
@@ -441,11 +544,14 @@ def score_clip(f: dict[str, Any], pb: dict[str, Any]) -> tuple[int, list[str]]:
     elif echo:
         txt = 0
     else:
-        txt = 10 if _readable_hook(hook, int(pb.get("hook_max_words") or 8)) and not SC.is_reasoning(cap) and not f.get("hook_repeats") else 5
+        maxw = int(pb.get("hook_max_words") or 8)
+        # Graded hook strength (hook_points), not one flat 10 for every readable hook.
+        txt = hook_points(hook, maxw) if _readable_hook(hook, maxw) and not SC.is_reasoning(cap) and not f.get("hook_repeats") else 5
     miss = (
         "the words are still being written" if f.get("words_pending")
         else "the hook is a line from the speech, not a written hook" if echo
         else "the hook says nearly the same as another clip's" if f.get("hook_repeats")
+        else HOOK_WEAK if hook and txt > 5
         else "the on-screen words are too long or missing"
     )
     got.append((txt, 10, miss, "short, readable on-screen words"))
@@ -454,9 +560,12 @@ def score_clip(f: dict[str, Any], pb: dict[str, Any]) -> tuple[int, list[str]]:
     short = too_short(total, lo) and f.get("clip_type") != "moving_photo"
     got.append((10 if lo - 0.5 <= total <= hi + 0.5 else (0 if short else 4), 10, (f"{total:.0f} s is too short for this kind of clip (it needs at least {lo:g} s)" if short else f"{total:.0f} s is the wrong length for this kind of clip ({lo:g}-{hi:g} s)"), f"right length ({total:.0f} s)"))
     cuts = [p["end"] - p["start"] for p in parts[:-1] if p.get("stage") != "flash"]
-    pace_ok = not cuts or (t["pacing_s"][0] * 0.5 <= sum(cuts) / len(cuts) <= t["pacing_s"][1] * 1.8)
-    tpl = (5 if pace_ok else 0) + (5 if opening_ok and hero_ok else 0)
-    got.append((tpl, 10, "doesn't follow its clip type's pacing", f"follows the {t['label']} template"))
+    mean_cut = sum(cuts) / len(cuts) if cuts else 0.0
+    on_pace = not cuts or (t["pacing_s"][0] <= mean_cut <= t["pacing_s"][1])
+    pace_ok = not cuts or (t["pacing_s"][0] * 0.5 <= mean_cut <= t["pacing_s"][1] * 1.8)
+    # Graded pacing: on its type's pace is 5, near it 3, off it 0.
+    tpl = (5 if on_pace else 3 if pace_ok else 0) + (5 if opening_ok and hero_ok else 0)
+    got.append((tpl, 10, "doesn't follow its clip type's pacing" if not pace_ok or not (opening_ok and hero_ok) else f"the cuts are near, not on, its type's pace ({mean_cut:.1f} s a shot)", f"follows the {t['label']} template"))
     # Out of the checks that apply (a studio with no call to action is scored out of the rest).
     score = max(0, min(100, round(100 * sum(g[0] for g in got) / max(1, sum(g[1] for g in got)))))
     if short:
@@ -466,7 +575,8 @@ def score_clip(f: dict[str, Any], pb: dict[str, Any]) -> tuple[int, list[str]]:
         score = min(score, ECHO_CAP)
     elif f.get("words_pending") or not hook:
         score = min(score, WORDS_CAP)
-    misses = [g[2] for g in got if g[0] < g[1]]
+    # The misses that cost the most first (a partial miss never hides the decisive one).
+    misses = [g[2] for g in sorted((g for g in got if g[0] < g[1]), key=lambda g: g[0] - g[1])]
     hits = [g[3] for g in got if g[0] >= g[1]]
     reasons = [m[:1].upper() + m[1:] for m in misses] + [h[:1].upper() + h[1:] for h in hits]
     return score, reasons

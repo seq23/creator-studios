@@ -10,15 +10,15 @@
 // Guard: tests/unit/written-hooks.test.ts.
 import type { Env } from "../env";
 import { dispatchJob } from "../services/github";
-import { WAITING_REASON, WORDS_HIT, WORDS_POINTS, wordsPass, OPS_WORDS_BUDGET_MS } from "./wordsPass";
+import { HOOK_WEAK, WAITING_REASON, WORDS_HIT, WORDS_POINTS, wordsPass, OPS_WORDS_BUDGET_MS } from "./wordsPass";
 
 /** jobs/clipmaker.py WORDS_CAP: a clip waiting for its words scores at most this. */
 export const WORDS_CAP = 80;
 /** The score's on-screen-words reasons (jobs/clipmaker.py score_clip), hit or miss. */
-const WORDS_REASONS = [WORDS_HIT, WAITING_REASON, "The on-screen words are too long or missing", "The hook says nearly the same as another clip's", "The hook is a line from the speech, not a written hook"];
+const WORDS_REASONS = [WORDS_HIT, WAITING_REASON, HOOK_WEAK, "The on-screen words are too long or missing", "The hook says nearly the same as another clip's", "The hook is a line from the speech, not a written hook"];
 
 /** A clip's score and reasons once its words are cleared, as the engine scores a clip with none. Pure. */
-export function scoreWithoutWords(score: number, reasons: string | null): { score: number; score_reasons: string } {
+export function scoreWithoutWords(score: number, reasons: string | null): { score: number; score_reasons: string; base: number } {
   let list: string[] = [];
   try {
     const v = JSON.parse(reasons ?? "[]");
@@ -28,7 +28,9 @@ export function scoreWithoutWords(score: number, reasons: string | null): { scor
   }
   const had = list.includes(WORDS_HIT) ? WORDS_POINTS : list.some((r) => WORDS_REASONS.includes(r)) ? WORDS_POINTS / 2 : 0;
   const rest = list.filter((r) => !WORDS_REASONS.includes(r));
-  return { score: Math.max(0, Math.min(WORDS_CAP, Math.round(score - had))), score_reasons: JSON.stringify([WAITING_REASON, ...rest]) };
+  const base = Math.max(0, Math.round(score - had));
+  // `base` is the same score uncapped: the words pass adds the new hook's points to it.
+  return { score: Math.min(WORDS_CAP, base), score_reasons: JSON.stringify([WAITING_REASON, ...rest]), base };
 }
 
 export interface RewriteResult {
@@ -56,9 +58,9 @@ export async function rewriteDumpWords(env: Env, dumpId: string, numbers: number
     if (r.words_pending || rerenderOnly) continue; // rerenderOnly: the words stay, the picture is redone with them
     const s = scoreWithoutWords(r.score, r.score_reasons);
     await env.DB.prepare(
-      "UPDATE clips SET hook_text = '', hook_alt = NULL, caption = '', hashtags = '', voice_script = NULL, words_pending = 1, words_tries = 0, words_tried_at = NULL, score = ?, score_reasons = ? WHERE id = ? AND status = 'draft'",
+      "UPDATE clips SET hook_text = '', hook_alt = NULL, caption = '', hashtags = '', voice_script = NULL, words_pending = 1, words_tries = 0, words_tried_at = NULL, score = ?, score_reasons = ?, score_no_words = ? WHERE id = ? AND status = 'draft'",
     )
-      .bind(s.score, s.score_reasons, r.id)
+      .bind(s.score, s.score_reasons, s.base, r.id)
       .run();
   }
   let rerenders = 0;
