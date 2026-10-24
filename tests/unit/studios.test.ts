@@ -89,7 +89,7 @@ describe("the registry", () => {
     expect(studioSlug({ STUDIO_SLUG: undefined })).toBe("dev");
     expect(envName({ ENV_NAME: "dev" })).toBe("dev");
     expect(envName({ ENV_NAME: "production" })).toBe("production");
-    for (const f of ["job-cut.yml", "job-research.yml", "job-brand_finder.yml", "job-voice.yml", "job-extract.yml", "job-fullvideo.yml", "job-metrics.yml", "job-ytupload.yml"]) {
+    for (const f of ["job-cut.yml", "job-research.yml", "job-brand_finder.yml", "job-voice.yml", "job-extract.yml", "job-fullvideo.yml", "job-metrics.yml", "job-ytupload.yml", "job-sponsor.yml"]) {
       const y = readFileSync(path.join(root, ".github/workflows", f), "utf8");
       expect(y, f).toContain("secrets[format('JOB_SHARED_SECRET_{0}', github.event.client_payload.studio)]");
       expect(y, f).not.toMatch(/OPENROUTER_API_KEY: \$\{\{ secrets\.|FIRECRAWL_API_KEY: \$\{\{ secrets\./);

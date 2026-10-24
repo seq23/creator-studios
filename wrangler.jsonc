@@ -62,6 +62,7 @@
     "STUDIO_SOUND": "",
     "STUDIO_RULES": "{\"cta_phrases\":[\"Request a quote\",\"Book your date\"],\"cta_link\":\"https://example.com/request\",\"ai_note\":\"ai_images\",\"clip_target\":{\"min\":6,\"max\":12},\"bar\":70,\"place_words\":[\"Springfield\"],\"prices\":false}",
     "STUDIO_AI_BUDGET": "0",
+    "SPONSOR_KIND": "experience",
     "ENV_NAME": "dev",
     "AUTH_MODE": "code"
   },
@@ -124,6 +125,7 @@
         "STUDIO_SOUND": "",
         "STUDIO_RULES": "{\"cta_phrases\":[],\"cta_link\":\"\",\"ai_note\":\"ai_images\",\"clip_target\":{\"min\":8,\"max\":15},\"bar\":70,\"place_words\":[],\"prices\":false}",
         "STUDIO_AI_BUDGET": "3000",
+        "SPONSOR_KIND": "experience",
         "WHATS_NEW": "{\"id\":\"2026-10-photo-posts\",\"title\":\"New in your studio\",\"lines\":[\"You can now add photos, not just videos.\",\"One photo becomes a few posts: a short moving video, a photo set and captions.\",\"They post to Facebook, Instagram, TikTok and Pinterest on their own.\",\"You get an email the day before. Tap Skip to stop one.\"]}",
         "ENV_NAME": "production",
         "AUTH_MODE": "code"
@@ -187,6 +189,7 @@
         "STUDIO_SOUND": "",
         "STUDIO_RULES": "{\"cta_phrases\":[],\"cta_link\":\"\",\"ai_note\":\"ai_images\",\"clip_target\":{\"min\":8,\"max\":15},\"bar\":70,\"place_words\":[],\"prices\":false}",
         "STUDIO_AI_BUDGET": "1000",
+        "SPONSOR_KIND": "experience",
         "WHATS_NEW": "{\"id\":\"2026-10-new-studio\",\"title\":\"New in your studio\",\"lines\":[\"Your studio now watches your videos before it cuts them, so clips show what really happened.\",\"Each clip says what it thinks it shows. Tap to fix it, no typing.\",\"Camera sound you don't want is left out, and music or a voice over is added.\",\"To keep your accounts safe, you now sign in with a code we email you.\"]}",
         "ENV_NAME": "production",
         "AUTH_MODE": "code"
@@ -255,6 +258,7 @@
         "STUDIO_SOUND": "{\"cameraSound\":\"off\",\"voice\":{\"source\":\"stock\",\"stock\":\"af_heart\"}}",
         "STUDIO_RULES": "{\"cta_phrases\":[\"Book your date\",\"Request a quote\",\"Get in touch with us\"],\"cta_link\":\"https://porchandparty901.com/request\",\"ai_note\":\"all\",\"clip_target\":{\"min\":15,\"max\":30},\"bar\":70,\"place_words\":[\"Memphis\",\"Germantown\",\"Collierville\",\"Bartlett\"],\"prices\":false}",
         "STUDIO_AI_BUDGET": "3500",
+        "SPONSOR_KIND": "event",
         "WHATS_NEW": "{\"id\":\"2026-10-photo-posts\",\"title\":\"New in your studio\",\"lines\":[\"Add a photo and the studio makes a few posts from it.\",\"Posts go to Facebook, Instagram, TikTok and Pinterest on their own.\",\"You get an email the day before. Tap Skip to stop one.\",\"Faces and house numbers are blurred before anything posts.\"]}",
         "ENV_NAME": "production",
         "AUTH_MODE": "code"
@@ -318,6 +322,7 @@
         "STUDIO_SOUND": "",
         "STUDIO_RULES": "{\"cta_phrases\":[],\"cta_link\":\"\",\"ai_note\":\"ai_images\",\"clip_target\":{\"min\":8,\"max\":15},\"bar\":70,\"place_words\":[],\"prices\":false}",
         "STUDIO_AI_BUDGET": "0",
+        "SPONSOR_KIND": "experience",
         "ENV_NAME": "production",
         "AUTH_MODE": "code"
       }
@@ -380,6 +385,7 @@
         "STUDIO_SOUND": "",
         "STUDIO_RULES": "{\"cta_phrases\":[],\"cta_link\":\"\",\"ai_note\":\"ai_images\",\"clip_target\":{\"min\":8,\"max\":15},\"bar\":70,\"place_words\":[],\"prices\":false}",
         "STUDIO_AI_BUDGET": "0",
+        "SPONSOR_KIND": "experience",
         "ENV_NAME": "production",
         "AUTH_MODE": "code"
       }
@@ -442,6 +448,7 @@
         "STUDIO_SOUND": "",
         "STUDIO_RULES": "{\"cta_phrases\":[],\"cta_link\":\"\",\"ai_note\":\"ai_images\",\"clip_target\":{\"min\":8,\"max\":15},\"bar\":70,\"place_words\":[],\"prices\":false}",
         "STUDIO_AI_BUDGET": "1000",
+        "SPONSOR_KIND": "experience",
         "WHATS_NEW": "{\"id\":\"2026-10-new-studio\",\"title\":\"New in your studio\",\"lines\":[\"Your studio now watches your videos before it cuts them, so clips show what really happened.\",\"Each clip says what it thinks it shows. Tap to fix it, no typing.\",\"Camera sound you don't want is left out, and music or a voice over is added.\",\"To keep your accounts safe, you now sign in with a code we email you.\"]}",
         "ENV_NAME": "production",
         "AUTH_MODE": "code"

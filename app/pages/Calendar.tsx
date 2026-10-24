@@ -11,6 +11,7 @@ import { Empty, HelpButton, Modal, PageHead, Skeleton, useLoad, useToast } from 
 import { PLATFORMS, PLATFORM_LABEL, RECIPES, type Platform } from "@shared/constants";
 import { Icon } from "../components/Icon";
 import { CalendarHistory } from "../components/CalendarHistory";
+import { ToFilm } from "../components/ToFilm";
 import "../styles/calendar.css";
 
 type PoolClip = Pick<ClipRow, "id" | "hook_text" | "cover_url" | "recipe" | "door" | "platforms" | "score"> & { clip_label?: string };
@@ -210,6 +211,9 @@ export function Calendar() {
           cap {settings.data.hard_cap_per_channel} per channel · times in your audience’s time zone ({tz})
         </span>
       </div>
+
+      {/* Get it sponsored → "Add to my Calendar": the days she plans to film a video idea. Never a post. */}
+      <ToFilm from={days[0]} to={days[days.length - 1]} />
 
       {noClips ? (
         <Empty title="No approved clips yet" cta={{ to: "/review", label: "Go to Review" }}>

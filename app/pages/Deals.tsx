@@ -16,6 +16,7 @@ import type { NextAction, MoneyStrip } from "../../worker/domain/deals";
 import type { BudgetSignal, Evidence } from "../../worker/domain/prospects";
 import type { ListingStep } from "../../worker/domain/marketplaces";
 import type { DealStage } from "@shared/constants";
+import { SponsorCard } from "../components/SponsorCard";
 import "../styles/deals.css";
 
 interface Prospect {
@@ -206,6 +207,8 @@ export function Deals() {
         <>
           {loading && !data ? <Skeleton blocks={4} columns={2} /> : null}
           {error ? <Notice tone="bad">Brand deals did not load. Check your connection and try again.</Notice> : null}
+          {/* Get it sponsored: one card at the top, not a menu item (owner-approved mock-up, 23 Oct 2026). */}
+          <SponsorCard />
           {data ? (
             <>
               <section className="money-strip" aria-label="Money">

@@ -18,6 +18,7 @@ import { ytUploadJob } from "./ytupload";
 import { photoPackJob } from "./photopack";
 import { nicheJob } from "./niche";
 import { pastVideosJob } from "./pastvideos";
+import { sponsorJob } from "./sponsor";
 
 /**
  * How the callback runs an apply: `defer` hands slow follow-on work (AI calls, vendor calls,
@@ -49,4 +50,5 @@ export const JOB_HANDLERS: Record<JobType, JobHandler> = {
   photopack: photoPackJob,
   niche: nicheJob,
   pastvideos: pastVideosJob,
+  sponsor: sponsorJob,
 };
