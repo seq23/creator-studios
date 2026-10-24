@@ -60,27 +60,59 @@ export function cleanLine(text: string, limit = 300): string {
  * rejected, links are never read aloud, no sentence twice, the call to action at most once, and a
  * sentence that repeats the caption word for word is dropped. Twin of jobs/script_clean.py clean_script.
  */
+// What a voice can never say (24 Oct 2026, voice overs on one dump spoke "$350", hashtags run
+// together, an emoji, "Made with." and "Book your"): hashtags, handles and emoji go before anything
+// else (an emoji ends a sentence); a sentence with a price or the AI note is dropped; an unfinished
+// last fragment goes when a finished sentence came before it; a cut never ends on a little word.
+// The Python twin is jobs/script_clean.py clean_script (same lists, same order).
+const SPOKEN_TAGS = /(^|[^\w])[#@]\w+/g;
+const SPOKEN_EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]\u{FE0F}?(?:\u{200D}[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]\u{FE0F}?)*|\u{FE0F}/gu;
+const SPOKEN_PRICE = /[$£€]\s?\d|\b\d[\d,.]*\s?(?:dollars|bucks|usd)\b/i;
+const SPOKEN_AI_NOTE = /\bmade with\b/i;
+const LITTLE_WORDS = new Set(["a", "an", "the", "your", "our", "my", "to", "with", "and", "or", "of", "for", "in", "on", "at", "by", "from", "this", "that"]);
+const ENDS = /[.!?]$/;
+
+/** Words cut to `max`, never ending on a little word, ended with a full stop. */
+export function cutWords(text: string, max: number): string {
+  const words = text.split(/\s+/).filter(Boolean).slice(0, max);
+  while (words.length && LITTLE_WORDS.has(norm(words[words.length - 1]))) words.pop();
+  const out = words.join(" ").replace(/[,;:\u2014-]+$/, "");
+  return out && !ENDS.test(out) ? `${out}.` : out;
+}
+
 export function cleanScript(text: string, caption = "", ctas: readonly string[] = [], maxWords?: number): string {
   if (isReasoning(text)) return "";
-  const plain = stripMarkdown(text).replace(URL_RE, "");
+  const spoken = (text ?? "").replace(SPOKEN_TAGS, "$1").replace(SPOKEN_EMOJI, ". ");
+  const plain = stripMarkdown(spoken).replace(URL_RE, "").replace(/(?:\.\s*){2,}/g, ". ").replace(/^[.\s]+/, "");
   const cap = sentences(stripMarkdown((caption ?? "").replace(URL_RE, ""))).filter((s) => norm(s).split(/\s+/).filter(Boolean).length >= 4);
   const ctaWords = ctas.map(norm).filter(Boolean);
+  const all = sentences(plain);
+  const finished = all.some((s) => ENDS.test(s));
   const kept: string[] = [];
   let saidCta = false;
-  for (const s of sentences(plain)) {
-    if (!norm(s)) continue;
-    if (kept.some((k) => similar(s, k))) continue;
+  all.forEach((s, i) => {
+    if (!norm(s)) return;
+    if (SPOKEN_PRICE.test(s) || SPOKEN_AI_NOTE.test(s)) return;
+    if (i === all.length - 1 && !ENDS.test(s) && finished) return;
+    if (kept.some((k) => similar(s, k))) return;
     if (ctaWords.some((c) => norm(s).includes(c))) {
-      if (saidCta) continue;
+      if (saidCta) return;
       saidCta = true;
-    } else if (cap.some((c) => norm(s) === norm(c))) continue;
+    } else if (cap.some((c) => norm(s) === norm(c))) return;
     kept.push(s);
-  }
+  });
   let out = kept.join(" ").trim();
-  if (maxWords) {
-    const words = out.split(/\s+/).filter(Boolean);
-    if (words.length > maxWords) out = words.slice(0, maxWords).join(" ").replace(/[,;:]+$/, "") + (/[.!?]$/.test(out) ? "" : ".");
+  const count = (t: string) => t.split(/\s+/).filter(Boolean).length;
+  if (maxWords && count(out) > maxWords) {
+    // Whole sentences while they fit; only a first sentence too long on its own is cut.
+    const fit: string[] = [];
+    for (const s of kept) {
+      if (count([...fit, s].join(" ")) > maxWords) break;
+      fit.push(s);
+    }
+    out = fit.length ? fit.join(" ") : cutWords(out, maxWords);
   }
+  if (out && !ENDS.test(out)) out = cutWords(out, count(out));
   return out.length >= 6 ? out : "";
 }
 
