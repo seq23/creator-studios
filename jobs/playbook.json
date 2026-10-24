@@ -348,16 +348,16 @@
     "opening_max": 2,
     "word_max": 2,
     "shapes": [
-      "A number and the result (\"3 details that make …\")",
+      "Count what is on screen (\"Three details that make …\"), only a number you can see",
       "A question the clip answers (\"Ever wondered how …?\")",
-      "From … to … (the before and the after)",
+      "From … to … (the before and the after you can see)",
       "The detail nobody notices first (\"Nobody sees the … until …\")",
-      "A bold, specific claim (\"The only … you need this season\")",
       "What the viewer gets, in second person (\"You'll want … after this\")",
-      "Time or effort (\"Ten minutes, one …\")",
-      "A contrast (\"Not …, but …\")",
-      "A tip or a mistake (\"Skip the …, do this instead\")",
-      "The moment itself, plainly named (\"The second the … \")"
+      "A contrast (\"Not just …, a …\")",
+      "Name the occasion it is for (\"For the one who …\")",
+      "The moment itself, plainly named (\"The second the … \")",
+      "One striking detail, up close (\"That … on the …\")",
+      "Why it works (\"Why … makes the whole room\")"
     ],
     "_strength": "The score's on-screen-words check grades the hook (owner, 24 Oct 2026: most clips scored 90): readable is 6 of 10, +1 when it is a word under the limit, +1 when it carries none of the vague hype words below, +2 when it has a pull (a number, it speaks to the viewer, or it opens on a curiosity shape). jobs/clipmaker.py hook_points and shared/clipWords.ts hookPoints read these lists.",
     "hype": [
@@ -400,6 +400,7 @@
       "not",
       "the second",
       "the moment"
-    ]
+    ],
+    "_shapes": "Never a claim the clip cannot show (no invented times, prices or counts): 24 Oct 2026 a \"Ten minutes, one …\" shape had the model write \"Ten minutes, one simple glow\" for a setup that takes longer."
   }
 }

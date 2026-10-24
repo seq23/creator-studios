@@ -58,6 +58,8 @@ describe("hook variety in one dump", () => {
 
   it("steers each clip to a varied pattern, skipping a crowded opening", () => {
     expect(HOOK_SHAPES.length).toBeGreaterThanOrEqual(8);
+    // No shape invites a claim the clip cannot show (an invented time, price or effort).
+    for (const s of HOOK_SHAPES) expect(s).not.toMatch(/minute|hour|\$|price|effort|in seconds/i);
     const niche = ["POV: ... the instant you see the finished look", "How I ... in under a minute"];
     expect(hookPatternFor(0, niche, ["pov"])).toBe(niche[1]);
     const seen = new Set(Array.from({ length: 8 }, (_, k) => hookPatternFor(k, niche, [])));
