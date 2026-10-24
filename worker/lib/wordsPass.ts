@@ -25,6 +25,12 @@ import { clipTypeLabel, cleanLine, cleanScript, composeCaption, ctaLine, isReaso
 
 /** Clips per run (each is one free model call at most). */
 export const WORDS_PER_RUN = 8;
+/**
+ * Only clips that can still be posted get words: New and approved. A rejected clip spent five of
+ * the eight hourly tries on 24 Oct 2026 while the clips she would see waited; if she restores one,
+ * it is New again and gets its words then.
+ */
+export const WORDS_STATUSES = "('draft', 'approved')";
 /** A try at most once every 50 minutes per clip (the hourly lane). */
 export const WORDS_RETRY_MS = 50 * 60 * 1000;
 /** After this many tries (a day of hourly runs) the health light goes red. */
@@ -109,7 +115,7 @@ export async function wordsPass(env: Env, now = new Date()): Promise<{ written: 
   const since = new Date(now.getTime() - WORDS_RETRY_MS).toISOString();
   const { results } = await env.DB.prepare(
     `SELECT id, dump_id, number, start_s, end_s, clip_type, on_screen, uses_ai_images, words_tries FROM clips
-     WHERE words_pending = 1 AND status != 'deleted' AND (words_tried_at IS NULL OR words_tried_at < ?) ORDER BY created_at LIMIT ?`,
+     WHERE words_pending = 1 AND status IN ${WORDS_STATUSES} AND (words_tried_at IS NULL OR words_tried_at < ?) ORDER BY created_at LIMIT ?`,
   )
     .bind(since, WORDS_PER_RUN)
     .all<PendingClip>();
@@ -145,7 +151,7 @@ export async function wordsPass(env: Env, now = new Date()): Promise<{ written: 
   }
   // Words in: the automatic voice over now voices those clips (it skips clips already voiced).
   for (const d of dumps) await autoVoiceDump(env, d).catch(() => log.warn("words.voice_failed"));
-  const left = await env.DB.prepare("SELECT COUNT(*) AS n, SUM(CASE WHEN words_tries >= ? THEN 1 ELSE 0 END) AS stuck FROM clips WHERE words_pending = 1 AND status != 'deleted'")
+  const left = await env.DB.prepare(`SELECT COUNT(*) AS n, SUM(CASE WHEN words_tries >= ? THEN 1 ELSE 0 END) AS stuck FROM clips WHERE words_pending = 1 AND status IN ${WORDS_STATUSES}`)
     .bind(WORDS_RED_AFTER)
     .first<{ n: number; stuck: number | null }>();
   const waiting = Number(left?.n ?? 0);
