@@ -13,7 +13,7 @@ async function runFake(api: APIRequestContext, jobId: string) {
 // Leave the studio as the other specs expect it: profile unlocked with no lock history, no past videos.
 test.afterEach(async ({ page }) => {
   await page.request.post("/api/brain/profile/unlock");
-  sql(["UPDATE brand_profile SET locked = 0, locked_at = NULL", "DELETE FROM past_videos", "DELETE FROM settings WHERE key = 'past_videos_read'"].join("; "));
+  sql(["UPDATE brand_profile SET locked = 0, locked_at = NULL", "DELETE FROM past_videos", "DELETE FROM settings WHERE key = 'past_videos_read'", "DELETE FROM jobs WHERE type IN ('research', 'pastvideos')"].join("; "));
 });
 
 test("past videos: choose three, watch them, read How my videos feel, lock it", async ({ page }) => {
