@@ -183,6 +183,21 @@ describe("the hourly sweep redoes held clips on its own", () => {
     expect(h.one<{ r2_key: string; auto_redo_job_id: string | null }>("SELECT r2_key, auto_redo_job_id FROM clips WHERE id = 'clp_redo000001'")).toEqual({ r2_key: before, auto_redo_job_id: null });
   });
 
+  it("a studio with autoRedoFrom leaves clips made before it alone (unless a newer check fixed them); later ones are redone", async () => {
+    const h = await studio({ AUTO_REDO_FROM: "2026-10-24T03:45:00.000Z" });
+    h.db.raw.exec("UPDATE clips SET created_at = '2026-10-23T12:00:00.000Z'");
+    const r = await autoRedoSweep(h.env);
+    expect(r.started).toBe(0);
+    expect(againJobs(h).length).toBe(0);
+    expect(h.one<{ light: string }>("SELECT light FROM health WHERE name = ?", REDO_LIGHT).light).toBe("green");
+    h.db.raw.exec("UPDATE clips SET created_at = '2026-10-24T05:00:00.000Z' WHERE id = 'clp_redo000001'");
+    expect((await autoRedoSweep(h.env)).started).toBe(1);
+    // The registry knob reaches the Worker, and only the studio that sets it.
+    expect(read("scripts/studio.mjs")).toMatch(/AUTO_REDO_FROM: s\.autoRedoFrom \?\? ""/);
+    const froms = readdirSync(path.join(root, "studios")).filter((f) => f.endsWith(".json") && f !== "themes.json").filter((f) => JSON.parse(read(`studios/${f}`)).autoRedoFrom);
+    expect(froms).toEqual(["mercedes.json"]);
+  });
+
   it("Rule 0: held clips found and nothing could start is a yellow light with the reason", async () => {
     const h = await studio({ FAKE_SERVICES: "0" });
     const r = await autoRedoSweep(h.env);
