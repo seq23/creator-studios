@@ -34,6 +34,10 @@ REASON_WORDS = {
     "before_as_finished": "an unfinished shot looked like the finished result",
     "noise_captions": "background talk showed up in the captions",
     "privacy": "a face, house number or name may be showing",
+    # Not a critic verdict: the blur of a house number or face could not run on this video, so its
+    # clips are held unchecked (jobs/cut.py, fail closed). Its own words, so it is never mistaken
+    # for a face the check saw (23 Oct 2026).
+    "unprotected": "a house number or face could not be blurred, so it is held for a look",
 }
 
 

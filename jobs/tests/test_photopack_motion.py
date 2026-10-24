@@ -133,3 +133,15 @@ class Pack(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SmallBoxBlurTest(unittest.TestCase):
+    """23 Oct 2026: a small number box made boxblur=24 fail; the photo clip uses protect's patches."""
+
+    def test_tiny_box_blurs(self) -> None:
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            src = d / "v.mp4"
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", f"testsrc=size={photopack.W}x{photopack.H}:rate=16:duration=1", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-shortest", "-pix_fmt", "yuv420p", "-c:a", "aac", str(src)], check=True)
+            photopack.blur_regions(src, [(100, 100, 110, 108)], d / "out.mp4")
+            self.assertGreater((d / "out.mp4").stat().st_size, 0)

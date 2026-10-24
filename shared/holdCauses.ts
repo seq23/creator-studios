@@ -35,7 +35,17 @@ export const HOLD_CAUSES = {
   rules: { check: 1, redoOnHold: true, fixes: [], history: [{ check: 1, date: "2026-10-22", what: "content rules, layer 5" }] },
   // A face, house number or name may show (the face check). A safety hold: redone only when a newer
   // face check lands (bump `check` in the build that fixes it), never just because it was held.
-  privacy: { check: 1, redoOnHold: false, fixes: [], history: [{ check: 1, date: "2026-10-22", what: "face and house-number check" }] },
+  // Check 2: a small house-number box no longer fails the blur (jobs/protect.py blur_radii), which had
+  // held every clip of the video; "unprotected" is that failed blur in its own words.
+  privacy: {
+    check: 2,
+    redoOnHold: false,
+    fixes: [],
+    history: [
+      { check: 1, date: "2026-10-22", what: "face and house-number check" },
+      { check: 2, date: "2026-10-23", what: "blur accepts small house-number boxes; a failed blur says so" },
+    ],
+  },
 } as const satisfies Record<string, HoldCause>;
 
 export type HoldCauseKey = keyof typeof HOLD_CAUSES;
@@ -51,6 +61,7 @@ const CRITIC_WORDS: Record<string, HoldCauseKey> = {
   "an unfinished shot looked like the finished result": "before_as_finished",
   "background talk showed up in the captions": "noise_captions",
   "a face, house number or name may be showing": "privacy",
+  "a house number or face could not be blurred, so it is held for a look": "privacy",
 };
 export const RULES_WORDS = "the words broke one of this studio's rules";
 

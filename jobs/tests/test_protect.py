@@ -134,3 +134,57 @@ class NumberScalesTest(unittest.TestCase):
         with mock.patch.object(PR.subprocess, "run", fake_run):
             PR.numbers_with_text(Image.new("RGB", (1080, 1920)))
         self.assertEqual(sizes, [(1080, 1920), (540, 960), (270, 480)])
+
+
+class BlurPatchTest(unittest.TestCase):
+    """23 Oct 2026: 7 of 45 videos in one dump had every clip hidden "a face, house number or name may
+    be showing" with no face found: a small house-number box made ffmpeg refuse boxblur=24 ("must be
+    >= 0 and < 16"), the blur pass failed, and the cut failed closed. Every patch must be one ffmpeg
+    accepts, and the blurred area is never smaller than MIN_BOX a side (inside the frame)."""
+
+    def test_small_boxes_get_radii_ffmpeg_accepts(self):
+        for box in [(100, 100, 102, 101), (100, 100, 110, 108), (100, 100, 130, 120), (0, 0, 4, 4), (1076, 1916, 1080, 1920), (10, 10, 600, 400)]:
+            x, y, w, h = PR.blur_box(box, 1080, 1920)
+            self.assertTrue(0 <= x and 0 <= y and x + w <= 1080 and y + h <= 1920, (box, x, y, w, h))
+            self.assertEqual((w % 2, h % 2), (0, 0))
+            self.assertGreaterEqual(min(w, h), PR.MIN_BOX, box)
+            lr, cr = PR.blur_radii(w, h)
+            self.assertLess(lr, min(w, h) / 2, box)
+            self.assertLess(cr, min(w // 2, h // 2) / 2, box)
+            self.assertGreaterEqual(cr, 8, box)  # still a hard blur, not a token one
+
+    def test_box_covers_what_was_found(self):
+        x, y, w, h = PR.blur_box((500, 900, 560, 940), 1080, 1920)
+        self.assertTrue(x <= 500 and y <= 900 and x + w >= 560 and y + h >= 940)
+
+    def test_source_split_once_per_use(self):
+        chain, last = PR.blur_filter([(1.0, 2.5, (10, 10, 20, 18)), (3.0, 4.0, (300, 300, 320, 310))], 1080, 1920)
+        self.assertTrue(chain.startswith("[0:v]split=3[base][s0][s1];"))
+        self.assertEqual(chain.count("[0:v]"), 1)
+        self.assertNotIn("boxblur=24", chain)
+        self.assertEqual(last, "[o1]")
+
+    def test_cause_not_last_line(self):
+        err = "[Parsed_boxblur_1 @ 0x1] Invalid luma_param radius value 24, must be >= 0 and < 16\n[out#0/mp4 @ 0x2] Nothing was written into output file, because at least one of its streams received no packets."
+        self.assertIn("radius value 24", PR.ffmpeg_error(err))
+
+    @unittest.skipUnless(__import__("shutil").which("ffmpeg"), "ffmpeg not installed")
+    def test_tiny_box_blurs_for_real(self):
+        import subprocess
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            src = Path(d) / "v.mp4"
+            subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=1080x1920:rate=30:duration=2", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", str(src)], check=True, capture_output=True)
+            out = PR.blur_video(src, [(0.0, 1.2, (100, 100, 110, 108)), (0.5, 2.0, (1070, 1910, 1080, 1920))], 1080, 1920, Path(d) / "safe.mp4")
+            self.assertGreater(out.stat().st_size, 0)
+
+
+class UnprotectedReasonTest(unittest.TestCase):
+    def test_a_failed_blur_never_says_a_face_was_seen(self):
+        import critic as C
+
+        self.assertNotEqual(C.REASON_WORDS["unprotected"], C.REASON_WORDS["privacy"])
+        src = (ROOT / "jobs" / "cut.py").read_text()
+        self.assertIn('m.hidden_reason = C.REASON_WORDS["unprotected"]', src)
+        self.assertNotIn('in unsafe for a in part_owners(m)):\n            m.hidden_reason = C.REASON_WORDS["privacy"]', src)
