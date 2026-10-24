@@ -42,6 +42,10 @@ from common import json_object_in, log, openrouter_content  # noqa: E402
 # A dump of ~9 videos and ~12 clips needs about 11 (3 batched shot-sheet calls, 1 copy call, 3 batched
 # critic calls, up to 4 for re-cuts): 16 leaves headroom while keeping 3 dumps a day inside 50.
 OPENROUTER_JOB_BUDGET = int(os.environ.get("OPENROUTER_JOB_BUDGET", "16"))
+# Calls the moment picker may never spend (owner, 24 Oct 2026: a 19-video dump's picker used all 16,
+# so the hook writer and the critic got none and lines of speech shipped as hooks, unchecked). The
+# picker has its rules fallback; the hooks and the words check have no other source.
+WORDS_RESERVE = int(os.environ.get("OPENROUTER_WORDS_RESERVE", "5"))
 LOCAL_VLM = os.environ.get("LOCAL_VLM_MODEL", "Qwen/Qwen2-VL-2B-Instruct")
 # About 1,000 picture tokens: a grid stays readable and a CPU answer takes a minute or two.
 LOCAL_MAX_PIXELS = 1024 * 28 * 28
@@ -75,10 +79,10 @@ def _error_code(e: Exception) -> Any:
     return code if isinstance(code, int) else type(e).__name__
 
 
-def ask_openrouter(key: str | None, payload_for: Callable[[str], dict[str, Any]], models: list[str], kind: str, usable: Any = json_object_in, timeout: float = 150, ask: Any = None, cloud: Any = None) -> tuple[str | None, str]:
+def ask_openrouter(key: str | None, payload_for: Callable[[str], dict[str, Any]], models: list[str], kind: str, usable: Any = json_object_in, timeout: float = 150, ask: Any = None, cloud: Any = None, reserve: int = 0) -> tuple[str | None, str]:
     """One answer: OpenRouter's free models first, then Cloudflare Workers AI within the studio's free
-    share. Returns (text, model) or (None, "")."""
-    content, model = _ask_openrouter_only(key, payload_for, models, kind, usable, timeout, ask)
+    share. Returns (text, model) or (None, ""). `reserve`: calls this caller leaves for later steps."""
+    content, model = _ask_openrouter_only(key, payload_for, models, kind, usable, timeout, ask, reserve)
     if content is not None:
         return content, model
     return ask_cloudflare(payload_for(CLOUDFLARE_TAG), kind, usable, cloud)
@@ -108,7 +112,7 @@ def ask_cloudflare(payload: dict[str, Any], kind: str, usable: Any = json_object
     return None, ""
 
 
-def _ask_openrouter_only(key: str | None, payload_for: Callable[[str], dict[str, Any]], models: list[str], kind: str, usable: Any = json_object_in, timeout: float = 150, ask: Any = None) -> tuple[str | None, str]:
+def _ask_openrouter_only(key: str | None, payload_for: Callable[[str], dict[str, Any]], models: list[str], kind: str, usable: Any = json_object_in, timeout: float = 150, ask: Any = None, reserve: int = 0) -> tuple[str | None, str]:
     """One answer from the first of `models` that gives one, within the job's budget.
     Returns (text, model) or (None, "")."""
     ask = ask or openrouter_content
@@ -116,8 +120,8 @@ def _ask_openrouter_only(key: str | None, payload_for: Callable[[str], dict[str,
         return None, ""
     codes: list[Any] = []
     for model in models[:2]:
-        if openrouter_left() <= 0:
-            log("ai.budget_used", provider="openrouter", kind=kind, budget=OPENROUTER_JOB_BUDGET)
+        if openrouter_left() <= max(0, reserve):
+            log("ai.budget_used", provider="openrouter", kind=kind, budget=OPENROUTER_JOB_BUDGET, reserved=max(0, reserve))
             return None, ""
         CALLS_BY["openrouter"] += 1
         try:

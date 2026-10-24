@@ -149,7 +149,11 @@ class DistinctHooks(unittest.TestCase):
         self.assertEqual(CM.duplicate_hooks(hooks), [], hooks)
         self.assertEqual(stats["repeats"], 3)
         self.assertEqual(moments[1][0].hook, "Brooklyn mom, boat day glam")
-        self.assertEqual(stats["alt"] + stats["rewritten"] + stats["spoken"] + stats["pending"], 3)
+        self.assertEqual(stats["alt"] + stats["rewritten"] + stats["pending"], 3)
+        # Never "her own first spoken line" (24 Oct 2026: lines of speech shipped as hooks).
+        self.assertNotIn("spoken", stats)
+        said = Src.transcript.text_in(0, 10)
+        self.assertFalse(any(CM.echoes_speech(m.hook, said) for m, _ in moments if m.hook))
 
     def test_a_repeat_left_over_costs_points_and_says_why(self):
         s, why = CM.score_clip(facts(hook_repeats=True), PB.load({}))

@@ -14,6 +14,10 @@
 //   niche       the niche research now when it is due (no playbook yet, or the Brand Profile changed):
 //               the same rule as the daily lane (worker/lib/niche.ts monthlyNicheRefresh).
 //               `node scripts/studio.mjs niche <slug>`
+//   rewrite-words  a cut dump's New clips get their words written again, now, in her voice, with no new
+//               cut (no second "Clips ready" email); a clip whose old hook was in its picture is
+//               re-rendered in the same look (worker/lib/rewriteWords.ts). Optional clip numbers.
+//               `node scripts/studio.mjs rewrite-words <slug> <dumpId> [--numbers=78,79]`
 import { Hono, type Context } from "hono";
 import type { Env, Vars } from "../env";
 import { verifyJobMessage } from "../lib/crypto";
@@ -26,6 +30,7 @@ import { servicesOf } from "@shared/services";
 import { startOver } from "./dumps";
 import { PROFILE_IN_USE } from "../lib/profileInUse";
 import { monthlyNicheRefresh } from "../lib/niche";
+import { rewriteDumpWords } from "../lib/rewriteWords";
 
 export const ops = new Hono<{ Bindings: Env; Variables: Vars }>();
 
@@ -66,6 +71,20 @@ ops.post("/niche", async (c) => {
   if (text === null) return fail(c, 401, "Bad signature.");
   const r = await monthlyNicheRefresh(c.env);
   await recordEvent(c.env.DB, "niche.ops_refresh", null, { dispatched: r.dispatched }, OPS_ACTOR);
+  return c.json({ ok: true, ...r });
+});
+
+ops.post("/rewrite-words", async (c) => {
+  const text = await signedBody(c);
+  if (text === null) return fail(c, 401, "Bad signature.");
+  const body = parseJson<{ dump_id?: string; numbers?: unknown }>(text, {});
+  const id = String(body.dump_id ?? "");
+  if (!id) return fail(c, 400, "Which dump?");
+  const numbers = Array.isArray(body.numbers) ? body.numbers.map(Number).filter((n) => Number.isInteger(n) && n > 0) : null;
+  const r = await rewriteDumpWords(c.env, id, numbers && numbers.length ? numbers : null);
+  if (!r) return fail(c, 409, "That dump is not cut yet (or is gone).");
+  await recordEvent(c.env.DB, "dump.rewrite_words", id, { ...r }, OPS_ACTOR);
+  log.info("ops.rewrite_words", { ...r });
   return c.json({ ok: true, ...r });
 });
 

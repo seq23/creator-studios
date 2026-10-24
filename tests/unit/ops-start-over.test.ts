@@ -56,4 +56,28 @@ describe("signed Start over", () => {
     const bad = JSON.stringify({ dump_id: "dmp_o", service: "gamma" });
     expect((await post(bad, sign(bad))).status).toBe(400);
   });
+
+  it("rewrite-words: New clips get written words again with no new cut, the burned hook re-rendered away, nothing else touched", async () => {
+    db.raw.exec(`UPDATE clips SET hook_text = 'Go ahead.', caption = 'Go ahead.', look = 'clean', score = 94, number = 7,
+      score_reasons = '["Sharp and steady throughout","Short, readable on-screen words"]' WHERE id = 'clp_new';
+      UPDATE clips SET hook_text = 'Kept as she approved it', score = 90 WHERE id = 'clp_ok';`);
+    const rw = (b: string) => app.request("http://w.example/api/ops/rewrite-words", { method: "POST", headers: { "content-type": "application/json", ...sign(b) }, body: b }, env);
+    const body = JSON.stringify({ dump_id: "dmp_o" });
+    expect((await app.request("http://w.example/api/ops/rewrite-words", { method: "POST", headers: { "content-type": "application/json" }, body }, env)).status).toBe(401);
+    const r = await rw(body);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ ok: true, cleared: 1, written: 1, rerenders: 1 });
+    const row = db.raw.prepare("SELECT hook_text, words_pending, score, score_reasons, rerender_job_id, pending_look FROM clips WHERE id = 'clp_new'").get() as { hook_text: string; words_pending: number; score: number; score_reasons: string; rerender_job_id: string | null; pending_look: string };
+    expect(row.hook_text).not.toBe("Go ahead.");
+    expect(row.hook_text.length).toBeGreaterThan(0);
+    expect(row.words_pending).toBe(0);
+    // Docked as the engine docks a clip with no words (94 - 10, capped at 80), then the points back once written.
+    expect(row.score).toBe(90);
+    expect(JSON.parse(row.score_reasons)).toEqual(["Sharp and steady throughout", "Short, readable on-screen words"]);
+    expect(row.rerender_job_id).toBeTruthy();
+    expect(row.pending_look).toBe("clean");
+    expect(db.raw.prepare("SELECT hook_text, score FROM clips WHERE id = 'clp_ok'").get()).toEqual({ hook_text: "Kept as she approved it", score: 90 });
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM emails_sent").get()).toEqual({ n: 0 });
+    expect(db.raw.prepare("SELECT status FROM dumps WHERE id = 'dmp_o'").get()).toEqual({ status: "ready" });
+  });
 });

@@ -21,7 +21,8 @@ import { contentRules } from "./photoPosts";
 import { textProblems } from "@shared/contentRules";
 import { normalizeHashtags } from "../jobs/cut";
 import { autoVoiceDump } from "./autoVoice";
-import { clipTypeLabel, cleanLine, cleanScript, composeCaption, ctaLine, isReasoning, sendLine, stripCta, wantsAiNote, type WordsRules } from "@shared/clipWords";
+import { clipTypeLabel, cleanLine, cleanScript, composeCaption, ctaLine, isReasoning, nearDuplicateHook, sendLine, stripCta, wantsAiNote, type WordsRules } from "@shared/clipWords";
+import { latestPlaybook } from "./niche";
 import { feelLine } from "@shared/videoFeel";
 
 /** Clips per run (each is one free model call at most). */
@@ -36,6 +37,29 @@ export const WORDS_STATUSES = "('draft', 'approved')";
 export const WORDS_RETRY_MS = 50 * 60 * 1000;
 /** After this many tries (a day of hourly runs) the health light goes red. */
 export const WORDS_RED_AFTER = 24;
+/**
+ * The score's on-screen-words check (jobs/clipmaker.py score_clip: 10 points, and a clip still
+ * waiting for its words is capped at WORDS_CAP there). Once its words are written the clip gets those
+ * points back and the reason flips, so a clip is never scored high before it has a hook and never
+ * stays docked after (owner, 24 Oct 2026).
+ */
+export const WORDS_POINTS = 10;
+export const WAITING_REASON = "The words are still being written";
+export const WORDS_HIT = "Short, readable on-screen words";
+
+/** The score and reasons once the words are in. Pure. */
+export function scoreWithWords(score: number, reasons: string | null): { score: number; score_reasons: string | null } {
+  let list: string[] | null = null;
+  try {
+    const v = JSON.parse(reasons ?? "null");
+    list = Array.isArray(v) ? v.map(String) : null;
+  } catch {
+    list = null;
+  }
+  if (list && !list.includes(WAITING_REASON)) return { score, score_reasons: reasons };
+  const out = list ? [...list.filter((r) => r !== WAITING_REASON), WORDS_HIT] : null;
+  return { score: Math.min(100, Math.round(score) + WORDS_POINTS), score_reasons: out ? JSON.stringify(out) : reasons };
+}
 
 interface PendingClip {
   id: string;
@@ -47,6 +71,8 @@ interface PendingClip {
   on_screen: string | null;
   uses_ai_images: number;
   words_tries: number;
+  score: number;
+  score_reasons: string | null;
 }
 
 export interface DraftWords {
@@ -115,7 +141,7 @@ export function practiceDraft(c: Pick<PendingClip, "number" | "clip_type">): Dra
 export async function wordsPass(env: Env, now = new Date()): Promise<{ written: number; waiting: number; stuck: number }> {
   const since = new Date(now.getTime() - WORDS_RETRY_MS).toISOString();
   const { results } = await env.DB.prepare(
-    `SELECT id, dump_id, number, start_s, end_s, clip_type, on_screen, uses_ai_images, words_tries FROM clips
+    `SELECT id, dump_id, number, start_s, end_s, clip_type, on_screen, uses_ai_images, words_tries, score, score_reasons FROM clips
      WHERE words_pending = 1 AND status IN ${WORDS_STATUSES} AND (words_tried_at IS NULL OR words_tried_at < ?) ORDER BY created_at LIMIT ?`,
   )
     .bind(since, WORDS_PER_RUN)
@@ -126,25 +152,38 @@ export async function wordsPass(env: Env, now = new Date()): Promise<{ written: 
     const rules = await readStudioRules(env);
     const profile = await lockedProfile(env);
     const cr = contentRules(env);
+    const niche = await latestPlaybook(env).catch(() => null);
+    const patterns = (niche?.hooks ?? []).slice(0, 6);
     const system =
       `You write the words for one short vertical video clip for a small business. Reply with ONE JSON object only: ` +
       `{"hook": "at most 8 words, shown big on screen", "caption": "one or two plain sentences", "hashtags": ["3 to 5 tags"], "voice": "a short spoken voice-over, plain sentences"}. ` +
       `Write in their voice: ${profile?.voice || "warm and direct"}.${feelLine(profile)} Never mention: ${profile?.off_limits || "nothing listed"}. ` +
+      `The hook is a written headline that opens on the payoff (what the viewer gets), never a generic slogan, never a line someone says in the video, and different from every hook already used.` +
+      (patterns.length ? ` Hooks that work in this niche, as patterns only (never word for word): ${patterns.join(" | ")}.` : "") +
+      (niche?.caption_style ? ` Captions in this niche read: ${niche.caption_style}.` : "") + ` ` +
       `No call to action in the caption (it is added after), no links, no prices${rules.prices ? " unless real" : ""}, no names or addresses, ` +
       `never mention automation, software or how the video was made. No lists, no markdown, no notes about the task.` +
       (rules.place_words.length ? ` Use one of these local words naturally: ${rules.place_words.join(", ")}.` : "");
     for (const c of results) {
-      const user = `Kind of clip: ${clipTypeLabel(c.clip_type) ?? "a short clip"}. Length: ${Math.round(c.end_s - c.start_s)} seconds.${c.on_screen ? ` On screen, in order: ${c.on_screen}` : ""}`;
+      // The other hooks in this dump (written ones, any status but deleted): never a repeat.
+      const { results: others } = await env.DB.prepare("SELECT hook_text FROM clips WHERE dump_id = ? AND id != ? AND status != 'deleted' AND hook_text != ''")
+        .bind(c.dump_id, c.id)
+        .all<{ hook_text: string }>();
+      const used = others.map((o) => o.hook_text);
+      const user = `Kind of clip: ${clipTypeLabel(c.clip_type) ?? "a short clip"}. Length: ${Math.round(c.end_s - c.start_s)} seconds.${c.on_screen ? ` On screen, in order: ${c.on_screen}` : ""}${used.length ? `\nHooks already used (write a different one): ${used.slice(0, 30).join(" | ")}` : ""}`;
       const text = fakeServices(env) ? JSON.stringify(practiceDraft(c)) : await askModel(env, system, user);
-      const words = finishWords(text ? parseDraft(text) : null, rules, { number: c.number, uses_ai_images: !!c.uses_ai_images }, (t) => textProblems(t, cr));
+      const drafted = finishWords(text ? parseDraft(text) : null, rules, { number: c.number, uses_ai_images: !!c.uses_ai_images }, (t) => textProblems(t, cr));
+      // Practice mode's labelled stand-in names the clip type, so it is exempt from the repeat check.
+      const words = drafted && (fakeServices(env) || !used.some((u) => nearDuplicateHook(drafted.hook_text, u))) ? drafted : null;
       if (!words) {
         await env.DB.prepare("UPDATE clips SET words_tries = words_tries + 1, words_tried_at = ? WHERE id = ?").bind(now.toISOString(), c.id).run();
         continue;
       }
+      const scored = scoreWithWords(c.score, c.score_reasons);
       await env.DB.prepare(
-        "UPDATE clips SET hook_text = ?, caption = ?, hashtags = ?, voice_script = ?, words_pending = 0, words_tries = words_tries + 1, words_tried_at = ? WHERE id = ? AND words_pending = 1",
+        "UPDATE clips SET hook_text = ?, caption = ?, hashtags = ?, voice_script = ?, score = ?, score_reasons = ?, words_pending = 0, words_tries = words_tries + 1, words_tried_at = ? WHERE id = ? AND words_pending = 1",
       )
-        .bind(words.hook_text, words.caption, words.hashtags, words.voice_script, now.toISOString(), c.id)
+        .bind(words.hook_text, words.caption, words.hashtags, words.voice_script, scored.score, scored.score_reasons, now.toISOString(), c.id)
         .run();
       written++;
       dumps.add(c.dump_id);
