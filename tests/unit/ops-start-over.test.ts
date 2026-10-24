@@ -75,6 +75,11 @@ describe("signed Start over", () => {
     expect(row.score).toBe(90);
     expect(JSON.parse(row.score_reasons)).toEqual(["Sharp and steady throughout", "Short, readable on-screen words"]);
     expect(row.rerender_job_id).toBeTruthy();
+    // The on-demand words pass is signed like every ops call.
+    const w = JSON.stringify({});
+    expect((await app.request("http://w.example/api/ops/words", { method: "POST", headers: { "content-type": "application/json" }, body: w }, env)).status).toBe(401);
+    const ran = await app.request("http://w.example/api/ops/words", { method: "POST", headers: { "content-type": "application/json", ...sign(w) }, body: w }, env);
+    expect(await ran.json()).toMatchObject({ ok: true, written: 0, waiting: 0 });
     expect(row.pending_look).toBe("clean");
     expect(db.raw.prepare("SELECT hook_text, score FROM clips WHERE id = 'clp_ok'").get()).toEqual({ hook_text: "Kept as she approved it", score: 90 });
     expect(db.raw.prepare("SELECT COUNT(*) AS n FROM emails_sent").get()).toEqual({ n: 0 });

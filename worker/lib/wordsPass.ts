@@ -44,6 +44,9 @@ export const WORDS_RED_AFTER = 24;
  * stays docked after (owner, 24 Oct 2026).
  */
 export const WORDS_POINTS = 10;
+/** On-screen hook limits, as the engine reads them (jobs/clipmaker.py _readable_hook). */
+export const HOOK_MAX_WORDS = 8;
+export const HOOK_MAX_CHARS = 56;
 export const WAITING_REASON = "The words are still being written";
 export const WORDS_HIT = "Short, readable on-screen words";
 
@@ -99,6 +102,8 @@ export function finishWords(
   const hook = cleanLine(rawHook, 120);
   let body = cleanLine(rawBody, 400);
   if (!hook || !body) return null;
+  // Short enough to read on screen (jobs/clipmaker.py _readable_hook: 8 words, 56 characters).
+  if (hook.split(/\s+/).length > HOOK_MAX_WORDS || hook.length > HOOK_MAX_CHARS) return null;
   const k = Math.max(0, (clip.number ?? 1) - 1);
   body = sendLine(k, stripCta(body, rules) || body);
   const tags = normalizeHashtags(draft.hashtags).split(" ").filter(Boolean).slice(0, 5);
@@ -158,7 +163,7 @@ export async function wordsPass(env: Env, now = new Date()): Promise<{ written: 
       `You write the words for one short vertical video clip for a small business. Reply with ONE JSON object only: ` +
       `{"hook": "at most 8 words, shown big on screen", "caption": "one or two plain sentences", "hashtags": ["3 to 5 tags"], "voice": "a short spoken voice-over, plain sentences"}. ` +
       `Write in their voice: ${profile?.voice || "warm and direct"}.${feelLine(profile)} Never mention: ${profile?.off_limits || "nothing listed"}. ` +
-      `The hook is a written headline that opens on the payoff (what the viewer gets), never a generic slogan, never a line someone says in the video, and different from every hook already used.` +
+      `The hook is a written headline that opens on the payoff (what the viewer gets), never a generic slogan, never a line someone says in the video, and different from every hook already used, and never opening the same way as one of them (not every hook a "POV:").` +
       (patterns.length ? ` Hooks that work in this niche, as patterns only (never word for word): ${patterns.join(" | ")}.` : "") +
       (niche?.caption_style ? ` Captions in this niche read: ${niche.caption_style}.` : "") + ` ` +
       `No call to action in the caption (it is added after), no links, no prices${rules.prices ? " unless real" : ""}, no names or addresses, ` +
