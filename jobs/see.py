@@ -487,7 +487,7 @@ def see_video(key: str | None, video: Path, asset_id: str, duration: float, serv
 # ---------------------------------------------------------------- several videos, one call (quota fix)
 
 # One picture holds up to BATCH_VIDEOS videos, BATCH_CELLS frames each, every video under its own
-# heading: 9 videos cost 3 calls instead of 9 (jobs/ai.py budgets the account's 50 a day).
+# heading: 9 videos cost 3 calls instead of 9 (jobs/ai.py budgets the studios' share of the account's 1,000 a day).
 BATCH_VIDEOS = 3
 BATCH_CELLS = 12
 LABEL_W = 240

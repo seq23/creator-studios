@@ -1,10 +1,13 @@
 """The model ladder every studio-intelligence call goes through (quota fix, 23 Oct 2026).
 
-Why: the OpenRouter key is on the free tier, 50 requests a day for the whole account, shared by the
-cut, critic and golden jobs of every host studio. One dump used ~45 of them (one picture per video,
+Why: until 24 Oct 2026 the host OpenRouter key was on the free tier, 50 requests a day for the whole
+account, shared by the cut, critic and golden jobs of every host studio. One dump used ~45 of them (one picture per video,
 one critic call per clip, up to six retries per failure), so the golden set at 0e0eebb found every
 model answering 429 and failed. $0 only: no credits are bought, no account is made, the key's limit
-is never changed.
+is never changed. Since 24 Oct 2026 (owner's word) the host studios and the golden set use the owner's
+$0-routing account instead: NOT free tier, so 1,000 free-model requests a day (reset 00:00 UTC), with a
+$0 key limit so a paid model can never be billed. That 1,000 is shared with her other repos, so the
+studios keep to about 500 of it (STUDIOS_DAILY_CEILING; scripts/validators/free-quota-budgeted.mjs).
 
 Three providers, all $0:
   1. OpenRouter free models (`:free` / openrouter/free), at most OPENROUTER_JOB_BUDGET calls per job.
@@ -40,12 +43,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import json_object_in, log, openrouter_content  # noqa: E402
 
 # A dump of ~9 videos and ~12 clips needs about 11 (3 batched shot-sheet calls, 1 copy call, 3 batched
-# critic calls, up to 4 for re-cuts): 16 leaves headroom while keeping 3 dumps a day inside 50.
-OPENROUTER_JOB_BUDGET = int(os.environ.get("OPENROUTER_JOB_BUDGET", "16"))
+# critic calls, up to 4 for re-cuts); a 19-video dump with re-cuts about 25. 40 lets one big upload
+# finish on the free models without starving its hooks, and ten such jobs a day stay inside the
+# studios' ~500 of the account's 1,000.
+STUDIOS_DAILY_CEILING = 500
+OPENROUTER_JOB_BUDGET = int(os.environ.get("OPENROUTER_JOB_BUDGET", "40"))
 # Calls the moment picker may never spend (owner, 24 Oct 2026: a 19-video dump's picker used all 16,
 # so the hook writer and the critic got none and lines of speech shipped as hooks, unchecked). The
 # picker has its rules fallback; the hooks and the words check have no other source.
-WORDS_RESERVE = int(os.environ.get("OPENROUTER_WORDS_RESERVE", "5"))
+WORDS_RESERVE = int(os.environ.get("OPENROUTER_WORDS_RESERVE", "10"))
 LOCAL_VLM = os.environ.get("LOCAL_VLM_MODEL", "Qwen/Qwen2-VL-2B-Instruct")
 # About 1,000 picture tokens: a grid stays readable and a CPU answer takes a minute or two.
 LOCAL_MAX_PIXELS = 1024 * 28 * 28

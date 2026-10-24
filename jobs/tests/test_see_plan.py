@@ -262,7 +262,7 @@ if __name__ == "__main__":
 
 
 class QuotaTest(unittest.TestCase):
-    """The quota fix (23 Oct 2026): the free account allows 50 calls a day for every studio."""
+    """The quota fix (23 Oct 2026): every job spends at most its budget of the shared free-model quota (1,000 a day since 24 Oct 2026, the studios keep ~500)."""
 
     def setUp(self):
         import ai as A
