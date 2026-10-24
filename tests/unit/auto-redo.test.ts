@@ -40,11 +40,15 @@ describe("hold causes: every reason has a cause, every cause a check version", (
     expect(read("jobs/cut.py")).toMatch(/f"scored \{sc\}\/100, under your bar of \{bar\}/);
     expect(holdCause("scored 52/100, under your bar of 70: ends on a blurry shot")).toBe("under_bar");
     expect(holdCause(`it scored 40, under this studio's bar of 70 ${GAVE_UP_NOTE}`)).toBe("under_bar");
+    // Clip quality: jobs/cut.py writes "too short: {n} s, and this kind of clip needs at least {lo} s".
+    expect(read("jobs/cut.py")).toMatch(/m\.hidden_reason = f"too short: \{clip_seconds\(m\):\.0f\} s, and this kind of clip needs at least/);
+    expect(holdCause("too short: 3 s, and this kind of clip needs at least 8 s")).toBe("too_short");
+    expect(HOLD_CAUSES.too_short.redoOnHold).toBe(true);
     expect(holdCause("someone asked to hide it")).toBeNull();
     expect(holdCause(null)).toBeNull();
   });
   it("each cause's check version has its history line (the build marker); the cap is 2", () => {
-    expect(HOLD_CAUSE_KEYS.sort()).toEqual(["before_as_finished", "noise_captions", "privacy", "rules", "text_mismatch", "under_bar"]);
+    expect(HOLD_CAUSE_KEYS.sort()).toEqual(["before_as_finished", "noise_captions", "privacy", "rules", "text_mismatch", "too_short", "under_bar"]);
     for (const k of HOLD_CAUSE_KEYS) {
       const c = HOLD_CAUSES[k];
       expect(c.history.length, k).toBe(c.check);
