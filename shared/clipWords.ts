@@ -203,3 +203,26 @@ export function clipTypeLabel(id: string | null | undefined): string | null {
   const label = TYPES[id]?.label ?? id.replace(/_/g, " ");
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
+
+// Distinct hooks in one dump (owner, 23-24 Oct 2026): the TypeScript twin of jobs/clipmaker.py
+// hook_words / near_duplicate, so the hourly words pass never writes a hook that repeats another
+// clip's (guard: tests/unit/hook-words.test.ts reads both sides).
+export const HOOK_STOP = new Set(["a", "an", "the", "and", "or", "of", "to", "in", "on", "at", "for", "with", "my", "your", "you", "i", "is", "it", "this", "that", "me", "so", "just", "every", "day", "s"]);
+
+export function hookWords(h: string): string[] {
+  return ((h ?? "").toLowerCase().replace(/'s/g, "").match(/[a-z0-9']+/g) ?? []).filter((w) => !HOOK_STOP.has(w));
+}
+
+/** Two hooks that say nearly the same thing: the same words, half or more in common, or a shared two-word phrase. */
+export function nearDuplicateHook(a: string, b: string): boolean {
+  const wa = hookWords(a);
+  const wb = hookWords(b);
+  if (!wa.length || !wb.length) return false;
+  if (wa.join(" ") === wb.join(" ")) return true;
+  const sa = new Set(wa);
+  const sb = new Set(wb);
+  const common = [...sa].filter((w) => sb.has(w)).length;
+  if (common >= 2 && common / Math.min(sa.size, sb.size) >= 0.5) return true;
+  const pairs = new Set(wa.slice(0, -1).map((w, i) => `${w} ${wa[i + 1]}`));
+  return wb.slice(0, -1).some((w, i) => pairs.has(`${w} ${wb[i + 1]}`));
+}

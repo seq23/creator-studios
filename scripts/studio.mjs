@@ -648,14 +648,19 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     "start-over": () => startOverCmd(arg, process.argv[4]),
     niche: () => opsCall(arg, "niche", {}),
     "finish-cut": () => finishCutCmd(arg, process.argv[4]),
+    // A cut dump's words written again with no new cut (worker/routes/ops.ts rewrite-words).
+    "rewrite-words": () => {
+      const nums = process.argv.find((x) => x.startsWith("--numbers="))?.slice(10).split(",").map(Number).filter(Boolean);
+      return opsCall(arg, "rewrite-words", { dump_id: process.argv[4], ...(nums?.length ? { numbers: nums } : {}) });
+    },
     storage: () => {
       provisionStorage(studioBySlug(arg).s);
       gen();
     },
   };
   const fn = commands[cmd];
-  if (!fn || (["create", "deploy", "secrets", "invite", "storage", "start-over", "finish-cut", "niche"].includes(cmd) && !arg)) {
-    console.log("usage: node scripts/studio.mjs gen|check|list | create <slug> | deploy <slug>|--all | secrets <slug>|--all [--refresh] [--only=NAME,…] | invite <slug> | start-over <slug> <dumpId> [--service=…] [--shape=…] | finish-cut <slug> <dumpId> | niche <slug>");
+  if (!fn || (["create", "deploy", "secrets", "invite", "storage", "start-over", "finish-cut", "niche", "rewrite-words"].includes(cmd) && !arg)) {
+    console.log("usage: node scripts/studio.mjs gen|check|list | create <slug> | deploy <slug>|--all | secrets <slug>|--all [--refresh] [--only=NAME,…] | invite <slug> | start-over <slug> <dumpId> [--service=…] [--shape=…] | finish-cut <slug> <dumpId> | rewrite-words <slug> <dumpId> [--numbers=…] | niche <slug>");
     process.exit(2);
   }
   Promise.resolve(fn()).catch((e) => {

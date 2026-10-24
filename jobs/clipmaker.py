@@ -333,6 +333,11 @@ def _readable_hook(hook: str, max_words: int = 8) -> bool:
 # A clip shorter than its type's range scores at most this, under any bar a studio can sensibly set,
 # and jobs/cut.py hides it with its plain reason whatever the bar (never shown in Review).
 SHORT_CAP = 40
+# A clip whose hook is a copied line of speech scores at most this (under every studio's bar of 70:
+# the cut never ships one; this is the score's own guard). One still waiting for its words scores at
+# most WORDS_CAP until the words pass writes them (worker/lib/wordsPass.ts adds WORDS_POINTS back).
+ECHO_CAP = 55
+WORDS_CAP = 80
 
 
 def too_short(seconds: float, lo: float) -> bool:
@@ -361,6 +366,24 @@ def near_duplicate(a: str, b: str) -> bool:
     pa = {(wa[i], wa[i + 1]) for i in range(len(wa) - 1)}
     pb_ = {(wb[i], wb[i + 1]) for i in range(len(wb) - 1)}
     return bool(pa & pb_)
+
+
+def speech_words(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", (text or "").lower().replace("\u2019", "'").replace("'", ""))
+
+
+def echoes_speech(hook: str, said: str) -> bool:
+    """A hook that is a line of what was said, not a written headline (owner, 24 Oct 2026: "Yeah,
+    you're good.", "Go ahead.", "Love you, love you, love you…" and the mis-heard "Marigold's
+    differing care, thank you very much." shipped as hooks and scored 94-100). True when every word
+    of the hook (two or more) appears, in order and side by side, in the clip's transcript. A written
+    hook that borrows one word of hers is fine; a copied line never is."""
+    hw = speech_words(hook)
+    if len(hw) < 2:
+        return False
+    sw = speech_words(said)
+    n = len(hw)
+    return any(sw[i : i + n] == hw for i in range(len(sw) - n + 1))
 
 
 def duplicate_hooks(hooks: list[str]) -> list[int]:
@@ -410,11 +433,22 @@ def score_clip(f: dict[str, Any], pb: dict[str, Any]) -> tuple[int, list[str]]:
     distinct = not f.get("repeats") and float(f.get("overlap", 0.0)) < 0.5
     got.append((10 if distinct else 0, 10, "it repeats shots", "every shot is different"))
     hook = f.get("hook") or ""
-    if f.get("words_pending"):
-        txt = 5
+    # The score judges the words on screen (owner, 24 Oct 2026): no words yet, or a line copied
+    # from the speech, earns nothing here and caps the whole score (WORDS_CAP / ECHO_CAP).
+    echo = bool(hook) and not f.get("words_pending") and echoes_speech(hook, f.get("said") or "")
+    if f.get("words_pending") or not hook:
+        txt = 0
+    elif echo:
+        txt = 0
     else:
-        txt = 10 if _readable_hook(hook, int(pb.get("hook_max_words") or 8)) and not SC.is_reasoning(cap) and not f.get("hook_repeats") else (5 if hook else 0)
-    got.append((txt, 10, ("the hook says nearly the same as another clip's" if f.get("hook_repeats") else "the on-screen words are too long or missing") if not f.get("words_pending") else "the words are still being written", "short, readable on-screen words"))
+        txt = 10 if _readable_hook(hook, int(pb.get("hook_max_words") or 8)) and not SC.is_reasoning(cap) and not f.get("hook_repeats") else 5
+    miss = (
+        "the words are still being written" if f.get("words_pending")
+        else "the hook is a line from the speech, not a written hook" if echo
+        else "the hook says nearly the same as another clip's" if f.get("hook_repeats")
+        else "the on-screen words are too long or missing"
+    )
+    got.append((txt, 10, miss, "short, readable on-screen words"))
     total = sum(p["end"] - p["start"] for p in parts)
     lo, hi = t["length_s"]
     short = too_short(total, lo) and f.get("clip_type") != "moving_photo"
@@ -428,6 +462,10 @@ def score_clip(f: dict[str, Any], pb: dict[str, Any]) -> tuple[int, list[str]]:
     if short:
         # Shorter than its type's range can never pass a bar (owner, 23 Oct 2026: a 3 s clip scored 88).
         score = min(score, SHORT_CAP)
+    if echo:
+        score = min(score, ECHO_CAP)
+    elif f.get("words_pending") or not hook:
+        score = min(score, WORDS_CAP)
     misses = [g[2] for g in got if g[0] < g[1]]
     hits = [g[3] for g in got if g[0] >= g[1]]
     reasons = [m[:1].upper() + m[1:] for m in misses] + [h[:1].upper() + h[1:] for h in hits]
@@ -528,7 +566,8 @@ def final_words(m: Any, rules: dict[str, Any], pb: dict[str, Any], k: int, uses_
     """The clip's caption string in the contract layout, or words_pending with no stock lines."""
     body = SC.clean_line(m.caption or "", 400)
     hook = SC.clean_line(m.hook or "", 120)
-    pending = bool(getattr(m, "words_pending", False)) or is_stock(hook, body) or not body
+    # A line copied from the speech is never a hook (owner, 24 Oct 2026): the clip waits for its words.
+    pending = bool(getattr(m, "words_pending", False)) or is_stock(hook, body) or not body or not hook or echoes_speech(hook, getattr(m, "said", "") or "")
     if pending:
         return {"caption": "", "hook_text": "", "hook_alt": None, "hashtags": [], "words_pending": True}
     body = send_line(pb, k, strip_cta(body, rules) or body)

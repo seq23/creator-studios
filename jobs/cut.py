@@ -341,6 +341,8 @@ class Moment:
     part_keys: list[str] | None = None
     voice: str = ""
     words_pending: bool = False
+    # What was said in its video (the transcript): a hook may never be a line of it (clipmaker.echoes_speech).
+    said: str = ""
 
 
 def coverage(runs: list[tuple[float, float]], s: float, e: float) -> float:
@@ -446,8 +448,10 @@ def cta_line(profile: dict[str, str] | None) -> str:
 # Hooks in her own voice (owner, 23 Oct 2026, clip quality): every prompt that writes on-screen hooks
 # reads these rules and voice_context(spec). Pinned by jobs/tests/test_clip_quality.py.
 HOOK_RULES = (
-    "Hooks are in HER voice: write them the way she talks (her_voice, how_her_videos_feel, her own words in the transcript), "
-    "never a generic slogan or a tagline ('everyday elegance', 'pure joy', 'perfection', 'elevated'). Open on the payoff: the hook "
+    "Hooks are in HER voice: write them the way she talks (her_voice, how_her_videos_feel), "
+    "never a generic slogan or a tagline ('everyday elegance', 'pure joy', 'perfection', 'elevated'). A hook is a WRITTEN headline: "
+    "never copy a line she says in the video word for word ('Yeah, you're good.', 'Go ahead.'), and never use speech that does not "
+    "make sense on its own (a mis-heard line). Open on the payoff: the hook "
     "names the strongest moment or what the viewer gets, in plain words. Use the niche hook patterns as patterns only, never "
     "word for word, and never copy another creator's words. Every hook in this dump is different from every other one and "
     "from already_used_hooks: no shared two-word phrase, a different angle each time."
@@ -487,17 +491,17 @@ GENERIC_HOOKS = {
 
 def fill_copy(m: Moment, transcript: Transcript, spec: dict[str, Any], i: int) -> None:
     """Deterministic hook / alt hook / caption / hashtags when the model did not provide them."""
+    # Never a line of the transcript as the hook or the caption (owner, 24 Oct 2026: "Go ahead.",
+    # "Yeah, you're good." shipped as hooks). No model words = no hook here: the hook writer
+    # (distinct_hooks) writes it in her voice, else the clip waits for its words (words_pending).
     hooks = brief_hooks(spec.get("brief"))
-    said = first_sentence(transcript.text_in(m.start, m.end))
     generic = GENERIC_HOOKS.get(m.recipe, GENERIC_HOOKS["talking_head"])
-    if not m.hook:
-        m.hook = said or (hooks[i % len(hooks)] if hooks else generic[0])
     if not m.hook_alt:
         alt = hooks[(i + 1) % len(hooks)] if hooks else generic[1]
         m.hook_alt = alt if alt != m.hook else generic[1]
-    if not m.caption:
+    if not m.caption and m.hook:
         cta = cta_line(spec.get("brand_profile"))
-        base = first_sentence(transcript.text_in(m.start, m.end), 25) or m.hook
+        base = m.hook
         base = base.rstrip("….!?,;: ")
         base = base[:1].upper() + base[1:]
         if m.recipe == "recycle":
@@ -602,7 +606,7 @@ def llm_moments(asset: dict[str, Any], duration: float, transcript: Transcript, 
     payload = {"model": OPENROUTER_MODEL, "max_tokens": 2500, "response_format": {"type": "json_object"}, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
     for attempt in range(2):
         try:
-            text = or_text(key, payload, 120)
+            text = or_text(key, payload, 120, reserve=A.WORDS_RESERVE)
             m = re.search(r"\{.*\}", text, re.S)
             items = json.loads(m.group(0) if m else text).get("moments", [])
             out: list[Moment] = []
@@ -1185,10 +1189,11 @@ Progress = Callable[[str, int, int], None]
 SHAPE_WORDS = {"transformation": "before and after", "walkthrough": "a walk-through", "talking": "talking to camera", "montage": "close-ups"}
 
 
-def or_text(key: str | None, payload: dict[str, Any], timeout: float = 120) -> str:
+def or_text(key: str | None, payload: dict[str, Any], timeout: float = 120, reserve: int = 0) -> str:
     """A text answer from OpenRouter's free models within the job's budget (jobs/ai.py), counted
-    per provider. Raises when none came (the callers fall back to their rules)."""
-    text, _m = A.ask_openrouter(key, lambda model: {**payload, "model": model}, [str(payload.get("model") or OPENROUTER_MODEL)], "text", timeout=timeout)
+    per provider. Raises when none came (the callers fall back to their rules). The moment picker
+    passes reserve=A.WORDS_RESERVE so the hook writer and the critic always have calls left."""
+    text, _m = A.ask_openrouter(key, lambda model: {**payload, "model": model}, [str(payload.get("model") or OPENROUTER_MODEL)], "text", timeout=timeout, reserve=reserve)
     if text is None:
         raise RuntimeError("no answer")
     return text
@@ -1524,7 +1529,7 @@ def score_facts(m: Moment, k: int, bodies: dict[int, set[str]], tracks: dict[str
     return {
         "clip_type": m.clip_type or "finished_walkthrough", "parts": parts, "hook": m.hook, "caption": f"{m.caption} {rules_s['cta_link']}" if rules_s["cta_link"] else m.caption,
         "words_pending": m.words_pending, "cta_link": rules_s["cta_link"], "cta_phrases": rules_s["cta_phrases"], "end_card": bool(opts.get("end_card")),
-        "overlap": overlap, "repeats": repeats, "hook_repeats": k in (hook_dups or set()),
+        "overlap": overlap, "repeats": repeats, "hook_repeats": k in (hook_dups or set()), "said": m.said,
     }
 
 
@@ -1628,26 +1633,44 @@ def reach_type_length(m: Moment, pb: dict[str, Any], duration: float) -> bool:
 
 
 def distinct_hooks(moments: list[tuple[Moment, Source]], spec: dict[str, Any], key: str | None, text_ok: Any, pb: dict[str, Any]) -> dict[str, int]:
-    """No near-duplicate hooks in one dump (owner, 23 Oct 2026: many latte / boat variants). Each
-    repeat (jobs/clipmaker.py near_duplicate) takes, in turn: its own alternative hook when that one
-    is distinct; one batched rewrite in her voice (the free model, voice_context); her own first
-    spoken line in that clip; else its words wait (words_pending: never a repeat, never stock)."""
-    stats = {"repeats": 0, "alt": 0, "rewritten": 0, "spoken": 0, "pending": 0}
+    """Every clip gets a WRITTEN hook, different from every other one in the dump (owner, 23-24 Oct
+    2026: many latte / boat variants; then lines of speech such as "Go ahead." shipped as hooks).
+    A clip needs one when its hook nearly repeats an earlier one (jobs/clipmaker.py near_duplicate),
+    is empty (no model words came), or is a line copied from what was said (clipmaker.echoes_speech).
+    Each takes, in turn: its own alternative hook when that one was written for it and fits; one
+    batched write in her voice (HOOK_RULES, voice_context: Brand Profile, how her videos feel, the
+    niche research), with a caption too when it has none; else its words wait (words_pending: the
+    hourly words pass writes them). Never a line of the transcript, never stock."""
+    stats = {"repeats": 0, "echoes": 0, "missing": 0, "alt": 0, "rewritten": 0, "pending": 0}
+    for m, src in moments:
+        if not m.said:
+            m.said = src.transcript.text_in(0.0, 1e9)
     hooks = [m.hook for m, _ in moments]
-    dups = CM.duplicate_hooks(hooks)
-    if not dups:
+    dups = set(CM.duplicate_hooks(hooks))
+    echoes = {i for i, (m, _s) in enumerate(moments) if m.hook and CM.echoes_speech(m.hook, m.said)}
+    missing = {i for i, (m, _s) in enumerate(moments) if not m.hook or m.words_pending}
+    need = sorted(dups | echoes | missing)
+    stats["repeats"], stats["echoes"], stats["missing"] = len(dups - echoes - missing), len(echoes), len(missing - echoes)
+    if not need:
         return stats
-    stats["repeats"] = len(dups)
-    kept = [h for i, h in enumerate(hooks) if i not in dups and h]
+    for i in echoes:
+        m = moments[i][0]
+        if m.caption and CM.echoes_speech(m.caption, m.said):
+            m.caption = ""  # the caption was her speech too: it is written with the hook
+    kept = [h for i, h in enumerate(hooks) if i not in need and h]
     maxw = int(pb.get("hook_max_words") or 8)
+    stock = {h.lower() for v in GENERIC_HOOKS.values() for h in v} | {h.lower() for h in brief_hooks(spec.get("brief"))}
 
-    def fits(h: str) -> bool:
-        return bool(h) and CM._readable_hook(h, maxw) and not any(CM.near_duplicate(h, k) for k in kept) and (text_ok is None or text_ok(h)) and not CM.is_stock(h, "x")
+    def fits(h: str, said: str) -> bool:
+        return (
+            bool(h) and CM._readable_hook(h, maxw) and not any(CM.near_duplicate(h, k) for k in kept) and (text_ok is None or text_ok(h))
+            and not CM.is_stock(h, "x") and h.lower() not in stock and not CM.echoes_speech(h, said)
+        )
 
     left: list[int] = []
-    for i in dups:
+    for i in need:
         m = moments[i][0]
-        if fits(m.hook_alt):
+        if i in dups and i not in missing and fits(m.hook_alt, m.said):
             m.hook, m.hook_alt = m.hook_alt, m.hook
             kept.append(m.hook)
             stats["alt"] += 1
@@ -1655,39 +1678,40 @@ def distinct_hooks(moments: list[tuple[Moment, Source]], spec: dict[str, Any], k
             left.append(i)
     if left and key:
         payload = {
-            "model": OPENROUTER_MODEL, "max_tokens": 900, "response_format": {"type": "json_object"},
+            "model": OPENROUTER_MODEL, "max_tokens": 1400, "response_format": {"type": "json_object"},
             "messages": [
-                {"role": "system", "content": "You rewrite on-screen hooks for short vertical videos by one creator. " + HOOK_RULES + " Answer JSON only: {\"items\":[{\"n\":int,\"hook\":str}]}."},
-                {"role": "user", "content": json.dumps({**voice_context(spec), "already_used_hooks": kept, "clips": [{"n": i, "on_screen": moments[i][0].on_screen[:300], "she_says": moments[i][1].transcript.text_in(*moments[i][0].parts[0])[:300], "hook_to_replace": moments[i][0].hook} for i in left]})},
+                {"role": "system", "content": "You write on-screen hooks (and, where asked, captions) for short vertical videos by one creator. " + HOOK_RULES
+                 + " A caption is one or two plain sentences in her voice, with no call to action, no links and no hashtags. Answer JSON only: {\"items\":[{\"n\":int,\"hook\":str,\"caption\":str}]}."},
+                {"role": "user", "content": json.dumps({**voice_context(spec), "already_used_hooks": kept, "clips": [
+                    {"n": i, "on_screen": moments[i][0].on_screen[:300], "what_she_says_for_context_never_copy": moments[i][1].transcript.text_in(*moments[i][0].parts[0])[:300],
+                     "hook_to_replace": moments[i][0].hook, "needs_caption": not moments[i][0].caption} for i in left]})},
             ],
         }
         try:
             text = ask_text(key, payload)
             mm = re.search(r"\{.*\}", text or "", re.S)
             items = json.loads(mm.group(0) if mm else (text or "{}")).get("items", [])
-        except Exception:  # noqa: BLE001  (no answer: the next fallbacks stand)
+        except Exception:  # noqa: BLE001  (no answer: the clips wait for their words)
             items = []
-        got = {int(it["n"]): SCL.clean_line(str(it.get("hook", "")), 120) for it in items if isinstance(it, dict) and isinstance(it.get("n"), int)}
+        got = {int(it["n"]): it for it in items if isinstance(it, dict) and isinstance(it.get("n"), int)}
         still = []
         for i in left:
-            h = got.get(i, "")
-            if fits(h):
-                moments[i][0].hook = h
+            m = moments[i][0]
+            it = got.get(i) or {}
+            h = SCL.clean_line(str(it.get("hook", "")), 120)
+            cap = m.caption or SCL.clean_line(str(it.get("caption", "")), 300)
+            cap_ok = bool(cap) and not CM.echoes_speech(cap, m.said) and (text_ok is None or text_ok(cap))
+            if fits(h, m.said) and cap_ok:
+                m.hook, m.caption, m.words_pending = h, cap, CM.is_stock(h, cap)
                 kept.append(h)
                 stats["rewritten"] += 1
             else:
                 still.append(i)
         left = still
     for i in left:
-        m, src = moments[i]
-        said = first_sentence(src.transcript.text_in(*m.parts[0]), maxw) if src.transcript.words_in(*m.parts[0]) else ""
-        if fits(said):
-            m.hook = said
-            kept.append(said)
-            stats["spoken"] += 1
-        else:
-            m.words_pending = True
-            stats["pending"] += 1
+        m = moments[i][0]
+        m.hook, m.words_pending = "", True
+        stats["pending"] += 1
     return stats
 
 
