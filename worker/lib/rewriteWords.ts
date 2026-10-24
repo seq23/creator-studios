@@ -10,7 +10,7 @@
 // Guard: tests/unit/written-hooks.test.ts.
 import type { Env } from "../env";
 import { dispatchJob } from "../services/github";
-import { WAITING_REASON, WORDS_HIT, WORDS_POINTS, wordsPass } from "./wordsPass";
+import { WAITING_REASON, WORDS_HIT, WORDS_POINTS, wordsPass, OPS_WORDS_BUDGET_MS } from "./wordsPass";
 
 /** jobs/clipmaker.py WORDS_CAP: a clip waiting for its words scores at most this. */
 export const WORDS_CAP = 80;
@@ -78,7 +78,7 @@ export async function rewriteDumpWords(env: Env, dumpId: string, numbers: number
   // One words pass now (WORDS_PER_RUN clips, one free-model call each, so the request stays short);
   // the hourly lane writes the rest. The re-renders went first: the old line leaves the picture
   // whether or not the new words are in yet.
-  const r = rerenderOnly ? null : await wordsPass(env);
+  const r = rerenderOnly ? null : await wordsPass(env, new Date(), { deadline: Date.now() + OPS_WORDS_BUDGET_MS });
   const written = r?.written ?? 0;
   const waiting = r?.waiting ?? 0;
   return { cleared: rerenderOnly ? 0 : targets.length, written, waiting, rerenders, rerender_failed: failed };

@@ -15,7 +15,7 @@ import fixtureJson from "./fixtures/cut-result.sample.json";
 import { harness } from "./helpers/studio-fix-env";
 import { cutJob, type CutResultClip, type RerenderSpec } from "@worker/jobs/cut";
 import { POSTABLE_CLIP_SQL } from "@worker/domain/sourceCheck";
-import { finishWords, parseDraft, practiceDraft, wordsPass, WORDS_PER_RUN, WORDS_RED_AFTER } from "@worker/lib/wordsPass";
+import { finishWords, OPS_WORDS_BUDGET_MS, parseDraft, practiceDraft, wordsPass, WORDS_PER_RUN, WORDS_RED_AFTER } from "@worker/lib/wordsPass";
 import { draftScript } from "@worker/lib/autoVoice";
 import { clipPostText } from "@worker/lib/postText";
 import { postText } from "@shared/postText";
@@ -130,6 +130,27 @@ describe("words pending: stored, never approved, never posted, written by the wo
     // Tried this hour: the next run within 50 minutes leaves it alone.
     expect((await wordsPass(h.env)).written).toBe(0);
     expect(h.one<{ words_tries: number }>("SELECT words_tries FROM clips WHERE id = 'clp_wwwwwwww02'").words_tries).toBe(WORDS_RED_AFTER);
+  });
+
+  it("an on-demand words pass stops at its deadline between clips and answers, leaving the rest waiting untried", async () => {
+    // 24 Oct 2026: 8 clips at up to a minute each ran past the 5 minutes after which the ops request
+    // was cut; the caller saw only "fetch failed" and that run's voice over never started.
+    expect(OPS_WORDS_BUDGET_MS).toBeGreaterThan(0);
+    expect(OPS_WORDS_BUDGET_MS).toBeLessThanOrEqual(240_000);
+    const h = await studio();
+    await h.dumpWith("dmp_s", [{ id: "ast_s", name: "a.mp4", mime: "video/mp4" }]);
+    await h.r2.FILES.put("clips/dmp_s/clp_wwwwwwww0d.mp4", new Uint8Array(10));
+    await h.cut("dmp_s", { clips: [pending("clp_wwwwwwww0d")] });
+    const row = () => h.one<{ words_pending: number; words_tries: number; words_tried_at: string | null }>("SELECT words_pending, words_tries, words_tried_at FROM clips WHERE id = 'clp_wwwwwwww0d'");
+    expect(await wordsPass(h.env, new Date(), { deadline: Date.now() - 1 })).toMatchObject({ written: 0, waiting: 1 });
+    // Not counted as a try: the next call (or the hourly lane) takes it at once.
+    expect(row()).toEqual({ words_pending: 1, words_tries: 0, words_tried_at: null });
+    expect(await wordsPass(h.env, new Date(), { deadline: Date.now() + 60_000 })).toMatchObject({ written: 1, waiting: 0 });
+    expect(row().words_pending).toBe(0);
+    // Both on-demand callers pass the deadline; the hourly lane does not need one.
+    expect(readFileSync("worker/routes/ops.ts", "utf8")).toMatch(/wordsPass\(c\.env, new Date\(\), \{ deadline: Date\.now\(\) \+ OPS_WORDS_BUDGET_MS \}\)/);
+    expect(readFileSync("worker/lib/rewriteWords.ts", "utf8")).toMatch(/wordsPass\(env, new Date\(\), \{ deadline: Date\.now\(\) \+ OPS_WORDS_BUDGET_MS \}\)/);
+    expect(readFileSync("worker/routes/ops.ts", "utf8")).not.toMatch(/wordsPass\(c\.env\)/);
   });
 
   it("a rejected clip never spends the free AI's tries; restored, it gets its words", async () => {
