@@ -88,6 +88,16 @@ const SCRIPT_COLS = "c.id, c.hook_text, c.caption, c.start_s, c.end_s, c.speech,
  * them (the engine never saw them). Every script passes jobs/script_rules.json (shared/clipWords.ts
  * cleanScript): reasoning-shaped text is never spoken, no sentence twice, the call to action once.
  */
+/** Voice-over scripts drafted at once: inside the free models' per-minute limit, fast enough for a 30 s waitUntil. */
+export const DRAFT_AT_ONCE = 4;
+
+/** `work` over `items`, at most `size` running at a time; results in the same order. */
+export async function inBatches<T, R>(items: T[], size: number, work: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = [];
+  for (let i = 0; i < items.length; i += size) out.push(...(await Promise.all(items.slice(i, i + size).map(work))));
+  return out;
+}
+
 export async function draftScript(env: Env, clip: TargetClip): Promise<string> {
   const seconds = clip.end_s - clip.start_s;
   const ctas = (await readStudioRules(env)).cta_phrases;
@@ -192,8 +202,9 @@ export async function autoVoiceDump(env: Env, dumpId: string): Promise<{ state: 
     .all<TargetClip & { asset_id: string }>();
   const targets = results.filter((c) => quiet(plans.assets.get(c.asset_id) ?? plans.dump) && isSilentClip(c.speech));
   if (!targets.length) return { state: "voiced", clips: 0 };
-  const items = [];
-  for (const clip of targets) items.push({ clip, script: await draftScript(env, clip), auto: true });
+  // Scripts drafted DRAFT_AT_ONCE at a time, in clip order: one at a time took 88 s for 9 clips on
+  // Mercedes's first cut (24 Oct 2026), past the 30 s a cut's follow-on gets after its callback answers.
+  const items = (await inBatches(targets, DRAFT_AT_ONCE, (clip) => draftScript(env, clip))).map((script, i) => ({ clip: targets[i], script, auto: true }));
   const r = await voiceClips(env, items);
   await recordEvent(env.DB, "voice.auto", dumpId, { clips: targets.length, premium: r.premium, built_in: r.builtIn });
   log.info("voice.auto", { clips: targets.length, premium: r.premium, built_in: r.builtIn });
@@ -213,8 +224,9 @@ export async function voiceAllInDump(env: Env, dumpId: string): Promise<{ clips:
     .all<TargetClip>();
   const targets = results.filter((c) => isSilentClip(c.speech));
   if (!targets.length) return { clips: 0, started: false };
-  const items = [];
-  for (const clip of targets) items.push({ clip, script: await draftScript(env, clip), auto: true });
+  // Scripts drafted DRAFT_AT_ONCE at a time, in clip order: one at a time took 88 s for 9 clips on
+  // Mercedes's first cut (24 Oct 2026), past the 30 s a cut's follow-on gets after its callback answers.
+  const items = (await inBatches(targets, DRAFT_AT_ONCE, (clip) => draftScript(env, clip))).map((script, i) => ({ clip: targets[i], script, auto: true }));
   const r = await voiceClips(env, items);
   await recordEvent(env.DB, "voice.all", dumpId, { clips: targets.length });
   log.info("voice.all", { clips: targets.length, started: !!r.batch });

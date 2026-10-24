@@ -225,3 +225,27 @@ describe("the Python job waits long enough for the callback", () => {
     expect(py).toMatch(/CALL_TIMEOUT_S = 60/);
   });
 });
+
+describe("voice-over scripts are drafted a few at a time", () => {
+  it("inBatches keeps order and never runs more than DRAFT_AT_ONCE together; DRAFT_AT_ONCE is 2 to 5", async () => {
+    const { inBatches, DRAFT_AT_ONCE } = await import("@worker/lib/autoVoice");
+    expect(DRAFT_AT_ONCE).toBeGreaterThanOrEqual(2);
+    expect(DRAFT_AT_ONCE).toBeLessThanOrEqual(5);
+    let running = 0;
+    let peak = 0;
+    const out = await inBatches([...Array(9).keys()], DRAFT_AT_ONCE, async (n) => {
+      running++;
+      peak = Math.max(peak, running);
+      await new Promise((r) => setTimeout(r, 5 - (n % 3)));
+      running--;
+      return n * 2;
+    });
+    expect(out).toEqual([0, 2, 4, 6, 8, 10, 12, 14, 16]);
+    expect(peak).toBe(DRAFT_AT_ONCE);
+  });
+  it("both voice paths draft through inBatches, never one await per clip", () => {
+    const src = readFileSync("worker/lib/autoVoice.ts", "utf8");
+    expect(src.match(/inBatches\(targets, DRAFT_AT_ONCE/g)?.length).toBe(2);
+    expect(src).not.toMatch(/for \(const clip of targets\) items\.push\(\{ clip, script: await draftScript/);
+  });
+});
