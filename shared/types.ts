@@ -34,6 +34,17 @@ export interface HealthItem {
   checked_at: string;
 }
 
+/** One step of Home's first-run "Get set up" checklist (worker/routes/home.ts getSetUp). */
+export interface GetSetUpStep {
+  key: "connect" | "profile" | "brief" | "videos";
+  label: string;
+  /** What it means, in plain words. */
+  line: string;
+  done: boolean;
+  to: string;
+  guide: string;
+}
+
 export interface HomeSummary {
   today: string;
   runway: { weeks: number; approvedClips: number; thresholdWeeks: number; weeklyNeed: number };
@@ -50,6 +61,8 @@ export interface HomeSummary {
    * new brief, storage yellow.
    */
   notices: HomeSection<HomeNotice>;
+  /** First-run "Get set up" checklist at the top of Home; null once every step is done. */
+  getSetUp: GetSetUpStep[] | null;
   /** Home's quiet "Your voice" card (worker/domain/voiceEngine.ts homeVoiceCard). */
   voice: { state: "not_set_up" | "built_in_ready" | "premium_on" | "problem"; line: string; link: { to: string; label: string } };
 }

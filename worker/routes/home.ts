@@ -13,7 +13,7 @@ import { weekBounds } from "../domain/slotting";
 import { readSettings } from "./settings";
 import { dueDealItems } from "./deals";
 import { HOME_CAPS, PLATFORMS, type Platform } from "@shared/constants";
-import type { ClearingSoon, DumpSummary, HomeNotice, HomeSection, HomeSummary } from "@shared/types";
+import type { ClearingSoon, DumpSummary, GetSetUpStep, HomeNotice, HomeSection, HomeSummary } from "@shared/types";
 import { foldHealth } from "@shared/health";
 import { chooseEngine, homeVoiceCard } from "../domain/voiceEngine";
 import { premiumState } from "../lib/premiumVoice";
@@ -53,6 +53,23 @@ export async function clearingSoon(env: Env, now = new Date()): Promise<Clearing
   }
   if (!drafts || !first) return null;
   return { key: `clearing:${first.slice(0, 10)}:${drafts}`, drafts, first_on: first, bytes };
+}
+
+/**
+ * First-run "Get set up" (owner, 23 Oct 2026): the four steps a new studio needs, ✓ when done, each
+ * linking to its screen and its help guide. null once all four are done (the card goes away).
+ */
+export async function getSetUp(env: Env, profileInUse: boolean): Promise<GetSetUpStep[] | null> {
+  const buffer = !!(await env.DB.prepare("SELECT 1 AS x FROM connections WHERE service = 'buffer' AND status = 'ok' LIMIT 1").first());
+  const brief = !!(await env.DB.prepare("SELECT 1 AS x FROM research_briefs WHERE status = 'approved' LIMIT 1").first());
+  const videos = !!(await env.DB.prepare("SELECT 1 AS x FROM assets WHERE upload_status = 'uploaded' LIMIT 1").first());
+  const steps: GetSetUpStep[] = [
+    { key: "connect", label: "Connect Instagram & TikTok", line: "Through Buffer (free): make a Buffer account, add Instagram and TikTok inside Buffer, then paste your Buffer key here.", done: buffer, to: "/settings/connections", guide: "connect-buffer" },
+    { key: "profile", label: "Lock your Brand Profile", line: "Upload a few docs about you, read the draft, then press Lock profile.", done: profileInUse, to: "/brain", guide: "upload-brand-docs" },
+    { key: "brief", label: "Approve your Research Brief", line: "It is written for you once your profile is locked. Read it, then press Approve.", done: brief, to: "/research", guide: "approve-research-brief" },
+    { key: "videos", label: "Upload your first videos", line: "Choose your videos on Dump. Your clips start by themselves once the steps above are done.", done: videos, to: "/dump", guide: "dump-new-footage" },
+  ];
+  return steps.every((s) => s.done) ? null : steps;
 }
 
 home.get("/", async (c) => {
@@ -119,6 +136,7 @@ home.get("/", async (c) => {
   const voice = homeVoiceCard({ hasSample: pv.hasSample, engine: chooseEngine(pv).engine, connection: pv.connection, problem: bad ? { note: bad.note, fix: bad.fix_guide } : null });
 
   const out: HomeSummary = {
+    getSetUp: await getSetUp(c.env, !!profileLocked),
     today: new Date().toISOString(),
     runway: { weeks: runwayWeeks(approved, need), approvedClips: approved, thresholdWeeks: s.runway_threshold_weeks, weeklyNeed: need },
     thisWeek: { posted, planned: weekPosts.length, perPlatform },

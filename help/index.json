@@ -60,6 +60,12 @@
       "screen": "connect"
     },
     {
+      "slug": "why-we-post-through-buffer",
+      "title": "Why we post through Buffer",
+      "group": "getting_started",
+      "screen": "connect"
+    },
+    {
       "slug": "connect-facebook",
       "title": "Connect your Facebook Page",
       "group": "getting_started",
