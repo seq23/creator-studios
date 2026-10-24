@@ -21,7 +21,7 @@ import { contentRules } from "./photoPosts";
 import { textProblems } from "@shared/contentRules";
 import { normalizeHashtags } from "../jobs/cut";
 import { autoVoiceDump } from "./autoVoice";
-import { clipTypeLabel, cleanLine, cleanScript, composeCaption, ctaLine, isReasoning, nearDuplicateHook, sendLine, stripCta, wantsAiNote, type WordsRules } from "@shared/clipWords";
+import { clipTypeLabel, cleanLine, cleanScript, composeCaption, crowdedHookParts, ctaLine, hookPatternFor, hookPoints, hookVarietyProblem, isReasoning, sendLine, stripCta, wantsAiNote, type WordsRules } from "@shared/clipWords";
 import { latestPlaybook } from "./niche";
 import { feelLine } from "@shared/videoFeel";
 
@@ -41,6 +41,15 @@ export const WORDS_STATUSES = "('draft', 'approved')";
  * hourly lane (no deadline) or the next call writes the rest.
  */
 export const OPS_WORDS_BUDGET_MS = 180_000;
+/**
+ * Model asks per clip per run. A refused answer (too long, a content rule, a hook that makes the dump
+ * read alike) is asked again ONCE with the plain reason, instead of waiting an hour for a blind retry
+ * (24 Oct 2026: three Porch & Party clips refused three hourly tries running, every one by the repeat
+ * check). Two asks x WORDS_PER_RUN keeps an hourly run at 16 free-model calls at most.
+ */
+export const WORDS_ASKS_PER_CLIP = 2;
+/** At most this many of the dump's hooks are listed for the model (all of them in a normal dump). */
+export const USED_HOOKS_SHOWN = 60;
 /** A try at most once every 50 minutes per clip (the hourly lane). */
 export const WORDS_RETRY_MS = 50 * 60 * 1000;
 /** After this many tries (a day of hourly runs) the health light goes red. */
@@ -58,8 +67,16 @@ export const HOOK_MAX_CHARS = 56;
 export const WAITING_REASON = "The words are still being written";
 export const WORDS_HIT = "Short, readable on-screen words";
 
-/** The score and reasons once the words are in. Pure. */
-export function scoreWithWords(score: number, reasons: string | null): { score: number; score_reasons: string | null } {
+/** The miss for a readable hook that could pull harder (jobs/clipmaker.py HOOK_WEAK). */
+export const HOOK_WEAK = "The hook could be more specific";
+
+/**
+ * The score and reasons once the words are in: the clip gets its on-screen-words points back, graded
+ * by how strong the hook is (hookPoints, the twin of jobs/clipmaker.py hook_points), so a strong hook
+ * and a vague one never land on the same number. `base` is the score from before an earlier pass
+ * cleared its words (rewriteWords keeps it, uncapped); without one the waiting score is used. Pure.
+ */
+export function scoreWithWords(score: number, reasons: string | null, hook?: string, base?: number | null): { score: number; score_reasons: string | null } {
   let list: string[] | null = null;
   try {
     const v = JSON.parse(reasons ?? "null");
@@ -68,8 +85,12 @@ export function scoreWithWords(score: number, reasons: string | null): { score: 
     list = null;
   }
   if (list && !list.includes(WAITING_REASON)) return { score, score_reasons: reasons };
-  const out = list ? [...list.filter((r) => r !== WAITING_REASON), WORDS_HIT] : null;
-  return { score: Math.min(100, Math.round(score) + WORDS_POINTS), score_reasons: out ? JSON.stringify(out) : reasons };
+  const pts = hook === undefined ? WORDS_POINTS : hookPoints(hook, HOOK_MAX_WORDS);
+  const strong = pts >= WORDS_POINTS;
+  const rest = list ? list.filter((r) => r !== WAITING_REASON) : null;
+  const out = rest ? (strong ? [...rest, WORDS_HIT] : [HOOK_WEAK, ...rest]) : null;
+  const from = typeof base === "number" && Number.isFinite(base) ? base : score;
+  return { score: Math.max(0, Math.min(100, Math.round(from) + pts)), score_reasons: out ? JSON.stringify(out) : reasons };
 }
 
 interface PendingClip {
@@ -84,6 +105,7 @@ interface PendingClip {
   words_tries: number;
   score: number;
   score_reasons: string | null;
+  score_no_words: number | null;
 }
 
 export interface DraftWords {
@@ -97,28 +119,47 @@ export interface DraftWords {
  * The model's answer made into the clip's words, or null when it must not ship: reasoning-shaped
  * or empty hook/caption, or words that break the studio's content rules. Pure.
  */
+export type FinishedWords = { hook_text: string; caption: string; hashtags: string; voice_script: string | null };
+
+/**
+ * The model's answer made into the clip's words, or the plain reason it must not ship (fed back to
+ * the model on the next ask, so a refusal is never a blind retry): reasoning-shaped or empty
+ * hook/caption, a hook too long to read, or words that break the studio's content rules. Pure.
+ */
+export function draftWords(
+  draft: Partial<DraftWords> | null,
+  rules: WordsRules,
+  clip: { number: number | null; uses_ai_images: boolean },
+  problems: (text: string) => string[],
+): { words: FinishedWords; why: null } | { words: null; why: string } {
+  const no = (why: string) => ({ words: null, why }) as const;
+  if (!draft) return no("The answer was not one JSON object.");
+  const rawHook = String(draft.hook ?? "");
+  const rawBody = String(draft.caption ?? "");
+  if (isReasoning(rawHook) || isReasoning(rawBody)) return no("It explained the task instead of writing the words.");
+  const hook = cleanLine(rawHook, 120);
+  let body = cleanLine(rawBody, 400);
+  if (!hook || !body) return no("The hook or the caption was empty.");
+  // Short enough to read on screen (jobs/clipmaker.py _readable_hook: 8 words, 56 characters).
+  if (hook.split(/\s+/).length > HOOK_MAX_WORDS || hook.length > HOOK_MAX_CHARS) return no(`The hook “${hook}” is too long: at most ${HOOK_MAX_WORDS} words and ${HOOK_MAX_CHARS} characters.`);
+  const k = Math.max(0, (clip.number ?? 1) - 1);
+  body = sendLine(k, stripCta(body, rules) || body);
+  const tags = normalizeHashtags(draft.hashtags).split(" ").filter(Boolean).slice(0, 5);
+  const caption = composeCaption(body, ctaLine(rules, k), tags, wantsAiNote(rules, clip.uses_ai_images));
+  const broken = [hook, caption].flatMap((t) => problems(t));
+  if (broken.length) return no(broken[0]);
+  const voice = cleanScript(String(draft.voice ?? ""), caption, rules.cta_phrases);
+  return { words: { hook_text: hook, caption, hashtags: tags.join(" "), voice_script: voice || null }, why: null };
+}
+
+/** draftWords' words, or null when they must not ship. Pure. */
 export function finishWords(
   draft: Partial<DraftWords> | null,
   rules: WordsRules,
   clip: { number: number | null; uses_ai_images: boolean },
   problems: (text: string) => string[],
-): { hook_text: string; caption: string; hashtags: string; voice_script: string | null } | null {
-  if (!draft) return null;
-  const rawHook = String(draft.hook ?? "");
-  const rawBody = String(draft.caption ?? "");
-  if (isReasoning(rawHook) || isReasoning(rawBody)) return null;
-  const hook = cleanLine(rawHook, 120);
-  let body = cleanLine(rawBody, 400);
-  if (!hook || !body) return null;
-  // Short enough to read on screen (jobs/clipmaker.py _readable_hook: 8 words, 56 characters).
-  if (hook.split(/\s+/).length > HOOK_MAX_WORDS || hook.length > HOOK_MAX_CHARS) return null;
-  const k = Math.max(0, (clip.number ?? 1) - 1);
-  body = sendLine(k, stripCta(body, rules) || body);
-  const tags = normalizeHashtags(draft.hashtags).split(" ").filter(Boolean).slice(0, 5);
-  const caption = composeCaption(body, ctaLine(rules, k), tags, wantsAiNote(rules, clip.uses_ai_images));
-  if ([hook, caption].some((t) => problems(t).length > 0)) return null;
-  const voice = cleanScript(String(draft.voice ?? ""), caption, rules.cta_phrases);
-  return { hook_text: hook, caption, hashtags: tags.join(" "), voice_script: voice || null };
+): FinishedWords | null {
+  return draftWords(draft, rules, clip, problems).words;
 }
 
 /** The largest {...} in a model answer, parsed; null when there is none. */
@@ -177,7 +218,7 @@ export function practiceDraft(c: Pick<PendingClip, "number" | "clip_type">): Dra
 export async function wordsPass(env: Env, now = new Date(), opts: { deadline?: number } = {}): Promise<{ written: number; waiting: number; stuck: number; daily_limit_until: string | null; misses: Partial<Record<WordsMiss, number>> }> {
   const since = new Date(now.getTime() - WORDS_RETRY_MS).toISOString();
   const { results } = await env.DB.prepare(
-    `SELECT id, dump_id, number, start_s, end_s, clip_type, on_screen, uses_ai_images, words_tries, score, score_reasons FROM clips
+    `SELECT id, dump_id, number, start_s, end_s, clip_type, on_screen, uses_ai_images, words_tries, score, score_reasons, score_no_words FROM clips
      WHERE words_pending = 1 AND status IN ${WORDS_STATUSES} AND (words_tried_at IS NULL OR words_tried_at < ?) ORDER BY created_at LIMIT ?`,
   )
     .bind(since, WORDS_PER_RUN)
@@ -198,8 +239,8 @@ export async function wordsPass(env: Env, now = new Date(), opts: { deadline?: n
       `You write the words for one short vertical video clip for a small business. Reply with ONE JSON object only: ` +
       `{"hook": "at most 8 words, shown big on screen", "caption": "one or two plain sentences", "hashtags": ["3 to 5 tags"], "voice": "a short spoken voice-over, plain sentences"}. ` +
       `Write in their voice: ${profile?.voice || "warm and direct"}.${feelLine(profile)} Never mention: ${profile?.off_limits || "nothing listed"}. ` +
-      `The hook is a written headline that opens on the payoff (what the viewer gets), never a generic slogan, never a line someone says in the video, and different from every hook already used, and never opening the same way as one of them (not every hook a "POV:").` +
-      (patterns.length ? ` Hooks that work in this niche, as patterns only (never word for word): ${patterns.join(" | ")}.` : "") +
+      `The hook is a written headline that opens on the payoff (what the viewer gets), never a generic slogan, never a line someone says in the video, and different from every hook already used: no shared two-word phrase, never the opening two other hooks already use (not every hook a "POV:"), and never a word the list of crowded words names. Each clip gets its own hook pattern; follow it.` +
+      (patterns.length ? ` Hooks that work in this niche, as patterns only (never word for word, and never their filler words): ${patterns.join(" | ")}.` : "") +
       (niche?.caption_style ? ` Captions in this niche read: ${niche.caption_style}.` : "") + ` ` +
       `No call to action in the caption (it is added after), no links, no prices${rules.prices ? " unless real" : ""}, no names or addresses, ` +
       `never mention automation, software or how the video was made. No lists, no markdown, no notes about the task.` +
@@ -207,26 +248,46 @@ export async function wordsPass(env: Env, now = new Date(), opts: { deadline?: n
     for (const c of results) {
       // Out of time (an on-demand call): stop between clips; the rest are still waiting, never lost.
       if (opts.deadline !== undefined && Date.now() >= opts.deadline) break;
-      // The other hooks in this dump (written ones, any status but deleted): never a repeat.
-      const { results: others } = await env.DB.prepare("SELECT hook_text FROM clips WHERE dump_id = ? AND id != ? AND status != 'deleted' AND hook_text != ''")
+      // The other hooks in this dump that can still be seen or posted (New, approved, scheduled,
+      // posted; a rejected or deleted clip never posts, so its hook takes no words away): the new
+      // hook must not repeat one, open the way two of them do, or reuse a word two of them use.
+      const { results: others } = await env.DB.prepare("SELECT hook_text FROM clips WHERE dump_id = ? AND id != ? AND status NOT IN ('deleted', 'rejected') AND hook_text != '' ORDER BY number")
         .bind(c.dump_id, c.id)
         .all<{ hook_text: string }>();
       const used = others.map((o) => o.hook_text);
-      const user = `Kind of clip: ${clipTypeLabel(c.clip_type) ?? "a short clip"}. Length: ${Math.round(c.end_s - c.start_s)} seconds.${c.on_screen ? ` On screen, in order: ${c.on_screen}` : ""}${used.length ? `\nHooks already used (write a different one): ${used.slice(0, 30).join(" | ")}` : ""}`;
-      const asked = fakeServices(env) ? { text: JSON.stringify(practiceDraft(c)), miss: null } : await askModel(env, system, user, state, now);
-      const text = asked.text;
-      const drafted = finishWords(text ? parseDraft(text) : null, rules, { number: c.number, uses_ai_images: !!c.uses_ai_images }, (t) => textProblems(t, cr));
-      // Practice mode's labelled stand-in names the clip type, so it is exempt from the repeat check.
-      const words = drafted && (fakeServices(env) || !used.some((u) => nearDuplicateHook(drafted.hook_text, u))) ? drafted : null;
+      const crowd = crowdedHookParts(used, rules.place_words);
+      const pattern = hookPatternFor(used.length, patterns, crowd.openings);
+      const user =
+        `Kind of clip: ${clipTypeLabel(c.clip_type) ?? "a short clip"}. Length: ${Math.round(c.end_s - c.start_s)} seconds.${c.on_screen ? ` On screen, in order: ${c.on_screen}` : ""}` +
+        (used.length ? `\nHooks already used (write a different one): ${used.slice(0, USED_HOOKS_SHOWN).join(" | ")}` : "") +
+        (crowd.openings.length ? `\nNever open the hook with: ${crowd.openings.join(", ")}.` : "") +
+        (crowd.words.length ? `\nCrowded words, never in the hook: ${crowd.words.join(", ")}.` : "") +
+        (pattern ? `\nHook pattern for this clip: ${pattern}` : "");
+      let words: FinishedWords | null = null;
+      let miss: WordsMiss | null = null;
+      let why: string | null = null;
+      for (let ask = 0; ask < WORDS_ASKS_PER_CLIP && !words; ask++) {
+        if (ask > 0 && opts.deadline !== undefined && Date.now() >= opts.deadline) break;
+        const prompt = why ? `${user}\nYour last answer could not be used: ${why} Write a different one.` : user;
+        const asked = fakeServices(env) ? { text: JSON.stringify(practiceDraft(c)), miss: null } : await askModel(env, system, prompt, state, now);
+        if (!asked.text) {
+          miss = asked.miss; // no answer at all (a limit, a busy model): another ask now would not help
+          break;
+        }
+        const d = draftWords(parseDraft(asked.text), rules, { number: c.number, uses_ai_images: !!c.uses_ai_images }, (t) => textProblems(t, cr));
+        // Practice mode's labelled stand-in names the clip type, so it is exempt from the variety check.
+        why = d.why ?? (fakeServices(env) ? null : hookVarietyProblem(d.words.hook_text, used, rules.place_words));
+        if (!why) words = d.words;
+      }
       if (!words) {
-        const why: WordsMiss = asked.miss ?? "refused";
+        const why: WordsMiss = miss ?? "refused";
         misses[why] = (misses[why] ?? 0) + 1;
         await env.DB.prepare("UPDATE clips SET words_tries = words_tries + 1, words_tried_at = ? WHERE id = ?").bind(now.toISOString(), c.id).run();
         continue;
       }
-      const scored = scoreWithWords(c.score, c.score_reasons);
+      const scored = scoreWithWords(c.score, c.score_reasons, words.hook_text, c.score_no_words);
       await env.DB.prepare(
-        "UPDATE clips SET hook_text = ?, caption = ?, hashtags = ?, voice_script = ?, score = ?, score_reasons = ?, words_pending = 0, words_tries = words_tries + 1, words_tried_at = ? WHERE id = ? AND words_pending = 1",
+        "UPDATE clips SET hook_text = ?, caption = ?, hashtags = ?, voice_script = ?, score = ?, score_reasons = ?, score_no_words = NULL, words_pending = 0, words_tries = words_tries + 1, words_tried_at = ? WHERE id = ? AND words_pending = 1",
       )
         .bind(words.hook_text, words.caption, words.hashtags, words.voice_script, scored.score, scored.score_reasons, now.toISOString(), c.id)
         .run();

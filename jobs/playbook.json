@@ -342,5 +342,64 @@
     "Send this to the friend who'd love this.",
     "Send this to whoever you'd do this with.",
     "Send this to someone planning something."
-  ]
+  ],
+  "hook_variety": {
+    "_why": "Hooks in one dump read alike (owner, 24 Oct 2026: many opened \"POV:\" and reused glow / instant / runway; the repeat check only caught near-duplicates). One list for both sides: jobs/clipmaker.py hook_variety_problem and shared/clipWords.ts hookVarietyProblem read it. A new hook may not open the way opening_max hooks in its dump already open, nor use a distinctive word word_max hooks already use (the studio's place words are exempt). shapes are the varied hook patterns a clip is steered to in turn, after the niche playbook's own.",
+    "opening_max": 2,
+    "word_max": 2,
+    "shapes": [
+      "A number and the result (\"3 details that make …\")",
+      "A question the clip answers (\"Ever wondered how …?\")",
+      "From … to … (the before and the after)",
+      "The detail nobody notices first (\"Nobody sees the … until …\")",
+      "A bold, specific claim (\"The only … you need this season\")",
+      "What the viewer gets, in second person (\"You'll want … after this\")",
+      "Time or effort (\"Ten minutes, one …\")",
+      "A contrast (\"Not …, but …\")",
+      "A tip or a mistake (\"Skip the …, do this instead\")",
+      "The moment itself, plainly named (\"The second the … \")"
+    ],
+    "_strength": "The score's on-screen-words check grades the hook (owner, 24 Oct 2026: most clips scored 90): readable is 6 of 10, +1 when it is a word under the limit, +1 when it carries none of the vague hype words below, +2 when it has a pull (a number, it speaks to the viewer, or it opens on a curiosity shape). jobs/clipmaker.py hook_points and shared/clipWords.ts hookPoints read these lists.",
+    "hype": [
+      "magic",
+      "magical",
+      "vibe",
+      "vibes",
+      "glow",
+      "glowing",
+      "instant",
+      "instantly",
+      "stunning",
+      "perfect",
+      "everything",
+      "sparkle",
+      "charm",
+      "effortless",
+      "ultimate",
+      "amazing",
+      "unleash",
+      "radiate",
+      "radiating",
+      "elevate",
+      "dreamy"
+    ],
+    "pull_openers": [
+      "how",
+      "why",
+      "what",
+      "watch",
+      "the secret",
+      "nobody",
+      "stop",
+      "skip",
+      "before",
+      "from",
+      "the one",
+      "you asked",
+      "ever",
+      "not",
+      "the second",
+      "the moment"
+    ]
+  }
 }

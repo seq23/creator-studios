@@ -1,6 +1,7 @@
 // The host developer's signed Start over (worker/routes/ops.ts): only a request signed with the
 // studio's job secret over "ops:<body>" in the last 10 minutes gets through; a job signature or none
 // is refused; it runs the studio's own Start over (New clips go, everything else stays).
+import { hookPoints } from "@shared/clipWords";
 import { createHmac } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { Hono } from "hono";
@@ -71,9 +72,13 @@ describe("signed Start over", () => {
     expect(row.hook_text).not.toBe("Go ahead.");
     expect(row.hook_text.length).toBeGreaterThan(0);
     expect(row.words_pending).toBe(0);
-    // Docked as the engine docks a clip with no words (94 - 10, capped at 80), then the points back once written.
-    expect(row.score).toBe(90);
-    expect(JSON.parse(row.score_reasons)).toEqual(["Sharp and steady throughout", "Short, readable on-screen words"]);
+    // Docked as the engine docks a clip with no words (94 - 10 = 84, shown capped at 80 while it waits),
+    // then the new hook's graded points back on the UNCAPPED 84 (never restarting from the cap).
+    const pts = hookPoints(row.hook_text);
+    expect(pts).toBeGreaterThanOrEqual(6);
+    expect(row.score).toBe(84 + pts);
+    expect(JSON.parse(row.score_reasons)).toEqual(pts >= 10 ? ["Sharp and steady throughout", "Short, readable on-screen words"] : ["The hook could be more specific", "Sharp and steady throughout"]);
+    expect(db.raw.prepare("SELECT score_no_words FROM clips WHERE id = 'clp_new'").get()).toEqual({ score_no_words: null });
     expect(row.rerender_job_id).toBeTruthy();
     // The on-demand words pass is signed like every ops call.
     const w = JSON.stringify({});

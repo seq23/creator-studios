@@ -26,7 +26,10 @@ describe("distinct hooks on the Worker side", () => {
 
   it("the words pass refuses a hook that repeats another in the dump", () => {
     const src = readFileSync("worker/lib/wordsPass.ts", "utf8");
-    expect(src).toMatch(/used\.some\(\(u\) => nearDuplicateHook\(drafted\.hook_text, u\)\)/);
+    // The repeat check is now the stricter variety check (a near repeat, a crowded opening or word),
+    // and the refusal's reason goes back to the model (tests/unit/hook-variety.test.ts).
+    expect(src).toMatch(/hookVarietyProblem\(d\.words\.hook_text, used, rules\.place_words\)/);
+    expect(src).toContain("Your last answer could not be used: ${why}");
     expect(src).toContain("never a line someone says in the video");
     expect(src).toContain("latestPlaybook");
   });
