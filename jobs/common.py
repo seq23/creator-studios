@@ -404,13 +404,19 @@ class Job:
         line = u.path + (f"?{u.query}" if u.query else "")
         return line if method == "GET" else f"{method} {line}"
 
-    def _call(self, method: str, path: str, body: str | None) -> Any:
+    # The callback saves a whole cut (clips, dump, files) before it answers; its slow follow-on runs
+    # after the answer (worker/jobs/cut.ts cutFollowOn), so 3 minutes is a generous ceiling, not a wait.
+    # Mercedes's first cut, 24 Oct 2026: four 60-second callbacks timed out and the cut was marked failed.
+    CALLBACK_TIMEOUT_S = 180
+    CALL_TIMEOUT_S = 60
+
+    def _call(self, method: str, path: str, body: str | None, timeout: int | None = None) -> Any:
         url = self._url(path)
         for attempt in range(4):
             # Signed per attempt: a retry after a long back-off still carries a fresh timestamp.
             req = urllib.request.Request(url, method=method, data=body.encode() if body else None, headers=self._headers(body if body is not None else f"spec:{self.id}"))
             try:
-                with urllib.request.urlopen(req, timeout=60) as res:
+                with urllib.request.urlopen(req, timeout=timeout or self.CALL_TIMEOUT_S) as res:
                     return json.loads(res.read().decode() or "{}")
             except urllib.error.HTTPError as e:
                 if e.code in (400, 401, 403, 404, 409, 422):
@@ -553,12 +559,12 @@ class Job:
             log("progress.skipped")
 
     def done(self, result: dict[str, Any]) -> None:
-        self._call("POST", "/callback", json.dumps({"ok": True, "result": result}))
+        self._call("POST", "/callback", json.dumps({"ok": True, "result": result}), timeout=self.CALLBACK_TIMEOUT_S)
         log("job.done")
 
     def fail(self, safe_error: str, **why: Any) -> None:
         try:
-            self._call("POST", "/callback", json.dumps({"ok": False, "safe_error": safe_error[:160]}))
+            self._call("POST", "/callback", json.dumps({"ok": False, "safe_error": safe_error[:160]}), timeout=self.CALLBACK_TIMEOUT_S)
         finally:
             log("job.failed", **why)
 

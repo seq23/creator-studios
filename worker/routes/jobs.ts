@@ -26,7 +26,7 @@ import { markJob } from "../services/github";
 import { requireUser } from "../lib/auth";
 import { parseJson } from "../lib/db";
 import type { JobRow } from "@shared/types";
-import { JOB_HANDLERS } from "../jobs/registry";
+import { JOB_HANDLERS, type ApplyRun } from "../jobs/registry";
 import { youtubeAccessToken } from "../lib/youtubeDirect";
 import { freeAi, type ChatMessage } from "../lib/freeAi";
 
@@ -213,6 +213,21 @@ jobs.post("/:id/progress", async (c) => {
   return c.json({ ok: true });
 });
 
+/**
+ * Work handed to ctx.waitUntil, so it runs after the response. With no execution context (unit
+ * tests) it is undefined and the handler runs the work inline. A failure is logged, never thrown:
+ * what it owed stays marked for the hourly lane.
+ */
+function deferTo(c: { executionCtx: { waitUntil(p: Promise<unknown>): void } }): ApplyRun["defer"] {
+  let ctx: { waitUntil(p: Promise<unknown>): void };
+  try {
+    ctx = c.executionCtx;
+  } catch {
+    return undefined;
+  }
+  return (work) => ctx.waitUntil(work().catch(() => log.warn("job.follow_on_failed", {})));
+}
+
 jobs.post("/:id/callback", async (c) => {
   const text = await c.req.text();
   const job = await loadSignedJob(c, text);
@@ -230,9 +245,11 @@ jobs.post("/:id/callback", async (c) => {
       log.warn("job.failed", { type: job.type });
       return c.json({ ok: true });
     }
-    await handler.applyResult(c.env, job.id, job.ref_id, body.result);
+    // The callback answers fast (the job waits on it): slow follow-on work goes past the response.
+    const t0 = Date.now();
+    await handler.applyResult(c.env, job.id, job.ref_id, body.result, { defer: deferTo(c) });
     await markJob(c.env, job.id, "done");
-    log.info("job.done", { type: job.type });
+    log.info("job.done", { type: job.type, apply_ms: Date.now() - t0 });
     return c.json({ ok: true });
   } catch (e) {
     const err = safeError(e);

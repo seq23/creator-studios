@@ -17,7 +17,7 @@
 // Review ("Change look"): the old file stays live until the new one is swapped in here.
 import { cleanShotList } from "@shared/voiceShots";
 import { getConnectionSecret } from "../lib/connections";
-import type { JobHandler } from "./registry";
+import type { ApplyRun, JobHandler } from "./registry";
 import type { Env } from "../env";
 import { log } from "../lib/log";
 import { parseJson, recordEvent } from "../lib/db";
@@ -954,22 +954,31 @@ export function plainFailure(safeError: string): string {
   return "Cutting stopped partway. Dump the videos again; if it happens twice, tell your helper.";
 }
 
-async function applyResult(env: Env, jobId: string, refId: string | null, result: unknown): Promise<void> {
+async function applyResult(env: Env, jobId: string, refId: string | null, result: unknown, run?: ApplyRun): Promise<void> {
   const ref = parseCutRef(refId);
   if (!ref) throw new CutResultError("cut job has no dump");
   if (ref.import) return applyImport(env, jobId, ref.dumpId, ref.clipId, result);
   if (ref.again && ref.clipId) return applyAgain(env, jobId, ref.dumpId, ref.clipId, result);
   if (ref.clipId) return applyRerender(env, jobId, ref.dumpId, ref.clipId, result);
-  return applyDumpClips(env, jobId, ref.dumpId, result, {});
+  return applyDumpClips(env, jobId, ref.dumpId, result, { run });
 }
 
 /**
  * A dump's clips, from the built-in cutter or imported from a connected editor (`editor`, with
  * the clip ids planned when its job finished): checked by parseCutResult, stored, the dump ready,
  * the "Clips ready" email. After a built-in cut, her captions / polish editor gets the new clips.
+ *
+ * Two halves (Mercedes's first cut, 24 Oct 2026: 21 clips saved, then the automatic voice over's AI
+ * calls held the callback past the job's 60 s timeout four times and the dump was marked failed):
+ *   1. here, fast: check, save the clips and flip the dump to "ready" in ONE batch, with
+ *      follow_on_pending set; the callback then marks the job done and answers.
+ *   2. cutFollowOn: the light, the email, her editors, the voice overs. Deferred past the response
+ *      when the callback gives `run.defer`; the hourly lane finishes any left over.
+ * Idempotent: a retried callback whose clips are already saved changes nothing and succeeds.
  */
-export async function applyDumpClips(env: Env, jobId: string, dumpId: string, result: unknown, opts: { editor?: string; planned?: Set<string> }): Promise<void> {
-  const dump = await env.DB.prepare("SELECT id, door FROM dumps WHERE id = ?").bind(dumpId).first<{ id: string; door: "new" | "recycle" }>();
+export async function applyDumpClips(env: Env, jobId: string, dumpId: string, result: unknown, opts: { editor?: string; planned?: Set<string>; run?: ApplyRun }): Promise<void> {
+  const t0 = Date.now();
+  const dump = await env.DB.prepare("SELECT id, door, status, follow_on_pending FROM dumps WHERE id = ?").bind(dumpId).first<{ id: string; door: "new" | "recycle"; status: string; follow_on_pending: number }>();
   if (!dump) throw new CutResultError("dump missing");
   // The allowed platforms are recomputed from the database, not taken from the job.
   const spec = await buildDumpSpec(env, jobId, dumpId);
@@ -980,6 +989,15 @@ export async function applyDumpClips(env: Env, jobId: string, dumpId: string, re
   const clips = opts.planned ? parsed.clips.filter((c) => opts.planned!.has(c.id)) : parsed.clips;
   const dropped = parsed.dropped + (parsed.clips.length - clips.length);
   if (!clips.length) throw new CutResultError("no usable clips");
+  const tCheck = Date.now();
+
+  // Already applied (a retried callback, or a second delivery): every clip of this result is saved
+  // and the dump is ready. Nothing is re-inserted, nothing is counted twice; any follow-on still owed runs.
+  if (dump.status === "ready" && (await alreadySaved(env, dumpId, clips.map((c) => c.id)))) {
+    log.info("cut.apply.already", { clips: clips.length });
+    if (dump.follow_on_pending) await runFollowOn(env, dumpId, opts.run);
+    return;
+  }
 
   // Clip numbers: the dump's own sequence, never reused (shared/clipNumber.ts). A style takes its clip's number.
   const seq = (await env.DB.prepare("SELECT clip_seq FROM dumps WHERE id = ?").bind(dumpId).first<{ clip_seq: number }>())?.clip_seq ?? 0;
@@ -1029,11 +1047,14 @@ export async function applyDumpClips(env: Env, jobId: string, dumpId: string, re
   const looksLike = cleanLooksLike((result as CutResult).looks_like);
   stmts.push(env.DB.prepare("UPDATE dumps SET looks_like = ? WHERE id = ?").bind(looksLike ? JSON.stringify(looksLike) : null, dumpId));
   const readyAt = nowIso();
-  stmts.push(env.DB.prepare("UPDATE dumps SET status = 'ready', clips_made = ?, ready_at = ?, error_summary = NULL WHERE id = ?").bind(clips.length, readyAt, dumpId));
+  stmts.push(
+    env.DB.prepare("UPDATE dumps SET status = 'ready', clips_made = ?, ready_at = ?, error_summary = NULL, follow_on_pending = ? WHERE id = ?").bind(clips.length, readyAt, opts.editor ? FOLLOW_ON_IMPORT : FOLLOW_ON_BUILT_IN, dumpId),
+  );
   // Never silently dropped: what her notes asked that could not be done, and what the job could not find.
   const told = await steerOutcome(env, dumpId, (result as CutResult & { steer_report?: unknown }).steer_report, clips);
   stmts.push(env.DB.prepare("UPDATE dumps SET not_followed = ?, tried = ? WHERE id = ?").bind(JSON.stringify(told.not_followed), told.tried, dumpId));
   await env.DB.batch(stmts);
+  const tSave = Date.now();
 
   // Styles are options of one clip: they never count (owner, 23 Oct 2026).
   const visible = clips.filter((c) => !c.hidden && !c.style_of).length;
@@ -1042,16 +1063,94 @@ export async function applyDumpClips(env: Env, jobId: string, dumpId: string, re
   const calls = (result as CutResult).calls ?? {};
   await recordEvent(env.DB, "dump.cut", dumpId, { clips: clips.length, visible, dropped, door: dump.door, engine, looks, editor: opts.editor ?? "built-in", held_videos: held.filter((h) => h.owner === "other").length, calls, hidden_by_critic: clips.filter((c) => c.hidden_reason).length });
   if (opts.editor) await env.DB.prepare("UPDATE editor_jobs SET status = 'done', updated_at = ? WHERE dump_id = ? AND capability = 'cut_from_source' AND status = 'importing'").bind(nowIso(), dumpId).run();
-  else await queueClipEditors(env, clips.map((c) => c.id), env.PUBLIC_BASE_URL);
-  // Automatic voice overs: every new clip with no talking, in one voice job run (worker/lib/autoVoice.ts).
-  if (!opts.editor) await autoVoiceDump(env, dumpId);
-  await clipCuttingLight(env, { status: "done", at: readyAt });
-  log.info("cut.apply", { clips: clips.length, visible, dropped });
+  log.info("cut.apply", { clips: clips.length, visible, dropped, check_ms: tCheck - t0, save_ms: tSave - tCheck, total_ms: Date.now() - t0 });
+  await runFollowOn(env, dumpId, opts.run);
+}
 
+/** follow_on_pending: what is still owed after a cut's clips were saved (migration 0035). */
+export const FOLLOW_ON_BUILT_IN = 1;
+export const FOLLOW_ON_IMPORT = 2;
+/** Added while a runner holds the follow-on (11 / 12). */
+export const FOLLOW_ON_RUNNING = 10;
+
+async function alreadySaved(env: Env, dumpId: string, ids: string[]): Promise<boolean> {
+  let have = 0;
+  for (let i = 0; i < ids.length; i += 50) {
+    const part = ids.slice(i, i + 50);
+    const r = await env.DB.prepare(`SELECT COUNT(*) AS n FROM clips WHERE dump_id = ? AND id IN (${part.map(() => "?").join(", ")})`).bind(dumpId, ...part).first<{ n: number }>();
+    have += Number(r?.n ?? 0);
+  }
+  return have === ids.length;
+}
+
+async function runFollowOn(env: Env, dumpId: string, run?: ApplyRun): Promise<void> {
+  if (run?.defer) run.defer(() => cutFollowOn(env, dumpId).then(() => undefined));
+  else await cutFollowOn(env, dumpId);
+}
+
+/**
+ * What a cut owes after its clips are saved, each step on its own (one failing never stops the
+ * next) and safe to run again: the "Cutting clips" light, the "Clips ready" email (once per cut),
+ * her connected editors (clips not yet sent), the automatic voice overs (clips not yet voiced).
+ * Clears follow_on_pending only when every step finished; else the hourly lane tries again.
+ * Logs the time per step, never content.
+ */
+export async function cutFollowOn(env: Env, dumpId: string, opts: { reclaim?: boolean } = {}): Promise<{ done: boolean; steps: Record<string, number> }> {
+  const dump = await env.DB.prepare("SELECT id, status, ready_at, follow_on_pending FROM dumps WHERE id = ?").bind(dumpId).first<{ id: string; status: string; ready_at: string | null; follow_on_pending: number }>();
+  if (!dump || dump.status !== "ready" || !dump.follow_on_pending) return { done: true, steps: {} };
+  // One runner at a time: the claim adds FOLLOW_ON_RUNNING; a second delivery finds it taken and leaves it.
+  // Only the hourly lane (reclaim) takes over a claim, from a run that was cut off.
+  const owed = dump.follow_on_pending % FOLLOW_ON_RUNNING;
+  if (!owed) return { done: true, steps: {} };
+  const claim = await env.DB.prepare(`UPDATE dumps SET follow_on_pending = ? WHERE id = ? AND follow_on_pending ${opts.reclaim ? "> 0" : "= ?"}`)
+    .bind(owed + FOLLOW_ON_RUNNING, dumpId, ...(opts.reclaim ? [] : [owed]))
+    .run();
+  if (!claim.meta.changes) return { done: false, steps: {} };
+  const builtIn = owed === FOLLOW_ON_BUILT_IN;
+  const steps: Record<string, number> = {};
+  let ok = true;
+  const step = async (name: string, work: () => Promise<unknown>) => {
+    const t = Date.now();
+    try {
+      await work();
+    } catch {
+      ok = false;
+      log.warn("cut.follow_on.step_failed", { step: name });
+    }
+    steps[name] = Date.now() - t;
+  };
+  await step("light", () => clipCuttingLight(env, { status: "done", at: dump.ready_at ?? nowIso() }));
+  await step("email", () => clipsReadyEmail(env, dumpId, dump.ready_at));
+  if (builtIn) {
+    await step("editors", async () => {
+      const { results } = await env.DB.prepare("SELECT c.id FROM clips c WHERE c.dump_id = ? AND c.status = 'draft' AND NOT EXISTS (SELECT 1 FROM editor_jobs e WHERE e.clip_id = c.id) ORDER BY c.number, c.id")
+        .bind(dumpId)
+        .all<{ id: string }>();
+      if (results.length) await queueClipEditors(env, results.map((r) => r.id), env.PUBLIC_BASE_URL);
+    });
+    // Automatic voice overs: every new clip with no talking, in one voice job run (worker/lib/autoVoice.ts).
+    await step("voice", () => autoVoiceDump(env, dumpId));
+  }
+  // Done → 0. A failed step → owed again, for the hourly lane (each step is safe to repeat).
+  await env.DB.prepare("UPDATE dumps SET follow_on_pending = ? WHERE id = ? AND follow_on_pending = ?").bind(ok ? 0 : owed, dumpId, owed + FOLLOW_ON_RUNNING).run();
+  log.info("cut.follow_on", { done: ok, ...Object.fromEntries(Object.entries(steps).map(([k, v]) => [`${k}_ms`, v])) });
+  return { done: ok, steps };
+}
+
+/** The "Clips ready" email for a dump's latest cut, from what is saved; never twice for one cut. */
+async function clipsReadyEmail(env: Env, dumpId: string, readyAt: string | null): Promise<void> {
+  if (readyAt) {
+    const sent = await env.DB.prepare("SELECT 1 AS x FROM emails_sent WHERE kind = 'clips_ready' AND ref_id = ? AND sent_at >= ? LIMIT 1").bind(dumpId, readyAt).first();
+    if (sent) return;
+  }
+  const { results } = await env.DB.prepare("SELECT number, hidden, style_of FROM clips WHERE dump_id = ? AND status = 'draft'").bind(dumpId).all<{ number: number | null; hidden: number; style_of: string | null }>();
+  const distinct = results.filter((c) => !c.style_of);
+  const visibleRows = distinct.filter((c) => !c.hidden);
+  const visible = visibleRows.length;
   const s = await readSettings(env);
   const tucked = distinct.length - visible;
   const hiddenNote = tucked > 0 ? ` ${tucked} more scored under your bar and are tucked away under "Show hidden", each with the reason.` : "";
-  const shown = [...numbers.entries()].filter(([id]) => clips.some((c) => c.id === id && !c.hidden && !c.style_of)).map(([, n]) => n).sort((a, b) => a - b);
+  const shown = visibleRows.map((c) => c.number).filter((n): n is number => typeof n === "number").sort((a, b) => a - b);
   const range = shown.length ? ` (${shown.length === 1 ? `Clip ${clipCode(shown[0])}` : `Clips ${clipCode(shown[0])} to ${clipCode(shown[shown.length - 1])}`})` : "";
   const { html, text } = emailFrame(
     "Your clips are ready",
@@ -1059,6 +1158,18 @@ export async function applyDumpClips(env: Env, jobId: string, dumpId: string, re
     { label: "Review clips", url: `${env.PUBLIC_BASE_URL}/review` },
   );
   await sendEmail(env, { kind: "clips_ready", to: s.notify_emails, subject: `${visible} clips ready to review`, html, text, refId: dumpId });
+}
+
+/** The hourly lane: cuts whose follow-on did not finish after the callback (a cut-off or a failed step). */
+export async function finishPendingCuts(env: Env, now = new Date()): Promise<number> {
+  const before = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
+  const { results } = await env.DB.prepare("SELECT id FROM dumps WHERE follow_on_pending > 0 AND status = 'ready' AND (ready_at IS NULL OR ready_at < ?) ORDER BY ready_at LIMIT 3")
+    .bind(before)
+    .all<{ id: string }>();
+  let finished = 0;
+  for (const d of results) if ((await cutFollowOn(env, d.id, { reclaim: true })).done) finished++;
+  if (results.length) log.info("cut.follow_on.sweep", { tried: results.length, finished });
+  return finished;
 }
 
 /** Each distinct clip gets the next number after `seq`, in the order the engine sent them; a style shares its clip's number. Pure. */
@@ -1203,6 +1314,16 @@ async function applyAgain(env: Env, jobId: string, dumpId: string, clipId: strin
   log.info("cut.again.apply", { muted: fresh.muted });
 }
 
+/** This cut job's result is saved: the dump is ready, with clips, since the job was created. */
+export async function savedByThisJob(env: Env, jobId: string, dumpId: string): Promise<boolean> {
+  const r = await env.DB.prepare(
+    "SELECT 1 AS x FROM dumps d JOIN jobs j ON j.id = ? WHERE d.id = ? AND d.status = 'ready' AND d.clips_made > 0 AND d.ready_at >= j.created_at AND EXISTS (SELECT 1 FROM clips c WHERE c.dump_id = d.id AND c.status = 'draft')",
+  )
+    .bind(jobId, dumpId)
+    .first();
+  return !!r;
+}
+
 async function onFailure(env: Env, jobId: string, refId: string | null, safeError: string): Promise<void> {
   const ref = parseCutRef(refId);
   if (!ref) return;
@@ -1215,6 +1336,12 @@ async function onFailure(env: Env, jobId: string, refId: string | null, safeErro
     return;
   }
   const dumpId = ref.dumpId;
+  // A cut whose clips were already saved is never failed afterwards (a report that came after the
+  // result applied, e.g. the job gave up waiting on a slow callback): its dump stays ready.
+  if (await savedByThisJob(env, jobId, dumpId)) {
+    log.warn("cut.failed.after_saved", { len: safeError.length });
+    return;
+  }
   await env.DB.prepare("UPDATE dumps SET status = 'failed', error_summary = ? WHERE id = ?").bind(plainFailure(safeError), dumpId).run();
   await clipCuttingLight(env, { status: "failed", at: nowIso() });
   log.warn("cut.failed", { len: safeError.length });

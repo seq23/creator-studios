@@ -11,7 +11,8 @@ sys.path.insert(0, "jobs")
 import common
 posted = []
 job = object.__new__(common.Job)
-job._call = lambda method, path, body=None: posted.append(json.loads(body)) if body else None
+timeouts = []
+job._call = lambda method, path, body=None, timeout=None: (timeouts.append(timeout), posted.append(json.loads(body)) if body else None)[1]
 job.spec = lambda: {"script": "Welcome back to the golden table, my secret friends. Pour the rosé.", "sample_key": "voice/sample/upl_abc123"}
 job.done = lambda result: None
 common.Job.from_env = classmethod(lambda cls: job)
@@ -27,12 +28,12 @@ def main(j, spec):
 try:
     common.run(main)
 except SystemExit as e:
-    sys.stdout.write("RESULT " + json.dumps({"code": e.code, "posted": posted}) + "\\n")
+    sys.stdout.write("RESULT " + json.dumps({"code": e.code, "posted": posted, "timeouts": timeouts}) + "\\n")
 `;
 
-function run(kind: string): { logs: Record<string, unknown>[]; code: number; posted: { ok: boolean; safe_error: string }[] } {
+function run(kind: string): { logs: Record<string, unknown>[]; code: number; posted: { ok: boolean; safe_error: string }[]; timeouts: (number | null)[] } {
   const lines = execFileSync("python3", ["-c", DRIVER, kind], { encoding: "utf8" }).trim().split("\n");
-  const result = JSON.parse(lines.find((l) => l.startsWith("RESULT "))!.slice(7)) as { code: number; posted: { ok: boolean; safe_error: string }[] };
+  const result = JSON.parse(lines.find((l) => l.startsWith("RESULT "))!.slice(7)) as { code: number; posted: { ok: boolean; safe_error: string }[]; timeouts: (number | null)[] };
   return { logs: lines.filter((l) => !l.startsWith("RESULT ")).map((l) => JSON.parse(l) as Record<string, unknown>), ...result };
 }
 
@@ -44,6 +45,8 @@ describe("a failed job says why, never her content", () => {
     expect(failed.where).toMatch(/^<string>:\d+$/);
     expect(r.code).toBe(1);
     expect(r.posted).toEqual([{ ok: false, safe_error: `TypeError at ${failed.where}` }]);
+    // The failure callback waits the long callback timeout (Mercedes's cut, 24 Oct 2026), not 60 s.
+    expect(r.timeouts).toEqual([180]);
   });
 
   it("her script inside an error message is removed, whole and sentence by sentence; paths keep only the file name", () => {
