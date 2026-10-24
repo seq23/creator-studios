@@ -23,6 +23,7 @@ import { wordsPass } from "../lib/wordsPass";
 import { finishPendingCuts } from "../jobs/cut";
 import { ensureFirstResearch } from "../lib/setupWait";
 import { sendWaitingDumps } from "../routes/dumps";
+import { autoRedoSweep } from "../lib/autoRedo";
 
 /**
  * The "Last <lane> run" note: "OK · Wed, Oct 7, 1:00 PM" in her audience time zone, the same parts
@@ -60,6 +61,8 @@ export async function runCron(env: Env, cron: string): Promise<void> {
       await wordsPass(env).catch(() => log.warn("cron.words_failed"));
       // A cut's follow-on (light, email, editors, voice overs) left over after its callback answered.
       await finishPendingCuts(env).catch(() => log.warn("cron.cut_follow_on_failed"));
+      // Held clips are redone on their own, never asking her (owner, 23 Oct 2026; worker/lib/autoRedo.ts).
+      await autoRedoSweep(env).catch(() => log.warn("cron.auto_redo_failed"));
       // Connected editors (docs/EDITORS.md): the screens ask while they are open; this catches the rest.
       const e = await pollEditorJobs(env);
       if (e.polled) log.info("cron.editors", e);
