@@ -15,7 +15,7 @@ import fixtureJson from "./fixtures/cut-result.sample.json";
 import { harness } from "./helpers/studio-fix-env";
 import { cutJob, type CutResultClip, type RerenderSpec } from "@worker/jobs/cut";
 import { POSTABLE_CLIP_SQL } from "@worker/domain/sourceCheck";
-import { finishWords, parseDraft, practiceDraft, wordsPass, WORDS_RED_AFTER } from "@worker/lib/wordsPass";
+import { finishWords, parseDraft, practiceDraft, wordsPass, WORDS_PER_RUN, WORDS_RED_AFTER } from "@worker/lib/wordsPass";
 import { draftScript } from "@worker/lib/autoVoice";
 import { clipPostText } from "@worker/lib/postText";
 import { postText } from "@shared/postText";
@@ -129,6 +129,22 @@ describe("words pending: stored, never approved, never posted, written by the wo
     // Tried this hour: the next run within 50 minutes leaves it alone.
     expect((await wordsPass(h.env)).written).toBe(0);
     expect(h.one<{ words_tries: number }>("SELECT words_tries FROM clips WHERE id = 'clp_wwwwwwww02'").words_tries).toBe(WORDS_RED_AFTER);
+  });
+
+  it("a rejected clip never spends the free AI's tries; restored, it gets its words", async () => {
+    const h = await studio();
+    await h.dumpWith("dmp_r", [{ id: "ast_r", name: "a.mp4", mime: "video/mp4" }]);
+    const ids = Array.from({ length: WORDS_PER_RUN + 1 }, (_, i) => `clp_rrrrrrrr${String(i).padStart(2, "0")}`);
+    ids.forEach((id, i) =>
+      h.db.raw.exec(`INSERT INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, hook_text, caption, hashtags, platforms, score, r2_key, status, words_pending, created_at)
+        VALUES ('${id}', 'ast_r', 'dmp_r', 0, 10, 'montage', '', '', '', '["tiktok"]', 80, 'clips/dmp_r/${id}.mp4', '${i < WORDS_PER_RUN ? "rejected" : "draft"}', 1, '2026-10-23T22:00:0${i % 10}.000Z')`),
+    );
+    // The oldest are rejected: the one New clip still gets its words in the first run.
+    expect(await wordsPass(h.env)).toMatchObject({ written: 1, waiting: 0 });
+    expect(h.one<{ words_pending: number }>(`SELECT words_pending FROM clips WHERE id = '${ids[WORDS_PER_RUN]}'`).words_pending).toBe(0);
+    expect(h.one<{ n: number }>("SELECT COUNT(*) AS n FROM clips WHERE status = 'rejected' AND words_tries > 0").n).toBe(0);
+    h.db.raw.exec(`UPDATE clips SET status = 'draft' WHERE id = '${ids[0]}'`);
+    expect((await wordsPass(h.env)).written).toBe(1);
   });
 
   it("practice words name the kind of clip, never a stock line", () => {
