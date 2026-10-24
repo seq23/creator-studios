@@ -404,7 +404,7 @@ async function buildDumpSpec(env: Env, jobId: string, dumpId: string): Promise<C
 
 /** The clip's stretches, as [asset id, start, end] (its own video). */
 async function buildAgainSpec(env: Env, jobId: string, dumpId: string, clipId: string): Promise<AgainSpec> {
-  const clip = await env.DB.prepare("SELECT id, asset_id, start_s, end_s, parts, part_assets, again_notes, again_fixes, files_used FROM clips WHERE id = ? AND dump_id = ?").bind(clipId, dumpId).first<{ id: string; asset_id: string; start_s: number; end_s: number; parts: string | null; part_assets: string | null; again_notes: string | null; again_fixes: string | null; files_used: string | null }>();
+  const clip = await env.DB.prepare("SELECT id, asset_id, start_s, end_s, parts, part_assets, again_notes, again_fixes, files_used, look, auto_redo_job_id FROM clips WHERE id = ? AND dump_id = ?").bind(clipId, dumpId).first<{ id: string; asset_id: string; start_s: number; end_s: number; parts: string | null; part_assets: string | null; again_notes: string | null; again_fixes: string | null; files_used: string | null; look: string | null; auto_redo_job_id: string | null }>();
   if (!clip) throw new Error("clip missing");
   const base = await buildDumpSpec(env, jobId, dumpId);
   const notes = (clip.again_notes ?? "").trim();
@@ -421,8 +421,29 @@ async function buildAgainSpec(env: Env, jobId: string, dumpId: string, clipId: s
   const mine = new Set([clip.asset_id, ...partOwners, ...(Array.isArray(used) ? used.map(String) : []), ...photos]);
   const assets = base.assets.filter((a) => mine.has(a.id)).map((a) => ({ ...a, ...(Object.keys(asked).length ? { steer: { ...(a.steer ?? base.steer), ...againSteer(base, asked) } } : {}) }));
   if (!assets.length) throw new Error("clip source cleared");
+  const windows = (c: { asset_id: string; start_s: number; end_s: number; parts: string | null; part_assets: string | null }) => {
+    const ps = clipParts(c);
+    const own = parseJson<unknown>(c.part_assets, null);
+    const po = Array.isArray(own) && own.length === ps.length ? own.map(String) : null;
+    return ps.map(([start, end], i) => ({ asset_id: po ? po[i]! : c.asset_id, start, end }));
+  };
+  let avoid = windows(clip);
+  let auto: Partial<SteerSpec> = {};
+  if (clip.auto_redo_job_id === jobId) {
+    // The studio's own redo (worker/lib/autoRedo.ts) is a genuinely different version: away from every
+    // version this clip has had, in a different look than the one it was held in.
+    const { results: olds } = await env.DB.prepare("SELECT snapshot FROM clip_versions WHERE clip_id = ?").bind(clipId).all<{ snapshot: string }>();
+    for (const o of olds) {
+      const v = parseJson<{ asset_id?: string; start_s?: number; end_s?: number; parts?: string | null; part_assets?: string | null }>(o.snapshot, {});
+      if (typeof v.asset_id === "string" && typeof v.start_s === "number" && typeof v.end_s === "number") avoid.push(...windows({ asset_id: v.asset_id, start_s: v.start_s, end_s: v.end_s, parts: v.parts ?? null, part_assets: v.part_assets ?? null }));
+    }
+    avoid = avoid.slice(0, 40);
+    const rot = base.rotation.filter((l) => l !== clip.look);
+    if (rot.length) auto = { rotation: rot, looks: Object.fromEntries(rot.map((id) => [id, base.looks[id]])) as SteerSpec["looks"] };
+  }
   return {
     ...base,
+    ...auto,
     mode: "again",
     clip_id: clipId,
     assets,
@@ -430,7 +451,7 @@ async function buildAgainSpec(env: Env, jobId: string, dumpId: string, clipId: s
     target_clips: { min: 1, max: 1 },
     change_request: notes.slice(0, 1000),
     fixes,
-    avoid_windows: clipParts(clip).map(([start, end], i) => ({ asset_id: partOwners.length === clipParts(clip).length ? partOwners[i]! : clip.asset_id, start, end })),
+    avoid_windows: avoid,
   };
 }
 
@@ -829,7 +850,7 @@ export function parseCutResult(
     // Layer 5, checked again here (the Worker never trusts the job): words that break the studio's rules hide the clip.
     const broke = ctx.rules && [c.hook_text, c.hook_alt, c.caption].some((t) => typeof t === "string" && textProblems(t, ctx.rules!).length > 0);
     const under = !imported && s < bar;
-    const hiddenReason = str(c.hidden_reason, 200) || (broke ? RULES_HIDDEN : null) || (under && hundred ? underBarReason(s, bar, reasons) : null);
+    const hiddenReason = str(c.hidden_reason, 200) || (broke ? RULES_HIDDEN : null) || (under ? underBarReason(s, bar, reasons) : null);
     const caption = str(c.caption, 2200);
     clips.push({
       id: c.id!,
@@ -1284,13 +1305,16 @@ export const AGAIN_FAILED = "The new version didn't finish, so your clip is unch
  * in Review, its platforms and its status stay); the old files go once the new ones are in.
  */
 async function applyAgain(env: Env, jobId: string, dumpId: string, clipId: string, result: unknown): Promise<void> {
-  const clip = await env.DB.prepare("SELECT id, status, r2_key, cover_r2_key, asset_id, rerender_job_id FROM clips WHERE id = ? AND dump_id = ?").bind(clipId, dumpId).first<{ id: string; status: string; r2_key: string; cover_r2_key: string | null; asset_id: string; rerender_job_id: string | null }>();
+  const clip = await env.DB.prepare("SELECT id, status, r2_key, cover_r2_key, asset_id, rerender_job_id, auto_redo_job_id, EXISTS (SELECT 1 FROM posts p WHERE p.clip_id = clips.id) AS in_posts FROM clips WHERE id = ? AND dump_id = ?").bind(clipId, dumpId).first<{ id: string; status: string; r2_key: string; cover_r2_key: string | null; asset_id: string; rerender_job_id: string | null; auto_redo_job_id: string | null; in_posts: number }>();
   const got = (result as { again?: unknown } | null)?.again;
   const { results: dumpAssets } = await env.DB.prepare("SELECT id FROM assets WHERE dump_id = ?").bind(dumpId).all<{ id: string }>();
   const rules = await readStudioRules(env);
   const parsed = parseCutResult({ clips: got ? [got] : [] }, { dumpId, allowed: new Map([[clip?.asset_id ?? "", [...PLATFORMS]], ...dumpAssets.map((a) => [a.id, [...PLATFORMS]] as [string, Platform[]])]), rawKeys: new Set(), rules: contentRules(env), bar: rules.bar });
   const fresh = parsed.clips[0];
-  if (!clip || clip.status === "deleted" || clip.rerender_job_id !== jobId || !fresh) {
+  // The studio's own redo never lands on a clip she has decided on or put on the Calendar meanwhile.
+  const decided = !!clip && clip.auto_redo_job_id === jobId && (clip.status !== "draft" || !!clip.in_posts);
+  if (decided) await env.DB.prepare("UPDATE clips SET pending_look = NULL, rerender_job_id = NULL, auto_redo_job_id = NULL WHERE id = ?").bind(clipId).run();
+  if (!clip || clip.status === "deleted" || clip.rerender_job_id !== jobId || !fresh || decided) {
     if (fresh) await env.FILES.delete([fresh.r2_key, fresh.cover_r2_key].filter((k): k is string => !!k));
     if (!fresh) throw new CutResultError("no usable clips");
     log.info("cut.again.orphan", {});
