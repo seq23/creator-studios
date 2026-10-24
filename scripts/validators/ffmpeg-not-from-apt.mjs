@@ -5,7 +5,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 
-const NEEDS = ["job-cut.yml", "job-voice.yml", "job-fullvideo.yml", "job-photopack.yml", "golden-set.yml"];
+const NEEDS = ["job-cut.yml", "job-voice.yml", "job-fullvideo.yml", "job-photopack.yml", "job-pastvideos.yml", "golden-set.yml"];
 
 export default async function ({ root }) {
   const dir = path.join(root, ".github", "workflows");

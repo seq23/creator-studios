@@ -22,6 +22,7 @@ import { textProblems } from "@shared/contentRules";
 import { normalizeHashtags } from "../jobs/cut";
 import { autoVoiceDump } from "./autoVoice";
 import { clipTypeLabel, cleanLine, cleanScript, composeCaption, ctaLine, isReasoning, sendLine, stripCta, wantsAiNote, type WordsRules } from "@shared/clipWords";
+import { feelLine } from "@shared/videoFeel";
 
 /** Clips per run (each is one free model call at most). */
 export const WORDS_PER_RUN = 8;
@@ -128,7 +129,7 @@ export async function wordsPass(env: Env, now = new Date()): Promise<{ written: 
     const system =
       `You write the words for one short vertical video clip for a small business. Reply with ONE JSON object only: ` +
       `{"hook": "at most 8 words, shown big on screen", "caption": "one or two plain sentences", "hashtags": ["3 to 5 tags"], "voice": "a short spoken voice-over, plain sentences"}. ` +
-      `Write in their voice: ${profile?.voice || "warm and direct"}. Never mention: ${profile?.off_limits || "nothing listed"}. ` +
+      `Write in their voice: ${profile?.voice || "warm and direct"}.${feelLine(profile)} Never mention: ${profile?.off_limits || "nothing listed"}. ` +
       `No call to action in the caption (it is added after), no links, no prices${rules.prices ? " unless real" : ""}, no names or addresses, ` +
       `never mention automation, software or how the video was made. No lists, no markdown, no notes about the task.` +
       (rules.place_words.length ? ` Use one of these local words naturally: ${rules.place_words.join(", ")}.` : "");

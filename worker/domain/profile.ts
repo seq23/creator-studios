@@ -1,4 +1,4 @@
-// Brand Profile (BUILD_PLAN.md section 5): the eleven fixed sections (nine + layer 1), the drafting prompt, the
+// Brand Profile (BUILD_PLAN.md section 5): the twelve fixed sections (nine + layer 1 + how her videos feel), the drafting prompt, the
 // parser for the model's answer, and the stand-in profile used with fake services.
 import { BRAND_PROFILE_SECTIONS, type BrandProfileKey } from "@shared/constants";
 import type { BrandProfileSections } from "@shared/types";
@@ -13,7 +13,7 @@ export function emptySections(): BrandProfileSections {
   return Object.fromEntries(PROFILE_KEYS.map((k) => [k, ""])) as BrandProfileSections;
 }
 
-/** Keep only the eleven keys, as trimmed strings of bounded length. */
+/** Keep only the twelve keys, as trimmed strings of bounded length. */
 export function cleanSections(x: unknown): BrandProfileSections {
   const out = emptySections();
   if (!x || typeof x !== "object") return out;
@@ -49,7 +49,17 @@ Rules: use only what the documents say or clearly imply; never invent numbers, n
 If the documents say nothing about a section, write "Not in your docs yet." for it.
 "themes" lists 3 to 5 themes. "do_dont" has "Do:" and "Don't:" lines. "off_limits" is what she never posts about.
 "service_looks" has one line per service: "<service>: what it looks like finished; what it looks like before".
-"video_shapes" has one line per service: "<service>: before and after, walk-through, talking to camera or close-ups" (best first).`;
+"video_shapes" has one line per service: "<service>: before and after, walk-through, talking to camera or close-ups" (best first).
+"video_feel" is written from her past videos, not from documents: write "" for it unless a document describes how her finished videos look and sound.`;
+
+/**
+ * "How my videos feel" comes from her past videos (worker/jobs/pastvideos.ts), never from docs: a
+ * new draft from her docs keeps the section the newest version already has.
+ */
+export function keepVideoFeel(next: BrandProfileSections, prev: Partial<BrandProfileSections> | null): BrandProfileSections {
+  const kept = String(prev?.video_feel ?? "").trim();
+  return kept ? { ...next, video_feel: kept } : next;
+}
 
 export function profileUserPrompt(docs: { n: number; text: string }[]): string {
   return docs.map((d) => `--- Document ${d.n} ---\n${d.text}`).join("\n\n");
@@ -71,4 +81,5 @@ export const FAKE_PROFILE: BrandProfileSections = {
   ctas: "• \"Save this for later.\"\n• \"Follow for the next one.\"\n• \"Send this to a friend who needs it.\"\n• \"Tell me what you'd try first.\"",
   service_looks: "How-tos: hands at work up close, then the finished result held up to the camera.",
   video_shapes: "How-tos: before and after, close-ups\nAll: talking to camera",
+  video_feel: "",
 };

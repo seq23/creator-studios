@@ -11,10 +11,10 @@
 import type { JobHandler } from "./registry";
 import type { Env } from "../env";
 import { getConnectionSecret } from "../lib/connections";
-import { recordEvent } from "../lib/db";
+import { parseJson, recordEvent } from "../lib/db";
 import { log } from "../lib/log";
 import { BRAND_PROFILE_SECTIONS } from "@shared/constants";
-import { cleanSections, FAKE_PROFILE, filledCount, PROFILE_SYSTEM } from "../domain/profile";
+import { cleanSections, FAKE_PROFILE, filledCount, keepVideoFeel, PROFILE_SYSTEM } from "../domain/profile";
 import { FREE_MODEL } from "../services/openrouter";
 
 export const textKey = (docId: string) => `brain/text/${docId}.txt`;
@@ -116,8 +116,8 @@ export const extractJob: JobHandler = {
       }
     }
     if (refId === "draft_profile" && result.profile) {
-      const sections = cleanSections(result.profile);
-      const latest = await env.DB.prepare("SELECT locked FROM brand_profile ORDER BY version DESC LIMIT 1").first<{ locked: number }>();
+      const latest = await env.DB.prepare("SELECT locked, sections FROM brand_profile ORDER BY version DESC LIMIT 1").first<{ locked: number; sections: string }>();
+      const sections = keepVideoFeel(cleanSections(result.profile), latest ? cleanSections(parseJson(latest.sections, {})) : null);
       if (latest?.locked) log.warn("extract.profile.skipped_locked");
       else if (filledCount(sections) >= 5) {
         await env.DB.prepare("INSERT INTO brand_profile (sections, locked, source) VALUES (?, 0, 'draft')").bind(JSON.stringify(sections)).run();

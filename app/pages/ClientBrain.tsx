@@ -11,6 +11,7 @@ import { fmtBytes, fmtDate, plural } from "../lib/format";
 import { Card, Empty, HelpButton, Modal, Notice, PageHead, Skeleton, useLoad, useToast } from "../components/ui";
 import { Icon } from "../components/Icon";
 import { NicheCard } from "../components/NicheCard";
+import { PastVideos, type PastVideosData } from "../components/PastVideos";
 import "../styles/brain.css";
 
 interface Version {
@@ -26,6 +27,7 @@ interface BrainData {
   versions: Version[];
   /** The version every AI step reads: the locked one, or while unlocked the one locked last. */
   inUse: { version: number; locked_at: string | null } | null;
+  pastVideos: PastVideosData;
   job: { id: string; status: string; ref_id: string | null; safe_error: string | null } | null;
   totalChars: number;
 }
@@ -66,6 +68,9 @@ export function ClientBrain() {
 
   const profile = data?.profile ?? null;
   const locked = !!profile?.locked;
+  // "How my videos feel" landed on a new draft while a locked version was in use: ask her to lock it.
+  const feelRead = data?.pastVideos.read;
+  const feelWaiting = !!profile && !locked && !!feelRead?.lockedInUse && !!feelRead.version && profile.version >= feelRead.version && (data?.inUse?.version ?? 0) < feelRead.version;
   const reading = (data?.docs ?? []).some((d) => d.extract_status === "extracting") || (data?.job && ["queued", "dispatched", "running"].includes(data.job.status) && data.job.ref_id === "draft_profile");
 
   // A fresh profile from the server replaces the editor's copy (unless she is mid-edit).
@@ -234,6 +239,8 @@ export function ClientBrain() {
             ) : null}
           </section>
 
+          <PastVideos data={data.pastVideos} reload={reload} />
+
           <section className="section" aria-labelledby="profile-h">
             <div className="section-head">
               <h2 id="profile-h">
@@ -295,6 +302,14 @@ export function ClientBrain() {
                   </Card>
                 ) : null}
 
+                {feelWaiting ? (
+                  <Notice tone="info">
+                    <span data-feel-note>
+                      We added <strong>How my videos feel</strong> from your past videos as a new draft. Read it below, change anything you like, then press <strong>Lock profile</strong> so your clips use it.
+                      {data.inUse?.locked_at ? ` Until then they keep using the version you locked on ${fmtDate(data.inUse.locked_at)}.` : ""}
+                    </span>
+                  </Notice>
+                ) : null}
                 <div className="brain-sections">
                   {BRAND_PROFILE_SECTIONS.map((s) => (
                     <Section key={s.key} k={s.key} label={s.label} value={draft?.[s.key] ?? ""} disabled={locked} onChange={(v) => setDraft((d) => (d ? { ...d, [s.key]: v } : d))} />

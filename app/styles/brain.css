@@ -82,3 +82,14 @@
   display: grid;
   gap: var(--space-3xs);
 }
+
+/* My past videos (components/PastVideos.tsx): phone first, one column, 44 px targets. */
+.past-videos .past-actions {
+  display: grid;
+  gap: var(--space-2xs);
+  margin-top: var(--space-xs);
+}
+.past-videos .past-actions .btn,
+.past-videos .list-row .btn {
+  min-height: 44px;
+}

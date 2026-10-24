@@ -90,6 +90,11 @@ export function jobStorageScope(type: JobRow["type"], jobId: string, refId: stri
       }
       break;
     }
+    case "pastvideos":
+      // Learn from my past videos: reads only her past videos (never raw/ footage), writes nothing
+      // but its own folder; the section comes back in the callback.
+      scope.read.push("pastvideos/");
+      break;
     default:
       break;
   }

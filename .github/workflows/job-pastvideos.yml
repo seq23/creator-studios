@@ -1,0 +1,57 @@
+# Learn from my past videos (Client Brain → My past videos; jobs/pastvideos.py). Started ONLY by the Worker
+# (repository_dispatch with a signed payload); the job fetches its spec from the Worker, WATCHES her old finished
+# videos (cut times, what she says, shot sheets, the first two seconds; never cuts them) and calls back with the
+# "How my videos feel" section. $0 only: free models, then the rules. Logs show step names and counts only.
+name: job-pastvideos
+
+on:
+  repository_dispatch:
+    types: [pastvideos]
+
+concurrency:
+  group: job-pastvideos-${{ github.event.client_payload.job_id }}
+  cancel-in-progress: false
+
+env:
+  JOB_HEAVY: "1"          # fullvideo.transcript installs faster-whisper for what she says
+  WHISPER_MODEL: base
+  HF_HUB_DISABLE_PROGRESS_BARS: "1"
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    # Up to ten short videos: download, scene cuts, transcript on CPU, a few free calls. 60 min is a
+    # fault detector (~4x a normal run), never a budget.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: jobs/requirements.txt
+      - name: Whisper model cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: whisper-${{ env.WHISPER_MODEL }}-v1
+      - name: System tools
+        run: bash .github/scripts/ffmpeg-static.sh
+      - run: pip install -q -r jobs/requirements.txt pillow
+      - name: Run
+        run: python3 jobs/pastvideos.py
+        env:
+          JOB_ID: ${{ github.event.client_payload.job_id }}
+          JOB_NONCE: ${{ github.event.client_payload.nonce }}
+          JOB_TS: ${{ github.event.client_payload.ts }}
+          JOB_SIG: ${{ github.event.client_payload.sig }}
+          WORKER_URL: ${{ github.event.client_payload.worker_url }}
+          RUN_ID: ${{ github.run_id }}
+          OPENROUTER_JOB_BUDGET: "6"
+          # Which studio started this job: it picks that studio's shared secret (JOB_SHARED_SECRET_<SLUG>, or
+          # JOB_SHARED_SECRET in a studio's own job repository). Storage and keys come through that Worker's signed spec.
+          JOB_STUDIO: ${{ github.event.client_payload.studio }}
+          JOB_SHARED_SECRET: ${{ secrets[format('JOB_SHARED_SECRET_{0}', github.event.client_payload.studio)] || secrets.JOB_SHARED_SECRET }}

@@ -1,21 +1,24 @@
-// Brand Profile drafting (section 5): eleven fixed sections (nine + layer 1), tolerant parsing, realistic fake.
+// Brand Profile drafting (section 5): twelve fixed sections (nine + layer 1 + how her videos feel), tolerant parsing, realistic fake.
 import { describe, expect, it } from "vitest";
 import { BRAND_PROFILE_SECTIONS } from "@shared/constants";
 import { cleanSections, FAKE_PROFILE, filledCount, parseProfileAnswer, PROFILE_SYSTEM, SECTION_MAX_CHARS } from "@worker/domain/profile";
 import { UNREADABLE_SENTENCE } from "@worker/jobs/extract";
 
 describe("brand profile", () => {
-  it("the prompt names all eleven sections", () => {
+  it("the prompt names all twelve sections", () => {
     for (const s of BRAND_PROFILE_SECTIONS) expect(PROFILE_SYSTEM).toContain(`"${s.key}"`);
   });
   it("the fake profile fills every section and is a niche-neutral Sample Creator", () => {
+    // Every section the docs can fill is filled; "How my videos feel" comes only from her past videos.
     expect(filledCount(FAKE_PROFILE)).toBe(11);
-    expect(BRAND_PROFILE_SECTIONS.length).toBe(11); // nine + layer 1 (what each service looks like, which shapes fit)
+    expect(FAKE_PROFILE.video_feel).toBe("");
+    expect(BRAND_PROFILE_SECTIONS.length).toBe(12); // nine + layer 1 (what each service looks like, which shapes fit) + how my videos feel
+    expect(BRAND_PROFILE_SECTIONS.at(-1)).toEqual({ key: "video_feel", label: "How my videos feel" });
     expect(FAKE_PROFILE.who).toMatch(/^Sample Creator makes short, practical videos/);
     expect(FAKE_PROFILE.themes).toMatch(/How-tos/);
     expect(Object.values(FAKE_PROFILE).join("\n")).not.toMatch(/Table & Gather|host|table|brunch|candle|dinner/i);
   });
-  it("keeps only the eleven keys, turns lists into bullets and bounds length", () => {
+  it("keeps only the twelve keys, turns lists into bullets and bounds length", () => {
     const s = cleanSections({ who: "  Sam  ", themes: ["Yachts", "Galas"], extra: "dropped", voice: "x".repeat(SECTION_MAX_CHARS + 50) });
     expect(Object.keys(s).sort()).toEqual(BRAND_PROFILE_SECTIONS.map((x) => x.key).sort());
     expect(s.who).toBe("Sam");
