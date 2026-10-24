@@ -76,6 +76,10 @@
 }
 
 /* What's working in your niche (studio fix). */
+.niche-sub {
+  margin: var(--space-xs) 0 var(--space-3xs);
+  font-size: var(--text-lg);
+}
 .niche-lines {
   margin: 0 0 var(--space-2xs);
   padding-left: var(--space-sm);

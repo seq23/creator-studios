@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { cleanLink, cleanRules, FALLBACK_CTA, RULES_DEFAULT, rulesProblem, studioRules } from "@shared/studioRules";
+import { cleanLink, cleanRules, RULES_DEFAULT, rulesProblem, studioRules } from "@shared/studioRules";
 import { cutJob, type CutSpec } from "@worker/jobs/cut";
 // @ts-expect-error plain .mjs module
 import { envBlock } from "../../scripts/studio.mjs";
@@ -26,11 +26,12 @@ describe("Porch & Party's rules, exactly as the owner ruled", () => {
     expect(r.place_words).toEqual(["Memphis", "Germantown", "Collierville", "Bartlett"]);
     expect(r.prices).toBe(false);
   });
-  it("every real studio has its own rules; the others fall back to a neutral call to action with no link", () => {
+  it("every real studio has its own rules; the others have NO call to action at all (opt-in, owner 23 Oct 2026) and no link", () => {
     for (const slug of ["hadiyah", "sheila", "mercedes", "sample2", "sample3"]) {
       expect(reg(slug).studioRules, slug).toBeTruthy();
       const r = studioRules(varOf(slug), null);
-      expect(r).toMatchObject({ cta_phrases: [FALLBACK_CTA], cta_link: "", ai_note: "ai_images", bar: 70, prices: false });
+      expect(r).toMatchObject({ cta_phrases: [], cta_link: "", ai_note: "ai_images", bar: 70, prices: false });
+      expect(r.cta_phrases).toHaveLength(0);
       // No other studio carries Porch & Party's link or towns.
       expect(varOf(slug)).not.toMatch(/porchandparty|Memphis/i);
     }
@@ -54,10 +55,12 @@ describe("cleaning: anything odd keeps what was there", () => {
     expect(cleanLink("javascript:alert(1)")).toBeNull();
     expect(cleanLink("https://exa mple.com")).toBeNull();
   });
-  it("phrases one per line, deduped and bounded; an empty list is the fallback", () => {
+  it("phrases one per line, deduped and bounded; clearing them means no call to action (never a stand-in)", () => {
     const r = cleanRules({ cta_phrases: "Book now\nbook now\n  Call us  " }, RULES_DEFAULT);
     expect(r.cta_phrases).toEqual(["Book now", "Call us"]);
-    expect(cleanRules({ cta_phrases: [] }, r).cta_phrases).toEqual([FALLBACK_CTA]);
+    expect(cleanRules({ cta_phrases: [] }, r).cta_phrases).toEqual([]);
+    expect(cleanRules({ cta_phrases: "\n  \n" }, r).cta_phrases).toEqual([]);
+    expect(RULES_DEFAULT.cta_phrases).toEqual([]);
   });
   it("clip target and bar refuse nonsense in plain words", () => {
     expect(rulesProblem({ clip_target: { min: 30, max: 15 } })).toMatch(/smallest first/);
@@ -92,7 +95,7 @@ describe("the cut spec carries the rules, the playbook and each file's camera", 
   it("Settings → Your clips changes them; the owner's link is checked; the spec follows", async () => {
     const h = await harness({ STUDIO_RULES: varOf("hadiyah") });
     const got = await h.call("GET", "/api/settings/rules");
-    expect(got.json.rules.cta_phrases).toEqual([FALLBACK_CTA]);
+    expect(got.json.rules.cta_phrases).toEqual([]);
     expect((await h.call("PATCH", "/api/settings/rules", { cta_link: "not a link" })).status).toBe(422);
     const saved = await h.call("PATCH", "/api/settings/rules", { cta_phrases: ["Shop the look"], cta_link: "https://example.com/shop", clip_target: { min: 4, max: 9 }, bar: 60, ai_note: "all", place_words: "Atlanta, Decatur" });
     expect(saved.status).toBe(200);

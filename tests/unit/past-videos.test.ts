@@ -103,6 +103,9 @@ describe("every AI step that writes for her clips reads it", () => {
     expect(readFileSync("worker/lib/wordsPass.ts", "utf8")).toMatch(/\$\{feelLine\(profile\)\}/);
     expect(readFileSync("worker/lib/autoVoice.ts", "utf8")).toMatch(/\$\{feelLine\(profile\)\}/);
     expect(readFileSync("jobs/plan.py", "utf8")).toMatch(/"how_her_videos_feel": prof\.get\("video_feel", ""\)/);
-    expect(readFileSync("jobs/cut.py", "utf8")).toMatch(/"ctas", "video_feel"\)/);
+    // The neutral copy prompt keeps "How my videos feel" (calls to action now go through voice_context, opt-in),
+    // and every hook writer in the cut reads it through voice_context, where it LEADS the niche research.
+    expect(readFileSync("jobs/cut.py", "utf8")).toMatch(/"off_limits", "video_feel"\)/);
+    expect(readFileSync("jobs/cut.py", "utf8")).toMatch(/"how_her_videos_feel": feel, "what_leads": "how_her_videos_feel leads; the niche research only supports it"/);
   });
 });

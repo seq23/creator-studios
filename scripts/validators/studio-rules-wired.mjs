@@ -39,6 +39,13 @@ export default async function ({ root }) {
     ["worker/crons/index.ts", /await monthlyNicheRefresh\(env\)/, "the daily lane starts the monthly niche research"],
     [".github/workflows/job-niche.yml", /OPENROUTER_JOB_BUDGET: "2"/, "the niche job spends at most 2 free AI calls"],
     ["jobs/niche_research.py", /A\.ask_openrouter\(/, "the niche job asks through the budgeted ladder"],
+    // Clip quality (owner, 23 Oct 2026): the niche research refreshes with the Brand Profile; calls to action are opt-in.
+    ["worker/routes/brain.ts", /await monthlyNicheRefresh\(c\.env\)/, "locking the Brand Profile redoes the niche research"],
+    ["worker/lib/niche.ts", /profileVersion: profile\?\.version \?\? null/, "the niche research is due when the Brand Profile changed"],
+    ["jobs/cut.py", /flashed = sum\(1 for m, _ in moments if payoff_first\(m, pb\)\)/, "every clip shows its payoff in the first 2 seconds"],
+    ["jobs/cut.py", /hook_stats = distinct_hooks\(moments, spec, key, text_ok, pb\)/, "no near-duplicate hooks in one dump"],
+    ["jobs/clipmaker.py", /if link or phrases:/, "the score checks a call to action only when the studio chose one"],
+    ["shared/studioRules.ts", /cta_phrases: \[\],/, "no studio gets a default call to action"],
   ];
   for (const [file, re, what] of checks) {
     items++;

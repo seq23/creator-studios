@@ -17,6 +17,8 @@
 //   PATCH  /api/voice/narrations/:id      attach to a clip (or detach)
 //   DELETE /api/voice/narrations/:id
 //   GET    /api/voice/narrations/:id/audio   stream the file (logged-in only, never public)
+import { readStudioRules } from "../lib/studioRules";
+import { chosenCtas } from "@shared/studioRules";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { requireOwner, requireUser } from "../lib/auth";
@@ -208,9 +210,11 @@ voice.post("/draft", async (c) => {
   const first = kitName(c.env).split(" ")[0];
   const starter = `Hi, it's ${first}. Today is all about ${topic.toLowerCase()}. Here's the one thing I always do first, and why it makes everything easier. Watch to the end, then tell me in the comments how you do it.`;
   if (c.get("fake")) return c.json({ script: starter, note: null });
+  // Calls to action are opt-in (shared/studioRules.ts): only one she chose.
+  const ctaChoice = chosenCtas(await readStudioRules(c.env), profile.ctas);
   const llm = await getLlm(c.env);
   const r = await llm.complete({
-    system: `You write short voice-over scripts (20–40 seconds spoken, under 90 words) for the creator ${kitName(c.env)}. Her voice: ${profile.voice || "warm and direct"}. Do: ${profile.do_dont || ""}. Never mention: ${profile.off_limits || "nothing listed"}. Plain spoken sentences, one call to action from: ${profile.ctas || "follow for more"}. Reply with the script only.`,
+    system: `You write short voice-over scripts (20–40 seconds spoken, under 90 words) for the creator ${kitName(c.env)}. Her voice: ${profile.voice || "warm and direct"}. Do: ${profile.do_dont || ""}. Never mention: ${profile.off_limits || "nothing listed"}. Plain spoken sentences${ctaChoice.length ? `, one call to action from: ${ctaChoice.join(" | ")}` : ", and no call to action (she has not chosen one)"}. Reply with the script only.`,
     user: `Topic: ${topic}`,
     maxTokens: 300,
   });

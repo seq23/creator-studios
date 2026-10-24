@@ -7,7 +7,8 @@ looks, every one ending on a near-blank card, scores that were a shape bonus, st
     >= 2 s, blurry/shaky seconds never used, distinct cuts only (no two clips share most shots),
     as many as the footage gives up to the studio's clip_target;
   * score_clip: 0..100 from real checks with plain-English reasons (sharp, payoff in the first
-    1-2 s, hero ending, call to action, distinct, readable text, right length, follows its template);
+    1-2 s, hero ending, call to action (only when the studio chose one), distinct, readable text,
+    right length (shorter than its type's range can never pass), follows its template);
   * the words: final caption in the exact layout, the call to action with the studio's link, place
     words, some "send this to..." lines, the "Made with AI" note by the studio's rule, and
     words_pending (never stock lines) when no AI words came.
@@ -324,9 +325,51 @@ def counts(plans_types: list[str]) -> dict[str, Any]:
 
 # ---------------------------------------------------------------- the score (0..100)
 
-def _readable_hook(hook: str) -> bool:
+def _readable_hook(hook: str, max_words: int = 8) -> bool:
     h = (hook or "").strip()
-    return bool(h) and len(h.split()) <= 8 and len(h) <= 48 and not SC.is_reasoning(h)
+    return bool(h) and len(h.split()) <= max(3, min(10, max_words)) and len(h) <= 56 and not SC.is_reasoning(h)
+
+
+# A clip shorter than its type's range scores at most this, under any bar a studio can sensibly set,
+# and jobs/cut.py hides it with its plain reason whatever the bar (never shown in Review).
+SHORT_CAP = 40
+
+
+def too_short(seconds: float, lo: float) -> bool:
+    return seconds < float(lo) - 0.5
+
+
+HOOK_STOP = {"a", "an", "the", "and", "or", "of", "to", "in", "on", "at", "for", "with", "my", "your", "you", "i", "is", "it", "this", "that", "me", "so", "just", "every", "day", "s"}
+
+
+def hook_words(h: str) -> list[str]:
+    return [w for w in re.findall(r"[a-z0-9']+", (h or "").lower().replace("'s", "")) if w not in HOOK_STOP]
+
+
+def near_duplicate(a: str, b: str) -> bool:
+    """Two hooks that say nearly the same thing (owner, 23 Oct 2026: "Boat mornings, latte art, pure joy"
+    next to "Boat mornings, latte art perfection"): the same words, half or more of them in common,
+    or a shared two-word phrase."""
+    wa, wb = hook_words(a), hook_words(b)
+    if not wa or not wb:
+        return False
+    if wa == wb:
+        return True
+    sa, sb = set(wa), set(wb)
+    if len(sa & sb) / min(len(sa), len(sb)) >= 0.5 and len(sa & sb) >= 2:
+        return True
+    pa = {(wa[i], wa[i + 1]) for i in range(len(wa) - 1)}
+    pb_ = {(wb[i], wb[i + 1]) for i in range(len(wb) - 1)}
+    return bool(pa & pb_)
+
+
+def duplicate_hooks(hooks: list[str]) -> list[int]:
+    """The indexes whose hook nearly repeats an EARLIER one in the same dump (the first keeps it)."""
+    out: list[int] = []
+    for i, h in enumerate(hooks):
+        if h and any(hooks[j] and near_duplicate(h, hooks[j]) for j in range(i) if j not in out):
+            out.append(i)
+    return out
 
 
 def score_clip(f: dict[str, Any], pb: dict[str, Any]) -> tuple[int, list[str]]:
@@ -356,27 +399,35 @@ def score_clip(f: dict[str, Any], pb: dict[str, Any]) -> tuple[int, list[str]]:
     cap = f.get("caption") or ""
     link = (f.get("cta_link") or "").strip()
     phrases = [x.lower() for x in (f.get("cta_phrases") or [])]
-    in_cap = (link and link in cap) or (not link and any(ph and ph in cap.lower() for ph in phrases))
-    cta_pts = (6 if in_cap else 0) + (4 if f.get("end_card", True) else 0)
-    if f.get("words_pending"):
-        cta_pts = 4 if f.get("end_card", True) else 0
-    got.append((cta_pts, 10, "the call to action is missing" if not f.get("words_pending") else "the caption's call to action comes with its words", "call to action on screen and in the caption"))
+    if link or phrases:
+        # Opt-in (owner, 23 Oct 2026): only a studio that CHOSE a call to action is checked for one.
+        # With none chosen this check does not exist: never docked, never mentioned.
+        in_cap = (link and link in cap) or (not link and any(ph and ph in cap.lower() for ph in phrases))
+        cta_pts = (6 if in_cap else 0) + (4 if f.get("end_card", True) else 0)
+        if f.get("words_pending"):
+            cta_pts = 4 if f.get("end_card", True) else 0
+        got.append((cta_pts, 10, "the call to action is missing" if not f.get("words_pending") else "the caption's call to action comes with its words", "call to action on screen and in the caption"))
     distinct = not f.get("repeats") and float(f.get("overlap", 0.0)) < 0.5
     got.append((10 if distinct else 0, 10, "it repeats shots", "every shot is different"))
     hook = f.get("hook") or ""
     if f.get("words_pending"):
         txt = 5
     else:
-        txt = 10 if _readable_hook(hook) and not SC.is_reasoning(cap) else (5 if hook else 0)
-    got.append((txt, 10, "the on-screen words are too long or missing" if not f.get("words_pending") else "the words are still being written", "short, readable on-screen words"))
+        txt = 10 if _readable_hook(hook, int(pb.get("hook_max_words") or 8)) and not SC.is_reasoning(cap) and not f.get("hook_repeats") else (5 if hook else 0)
+    got.append((txt, 10, ("the hook says nearly the same as another clip's" if f.get("hook_repeats") else "the on-screen words are too long or missing") if not f.get("words_pending") else "the words are still being written", "short, readable on-screen words"))
     total = sum(p["end"] - p["start"] for p in parts)
     lo, hi = t["length_s"]
-    got.append((10 if lo - 0.5 <= total <= hi + 0.5 else 4, 10, f"{total:.0f} s is the wrong length for this kind of clip ({lo}-{hi} s)", f"right length ({total:.0f} s)"))
+    short = too_short(total, lo) and f.get("clip_type") != "moving_photo"
+    got.append((10 if lo - 0.5 <= total <= hi + 0.5 else (0 if short else 4), 10, (f"{total:.0f} s is too short for this kind of clip (it needs at least {lo:g} s)" if short else f"{total:.0f} s is the wrong length for this kind of clip ({lo:g}-{hi:g} s)"), f"right length ({total:.0f} s)"))
     cuts = [p["end"] - p["start"] for p in parts[:-1] if p.get("stage") != "flash"]
     pace_ok = not cuts or (t["pacing_s"][0] * 0.5 <= sum(cuts) / len(cuts) <= t["pacing_s"][1] * 1.8)
     tpl = (5 if pace_ok else 0) + (5 if opening_ok and hero_ok else 0)
     got.append((tpl, 10, "doesn't follow its clip type's pacing", f"follows the {t['label']} template"))
-    score = max(0, min(100, sum(g[0] for g in got)))
+    # Out of the checks that apply (a studio with no call to action is scored out of the rest).
+    score = max(0, min(100, round(100 * sum(g[0] for g in got) / max(1, sum(g[1] for g in got)))))
+    if short:
+        # Shorter than its type's range can never pass a bar (owner, 23 Oct 2026: a 3 s clip scored 88).
+        score = min(score, SHORT_CAP)
     misses = [g[2] for g in got if g[0] < g[1]]
     hits = [g[3] for g in got if g[0] >= g[1]]
     reasons = [m[:1].upper() + m[1:] for m in misses] + [h[:1].upper() + h[1:] for h in hits]

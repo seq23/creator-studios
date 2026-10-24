@@ -12,6 +12,7 @@ import { ago, fmtDate, plural } from "../lib/format";
 import { Card, DismissButton, Empty, HelpButton, Notice, PageHead, Skeleton, useLoad, useToast } from "../components/ui";
 import { archiveWithUndo, restoreArchived } from "../lib/archive";
 import { Icon } from "../components/Icon";
+import { NicheCard } from "../components/NicheCard";
 import "../styles/research.css";
 
 interface ResearchData {
@@ -294,6 +295,8 @@ export function Research() {
           </div>
         </>
       ) : null}
+
+      <NicheCard />
 
       {data?.uploads.length ? (
         <section className="section">

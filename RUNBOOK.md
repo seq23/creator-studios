@@ -100,6 +100,9 @@ node scripts/studio.mjs finish-cut <slug> <dumpId>
                                     # a cut that SAVED its clips but was marked failed after (a timed-out callback):
                                     # back to ready, nothing deleted, its light/email/editors/voice overs run;
                                     # refuses (409) when its latest cut did not save clips, then use start-over
+node scripts/studio.mjs niche <slug>
+                                    # the niche research now, when due (no playbook yet, or the Brand Profile changed):
+                                    # the daily lane's rule (worker/lib/niche.ts); the clips' default style until past videos exist
 
 # read a studio's D1 (example: who owns sample1, which services are set up; never secret values)
 npx wrangler d1 execute creator-studios-sample1-db --remote --env sample1 --json \

@@ -25,6 +25,9 @@ export interface HoldCause {
 export const HOLD_CAUSES = {
   // Scored under the studio's review bar (shared/studioRules.ts bar; jobs/cut.py SCORE).
   under_bar: { check: 1, redoOnHold: true, fixes: ["less_blur", "end_on_finished"], history: [{ check: 1, date: "2026-10-23", what: "studio fix score 0..100, bar per studio" }] },
+  // Shorter than its clip type's range (jobs/cut.py clip_too_short): never shown, whatever the bar.
+  // The redo cuts a different, longer moment; at most MAX_AUTO_REDOS times.
+  too_short: { check: 1, redoOnHold: true, fixes: ["different_opening"], history: [{ check: 1, date: "2026-10-23", what: "a clip shorter than its type's range never passes" }] },
   // The critic (jobs/critic.py REASON_WORDS): words that did not match the picture.
   text_mismatch: { check: 1, redoOnHold: true, fixes: ["different_opening"], history: [{ check: 1, date: "2026-10-22", what: "critic pass, layer 6" }] },
   // The critic: an unfinished shot shown as the finished result.
@@ -64,6 +67,7 @@ const CRITIC_WORDS: Record<string, HoldCauseKey> = {
   "a house number or face could not be blurred, so it is held for a look": "privacy",
 };
 export const RULES_WORDS = "the words broke one of this studio's rules";
+export const TOO_SHORT_WORDS = "too short:";
 
 /** The cause behind a hidden reason, or null when it is not one this studio knows how to redo. Pure. */
 export function holdCause(reason: string | null | undefined): HoldCauseKey | null {
@@ -71,6 +75,8 @@ export function holdCause(reason: string | null | undefined): HoldCauseKey | nul
   if (!r) return null;
   for (const [words, key] of Object.entries(CRITIC_WORDS)) if (r.startsWith(words)) return key;
   if (r.startsWith(RULES_WORDS)) return "rules";
+  // "too short: 3 s, and this kind of clip needs at least 8 s" (jobs/cut.py)
+  if (r.startsWith(TOO_SHORT_WORDS)) return "too_short";
   // "it scored 48, under this studio's bar of 70: …" (Worker) / "scored 48/100, under your bar of 70: …" (engine)
   if (/^(it )?scored \d+(\/100)?, under (this studio's|your) (review )?bar/.test(r)) return "under_bar";
   return null;

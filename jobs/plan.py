@@ -133,9 +133,22 @@ def profile_hashtags(profile: dict[str, str] | None) -> list[str]:
     return out[:8]
 
 
+CTA_NOT_A_PHRASE = re.compile(r"[:@;]|https?:|www\.|\.com\b|not in your docs", re.I)
+
+
 def ctas(profile: dict[str, str] | None) -> list[str]:
-    lines = re.split(r"\n|\s\|\s", (profile or {}).get("ctas", ""))
-    return [re.sub(r'^[\s\-•"“]+|["”\s]+$', "", l).strip() for l in lines if l.strip(" -•\t\"“”")][:6]
+    """The calls to action she WROTE in her Brand Profile's "ctas" section: only lines that are a short
+    phrase ("Shop the look"), never a description of how she takes enquiries ("For brand deals: email
+    ..."), an email address, a handle or a link. Opt-in (owner, 23 Oct 2026): with none, no clip says
+    one. Same rule as shared/studioRules.ts profileCtaPhrases; pinned by jobs/tests/test_clip_quality.py."""
+    out: list[str] = []
+    for raw in re.split(r"\n|\s\|\s", (profile or {}).get("ctas", "") or ""):
+        l = re.sub(r'^[\s\-•*"“]+|["”\s.!]+$', "", raw).strip()
+        if not l or len(l) > 60 or len(l.split()) > 8 or CTA_NOT_A_PHRASE.search(l):
+            continue
+        if l.lower() not in (x.lower() for x in out):
+            out.append(l)
+    return out[:6]
 
 
 def grounded_cta(profile: dict[str, str] | None, g: Ground) -> str:
@@ -558,8 +571,9 @@ COPY_SYSTEM = (
     "Never mention automation, software or how the video was made. Follow studio_rules exactly. Learn from what the owner kept and turned down (never reuse a turned-down hook). Every clip's hook must be different from every other clip's "
     "and describe that clip's own shots; do not reuse lines from the voice examples. hook and hook_alt: on-screen text, max 8 words each. caption: "
     "max 150 characters in their voice. When how_her_videos_feel is given, match it: her kind of hook, caption style, energy and way of talking. When the clips list a clip_type, write for that kind of clip and follow the playbook "
-    "(payoff first, local words: use the place_words naturally when given). When studio_rules names cta_phrases, do NOT put a call to action "
-    "or a link in the caption (it is added after); otherwise end the caption with one call to action from their list. For each clip n listed "
+    "(payoff first, local words: use the place_words naturally when given). Calls to action are opt-in: when studio_rules names cta_phrases, do NOT put a call to action "
+    "or a link in the caption (it is added after); when calls_to_action is empty there is NO call to action at all (never 'follow for more', "
+    "'link in bio', 'shop now' or any other ask). For each clip n listed "
     "in send_line_clips, add one short 'Send this to...' line to its caption. voice: a voice-over script for that clip, plain spoken "
     "sentences only (no lists, no numbering, no markdown, no notes about the task), about 2 words per second of the clip, telling the same "
     "story as the hook and caption in different words, never the caption word for word, no call to action and no link. 3-5 hashtags. "

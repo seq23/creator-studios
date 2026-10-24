@@ -20,8 +20,18 @@ export interface NichePlaybook {
   formats: string[];
   /** Opening lines or on-screen hooks that work. */
   hooks: string[];
-  /** Caption and call-to-action tips. */
+  /** Caption tips (a call-to-action tip only when the studio chose one: calls to action are opt-in). */
   caption_tips: string[];
+  /** Clip quality (23 Oct 2026): how successful public creators in the niche open (the payoff in the first 2 s). */
+  openings?: string[];
+  /** Seconds per kind of clip (clip type id → [shortest, longest]); the cut and the score use them. */
+  lengths?: Record<string, [number, number]>;
+  /** How fast the cuts come, in one plain line. */
+  pacing?: string;
+  /** Most words of on-screen text. */
+  on_screen_words?: number;
+  /** How their captions read, in one plain line. */
+  caption_style?: string;
 }
 
 export const NICHE_HEALTH = "What's working in your niche";
@@ -39,6 +49,23 @@ export function cleanPlaybook(v: unknown, at = nowIso()): { playbook: NichePlayb
   const p = (r.playbook ?? {}) as Record<string, unknown>;
   const playbook: NichePlaybook = { updated_at: at, formats: list(p.formats, 8, 160), hooks: list(p.hooks, 8, 120), caption_tips: list(p.caption_tips, 8, 160) };
   if (!playbook.formats.length && !playbook.hooks.length && !playbook.caption_tips.length) return null;
+  const openings = list(p.openings, 4, 160);
+  if (openings.length) playbook.openings = openings;
+  const lengths: Record<string, [number, number]> = {};
+  if (p.lengths && typeof p.lengths === "object" && !Array.isArray(p.lengths)) {
+    for (const [k, r] of Object.entries(p.lengths as Record<string, unknown>)) {
+      if (!/^[a-z_]{3,30}$/.test(k) || !Array.isArray(r) || r.length !== 2) continue;
+      const lo = Math.round(Number(r[0]));
+      const hi = Math.round(Number(r[1]));
+      if (Number.isFinite(lo) && Number.isFinite(hi) && lo >= 3 && lo < hi && hi <= 90) lengths[k] = [lo, hi];
+    }
+  }
+  if (Object.keys(lengths).length) playbook.lengths = lengths;
+  const line = (v: unknown) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, 200) : "");
+  if (line(p.pacing)) playbook.pacing = line(p.pacing);
+  if (line(p.caption_style)) playbook.caption_style = line(p.caption_style);
+  const words = Math.round(Number(p.on_screen_words));
+  if (Number.isFinite(words) && words >= 3 && words <= 12) playbook.on_screen_words = words;
   const summary = list(r.summary, 5, 200);
   return { playbook, summary: summary.length ? summary : summaryOf(playbook), sources: Math.max(0, Math.min(100, Math.floor(Number(r.sources) || 0))) };
 }
@@ -46,6 +73,24 @@ export function cleanPlaybook(v: unknown, at = nowIso()): { playbook: NichePlayb
 /** Three plain lines when the job sent none. Pure. */
 export function summaryOf(p: NichePlaybook): string[] {
   return [p.formats[0] && `Works best: ${p.formats[0]}`, p.hooks[0] && `A strong opening: ${p.hooks[0]}`, p.caption_tips[0] && `In the caption: ${p.caption_tips[0]}`].filter((x): x is string => !!x);
+}
+
+const CLIP_KIND: Record<string, string> = { talk_to_camera: "Talking clips", finished_walkthrough: "Walk-throughs", pov_walk_in: "Walk-in reveals", payoff_first: "Before and afters", photo_slideshow: "Photo slideshows" };
+
+/** What the studio learned, in plain words for her research page (clip quality, 23 Oct 2026). Pure. */
+export function learnedLines(p: NichePlaybook | null): string[] {
+  if (!p) return [];
+  const out: string[] = [];
+  if (p.openings?.[0]) out.push(`How the best ones open: ${p.openings[0]}`);
+  if (p.hooks[0]) out.push(`Hooks that work: ${p.hooks.slice(0, 3).map((h) => `“${h}”`).join(", ")}`);
+  const lens = Object.entries(p.lengths ?? {})
+    .filter(([k]) => CLIP_KIND[k])
+    .map(([k, [lo, hi]]) => `${CLIP_KIND[k].toLowerCase()} ${lo} to ${hi} seconds`);
+  if (lens.length) out.push(`How long: ${lens.join("; ")}`);
+  if (p.pacing) out.push(`Pacing: ${p.pacing}`);
+  if (p.on_screen_words) out.push(`On-screen words: ${p.on_screen_words} or fewer`);
+  if (p.caption_style) out.push(`Captions: ${p.caption_style}`);
+  return out;
 }
 
 /** The newest playbook (what the cut reads), or null before the first run. */
@@ -57,6 +102,10 @@ export async function latestPlaybook(env: Pick<Env, "DB">): Promise<NichePlayboo
 export interface NicheView {
   playbook: NichePlaybook | null;
   summary: string[];
+  /** What it learned, plain lines (learnedLines). */
+  learned: string[];
+  /** "past_videos" once "My past videos" exist (they lead, this supports); else "niche". */
+  leads: "past_videos" | "niche";
   updated_at: string | null;
   next_on: string | null;
 }
@@ -64,20 +113,28 @@ export interface NicheView {
 /** For the Brand page: the newest summary and when the next one is due. */
 export async function nicheView(env: Pick<Env, "DB">): Promise<NicheView> {
   const row = await env.DB.prepare("SELECT body, summary, created_at FROM niche_playbooks ORDER BY created_at DESC LIMIT 1").first<{ body: string; summary: string; created_at: string }>();
-  if (!row) return { playbook: null, summary: [], updated_at: null, next_on: null };
+  const feel = await env.DB.prepare(`SELECT sections FROM brand_profile ${PROFILE_IN_USE}`).first<{ sections: string }>();
+  const leads = String(parseJson<Record<string, unknown>>(feel?.sections ?? null, {}).video_feel ?? "").trim() ? "past_videos" : "niche";
+  if (!row) return { playbook: null, summary: [], learned: [], leads, updated_at: null, next_on: null };
+  const playbook = parseJson<NichePlaybook | null>(row.body, null);
   return {
-    playbook: parseJson<NichePlaybook | null>(row.body, null),
+    playbook,
     summary: parseJson<string[]>(row.summary, []),
+    learned: learnedLines(playbook),
+    leads,
     updated_at: row.created_at,
     next_on: new Date(Date.parse(row.created_at) + NICHE_EVERY_DAYS * 86400_000).toISOString().slice(0, 10),
   };
 }
 
 /** Is a monthly run due? Pure: the newest playbook's age, and the last niche job's. */
-export function nicheDue(o: { now: Date; lastPlaybookAt: string | null; lastJob: { status: string; created_at: string } | null; profileLocked: boolean }): { run: boolean; note: string; light: "green" | "yellow" } {
+export function nicheDue(o: { now: Date; lastPlaybookAt: string | null; lastJob: { status: string; created_at: string } | null; profileLocked: boolean; profileVersion?: number | null; playbookVersion?: number | null }): { run: boolean; note: string; light: "green" | "yellow" } {
   if (!o.profileLocked) return { run: false, note: "Waiting for your Brand Profile to be locked; the first niche research runs the day it is.", light: "yellow" };
   const age = (iso: string | null) => (iso ? (o.now.getTime() - Date.parse(iso.endsWith("Z") ? iso : `${iso}Z`)) / 86400_000 : Infinity);
   if (o.lastJob && ["queued", "dispatched", "running"].includes(o.lastJob.status) && age(o.lastJob.created_at) < 1) return { run: false, note: "Researching your niche now.", light: "green" };
+  // Refreshed whenever the Brand Profile changes (clip quality, 23 Oct 2026): a playbook for another version is stale.
+  const changed = o.lastPlaybookAt !== null && o.profileVersion != null && o.playbookVersion !== o.profileVersion;
+  if (changed && !(o.lastJob?.status === "failed" && age(o.lastJob.created_at) < 1)) return { run: true, note: "Your Brand Profile changed, so the niche research is being redone.", light: "green" };
   if (age(o.lastPlaybookAt) < NICHE_EVERY_DAYS) return { run: false, note: "Up to date: researched within the last month.", light: "green" };
   if (o.lastJob?.status === "failed" && age(o.lastJob.created_at) < NICHE_RETRY_DAYS) return { run: false, note: `The last niche research did not finish; it tries again within ${NICHE_RETRY_DAYS} days. Your clips use the last one meanwhile.`, light: "yellow" };
   return { run: true, note: "Monthly niche research started.", light: "green" };
@@ -85,10 +142,10 @@ export function nicheDue(o: { now: Date; lastPlaybookAt: string | null; lastJob:
 
 /** Daily lane: start the monthly niche research when it is due. */
 export async function monthlyNicheRefresh(env: Env, now = new Date()): Promise<{ dispatched: boolean; note: string }> {
-  const profile = await env.DB.prepare(`SELECT version FROM brand_profile ${PROFILE_IN_USE}`).first();
-  const last = await env.DB.prepare("SELECT created_at FROM niche_playbooks ORDER BY created_at DESC LIMIT 1").first<{ created_at: string }>();
+  const profile = await env.DB.prepare(`SELECT version FROM brand_profile ${PROFILE_IN_USE}`).first<{ version: number }>();
+  const last = await env.DB.prepare("SELECT created_at, profile_version FROM niche_playbooks ORDER BY created_at DESC LIMIT 1").first<{ created_at: string; profile_version: number | null }>();
   const job = await env.DB.prepare("SELECT status, created_at FROM jobs WHERE type = 'niche' ORDER BY created_at DESC LIMIT 1").first<{ status: string; created_at: string }>();
-  const d = nicheDue({ now, lastPlaybookAt: last?.created_at ?? null, lastJob: job ?? null, profileLocked: !!profile });
+  const d = nicheDue({ now, lastPlaybookAt: last?.created_at ?? null, lastJob: job ?? null, profileLocked: !!profile, profileVersion: profile?.version ?? null, playbookVersion: last?.profile_version ?? null });
   if (!d.run) {
     await setHealth(env.DB, NICHE_HEALTH, d.light, d.note, null);
     return { dispatched: false, note: d.note };
@@ -108,10 +165,13 @@ export async function storePlaybook(env: Env, jobId: string, result: unknown): P
     return null;
   }
   const id = newId("nch");
-  await env.DB.prepare("INSERT INTO niche_playbooks (id, body, summary, sources) VALUES (?, ?, ?, ?)").bind(id, JSON.stringify(clean.playbook), JSON.stringify(clean.summary), clean.sources).run();
+  const v = await env.DB.prepare(`SELECT version FROM brand_profile ${PROFILE_IN_USE}`).first<{ version: number }>();
+  // One note a month at most: a refresh because the profile changed is used at once, without another email.
+  const noted = await env.DB.prepare("SELECT 1 AS x FROM niche_playbooks WHERE emailed_at IS NOT NULL AND emailed_at >= ? LIMIT 1").bind(new Date(Date.now() - NICHE_EVERY_DAYS * 86400_000).toISOString()).first();
+  await env.DB.prepare("INSERT INTO niche_playbooks (id, body, summary, sources, profile_version) VALUES (?, ?, ?, ?, ?)").bind(id, JSON.stringify(clean.playbook), JSON.stringify(clean.summary), clean.sources, v?.version ?? null).run();
   await recordEvent(env.DB, "niche.researched", jobId, { formats: clean.playbook.formats.length, hooks: clean.playbook.hooks.length, tips: clean.playbook.caption_tips.length, sources: clean.sources });
   await setHealth(env.DB, NICHE_HEALTH, "green", "Up to date: researched this month.", null);
-  await sendNicheNote(env, id, clean.summary);
+  if (!noted) await sendNicheNote(env, id, clean.summary);
   return id;
 }
 
