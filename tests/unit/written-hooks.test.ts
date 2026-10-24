@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { HOOK_STOP, nearDuplicateHook } from "@shared/clipWords";
-import { scoreWithWords, WAITING_REASON, WORDS_HIT, WORDS_POINTS } from "@worker/lib/wordsPass";
+import { finishWords, HOOK_MAX_WORDS, scoreWithWords, WAITING_REASON, WORDS_HIT, WORDS_POINTS } from "@worker/lib/wordsPass";
 
 const REAL = ["Latte art: everyday elegance", "Boat mornings, latte art, pure joy", "Boat mornings, latte art perfection", "Sailing sunrise, latte love", "Morning waves meet perfect latte art", "Sip, shuffle, and sparkle"];
 
@@ -51,3 +51,16 @@ describe("the score once the words are in", () => {
     expect(WAITING_REASON.toLowerCase()).toBe("the words are still being written");
   });
 });
+
+describe("the words pass writes hooks short enough to read", () => {
+  const rules = { cta_phrases: [], cta_link: "", ai_note: "off", prices: false, place_words: [] } as never;
+  const clip = { number: 1, uses_ai_images: false };
+  it("refuses a hook over the engine's limit (24 Oct 2026: a 16-word 'POV: the instant you catch…')", () => {
+    expect(HOOK_MAX_WORDS).toBe(8);
+    expect(finishWords({ hook: "POV: the instant you catch your reflection in the string lights and see yourself glowing", caption: "A night out." }, rules, clip, () => [])).toBeNull();
+    expect(finishWords({ hook: "Street walk, instant glam", caption: "A night out." }, rules, clip, () => [])?.hook_text).toBe("Street walk, instant glam");
+    const py = readFileSync("jobs/clipmaker.py", "utf8");
+    expect(py).toMatch(/len\(h\) <= 56/);
+  });
+});
+

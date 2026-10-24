@@ -4,12 +4,13 @@
 // right WITHOUT a new cut (so no second "Clips ready" email): its New clips go back to waiting for
 // their words (hook, caption and voice script cleared, the score docked exactly as the engine docks a
 // clip with no words), the hourly words pass writes them now in her voice, and every clip whose old
-// hook was burned into its video is re-rendered in the same look so the old line leaves the picture.
+// hook was burned into its video is re-rendered in the same look so the old line leaves the picture
+// (dispatched first; then one words pass, and the hourly lane writes whatever is left).
 // Nothing is approved, posted or deleted. Signed ops only (worker/routes/ops.ts "rewrite-words").
 // Guard: tests/unit/written-hooks.test.ts.
 import type { Env } from "../env";
 import { dispatchJob } from "../services/github";
-import { WAITING_REASON, WORDS_HIT, WORDS_PER_RUN, WORDS_POINTS, wordsPass } from "./wordsPass";
+import { WAITING_REASON, WORDS_HIT, WORDS_POINTS, wordsPass } from "./wordsPass";
 
 /** jobs/clipmaker.py WORDS_CAP: a clip waiting for its words scores at most this. */
 export const WORDS_CAP = 80;
@@ -38,7 +39,7 @@ export interface RewriteResult {
   rerender_failed: number;
 }
 
-export async function rewriteDumpWords(env: Env, dumpId: string, numbers: number[] | null): Promise<RewriteResult | null> {
+export async function rewriteDumpWords(env: Env, dumpId: string, numbers: number[] | null, rerenderAll = false): Promise<RewriteResult | null> {
   const dump = await env.DB.prepare("SELECT id, status FROM dumps WHERE id = ?").bind(dumpId).first<{ id: string; status: string }>();
   if (!dump || !["ready", "reviewed"].includes(dump.status)) return null;
   const { results } = await env.DB.prepare(
@@ -50,7 +51,8 @@ export async function rewriteDumpWords(env: Env, dumpId: string, numbers: number
   const targets = results.filter((r) => !numbers || (r.number !== null && numbers.includes(r.number)));
   const burned: { id: string; look: string }[] = [];
   for (const r of targets) {
-    if (r.hook_text.trim() && r.look) burned.push({ id: r.id, look: r.look });
+    // Its hook is in its picture (or the caller says an earlier pass already cleared one that was).
+    if ((r.hook_text.trim() || rerenderAll) && r.look) burned.push({ id: r.id, look: r.look });
     if (r.words_pending) continue;
     const s = scoreWithoutWords(r.score, r.score_reasons);
     await env.DB.prepare(
@@ -58,15 +60,6 @@ export async function rewriteDumpWords(env: Env, dumpId: string, numbers: number
     )
       .bind(s.score, s.score_reasons, r.id)
       .run();
-  }
-  // The words pass takes WORDS_PER_RUN clips a run and tries each at most once an hour: run it until
-  // every target has had its try this time.
-  let written = 0;
-  let waiting = 0;
-  for (let i = 0; i < Math.max(1, Math.ceil(targets.length / WORDS_PER_RUN)); i++) {
-    const r = await wordsPass(env);
-    written += r.written;
-    waiting = r.waiting;
   }
   let rerenders = 0;
   let failed = 0;
@@ -82,5 +75,11 @@ export async function rewriteDumpWords(env: Env, dumpId: string, numbers: number
     await env.DB.prepare("UPDATE clips SET rerender_job_id = ? WHERE id = ?").bind(job.jobId, b.id).run();
     rerenders++;
   }
+  // One words pass now (WORDS_PER_RUN clips, one free-model call each, so the request stays short);
+  // the hourly lane writes the rest. The re-renders went first: the old line leaves the picture
+  // whether or not the new words are in yet.
+  const r = await wordsPass(env);
+  const written = r.written;
+  const waiting = r.waiting;
   return { cleared: targets.length, written, waiting, rerenders, rerender_failed: failed };
 }
