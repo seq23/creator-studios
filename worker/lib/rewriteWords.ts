@@ -39,7 +39,7 @@ export interface RewriteResult {
   rerender_failed: number;
 }
 
-export async function rewriteDumpWords(env: Env, dumpId: string, numbers: number[] | null, rerenderAll = false): Promise<RewriteResult | null> {
+export async function rewriteDumpWords(env: Env, dumpId: string, numbers: number[] | null, rerenderAll = false, rerenderOnly = false): Promise<RewriteResult | null> {
   const dump = await env.DB.prepare("SELECT id, status FROM dumps WHERE id = ?").bind(dumpId).first<{ id: string; status: string }>();
   if (!dump || !["ready", "reviewed"].includes(dump.status)) return null;
   const { results } = await env.DB.prepare(
@@ -53,7 +53,7 @@ export async function rewriteDumpWords(env: Env, dumpId: string, numbers: number
   for (const r of targets) {
     // Its hook is in its picture (or the caller says an earlier pass already cleared one that was).
     if ((r.hook_text.trim() || rerenderAll) && r.look) burned.push({ id: r.id, look: r.look });
-    if (r.words_pending) continue;
+    if (r.words_pending || rerenderOnly) continue; // rerenderOnly: the words stay, the picture is redone with them
     const s = scoreWithoutWords(r.score, r.score_reasons);
     await env.DB.prepare(
       "UPDATE clips SET hook_text = '', hook_alt = NULL, caption = '', hashtags = '', voice_script = NULL, words_pending = 1, words_tries = 0, words_tried_at = NULL, score = ?, score_reasons = ? WHERE id = ? AND status = 'draft'",
@@ -78,8 +78,8 @@ export async function rewriteDumpWords(env: Env, dumpId: string, numbers: number
   // One words pass now (WORDS_PER_RUN clips, one free-model call each, so the request stays short);
   // the hourly lane writes the rest. The re-renders went first: the old line leaves the picture
   // whether or not the new words are in yet.
-  const r = await wordsPass(env);
-  const written = r.written;
-  const waiting = r.waiting;
-  return { cleared: targets.length, written, waiting, rerenders, rerender_failed: failed };
+  const r = rerenderOnly ? null : await wordsPass(env);
+  const written = r?.written ?? 0;
+  const waiting = r?.waiting ?? 0;
+  return { cleared: rerenderOnly ? 0 : targets.length, written, waiting, rerenders, rerender_failed: failed };
 }

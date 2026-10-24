@@ -17,7 +17,7 @@
 //   rewrite-words  a cut dump's New clips get their words written again, now, in her voice, with no new
 //               cut (no second "Clips ready" email); a clip whose old hook was in its picture is
 //               re-rendered in the same look (worker/lib/rewriteWords.ts). Optional clip numbers.
-//               `node scripts/studio.mjs rewrite-words <slug> <dumpId> [--numbers=78,79] [--rerender]`
+//               `node scripts/studio.mjs rewrite-words <slug> <dumpId> [--numbers=78,79] [--rerender] [--rerender-only]`
 //   words       the hourly words pass now (clips waiting for their words; each tried once an hour).
 //               `node scripts/studio.mjs words <slug>`
 import { Hono, type Context } from "hono";
@@ -80,11 +80,11 @@ ops.post("/niche", async (c) => {
 ops.post("/rewrite-words", async (c) => {
   const text = await signedBody(c);
   if (text === null) return fail(c, 401, "Bad signature.");
-  const body = parseJson<{ dump_id?: string; numbers?: unknown; rerender?: boolean }>(text, {});
+  const body = parseJson<{ dump_id?: string; numbers?: unknown; rerender?: boolean; rerender_only?: boolean }>(text, {});
   const id = String(body.dump_id ?? "");
   if (!id) return fail(c, 400, "Which dump?");
   const numbers = Array.isArray(body.numbers) ? body.numbers.map(Number).filter((n) => Number.isInteger(n) && n > 0) : null;
-  const r = await rewriteDumpWords(c.env, id, numbers && numbers.length ? numbers : null, body.rerender === true);
+  const r = await rewriteDumpWords(c.env, id, numbers && numbers.length ? numbers : null, body.rerender === true || body.rerender_only === true, body.rerender_only === true);
   if (!r) return fail(c, 409, "That dump is not cut yet (or is gone).");
   await recordEvent(c.env.DB, "dump.rewrite_words", id, { ...r }, OPS_ACTOR);
   log.info("ops.rewrite_words", { ...r });

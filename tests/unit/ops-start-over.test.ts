@@ -80,6 +80,12 @@ describe("signed Start over", () => {
     expect((await app.request("http://w.example/api/ops/words", { method: "POST", headers: { "content-type": "application/json" }, body: w }, env)).status).toBe(401);
     const ran = await app.request("http://w.example/api/ops/words", { method: "POST", headers: { "content-type": "application/json", ...sign(w) }, body: w }, env);
     expect(await ran.json()).toMatchObject({ ok: true, written: 0, waiting: 0 });
+    // --rerender-only: the words she has stay, only the picture is redone (once the first re-render is in).
+    db.raw.exec("UPDATE clips SET rerender_job_id = NULL, pending_look = NULL WHERE id = 'clp_new'");
+    const keep = (db.raw.prepare("SELECT hook_text FROM clips WHERE id = 'clp_new'").get() as { hook_text: string }).hook_text;
+    const only = JSON.stringify({ dump_id: "dmp_o", rerender_only: true });
+    expect(await (await rw(only)).json()).toMatchObject({ ok: true, cleared: 0, written: 0, rerenders: 1 });
+    expect(db.raw.prepare("SELECT hook_text, words_pending FROM clips WHERE id = 'clp_new'").get()).toEqual({ hook_text: keep, words_pending: 0 });
     expect(row.pending_look).toBe("clean");
     expect(db.raw.prepare("SELECT hook_text, score FROM clips WHERE id = 'clp_ok'").get()).toEqual({ hook_text: "Kept as she approved it", score: 90 });
     expect(db.raw.prepare("SELECT COUNT(*) AS n FROM emails_sent").get()).toEqual({ n: 0 });
