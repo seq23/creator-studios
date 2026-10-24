@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { getSetUp } from "@worker/routes/home";
 import { harness } from "./helpers/studio-fix-env";
-import { WHY_BUFFER } from "../../app/components/WhyBuffer";
+import { WHY_BUFFER } from "@shared/whyBuffer";
 
 describe("Get set up", () => {
   it("ticks what is done, links each step to its screen and guide, and goes away when all four are done", async () => {
