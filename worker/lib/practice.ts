@@ -10,7 +10,7 @@
 import type { Env } from "../env";
 import { fakeServices } from "../env";
 import { decryptSecret } from "./crypto";
-import { hostBase } from "./hostKeys";
+import { hostBase, hostFirst } from "./hostKeys";
 import { parseJson } from "./db";
 import { log } from "./log";
 import { SETUP_STEPS, type SetupServiceId } from "@shared/setup";
@@ -106,6 +106,8 @@ export async function hydrate(env: Env): Promise<Env> {
   for (const r of rows) if (r.secret_enc && r.status !== "disconnected") stored.set(r.service, r);
   for (const s of SETUP_STEPS) {
     if (!ENV_BACKED.has(s.id)) continue;
+    // Host-first (Mercedes's OpenRouter): the host's key stays on the env; her pasted key is the backup (connections.ts).
+    if (hostFirst(out, s.id)) continue;
     const row = stored.get(s.id);
     if (!row?.secret_enc) continue;
     try {

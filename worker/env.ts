@@ -28,6 +28,8 @@ export interface Env {
   STUDIO_KIND?: string;
   /** The host fallback secrets a host-accounts studio may read, comma-separated (registry hostKeys; worker/lib/hostKeys.ts). */
   HOST_KEYS?: string;
+  /** "host-first": the host's OpenRouter key first, her pasted key as the backup (registry openrouterOrder; worker/lib/hostKeys.ts hostFirst). Else her pasted key wins. */
+  OPENROUTER_ORDER?: string;
   /** Hugging Face token for realistic motion (Setup → Realistic motion, or a Worker secret). */
   HF_TOKEN?: string;
   /** Every studio email except login codes goes ONLY here when set (worker/services/email.ts routeRecipients). */

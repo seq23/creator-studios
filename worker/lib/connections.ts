@@ -2,20 +2,39 @@ import type { Env } from "../env";
 import { decryptSecret, encryptSecret } from "./crypto";
 import { nowIso } from "./ids";
 import { parseJson } from "./db";
-import { HOST_KEY_SERVICES, hostKeyFor } from "./hostKeys";
+import { HOST_KEY_SERVICES, hostFirst, hostKeyFor } from "./hostKeys";
 import type { ConnectionView } from "@shared/types";
 
 export type Service = ConnectionView["service"];
 
+/** Her own key saved on Setup for this service, or null (none stored, or disconnected). Never logged. */
+async function storedSecret(env: Env, service: Service): Promise<string | null> {
+  const row = await env.DB.prepare("SELECT secret_enc, status FROM connections WHERE service = ?").bind(service).first<{ secret_enc: string | null; status: string }>();
+  if (!row?.secret_enc || row.status === "disconnected") return null;
+  return decryptSecret(env.SECRETS_KEY, row.secret_enc);
+}
+
 /**
- * Read a stored vendor key. Returns null when not connected. Never logged. A host-accounts studio
+ * Read a vendor key. Returns null when not connected. Never logged. A host-accounts studio
  * with no OpenRouter / Firecrawl / Hunter key saved gets the host's (worker/lib/hostKeys.ts), so
- * every job's signed spec and every vendor call carries it; a client studio never does.
+ * every job's signed spec and every vendor call carries it; a client studio never does. On a
+ * host-first studio (hostFirst) the host's OpenRouter key comes first even when she saved her own;
+ * hers is then the backup (getOpenRouterFallback).
  */
 export async function getConnectionSecret(env: Env, service: Service): Promise<string | null> {
-  const row = await env.DB.prepare("SELECT secret_enc, status FROM connections WHERE service = ?").bind(service).first<{ secret_enc: string | null; status: string }>();
-  if (!row?.secret_enc || row.status === "disconnected") return hostKeyFor(env, service);
-  return decryptSecret(env.SECRETS_KEY, row.secret_enc);
+  const host = hostKeyFor(env, service);
+  if (host && hostFirst(env, service)) return host;
+  return (await storedSecret(env, service)) ?? host;
+}
+
+/**
+ * The backup OpenRouter key: on a host-first studio, her own pasted key (tried when the host's is
+ * refused, limited or gets no answer); null everywhere else, and when it is the same key.
+ */
+export async function getOpenRouterFallback(env: Env): Promise<string | null> {
+  if (!hostFirst(env, "openrouter")) return null;
+  const hers = await storedSecret(env, "openrouter");
+  return hers && hers !== hostKeyFor(env, "openrouter") ? hers : null;
 }
 
 export async function saveConnection(env: Env, service: Service, secret: string | null, status: ConnectionView["status"], meta: Record<string, unknown>, lastError: string | null = null) {
