@@ -67,7 +67,7 @@ test("brain → research → the cutting gate opens only after lock + approve", 
   await page.goto("/brain");
   await expect(page.getByRole("heading", { name: "Client Brain" })).toBeVisible();
   const extractCall = page.waitForResponse((r) => r.url().endsWith("/api/brain/extract") && r.request().method() === "POST");
-  await page.locator('input[type="file"]').setInputFiles({ name: "brand-notes.md", mimeType: "", buffer: Buffer.from(MD) });
+  await page.getByLabel("Choose brand docs").setInputFiles({ name: "brand-notes.md", mimeType: "", buffer: Buffer.from(MD) });
   const extract = (await (await extractCall).json()) as { jobId: string | null; docs: number };
   expect(extract.docs).toBeGreaterThanOrEqual(1);
   await expect(page.getByLabel("Brand docs").getByText("Reading text…").first()).toBeVisible();

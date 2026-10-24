@@ -19,6 +19,7 @@ export interface PastVideosData {
 
 const RUNNING = ["queued", "dispatched", "running"];
 
+/** Its buttons are never the screen's primary: Client Brain's header holds the one next step. */
 export function PastVideos({ data, reload }: { data: PastVideosData; reload: () => void }) {
   const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -138,12 +139,12 @@ export function PastVideos({ data, reload }: { data: PastVideosData; reload: () 
 
       <div className="past-actions">
         {room > 0 ? (
-          <button type="button" className={enough ? "btn quiet block" : "btn block"} data-primary={!enough || undefined} disabled={running || uploads.length > 0} onClick={() => inputRef.current?.click()}>
+          <button type="button" className={enough ? "btn quiet block" : "btn block"} disabled={running || uploads.length > 0} onClick={() => inputRef.current?.click()}>
             {data.files.length ? `Add more past videos (${data.files.length} of ${data.max})` : "Choose past videos"}
           </button>
         ) : null}
         {enough ? (
-          <button type="button" className="btn block" data-primary disabled={running || busy || uploads.length > 0} onClick={watch}>
+          <button type="button" className="btn block" disabled={running || busy || uploads.length > 0} onClick={watch}>
             {running ? "Watching…" : data.read?.version ? "Watch my videos again" : "Watch my videos"}
           </button>
         ) : (
