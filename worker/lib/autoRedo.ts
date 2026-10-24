@@ -28,10 +28,11 @@ interface Row extends HeldClip {
   dump_id: string;
   look: string | null;
   score: number | null;
+  created_at: string;
 }
 
 const HELD_SQL = `SELECT c.id, c.dump_id, c.hidden, c.status, c.style_of, c.edited_with, c.clip_type, c.hidden_reason, c.pending_look, c.rerender_job_id,
-  c.hold_cause, c.hold_check, c.auto_redo_check, c.auto_redo_count, c.look, c.score,
+  c.hold_cause, c.hold_check, c.auto_redo_check, c.auto_redo_count, c.look, c.score, c.created_at,
   EXISTS (SELECT 1 FROM posts p WHERE p.clip_id = c.id) AS in_posts,
   EXISTS (SELECT 1 FROM assets x WHERE x.dump_id = c.dump_id AND x.raw_deleted_at IS NOT NULL AND (x.id = c.asset_id OR instr(COALESCE(c.part_assets, ''), x.id) > 0)) AS raw_cleared,
   EXISTS (SELECT 1 FROM assets x WHERE x.dump_id = c.dump_id AND x.source_owner = 'other' AND (x.id = c.asset_id OR instr(COALESCE(c.part_assets, ''), x.id) > 0)) AS not_hers
@@ -73,6 +74,7 @@ export async function autoRedoSweep(env: Env): Promise<SweepResult> {
   const out: SweepResult = { held: 0, started: 0, back: 0, stillHeld: 0, failed: 0, waiting: 0, blocked: null };
   await settle(env, out);
   const bar = (await readStudioRules(env)).bar;
+  const from = (env.AUTO_REDO_FROM ?? "").trim();
   const { results } = await env.DB.prepare(HELD_SQL).all<Row>();
   out.held = results.length;
   const todo: { row: Row; d: Extract<ReturnType<typeof redoDecision>, { redo: true }> }[] = [];
@@ -93,6 +95,12 @@ export async function autoRedoSweep(env: Env): Promise<SweepResult> {
       }
     }
     const d = redoDecision(row);
+    // A studio may start its own redos from a moment on (registry autoRedoFrom): older clips wait,
+    // unless a newer check fixed what held them.
+    if (d.redo && from && row.created_at < from && !d.fixedSince) {
+      out.waiting++;
+      continue;
+    }
     if (d.redo) todo.push({ row, d });
     else if (!d.terminal) out.waiting++;
     else if (d.cause && /already redone/.test(d.why) && !row.hidden_reason.includes(GAVE_UP_NOTE)) {

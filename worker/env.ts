@@ -112,6 +112,8 @@ export interface Env {
   STUDIO_SOUND?: string;
   /** studios/<slug>.json "studioRules" as JSON: call to action, Made with AI, clips per dump, review bar (shared/studioRules.ts). */
   STUDIO_RULES?: string;
+  /** ISO time: only clips made from then on are redone automatically (registry autoRedoFrom); "" = all. */
+  AUTO_REDO_FROM?: string;
   /** studios/<slug>.json "whatsNew" as JSON: the one-time note shown to the owner (shared/photoPosts.ts). */
   WHATS_NEW?: string;
 }

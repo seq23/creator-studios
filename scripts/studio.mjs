@@ -132,6 +132,8 @@ export function envBlock(s, themes) {
       STUDIO_SOUND: s.sound ? JSON.stringify({ cameraSound: s.sound.cameraSound, voice: s.sound.voice }) : "",
       // Clip rules: call to action, Made with AI, clips per dump, review bar (shared/studioRules.ts); "" = the plain defaults.
       STUDIO_RULES: s.studioRules ? JSON.stringify(Object.fromEntries(Object.entries(s.studioRules).filter(([k]) => !k.startsWith("_")))) : "",
+      // The studio redoes held clips on its own only for clips made from this moment on (worker/lib/autoRedo.ts); "" = all.
+      AUTO_REDO_FROM: s.autoRedoFrom ?? "",
       // This studio's share of the account's free 10,000 Workers AI neurons a day ("0" = never call).
       STUDIO_AI_BUDGET: String(s.aiBudget ?? 0),
       ...(s.whatsNew ? { WHATS_NEW: JSON.stringify(s.whatsNew) } : {}),
@@ -173,6 +175,7 @@ export function wranglerConfig({ studios, themes }) {
       CONTENT_RULES: JSON.stringify(DEV_CONTENT_RULES),
       STUDIO_SOUND: "",
       STUDIO_RULES: JSON.stringify(DEV_STUDIO_RULES),
+      AUTO_REDO_FROM: "",
       STUDIO_AI_BUDGET: "0",
       ENV_NAME: "dev",
       AUTH_MODE: "code",
