@@ -144,7 +144,14 @@ export const BRAND_PROFILE_SECTIONS = [
   { key: "service_looks", label: "What each service looks like" },
   // "Service: before and after, walk-through" lines (best first); "All: close-ups" for every service.
   { key: "video_shapes", label: "Which video shapes fit" },
+  // Learn from my past videos (owner's plan 23 Oct 2026): written by the pastvideos job from her old
+  // finished videos (hooks, pacing, length, captions, music, talking to camera, formats); she can edit it.
+  { key: "video_feel", label: "How my videos feel" },
 ] as const;
+
+/** Learn from my past videos: how many of her old finished videos the studio watches. */
+export const PAST_VIDEOS_MIN = 3;
+export const PAST_VIDEOS_MAX = 10;
 export type BrandProfileKey = (typeof BRAND_PROFILE_SECTIONS)[number]["key"];
 
 export const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/x-m4v", "video/webm", "video/3gpp"];

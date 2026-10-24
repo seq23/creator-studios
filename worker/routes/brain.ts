@@ -19,17 +19,19 @@ import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { requireUser } from "../lib/auth";
 import { getConnectionSecret } from "../lib/connections";
-import { parseJson, recordEvent } from "../lib/db";
+import { getSetting, parseJson, recordEvent } from "../lib/db";
 import { fail, readJson } from "../lib/http";
 import { nowIso } from "../lib/ids";
 import { log } from "../lib/log";
+import { PAST_READ_KEY, type PastVideosRead } from "../jobs/pastvideos";
+import { PAST_VIDEOS_MAX, PAST_VIDEOS_MIN } from "@shared/constants";
 import { PROFILE_IN_USE } from "../lib/profileInUse";
 import { researchAfterLock } from "../lib/setupWait";
 import { sendWaitingDumps } from "./dumps";
 import { dispatchJob } from "../services/github";
 import { getLlm } from "../services/openrouter";
 import type { BrandDocRow, BrandProfileView } from "@shared/types";
-import { cleanSections, FAKE_PROFILE, filledCount, parseProfileAnswer, PROFILE_SYSTEM, profileUserPrompt, WORKER_DRAFT_MAX_CHARS } from "../domain/profile";
+import { cleanSections, FAKE_PROFILE, keepVideoFeel, filledCount, parseProfileAnswer, PROFILE_SYSTEM, profileUserPrompt, WORKER_DRAFT_MAX_CHARS } from "../domain/profile";
 import { markExtracting, textKey } from "../jobs/extract";
 
 export const brain = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -64,6 +66,7 @@ brain.get("/", async (c) => {
   return c.json({
     docs,
     profile: cur ? toView(cur) : null,
+    pastVideos: await pastVideosView(c.env),
     inUse: (await c.env.DB.prepare(`SELECT version, locked_at FROM brand_profile ${PROFILE_IN_USE}`).first<{ version: number; locked_at: string | null }>()) ?? null,
     versions: versions.map((v) => ({ ...v, locked: !!v.locked })),
     job,
@@ -158,6 +161,8 @@ brain.post("/profile/draft", async (c) => {
     sections = parseProfileAnswer(answer.text);
     if (!sections) return fail(c, 502, "The AI's draft came back incomplete. Press Draft again.", "upload-brand-docs");
   }
+  const prev = await latest(c.env);
+  sections = keepVideoFeel(sections, prev ? cleanSections(parseJson(prev.sections, {})) : null);
   const res = await c.env.DB.prepare("INSERT INTO brand_profile (sections, locked, source) VALUES (?, 0, 'draft')").bind(JSON.stringify(sections)).run();
   await recordEvent(c.env.DB, "profile.drafted", String(res.meta.last_row_id), { via: "worker", filled: filledCount(sections) }, c.get("user").email);
   log.info("profile.drafted", { filled: filledCount(sections) });
@@ -174,6 +179,51 @@ brain.patch("/profile", async (c) => {
   const res = await c.env.DB.prepare("INSERT INTO brand_profile (sections, locked, source) VALUES (?, 0, 'edited')").bind(JSON.stringify(merged)).run();
   await recordEvent(c.env.DB, "profile.edited", String(res.meta.last_row_id), {}, c.get("user").email);
   return c.json({ ok: true, version: res.meta.last_row_id });
+});
+
+// ---- Learn from my past videos (owner's plan, 23 Oct 2026; worker/jobs/pastvideos.ts) ----
+// Her 3 to 10 old FINISHED videos upload through /api/uploads with kind "past_video" (R2
+// pastvideos/, never footage, never cut). "Watch my videos" starts the pastvideos job, which writes
+// "How my videos feel" into a new unlocked version of the profile.
+
+async function pastVideosView(env: Env) {
+  const { results: files } = await env.DB.prepare("SELECT id, file_name, size_bytes, upload_status, read_at, created_at FROM past_videos WHERE upload_status != 'aborted' ORDER BY created_at").all<{ id: string; file_name: string; size_bytes: number; upload_status: string; read_at: string | null; created_at: string }>();
+  const job = await env.DB.prepare("SELECT id, status, progress, safe_error, created_at FROM jobs WHERE type = 'pastvideos' ORDER BY created_at DESC LIMIT 1").first<{ id: string; status: string; progress: string | null; safe_error: string | null; created_at: string }>();
+  return {
+    files,
+    job: job ? { ...job, progress: parseJson(job.progress, null) } : null,
+    read: await getSetting<PastVideosRead | null>(env.DB, PAST_READ_KEY, null),
+    min: PAST_VIDEOS_MIN,
+    max: PAST_VIDEOS_MAX,
+  };
+}
+
+const pastRunning = (env: Env) =>
+  env.DB.prepare("SELECT id FROM jobs WHERE type = 'pastvideos' AND status IN ('queued', 'dispatched', 'running') AND created_at > ? LIMIT 1")
+    .bind(new Date(Date.now() - 90 * 60_000).toISOString())
+    .first<{ id: string }>();
+
+brain.post("/past-videos/read", async (c) => {
+  const n = (await c.env.DB.prepare("SELECT COUNT(*) AS n FROM past_videos WHERE upload_status = 'uploaded'").first<{ n: number }>())?.n ?? 0;
+  if (n < PAST_VIDEOS_MIN) return fail(c, 409, `Add at least ${PAST_VIDEOS_MIN} of your past videos first (you have ${n}).`, "learn-from-past-videos");
+  const running = await pastRunning(c.env);
+  if (running) return c.json({ ok: true, jobId: running.id, already: true });
+  // $0 always: the free models when a key is there, else the job's own rules write the section.
+  const r = await dispatchJob(c.env, "pastvideos", null);
+  if (!r.dispatched) return fail(c, 502, r.error ?? "Watching your videos could not start. Try again in a minute.", "learn-from-past-videos");
+  await recordEvent(c.env.DB, "brain.past_videos", r.jobId, { videos: n }, c.get("user").email);
+  log.info("brain.past_videos", { videos: n });
+  return c.json({ ok: true, jobId: r.jobId });
+});
+
+brain.delete("/past-videos/:id", async (c) => {
+  if (await pastRunning(c.env)) return fail(c, 409, "Your videos are being watched right now. Remove it once that is done.", "learn-from-past-videos");
+  const row = await c.env.DB.prepare("SELECT r2_key FROM past_videos WHERE id = ? AND upload_status != 'aborted'").bind(c.req.param("id")).first<{ r2_key: string }>();
+  if (!row) return fail(c, 404, "That video is no longer here.");
+  // Only when she taps Remove: the file goes, the row stays as a record.
+  await c.env.FILES.delete(row.r2_key);
+  await c.env.DB.prepare("UPDATE past_videos SET upload_status = 'aborted' WHERE id = ?").bind(c.req.param("id")).run();
+  return c.json({ ok: true });
 });
 
 brain.post("/profile/lock", async (c) => {

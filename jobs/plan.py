@@ -557,7 +557,7 @@ COPY_SYSTEM = (
     "shot's state is after; say before or empty ONLY if a shot's state is before. Never write people's names, addresses or prices. "
     "Never mention automation, software or how the video was made. Follow studio_rules exactly. Learn from what the owner kept and turned down (never reuse a turned-down hook). Every clip's hook must be different from every other clip's "
     "and describe that clip's own shots; do not reuse lines from the voice examples. hook and hook_alt: on-screen text, max 8 words each. caption: "
-    "max 150 characters in their voice. When the clips list a clip_type, write for that kind of clip and follow the playbook "
+    "max 150 characters in their voice. When how_her_videos_feel is given, match it: her kind of hook, caption style, energy and way of talking. When the clips list a clip_type, write for that kind of clip and follow the playbook "
     "(payoff first, local words: use the place_words naturally when given). When studio_rules names cta_phrases, do NOT put a call to action "
     "or a link in the caption (it is added after); otherwise end the caption with one call to action from their list. For each clip n listed "
     "in send_line_clips, add one short 'Send this to...' line to its caption. voice: a voice-over script for that clip, plain spoken "
@@ -577,6 +577,8 @@ def copy_prompt(plans: list[Plan], profile: dict[str, str] | None, feedback: dic
             "voice": prof.get("voice", "")[:600],
             "do_dont": prof.get("do_dont", "")[:600],
             "off_limits": prof.get("off_limits", "")[:400],
+            # "How my videos feel" (from her past videos, worker/jobs/pastvideos.ts): match it.
+            **({"how_her_videos_feel": prof.get("video_feel", "")[:900]} if prof.get("video_feel") else {}),
             "calls_to_action": ctas(profile),
             "clips": [
                 {

@@ -844,7 +844,7 @@ def llm_copy(asset: dict[str, Any], spec: dict[str, Any], n: int) -> list[dict[s
         "talking: write only from the notes and the Brand Profile; never invent prices, names, places or details that are not "
         "in them, and never write about a topic the notes do not name. Answer with JSON only: "
         "{\"items\":[{\"hook\":str,\"hook_alt\":str,\"caption\":str,\"hashtags\":[str]}]} with exactly how_many items, "
-        "each different. hook and hook_alt are on-screen text, max 8 words each. caption max 150 characters in their voice "
+        "each different. Match brand_profile.video_feel when it is given (her hooks, caption style, energy). hook and hook_alt are on-screen text, max 8 words each. caption max 150 characters in their voice "
         "with one call to action from their list. 3-5 hashtags."
     )
     user = json.dumps(
@@ -853,7 +853,7 @@ def llm_copy(asset: dict[str, Any], spec: dict[str, Any], n: int) -> list[dict[s
             "dump_notes": spec.get("notes", ""),
             "file_note": asset.get("file_note") or "",
             "change_request": spec.get("change_request") or "",
-            "brand_profile": {k: prof.get(k, "") for k in ("who", "voice", "themes", "do_dont", "off_limits", "ctas")},
+            "brand_profile": {k: prof.get(k, "") for k in ("who", "voice", "themes", "do_dont", "off_limits", "ctas", "video_feel")},
         }
     )
     payload = {"model": OPENROUTER_MODEL, "max_tokens": 1500, "response_format": {"type": "json_object"}, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}

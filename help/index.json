@@ -198,6 +198,12 @@
       "screen": "connect"
     },
     {
+      "slug": "learn-from-past-videos",
+      "title": "Learn from my past videos",
+      "group": "getting_started",
+      "screen": "brain"
+    },
+    {
       "slug": "upload-brand-docs",
       "title": "Upload your brand docs (Client Brain)",
       "group": "getting_started",

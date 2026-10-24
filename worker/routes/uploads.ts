@@ -10,7 +10,7 @@ import { requireUser } from "../lib/auth";
 import { fail, readJson } from "../lib/http";
 import { newId, nowIso } from "../lib/ids";
 import { log } from "../lib/log";
-import { ACCEPTED_DOC_TYPES, ACCEPTED_VIDEO_TYPES, UPLOAD_PART_SIZE } from "@shared/constants";
+import { ACCEPTED_DOC_TYPES, ACCEPTED_VIDEO_TYPES, PAST_VIDEOS_MAX, UPLOAD_PART_SIZE } from "@shared/constants";
 import { MAX_EDIT_BYTES } from "../domain/editors";
 import { packPhotoKey, photoConfig } from "../lib/photoPosts";
 import { isPhoto, PACK_MAX_PHOTOS, PHOTO_MAX_BYTES } from "@shared/photoPosts";
@@ -26,8 +26,10 @@ uploads.use("*", requireUser);
 /** Her own songs for the music bed (Settings > Editing > My music). */
 export const MUSIC_MAX_BYTES = 25 * 1024 * 1024;
 
-type Kind = "video" | "brand_doc" | "research_upload" | "voice_sample" | "kit_photo" | "music" | "edit" | "photo" | "logo";
+type Kind = "video" | "brand_doc" | "research_upload" | "voice_sample" | "kit_photo" | "music" | "edit" | "photo" | "logo" | "past_video";
 
+/** One past video (Client Brain → My past videos): a finished short, at most this big. */
+export const PAST_VIDEO_MAX_BYTES = 1024 * 1024 * 1024;
 /** The end-card logo (Settings → Your clips): a picture, at most this big. */
 export const LOGO_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -51,6 +53,9 @@ function keyFor(kind: Kind, parentId: string | null, id: string): string {
       return packPhotoKey(parentId ?? "", id);
     case "logo":
       return `brand/logo/${id}`;
+    case "past_video":
+      // Her old FINISHED videos (Client Brain → My past videos): apart from footage (raw/), never cut.
+      return `pastvideos/${id}`;
   }
 }
 
@@ -64,6 +69,7 @@ function acceptable(kind: Kind, mime: string, name = ""): boolean {
   if (kind === "music") return mime.startsWith("audio/");
   if (kind === "edit") return mime.startsWith("video/");
   if (kind === "photo") return isPhoto(mime, name);
+  if (kind === "past_video") return ACCEPTED_VIDEO_TYPES.includes(mime) || mime.startsWith("video/") || /\.(mov|mp4|m4v|webm|3gp)$/i.test(name);
   return false;
 }
 
@@ -74,6 +80,11 @@ uploads.post("/start", async (c) => {
   if (!acceptable(body.kind, body.mimeType, body.fileName)) return fail(c, 422, body.kind === "photo" ? "That is not a photo we can use. Use a JPG, PNG or iPhone (HEIC) photo." : "That file type is not supported here.", body.kind === "photo" ? "photo-posts" : "clips-look-wrong");
   if (body.size <= 0) return fail(c, 422, "That file is empty.");
   if (body.kind === "logo" && body.size > LOGO_MAX_BYTES) return fail(c, 413, "That logo is over 10 MB. Save a smaller PNG or JPG and try again.", "your-clips");
+  if (body.kind === "past_video") {
+    if (body.size > PAST_VIDEO_MAX_BYTES) return fail(c, 413, "That video is over 1 GB. Export a smaller copy (1080p is plenty) and try again.", "learn-from-past-videos");
+    const n = (await c.env.DB.prepare("SELECT COUNT(*) AS n FROM past_videos WHERE upload_status != 'aborted'").first<{ n: number }>())?.n ?? 0;
+    if (n >= PAST_VIDEOS_MAX) return fail(c, 409, `That's ${PAST_VIDEOS_MAX} past videos already, plenty to learn from. Remove one to add another.`, "learn-from-past-videos");
+  }
   if (body.kind === "music" && body.size > MUSIC_MAX_BYTES) return fail(c, 413, "That song is over 25 MB. Export it as an MP3 or M4A and try again.", "looks-and-styles");
   if (body.kind === "edit") {
     // Her edit from CapCut / InShot for one clip (Review > Edit in CapCut > Replace with my edit).
@@ -92,7 +103,7 @@ uploads.post("/start", async (c) => {
     if ((n?.n ?? 0) >= PACK_MAX_PHOTOS) return fail(c, 409, `A set holds up to ${PACK_MAX_PHOTOS} photos. Start a new set for more.`, "photo-posts");
   }
   const kind = body.kind;
-  const id = newId(kind === "video" ? "ast" : kind === "brand_doc" ? "doc" : kind === "photo" ? "pph" : "upl");
+  const id = newId(kind === "video" ? "ast" : kind === "brand_doc" ? "doc" : kind === "photo" ? "pph" : kind === "past_video" ? "pvd" : "upl");
   const parent = body.parentId ?? null;
 
   if (kind === "video") {
@@ -126,6 +137,10 @@ uploads.post("/start", async (c) => {
     const role = body.fileNote === "before" || body.fileNote === "after" ? body.fileNote : "main";
     await c.env.DB.prepare("INSERT INTO pack_photos (id, pack_id, role, file_name, mime_type, size_bytes, r2_key, upload_id, upload_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'uploading')")
       .bind(id, parent, role, body.fileName.slice(0, 200), photoMime(body.mimeType, body.fileName), body.size, key, mp.uploadId)
+      .run();
+  } else if (kind === "past_video") {
+    await c.env.DB.prepare("INSERT INTO past_videos (id, file_name, mime_type, size_bytes, r2_key, upload_id, upload_status) VALUES (?, ?, ?, ?, ?, ?, 'uploading')")
+      .bind(id, body.fileName.slice(0, 200), mime, body.size, key, mp.uploadId)
       .run();
   } else if (kind === "research_upload") {
     await c.env.DB.prepare("INSERT INTO research_uploads (id, file_name, r2_key) VALUES (?, ?, ?)").bind(id, body.fileName.slice(0, 200), key).run();
@@ -182,6 +197,7 @@ uploads.post("/:id/complete", async (c) => {
   await c.env.DB.prepare("UPDATE assets SET upload_status = 'uploaded', size_bytes = ?, upload_id = NULL WHERE id = ?").bind(size, c.req.param("id")).run();
   await readCamera(c.env, c.req.param("id"));
   await c.env.DB.prepare("UPDATE pack_photos SET upload_status = 'uploaded', size_bytes = ?, upload_id = NULL WHERE id = ?").bind(size, c.req.param("id")).run();
+  await c.env.DB.prepare("UPDATE past_videos SET upload_status = 'uploaded', size_bytes = ?, upload_id = NULL WHERE id = ?").bind(size, c.req.param("id")).run();
   log.info("upload.complete", { bytes: size });
   return c.json({ ok: true, size });
 });

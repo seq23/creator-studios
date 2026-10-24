@@ -4,7 +4,7 @@
 import { post } from "./api";
 import { UPLOAD_PART_SIZE } from "@shared/constants";
 
-export type UploadKind = "video" | "brand_doc" | "research_upload" | "voice_sample" | "kit_photo" | "music" | "edit" | "photo" | "logo";
+export type UploadKind = "video" | "brand_doc" | "research_upload" | "voice_sample" | "kit_photo" | "music" | "edit" | "photo" | "logo" | "past_video";
 
 export interface UploadHandle {
   id: string;
