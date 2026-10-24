@@ -63,3 +63,16 @@ describe("Made with AI label", () => {
     expect(withAiLabel("", true)).toBe(AI_LABEL);
   });
 });
+
+describe("Porch & Party Studio (studios/sample1.json)", () => {
+  it("owner's ruling 24 Oct 2026: no face blur (no customers in its videos); house numbers, the never-word and the one price stay", async () => {
+    const { readFileSync } = await import("node:fs");
+    const j = JSON.parse(readFileSync(`${process.cwd()}/studios/sample1.json`, "utf8"));
+    const r = parseRules(JSON.stringify(j.contentRules));
+    expect(r.blockFaces).toBe(false);
+    expect(r.blockAddresses).toBe(true);
+    expect(r.banWords).toEqual(["insured"]);
+    expect(j.contentRules.prices).toEqual([{ name: "Grand Holiday Porch", usd: 1050 }]);
+    expect(textProblems("Done at 1234 Oak Hollow Cv", r)).toHaveLength(1);
+  });
+});
