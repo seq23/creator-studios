@@ -646,6 +646,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     },
     invite: () => invite(arg),
     "start-over": () => startOverCmd(arg, process.argv[4]),
+    niche: () => opsCall(arg, "niche", {}),
     "finish-cut": () => finishCutCmd(arg, process.argv[4]),
     storage: () => {
       provisionStorage(studioBySlug(arg).s);
@@ -653,8 +654,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     },
   };
   const fn = commands[cmd];
-  if (!fn || (["create", "deploy", "secrets", "invite", "storage", "start-over", "finish-cut"].includes(cmd) && !arg)) {
-    console.log("usage: node scripts/studio.mjs gen|check|list | create <slug> | deploy <slug>|--all | secrets <slug>|--all [--refresh] [--only=NAME,…] | invite <slug> | start-over <slug> <dumpId> [--service=…] [--shape=…] | finish-cut <slug> <dumpId>");
+  if (!fn || (["create", "deploy", "secrets", "invite", "storage", "start-over", "finish-cut", "niche"].includes(cmd) && !arg)) {
+    console.log("usage: node scripts/studio.mjs gen|check|list | create <slug> | deploy <slug>|--all | secrets <slug>|--all [--refresh] [--only=NAME,…] | invite <slug> | start-over <slug> <dumpId> [--service=…] [--shape=…] | finish-cut <slug> <dumpId> | niche <slug>");
     process.exit(2);
   }
   Promise.resolve(fn()).catch((e) => {

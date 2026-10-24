@@ -8,6 +8,7 @@ import { parseJson, setHealth } from "../lib/db";
 import { log } from "../lib/log";
 import { servicesOf } from "@shared/services";
 import { readStudioRules } from "../lib/studioRules";
+import { chosenCtas } from "@shared/studioRules";
 import { NICHE_HEALTH, storePlaybook } from "../lib/niche";
 import { PROFILE_IN_USE } from "../lib/profileInUse";
 
@@ -22,6 +23,10 @@ export interface NicheSpec {
   platforms: string[];
   /** "2026-10": which month this is for. */
   month: string;
+  /** Did the studio choose a call to action (opt-in, shared/studioRules.ts)? No call-to-action tips without one. */
+  has_cta: boolean;
+  /** A creator studio (nothing it sells on camera): researched through successful public creators in her niche. */
+  creator: boolean;
 }
 
 async function buildSpec(env: Env, jobId: string): Promise<NicheSpec> {
@@ -38,6 +43,8 @@ async function buildSpec(env: Env, jobId: string): Promise<NicheSpec> {
     place_words: rules.place_words,
     platforms: ["tiktok", "instagram", "facebook", "pinterest", "youtube"],
     month: new Date().toISOString().slice(0, 7),
+    has_cta: chosenCtas(rules, cut("ctas")).length > 0 || !!rules.cta_link,
+    creator: !rules.cta_link && /\b(creator|influencer)\b/i.test(cut("who")),
   };
 }
 

@@ -61,5 +61,5 @@ export function fitScript(text: string, seconds: number): string {
 export function starterScript(clip: { hook_text: string; caption?: string }, cta: string | null, seconds: number): string {
   const hook = clip.hook_text.replace(/[…]+$/, "").trim();
   const lines = [hook && /[.!?]$/.test(hook) ? hook : hook ? `${hook}.` : "", cta ? `${cta.replace(/[.!]*$/, "")}.` : ""].filter(Boolean);
-  return fitScript(lines.join(" ") || "Here's a little look at my day. Follow for more.", seconds);
+  return fitScript(lines.join(" ") || "Here's a little look at my day.", seconds);
 }

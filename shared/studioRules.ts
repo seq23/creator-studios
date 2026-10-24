@@ -10,7 +10,7 @@
 export type AiNote = "all" | "ai_images";
 
 export interface StudioRules {
-  /** Phrases the end card and caption rotate or combine ("Book now"). Never empty: a neutral fallback stands in. */
+  /** Phrases the end card and caption rotate or combine ("Book now"). Opt-in: empty = no call to action at all. */
   cta_phrases: string[];
   /** The one link every call to action points at; "" = none set yet (no link in captions). */
   cta_link: string;
@@ -28,11 +28,16 @@ export interface StudioRules {
   logo_r2_key: string | null;
 }
 
-/** When a studio has not set its own call to action yet: neutral, no link, never a business word. */
-export const FALLBACK_CTA = "Follow for more";
-
+/**
+ * The call to action is OPT-IN (owner, 23 Oct 2026, clip quality): no studio ever gets a default
+ * one. A clip carries a call to action only when the studio chose one, here in Settings → Your
+ * clips (or its registry entry), or as a short phrase she wrote in her Brand Profile's "ctas"
+ * section (profileCtaPhrases). With none chosen, no clip, end card, caption or voice-over says
+ * one, and the score never docks or mentions it (jobs/clipmaker.py score_clip).
+ * Guard: tests/unit/cta-opt-in.test.ts.
+ */
 export const RULES_DEFAULT: StudioRules = {
-  cta_phrases: [FALLBACK_CTA],
+  cta_phrases: [],
   cta_link: "",
   ai_note: "ai_images",
   clip_target: { min: 8, max: 15 },
@@ -86,7 +91,7 @@ export function cleanRules(input: unknown, base: StudioRules): StudioRules {
   const bar = Number(v.bar);
   const logo = v.logo_r2_key === null ? null : typeof v.logo_r2_key === "string" && /^brand\/logo\/[A-Za-z0-9_]{4,60}$/.test(v.logo_r2_key) ? v.logo_r2_key : undefined;
   return {
-    cta_phrases: phrases === null ? base.cta_phrases : phrases.length ? phrases : [FALLBACK_CTA],
+    cta_phrases: phrases === null ? base.cta_phrases : phrases,
     cta_link: link === null ? base.cta_link : link,
     ai_note: v.ai_note === "all" || v.ai_note === "ai_images" ? v.ai_note : base.ai_note,
     clip_target: targetOk ? { min, max } : base.clip_target,
@@ -122,4 +127,26 @@ export function rulesProblem(input: Record<string, unknown>): string | null {
     if (!Number.isInteger(b) || b < 0 || b > 100) return "The review bar is a number from 0 to 100.";
   }
   return null;
+}
+
+/**
+ * The calls to action she wrote herself in her Brand Profile's "ctas" section: only lines that ARE a
+ * short phrase ("Shop the look"), never a description of how she takes enquiries ("For brand deals:
+ * email …"), never an email address, handle or link. Pure; jobs/plan.py ctas() is the same rule.
+ */
+export function profileCtaPhrases(text: string | null | undefined): string[] {
+  const out: string[] = [];
+  for (const raw of String(text ?? "").split(/\n|\s\|\s/)) {
+    const l = raw.replace(/^[\s\-•*"“]+|["”\s.!]+$/g, "").trim();
+    if (!l || l.length > 60 || l.split(/\s+/).length > 8) continue;
+    if (/[:@;]|https?:|www\.|\.com\b|not in your docs/i.test(l)) continue;
+    if (!out.some((x) => x.toLowerCase() === l.toLowerCase())) out.push(l);
+    if (out.length >= 6) break;
+  }
+  return out;
+}
+
+/** The calls to action a clip may carry: Settings first, else the phrases she wrote in her Brand Profile. Empty = none chosen. Pure. */
+export function chosenCtas(rules: Pick<StudioRules, "cta_phrases">, profileCtas: string | null | undefined): string[] {
+  return rules.cta_phrases.length ? rules.cta_phrases : profileCtaPhrases(profileCtas);
 }

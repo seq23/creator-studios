@@ -14,6 +14,7 @@ import type { Env } from "../env";
 import { getSetting, recordEvent } from "./db";
 import { newId } from "./ids";
 import { log } from "./log";
+import { chosenCtas } from "@shared/studioRules";
 import { dispatchJob } from "../services/github";
 import { groundScript } from "@shared/grounded";
 import { getLlm } from "../services/openrouter";
@@ -105,7 +106,9 @@ export async function draftScript(env: Env, clip: TargetClip): Promise<string> {
   const own = clip.voice_script ? cleanScript(clip.voice_script, clip.caption, ctas, maxWords(seconds)) : "";
   if (own.length >= 10 && !notes) return fitScript(own, seconds);
   const profile = await lockedProfile(env);
-  const cta = (profile?.ctas ?? "").split("\n").map((l) => l.replace(/^[\s\-•]+/, "").trim()).find(Boolean) ?? null;
+  // Opt-in (shared/studioRules.ts): a call to action only when the studio chose one.
+  const chosen = chosenCtas({ cta_phrases: ctas }, profile?.ctas);
+  const cta = chosen[0] ?? null;
   const shots = shotsOf(clip);
   // Grounded (studio intelligence layer 4): no sentence mentions automation, none claims a finished
   // result or a "before" the picture does not show (shared/grounded.ts, one word list with the cutter).
@@ -120,7 +123,7 @@ export async function draftScript(env: Env, clip: TargetClip): Promise<string> {
   if (fakeServices(env)) return starter;
   const llm = await getLlm(env);
   const r = await llm.complete({
-    system: `You write a voice-over for a ${Math.round(seconds)}-second vertical video with no talking in it (b-roll, montage, product shots), for the creator ${kitName(env)}, spoken in her own voice. At most ${maxWords(seconds)} words. Her voice: ${profile?.voice || "warm and direct"}.${feelLine(profile)} Do: ${profile?.do_dont || ""}. Never mention: ${profile?.off_limits || "nothing listed"}. End with one call to action from: ${profile?.ctas || "follow for more"}. Describe only what is on screen, following the shots in order and in time (each line is one shot: its seconds, its stage, what it shows); say each part while it is on screen. Never repeat the caption or the on-screen hook word for word. Never mention automation, software or how the video was made. Reply with the script only, plain spoken sentences.`,
+    system: `You write a voice-over for a ${Math.round(seconds)}-second vertical video with no talking in it (b-roll, montage, product shots), for the creator ${kitName(env)}, spoken in her own voice. At most ${maxWords(seconds)} words. Her voice: ${profile?.voice || "warm and direct"}.${feelLine(profile)} Do: ${profile?.do_dont || ""}. Never mention: ${profile?.off_limits || "nothing listed"}. ${chosen.length ? `End with one call to action from: ${chosen.join(" | ")}.` : "No call to action: she has not chosen one, so never ask people to follow, shop, comment or click."} Describe only what is on screen, following the shots in order and in time (each line is one shot: its seconds, its stage, what it shows); say each part while it is on screen. Never repeat the caption or the on-screen hook word for word. Never mention automation, software or how the video was made. Reply with the script only, plain spoken sentences.`,
     user: `Shots, in order:\n${shotLines(shots)}\nOn-screen hook (do not read it out): ${clip.hook_text}\nCaption (do not repeat it): ${clip.caption}${notes ? `\nNotes for the voice from her (use them; they never override what the shots show): ${notes}` : ""}`,
     maxTokens: 300,
   });

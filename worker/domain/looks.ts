@@ -4,6 +4,7 @@
 // Everything here is pure and unit-tested: the rotation that gives a dump's clips different
 // looks, the look → options resolution with her Settings → Editing switches, the grid cells
 // and the voice cell.
+import { profileCtaPhrases } from "@shared/studioRules";
 
 export const LOOK_CAPTIONS = ["clean", "karaoke", "boxed", "none"] as const;
 export const LOOK_LAYOUTS = ["fill", "blur_fill", "pip", "grid"] as const;
@@ -343,7 +344,7 @@ export const BRAND_FONTS = ["Montserrat", "Playfair Display", "Poppins", "Inter"
  * Her branding for a render: the handle of her TikTok channel in Buffer (else any channel, else
  * the first @handle in her Brand Profile); colours and font when her Brand Profile names them
  * (the first two #rrggbb codes are her primary and accent colours), defaults otherwise; her first
- * call to action for the end card.
+ * own call to action phrase for the end card, only when she wrote one (opt-in, shared/studioRules.ts).
  */
 export function brandingFor(profile: Record<string, string> | null, channels: { platform?: string; handle?: string }[]): Branding {
   const text = profile ? Object.values(profile).join("\n") : "";
@@ -352,10 +353,8 @@ export function brandingFor(profile: Record<string, string> | null, channels: { 
   const tiktok = channels.find((c) => c.platform === "tiktok" && c.handle)?.handle ?? channels.find((c) => c.handle)?.handle ?? null;
   const fromProfile = /(^|\s)@([A-Za-z0-9._]{2,30})/.exec(profile?.who ?? text)?.[2] ?? null;
   const raw = (tiktok ?? fromProfile ?? "").replace(/^@+/, "").replace(/[^A-Za-z0-9._]/g, "").slice(0, 30);
-  const cta = (profile?.ctas ?? "")
-    .split("\n")
-    .map((l) => l.replace(/^[\s\-•\t]+|[\s\-•\t]+$/g, ""))
-    .find(Boolean);
+  // Opt-in (shared/studioRules.ts): only a phrase she wrote, never a line describing how she takes enquiries.
+  const cta = profileCtaPhrases(profile?.ctas)[0];
   return {
     colors: { primary: hexes[0] ?? DEFAULT_BRAND.primary, ink: DEFAULT_BRAND.ink, paper: DEFAULT_BRAND.paper, accent: hexes[1] ?? DEFAULT_BRAND.accent },
     font,

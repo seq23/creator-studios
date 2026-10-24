@@ -11,6 +11,9 @@
 //               follow-on (light, "Clips ready" email, editors, voice overs) run (worker/jobs/cut.ts
 //               cutFollowOn). Refuses a dump whose clips were not saved by its latest cut.
 //               `node scripts/studio.mjs finish-cut <slug> <dumpId>`
+//   niche       the niche research now when it is due (no playbook yet, or the Brand Profile changed):
+//               the same rule as the daily lane (worker/lib/niche.ts monthlyNicheRefresh).
+//               `node scripts/studio.mjs niche <slug>`
 import { Hono, type Context } from "hono";
 import type { Env, Vars } from "../env";
 import { verifyJobMessage } from "../lib/crypto";
@@ -22,6 +25,7 @@ import { cleanOverride, type PlanOverride } from "@shared/looksLike";
 import { servicesOf } from "@shared/services";
 import { startOver } from "./dumps";
 import { PROFILE_IN_USE } from "../lib/profileInUse";
+import { monthlyNicheRefresh } from "../lib/niche";
 
 export const ops = new Hono<{ Bindings: Env; Variables: Vars }>();
 
@@ -55,6 +59,14 @@ ops.post("/start-over", async (c) => {
   }
   c.set("user", { id: "ops", email: OPS_ACTOR, role: "owner" } as Vars["user"]);
   return startOver(c, id, "", "dump.start_over");
+});
+
+ops.post("/niche", async (c) => {
+  const text = await signedBody(c);
+  if (text === null) return fail(c, 401, "Bad signature.");
+  const r = await monthlyNicheRefresh(c.env);
+  await recordEvent(c.env.DB, "niche.ops_refresh", null, { dispatched: r.dispatched }, OPS_ACTOR);
+  return c.json({ ok: true, ...r });
 });
 
 ops.post("/finish-cut", async (c) => {

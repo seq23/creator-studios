@@ -438,10 +438,42 @@ def theme_tags(profile: dict[str, str] | None, brief: Any) -> list[str]:
 
 
 def cta_line(profile: dict[str, str] | None) -> str:
-    if not profile:
-        return ""
-    lines = [l.strip(" -•\t") for l in profile.get("ctas", "").splitlines() if l.strip(" -•\t")]
+    """Her own call to action phrase, only when she wrote one (opt-in: jobs/plan.py ctas)."""
+    lines = P.ctas(profile)
     return lines[0][:80] if lines else ""
+
+
+# Hooks in her own voice (owner, 23 Oct 2026, clip quality): every prompt that writes on-screen hooks
+# reads these rules and voice_context(spec). Pinned by jobs/tests/test_clip_quality.py.
+HOOK_RULES = (
+    "Hooks are in HER voice: write them the way she talks (her_voice, how_her_videos_feel, her own words in the transcript), "
+    "never a generic slogan or a tagline ('everyday elegance', 'pure joy', 'perfection', 'elevated'). Open on the payoff: the hook "
+    "names the strongest moment or what the viewer gets, in plain words. Use the niche hook patterns as patterns only, never "
+    "word for word, and never copy another creator's words. Every hook in this dump is different from every other one and "
+    "from already_used_hooks: no shared two-word phrase, a different angle each time."
+)
+
+
+def voice_context(spec: dict[str, Any]) -> dict[str, Any]:
+    """What a hook writer reads to sound like her: her Brand Profile voice (drafted from her own docs,
+    the media kit among them), "How my videos feel" from her past videos (they LEAD once they exist),
+    the niche research (it supports; it leads only until past videos exist), her chosen calls to
+    action (opt-in, may be empty) and the on-screen word limit."""
+    prof = spec.get("brand_profile") or {}
+    pb = PB.load(spec)
+    feel = str(prof.get("video_feel") or "")[:900]
+    niche = {k: v for k, v in {
+        "hook_patterns": pb.get("niche_hooks") or [],
+        "how_they_open": pb.get("niche_openings") or [],
+        "caption_style": pb.get("niche_caption_style") or "",
+    }.items() if v}
+    return {
+        "her_voice": str(prof.get("voice") or "")[:600],
+        **({"how_her_videos_feel": feel, "what_leads": "how_her_videos_feel leads; the niche research only supports it"} if feel else ({"what_leads": "the niche research leads until she uploads past videos"} if niche else {})),
+        **({"niche_research": niche} if niche else {}),
+        "calls_to_action": P.ctas(prof),
+        "on_screen_words_max": int(pb.get("hook_max_words") or 8),
+    }
 
 
 GENERIC_HOOKS = {
@@ -547,7 +579,8 @@ def llm_moments(asset: dict[str, Any], duration: float, transcript: Transcript, 
         "You pick short vertical-video moments for one creator. Follow her Brand Profile exactly; never pick anything on her "
         "off-limits list. Answer with JSON only: {\"moments\":[{\"start\":s,\"end\":s,\"recipe\":r,\"hook\":str,\"hook_alt\":str,"
         "\"caption\":str,\"hashtags\":[str],\"hook_strength\":0..1}]}. hook and hook_alt are on-screen text, max 8 words each. "
-        "caption max 150 characters in her voice with one call to action. 3-5 hashtags."
+        "caption max 150 characters in her voice" + (" with one call to action from calls_to_action." if P.ctas(spec.get("brand_profile")) else ", with NO call to action (she has not chosen one).") + " 3-5 hashtags. "
+        + HOOK_RULES
     )
     user = json.dumps(
         {
@@ -559,7 +592,9 @@ def llm_moments(asset: dict[str, Any], duration: float, transcript: Transcript, 
             "change_request": spec.get("change_request") or "",
             "must_include": st.get("include") or [],
             "leave_out": st.get("avoid") or [],
-            "brand_profile": spec.get("brand_profile") or {},
+            "brand_profile": {k: v for k, v in (spec.get("brand_profile") or {}).items() if k != "ctas"},
+            **voice_context(spec),
+            "already_used_hooks": spec.get("_used_hooks") or [],
             "research_brief": {k: (spec.get("brief") or {}).get(k) for k in ("hooks", "cut_styles", "themes")},
             "transcript": lines,
         }
@@ -845,7 +880,7 @@ def llm_copy(asset: dict[str, Any], spec: dict[str, Any], n: int) -> list[dict[s
         "in them, and never write about a topic the notes do not name. Answer with JSON only: "
         "{\"items\":[{\"hook\":str,\"hook_alt\":str,\"caption\":str,\"hashtags\":[str]}]} with exactly how_many items, "
         "each different. Match brand_profile.video_feel when it is given (her hooks, caption style, energy). hook and hook_alt are on-screen text, max 8 words each. caption max 150 characters in their voice "
-        "with one call to action from their list. 3-5 hashtags."
+        + ("with one call to action from calls_to_action. " if P.ctas(prof) else "with NO call to action (she has not chosen one). ") + "3-5 hashtags. " + HOOK_RULES
     )
     user = json.dumps(
         {
@@ -853,7 +888,9 @@ def llm_copy(asset: dict[str, Any], spec: dict[str, Any], n: int) -> list[dict[s
             "dump_notes": spec.get("notes", ""),
             "file_note": asset.get("file_note") or "",
             "change_request": spec.get("change_request") or "",
-            "brand_profile": {k: prof.get(k, "") for k in ("who", "voice", "themes", "do_dont", "off_limits", "ctas", "video_feel")},
+            "brand_profile": {k: prof.get(k, "") for k in ("who", "voice", "themes", "do_dont", "off_limits", "video_feel")},
+            **voice_context(spec),
+            "already_used_hooks": spec.get("_used_hooks") or [],
         }
     )
     payload = {"model": OPENROUTER_MODEL, "max_tokens": 1500, "response_format": {"type": "json_object"}, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
@@ -1457,7 +1494,18 @@ def clip_body_keys(m: Moment) -> set[str]:
     return {keys[i] for i in range(min(len(keys), len(m.parts)) - 1) if keys[i] and (i >= len(stages) or stages[i] != "flash")}
 
 
-def score_facts(m: Moment, k: int, bodies: dict[int, set[str]], tracks: dict[str, list[float]], by_key: dict[str, "ST.Look"], rules_s: dict[str, Any], opts: dict[str, Any]) -> dict[str, Any]:
+def clip_seconds(m: Moment) -> float:
+    return sum(e - s for s, e in m.parts) if m.parts else m.end - m.start
+
+
+def clip_too_short(m: Moment, pb: dict[str, Any]) -> bool:
+    """Shorter than its clip type's range (jobs/playbook.json, the niche research's lengths on top)."""
+    if m.clip_type == "moving_photo":
+        return False
+    return CM.too_short(clip_seconds(m), float(PB.template(pb, m.clip_type or "finished_walkthrough")["length_s"][0]))
+
+
+def score_facts(m: Moment, k: int, bodies: dict[int, set[str]], tracks: dict[str, list[float]], by_key: dict[str, "ST.Look"], rules_s: dict[str, Any], opts: dict[str, Any], hook_dups: set[int] | None = None) -> dict[str, Any]:
     """What the score reads about one finished clip (jobs/clipmaker.py score_clip)."""
     owners = part_owners(m)
     keys = m.part_keys or [""] * len(m.parts)
@@ -1476,7 +1524,7 @@ def score_facts(m: Moment, k: int, bodies: dict[int, set[str]], tracks: dict[str
     return {
         "clip_type": m.clip_type or "finished_walkthrough", "parts": parts, "hook": m.hook, "caption": f"{m.caption} {rules_s['cta_link']}" if rules_s["cta_link"] else m.caption,
         "words_pending": m.words_pending, "cta_link": rules_s["cta_link"], "cta_phrases": rules_s["cta_phrases"], "end_card": bool(opts.get("end_card")),
-        "overlap": overlap, "repeats": repeats,
+        "overlap": overlap, "repeats": repeats, "hook_repeats": k in (hook_dups or set()),
     }
 
 
@@ -1523,6 +1571,124 @@ def copy_extra(rules_s: dict[str, Any], pb: dict[str, Any], n: int) -> dict[str,
         **({"no_prices": True} if not rules_s["prices"] else {}),
         "send_line_clips": [i for i in range(n) if i % every == 1],
     }
+
+
+PAYOFF_STAGES = ("hero", "flash", "finished", "detail")
+
+
+def payoff_first(m: Moment, pb: dict[str, Any]) -> bool:
+    """Payoff first (owner, 23 Oct 2026): the strongest moment in the first 2 seconds. A clip whose
+    first payoff_window_s show no payoff opens on a 1.2 s flash of its own hero ending (the loop
+    echo the planner's payoff-first type already uses), then tells its story. True when it changed."""
+    if not m.parts or m.clip_type == "moving_photo":
+        return False
+    n = len(m.parts)
+    stages = list(m.part_stages or [""] * n)
+    if stages[-1] != "hero":
+        return False
+    win, t0 = float(pb.get("payoff_window_s", 2.0)), 0.0
+    for (s, e), st in zip(m.parts, stages):
+        if t0 > win - 0.01:
+            break
+        if st in PAYOFF_STAGES:
+            return False
+        t0 += e - s
+    hs, he = m.parts[-1]
+    if he - hs < 1.5:
+        return False
+    owners = part_owners(m)
+    m.parts = [(hs, round(min(he, hs + 1.2), 2)), *m.parts]
+    owners = [owners[-1], *owners]
+    m.part_assets = owners
+    m.part_states = [(m.part_states or [V.UNSURE] * n)[-1], *(m.part_states or [V.UNSURE] * n)]
+    m.part_stages = ["flash", *stages]
+    keys = list(m.part_keys or [""] * n)
+    m.part_keys = [keys[-1], *keys]
+    m.asset_id = owners[-1]
+    m.start = m.parts[-1][0]
+    m.end = round(m.start + sum(e - s for s, e in m.parts), 2)
+    return True
+
+
+def reach_type_length(m: Moment, pb: dict[str, Any], duration: float) -> bool:
+    """A moment picked from the speech that is shorter than its type's range takes more of the same
+    video around it (later first, then earlier), so it is not cut too short. True when it changed."""
+    if m.part_assets or len(m.parts) != 1 or duration <= 0:
+        return False
+    lo = float(PB.template(pb, m.clip_type or "finished_walkthrough")["length_s"][0])
+    s, e = m.parts[0]
+    need = lo - (e - s)
+    if need <= 0:
+        return False
+    e2 = min(duration, e + need)
+    s2 = max(0.0, s - (need - (e2 - e)))
+    m.parts = [(round(s2, 2), round(e2, 2))]
+    m.start, m.end = m.parts[0]
+    return True
+
+
+def distinct_hooks(moments: list[tuple[Moment, Source]], spec: dict[str, Any], key: str | None, text_ok: Any, pb: dict[str, Any]) -> dict[str, int]:
+    """No near-duplicate hooks in one dump (owner, 23 Oct 2026: many latte / boat variants). Each
+    repeat (jobs/clipmaker.py near_duplicate) takes, in turn: its own alternative hook when that one
+    is distinct; one batched rewrite in her voice (the free model, voice_context); her own first
+    spoken line in that clip; else its words wait (words_pending: never a repeat, never stock)."""
+    stats = {"repeats": 0, "alt": 0, "rewritten": 0, "spoken": 0, "pending": 0}
+    hooks = [m.hook for m, _ in moments]
+    dups = CM.duplicate_hooks(hooks)
+    if not dups:
+        return stats
+    stats["repeats"] = len(dups)
+    kept = [h for i, h in enumerate(hooks) if i not in dups and h]
+    maxw = int(pb.get("hook_max_words") or 8)
+
+    def fits(h: str) -> bool:
+        return bool(h) and CM._readable_hook(h, maxw) and not any(CM.near_duplicate(h, k) for k in kept) and (text_ok is None or text_ok(h)) and not CM.is_stock(h, "x")
+
+    left: list[int] = []
+    for i in dups:
+        m = moments[i][0]
+        if fits(m.hook_alt):
+            m.hook, m.hook_alt = m.hook_alt, m.hook
+            kept.append(m.hook)
+            stats["alt"] += 1
+        else:
+            left.append(i)
+    if left and key:
+        payload = {
+            "model": OPENROUTER_MODEL, "max_tokens": 900, "response_format": {"type": "json_object"},
+            "messages": [
+                {"role": "system", "content": "You rewrite on-screen hooks for short vertical videos by one creator. " + HOOK_RULES + " Answer JSON only: {\"items\":[{\"n\":int,\"hook\":str}]}."},
+                {"role": "user", "content": json.dumps({**voice_context(spec), "already_used_hooks": kept, "clips": [{"n": i, "on_screen": moments[i][0].on_screen[:300], "she_says": moments[i][1].transcript.text_in(*moments[i][0].parts[0])[:300], "hook_to_replace": moments[i][0].hook} for i in left]})},
+            ],
+        }
+        try:
+            text = ask_text(key, payload)
+            mm = re.search(r"\{.*\}", text or "", re.S)
+            items = json.loads(mm.group(0) if mm else (text or "{}")).get("items", [])
+        except Exception:  # noqa: BLE001  (no answer: the next fallbacks stand)
+            items = []
+        got = {int(it["n"]): SCL.clean_line(str(it.get("hook", "")), 120) for it in items if isinstance(it, dict) and isinstance(it.get("n"), int)}
+        still = []
+        for i in left:
+            h = got.get(i, "")
+            if fits(h):
+                moments[i][0].hook = h
+                kept.append(h)
+                stats["rewritten"] += 1
+            else:
+                still.append(i)
+        left = still
+    for i in left:
+        m, src = moments[i]
+        said = first_sentence(src.transcript.text_in(*m.parts[0]), maxw) if src.transcript.words_in(*m.parts[0]) else ""
+        if fits(said):
+            m.hook = said
+            kept.append(said)
+            stats["spoken"] += 1
+        else:
+            m.words_pending = True
+            stats["pending"] += 1
+    return stats
 
 
 def add_hero_ending(m: Moment, looks: list["ST.Look"], tracks: dict[str, list[float]], hold: float, i: int) -> bool:
@@ -1752,7 +1918,8 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         if avoid_windows or fixes:
             # Try another version: away from the version she has, doing what her one-tap fixes ask (spec.fixes).
             plans = CM.apply_fixes(plans, fixes, by_key, pb, lambda pt: avoid_overlap(Moment(pt.asset_id, "montage", pt.start, pt.end, [(pt.start, pt.end)]), avoid_windows))[:1]
-        P.write_copy(key, plans, profile, services, OPENROUTER_MODEL, ask_text, feedback={0: spec.get("change_request")} if spec.get("change_request") and plans else None, guard=text_ok, rules=PR.copy_rules(rules), memory=memory, extra=copy_extra(rules_s, pb, len(plans)))
+        P.write_copy(key, plans, profile, services, OPENROUTER_MODEL, ask_text, feedback={0: spec.get("change_request")} if spec.get("change_request") and plans else None, guard=text_ok, rules=PR.copy_rules(rules), memory=memory, extra={**copy_extra(rules_s, pb, len(plans)), **voice_context(spec), "hook_rules": HOOK_RULES})
+        spec["_used_hooks"] = [pl.hook for pl in plans if pl.hook and not pl.words_pending][-40:]
         for j, pl in enumerate(plans):
             pm = plan_moment(pl)
             if not pm.clip_type:
@@ -1802,13 +1969,19 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
                 m.hook, m.hook_alt, m.caption = SCL.clean_line(m.hook, 120), SCL.clean_line(m.hook_alt, 120), SCL.clean_line(m.caption, 300)
                 m.words_pending = CM.is_stock(m.hook, m.caption)
                 if door != "recycle":
+                    reach_type_length(m, pb, float(info["duration"]))
                     add_hero_ending(m, looks, tracks, float(pb.get("hero_hold_s", 2.0)), j)
                 moments.append((m, src))
+                spec["_used_hooks"] = [*(spec.get("_used_hooks") or []), m.hook][-40:]
     if not moments:
         raise NoUsableMoments("no moments")
     # Distinct cuts only: a moment that shares most of its footage with one already made is dropped
     # (a look or a re-pick never counts as another clip).
     moments = distinct_moments(moments)
+    # Clip quality (owner, 23 Oct 2026): the payoff in the first 2 seconds, and no two hooks alike.
+    flashed = sum(1 for m, _ in moments if payoff_first(m, pb))
+    hook_stats = distinct_hooks(moments, spec, key, text_ok, pb)
+    log("cut.quality", payoff_flashes=flashed, **{f"hooks_{k}": v for k, v in hook_stats.items()})
     if len(moments) < rules_s["clip_target"]["min"] and not (spec.get("steer") or {}).get("count"):
         steer_report.append({"what": f"{rules_s['clip_target']['min']} clips", "why": f"these videos hold {len(moments)} different cuts; the same cut is never made again in another look"})
     looks_like = P.looks_like(service, sure, shape, camera)
@@ -1893,21 +2066,28 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
     done = [(k, ch) for k, ch in enumerate(checked_all) if ch is not None]
     bodies = {k: clip_body_keys(ch.moment[1]) for k, ch in done}
     bar = rules_s["bar"]
+    # Hooks distinct within the dump (owner, 23 Oct 2026): a near-duplicate left after the rewrite counts against it.
+    hook_dups = set(CM.duplicate_hooks([ch.moment[1].hook for _k, ch in done]))
+    hook_dups = {done[i][0] for i in hook_dups}
     scored: dict[int, tuple[Any, Moment, int, list[str]]] = {}
     for k, ch in done:
         r, m = ch.rendered, ch.moment[1]
-        sc, why = CM.score_clip(score_facts(m, k, bodies, tracks, by_key, rules_s, ctx[k]["opts"]), pb)
-        if bar and sc < bar and not ch.hidden_reason:
+        sc, why = CM.score_clip(score_facts(m, k, bodies, tracks, by_key, rules_s, ctx[k]["opts"], hook_dups), pb)
+        if ((bar and sc < bar) or clip_too_short(m, pb)) and not ch.hidden_reason:
             critic_stats["under_bar"] += 1
             better = improve_moment(m, tracks, pb)
             if better is not None:
                 critic_stats["bar_recuts"] += 1
                 r2 = render_k((k, better))
                 if r2 is not None:
-                    sc2, why2 = CM.score_clip(score_facts(better, k, bodies, tracks, by_key, rules_s, ctx[k]["opts"]), pb)
+                    sc2, why2 = CM.score_clip(score_facts(better, k, bodies, tracks, by_key, rules_s, ctx[k]["opts"], hook_dups), pb)
                     if sc2 > sc:
                         r, m, sc, why = r2, better, sc2, why2
-            if sc < bar:
+            if clip_too_short(m, pb):
+                # Shorter than its type's range never shows, whatever the bar (owner, 23 Oct 2026).
+                lo = float(PB.template(pb, m.clip_type or "finished_walkthrough")["length_s"][0])
+                m.hidden_reason = f"too short: {clip_seconds(m):.0f} s, and this kind of clip needs at least {lo:g} s"
+            elif sc < bar:
                 m.hidden_reason = f"scored {sc}/100, under your bar of {bar}: {why[0][:1].lower() + why[0][1:] if why else 'not good enough yet'}"
         scored[k] = (r, m, sc, why)
     for k, checked in done:

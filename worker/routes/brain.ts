@@ -14,7 +14,7 @@
 //   POST   /api/brain/profile/lock | unlock
 //   POST   /api/brain/profile/rollback/:v     copy version v → new version (source "rollback")
 // Rule: the profile only changes while unlocked, and only the newest version can be locked.
-import { nicheView } from "../lib/niche";
+import { monthlyNicheRefresh, nicheView } from "../lib/niche";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { requireUser } from "../lib/auth";
@@ -239,6 +239,8 @@ brain.post("/profile/lock", async (c) => {
   // Setup runs by itself: the research starts (no Refresh to press), and if the brief is already
   // approved every dump waiting for setup goes now.
   const research = await researchAfterLock(c.env, c.get("fake"), c.get("user").email);
+  // The niche research is redone for the new profile at once (clip quality, 23 Oct 2026); never blocks the lock.
+  await monthlyNicheRefresh(c.env).catch(() => log.warn("brain.niche_refresh_failed", {}));
   const sent = await sendWaitingDumps(c.env, c.get("user").email);
   return c.json({ ok: true, version: cur.version, researchStarted: !!(research && research.ok && !research.already), researchJobId: research && research.ok ? research.jobId : null, sent: sent.length });
 });

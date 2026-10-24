@@ -54,6 +54,29 @@ def load(spec: dict[str, Any] | None) -> dict[str, Any]:
         pb["niche_hooks"] = [str(h.get("text") if isinstance(h, dict) else h)[:120] for h in (niche.get("hooks") or [])][:12]
         pb["caption_tips"] = [str(c)[:200] for c in (niche.get("caption_tips") or [])][:8]
         pb["niche_updated_at"] = str(niche.get("updated_at") or "")[:40]
+        # Clip quality (owner, 23 Oct 2026): the niche's style feeds the cutter, the hook writer and the score.
+        pb["niche_openings"] = [str(o)[:160] for o in (niche.get("openings") or []) if isinstance(o, str)][:4]
+        pb["niche_pacing"] = str(niche.get("pacing") or "")[:200]
+        pb["niche_caption_style"] = str(niche.get("caption_style") or "")[:200]
+        try:
+            w = int(niche.get("on_screen_words") or 0)
+        except (TypeError, ValueError):
+            w = 0
+        if 3 <= w <= 12:
+            pb["hook_max_words"] = min(10, w)
+        for tid, r in (niche.get("lengths") or {}).items() if isinstance(niche.get("lengths"), dict) else []:
+            t = pb["types"].get(tid)
+            if not t or not isinstance(r, list) or len(r) != 2:
+                continue
+            try:
+                lo, hi = float(r[0]), float(r[1])
+            except (TypeError, ValueError):
+                continue
+            blo, bhi = float(t["length_s"][0]), float(t["length_s"][1])
+            # The niche moves a type's range, within reason: never under 5 s, never far from the library's.
+            nlo = max(5.0, blo - 2, min(lo, blo + 5))
+            nhi = max(nlo + 5, min(hi, bhi + 15))
+            t["length_s"] = [nlo, nhi]
     return pb
 
 
@@ -67,4 +90,8 @@ def prompt_lines(pb: dict[str, Any]) -> dict[str, Any]:
         "what_converts": pb["research"],
         **({"niche_hooks_that_work": pb["niche_hooks"]} if pb.get("niche_hooks") else {}),
         **({"niche_caption_tips": pb["caption_tips"]} if pb.get("caption_tips") else {}),
+        **({"niche_openings_payoff_first": pb["niche_openings"]} if pb.get("niche_openings") else {}),
+        **({"niche_pacing": pb["niche_pacing"]} if pb.get("niche_pacing") else {}),
+        **({"niche_caption_style": pb["niche_caption_style"]} if pb.get("niche_caption_style") else {}),
+        "on_screen_words_max": int(pb.get("hook_max_words") or 8),
     }
