@@ -69,7 +69,9 @@ export async function addVideoFeel(env: Env, section: string): Promise<{ version
   const latest = await env.DB.prepare("SELECT version, sections FROM brand_profile ORDER BY version DESC LIMIT 1").first<{ version: number; sections: string }>();
   const sections = cleanSections({ ...(latest ? parseJson<Record<string, unknown>>(latest.sections, {}) : {}), video_feel: section });
   const res = await env.DB.prepare("INSERT INTO brand_profile (sections, locked, source) VALUES (?, 0, 'draft')").bind(JSON.stringify(sections)).run();
-  const lockedInUse = !!(await env.DB.prepare("SELECT version FROM brand_profile WHERE locked = 1 LIMIT 1").first());
+  // A version she locked is still what the clips use (lib/profileInUse.ts): she is asked to lock the new one.
+  const inUse = await env.DB.prepare(`SELECT version FROM brand_profile ${PROFILE_IN_USE}`).first<{ version: number }>();
+  const lockedInUse = !!inUse && inUse.version !== Number(res.meta.last_row_id);
   return { version: Number(res.meta.last_row_id), lockedInUse };
 }
 
