@@ -11,7 +11,7 @@
 import type { Env } from "../env";
 import { fakeServices } from "../env";
 import { log } from "./log";
-import { recordEvent, setHealth } from "./db";
+import { getSetting, recordEvent, setHealth, setSetting } from "./db";
 import { readStudioRules } from "./studioRules";
 import { getConnectionSecret } from "./connections";
 import { getLlm } from "../services/openrouter";
@@ -125,15 +125,38 @@ export function parseDraft(text: string): Partial<DraftWords> | null {
   }
 }
 
-async function askModel(env: Env, system: string, user: string): Promise<string | null> {
-  if (await getConnectionSecret(env, "openrouter")) {
+/** Why a try got no words: the free daily limit (both free sources), a busy model, no answer, or words refused by the rules. */
+export type WordsMiss = "daily_limit" | "busy" | "no_answer" | "refused";
+
+/** The next midnight UTC (when OpenRouter's free daily limit resets). Pure. */
+export function nextUtcMidnight(now: Date): string {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)).toISOString();
+}
+
+/** The setting that holds "OpenRouter's free daily limit is reached until <iso>" (cleared on reset). */
+export const DAILY_LIMIT_KEY = "openrouter_daily_limit_until";
+
+async function askModel(env: Env, system: string, user: string, state: { dailyUntil: string | null }, now: Date): Promise<{ text: string | null; miss: WordsMiss | null }> {
+  let miss: WordsMiss | null = null;
+  const limited = !!state.dailyUntil && state.dailyUntil > now.toISOString();
+  if (!limited && (await getConnectionSecret(env, "openrouter"))) {
     const llm = await getLlm(env);
     const r = await llm.complete({ system, user, json: true, maxTokens: 600, accept: (t) => !!parseDraft(t) });
-    if (r.ok && parseDraft(r.text)) return r.text;
+    if (r.ok && parseDraft(r.text)) return { text: r.text, miss: null };
+    if (r.limit === "daily") {
+      // Named, not silent (Rule 0): no more OpenRouter calls until it resets; the light says so.
+      state.dailyUntil = nextUtcMidnight(now);
+      await setSetting(env.DB, DAILY_LIMIT_KEY, state.dailyUntil);
+    }
+    miss = r.limit === "daily" ? "daily_limit" : r.limit === "busy" ? "busy" : "no_answer";
+  } else if (limited) {
+    miss = "daily_limit";
   }
   // The studio's share of the free Cloudflare model (never raised, never paid).
   const f = await freeAi(env, [{ role: "system", content: system }, { role: "user", content: user }], 600);
-  return f.ok ? f.content : null;
+  if (f.ok) return { text: f.content, miss: null };
+  // No OpenRouter key: the Cloudflare share's own daily budget being used up is a daily limit too.
+  return { text: null, miss: miss ?? (f.why === "budget_out" ? "daily_limit" : "no_answer") };
 }
 
 /** Practice mode: plain words that say what kind of clip it is (never a stock line from the engine). */
@@ -143,7 +166,7 @@ export function practiceDraft(c: Pick<PendingClip, "number" | "clip_type">): Dra
 }
 
 /** One hourly run. Returns how many clips got their words, how many still wait, and how many are past a day. */
-export async function wordsPass(env: Env, now = new Date()): Promise<{ written: number; waiting: number; stuck: number }> {
+export async function wordsPass(env: Env, now = new Date()): Promise<{ written: number; waiting: number; stuck: number; daily_limit_until: string | null; misses: Partial<Record<WordsMiss, number>> }> {
   const since = new Date(now.getTime() - WORDS_RETRY_MS).toISOString();
   const { results } = await env.DB.prepare(
     `SELECT id, dump_id, number, start_s, end_s, clip_type, on_screen, uses_ai_images, words_tries, score, score_reasons FROM clips
@@ -153,6 +176,10 @@ export async function wordsPass(env: Env, now = new Date()): Promise<{ written: 
     .all<PendingClip>();
   let written = 0;
   const dumps = new Set<string>();
+  const misses: Partial<Record<WordsMiss, number>> = {};
+  const saved = await getSetting<string | null>(env.DB, DAILY_LIMIT_KEY, null);
+  const state = { dailyUntil: saved && saved > now.toISOString() ? saved : null };
+  if (saved && !state.dailyUntil) await setSetting(env.DB, DAILY_LIMIT_KEY, null); // it reset: try again
   if (results.length) {
     const rules = await readStudioRules(env);
     const profile = await lockedProfile(env);
@@ -176,11 +203,14 @@ export async function wordsPass(env: Env, now = new Date()): Promise<{ written: 
         .all<{ hook_text: string }>();
       const used = others.map((o) => o.hook_text);
       const user = `Kind of clip: ${clipTypeLabel(c.clip_type) ?? "a short clip"}. Length: ${Math.round(c.end_s - c.start_s)} seconds.${c.on_screen ? ` On screen, in order: ${c.on_screen}` : ""}${used.length ? `\nHooks already used (write a different one): ${used.slice(0, 30).join(" | ")}` : ""}`;
-      const text = fakeServices(env) ? JSON.stringify(practiceDraft(c)) : await askModel(env, system, user);
+      const asked = fakeServices(env) ? { text: JSON.stringify(practiceDraft(c)), miss: null } : await askModel(env, system, user, state, now);
+      const text = asked.text;
       const drafted = finishWords(text ? parseDraft(text) : null, rules, { number: c.number, uses_ai_images: !!c.uses_ai_images }, (t) => textProblems(t, cr));
       // Practice mode's labelled stand-in names the clip type, so it is exempt from the repeat check.
       const words = drafted && (fakeServices(env) || !used.some((u) => nearDuplicateHook(drafted.hook_text, u))) ? drafted : null;
       if (!words) {
+        const why: WordsMiss = asked.miss ?? "refused";
+        misses[why] = (misses[why] ?? 0) + 1;
         await env.DB.prepare("UPDATE clips SET words_tries = words_tries + 1, words_tried_at = ? WHERE id = ?").bind(now.toISOString(), c.id).run();
         continue;
       }
@@ -202,15 +232,22 @@ export async function wordsPass(env: Env, now = new Date()): Promise<{ written: 
   const waiting = Number(left?.n ?? 0);
   const stuck = Number(left?.stuck ?? 0);
   if (written) await recordEvent(env.DB, "clip.words_written", null, { clips: written });
+  // The free daily limit is a named state, never a silent fallback (owner, 24 Oct 2026): the clips
+  // wait (no words = no hook, never shown as ready, scored as waiting) and are written on the first
+  // hourly run after it resets.
+  const limited = !!state.dailyUntil && waiting > 0;
+  const resets = state.dailyUntil ? `${state.dailyUntil.slice(11, 16)} UTC` : "";
   await setHealth(
     env.DB,
     "Clip words",
-    stuck ? "red" : "green",
+    stuck ? "red" : limited ? "yellow" : "green",
     stuck
       ? `${stuck} clip${stuck === 1 ? "" : "s"} still ${stuck === 1 ? "has" : "have"} no words after a day of tries (the free AI did not answer). They stay off the calendar; tap Try another version in Review to cut them again.`
-      : `OK · ${written} written this run, ${waiting} waiting`,
-    stuck ? "review-and-approve-clips" : null,
+      : limited
+        ? `The free AI's daily limit is reached. ${waiting} clip${waiting === 1 ? " waits" : "s wait"} for ${waiting === 1 ? "its" : "their"} words, written on the first hourly run after it resets (${resets}). Until then ${waiting === 1 ? "it stays" : "they stay"} off the calendar.`
+        : `OK · ${written} written this run, ${waiting} waiting`,
+    stuck || limited ? "review-and-approve-clips" : null,
   );
-  log.info("words.pass", { written, waiting, stuck });
-  return { written, waiting, stuck };
+  log.info("words.pass", { written, waiting, stuck, daily_limit: !!state.dailyUntil, ...misses });
+  return { written, waiting, stuck, daily_limit_until: state.dailyUntil, misses };
 }

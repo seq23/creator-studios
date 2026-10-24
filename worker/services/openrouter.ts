@@ -9,7 +9,8 @@ export const FREE_MODEL = "openrouter/free";
 
 export interface LlmClient {
   /** `accept` says whether an answer is usable; an unusable one is retried (see RealLlm). */
-  complete(input: { system: string; user: string; json?: boolean; maxTokens?: number; accept?: (text: string) => boolean }): Promise<{ ok: boolean; text: string; error: string | null }>;
+  /** `limit`: why OpenRouter refused (429): its free daily limit, or a busy model (try again soon). */
+  complete(input: { system: string; user: string; json?: boolean; maxTokens?: number; accept?: (text: string) => boolean }): Promise<{ ok: boolean; text: string; error: string | null; limit?: "daily" | "busy" }>;
   checkKey(): Promise<{ ok: boolean; error: string | null }>;
 }
 
@@ -39,6 +40,12 @@ export class FakeLlm implements LlmClient {
  * is retried once more on whichever model the router picks next. Free models cost nothing.
  */
 export const LLM_ATTEMPTS = 3;
+
+/** OpenRouter's 429 for the used-up free daily quota, as opposed to a busy model (jobs/ai.py daily_quota_message). */
+export function dailyQuotaMessage(body: string): boolean {
+  const b = (body ?? "").toLowerCase();
+  return b.includes("per-day") || b.includes("per day") || b.includes("free-models-per-day");
+}
 export const LLM_MAX_TOKENS_CEILING = 16_000;
 
 /** The largest {...} in a model answer parses as JSON (tolerates a fence or chatter around it). */
@@ -58,7 +65,7 @@ class RealLlm implements LlmClient {
   async complete(input: { system: string; user: string; json?: boolean; maxTokens?: number; accept?: (text: string) => boolean }) {
     const accept = input.accept ?? (input.json ? hasJsonObject : (t: string) => t.trim().length > 0);
     let maxTokens = input.maxTokens ?? 1200;
-    let last: { ok: boolean; text: string; error: string | null } = { ok: false, text: "", error: "AI service did not answer." };
+    let last: { ok: boolean; text: string; error: string | null; limit?: "daily" | "busy" } = { ok: false, text: "", error: "AI service did not answer." };
     for (let attempt = 0; attempt < LLM_ATTEMPTS; attempt++) {
       const r = await this.once(input, maxTokens);
       if (!r.ok) return r; // busy, key refused, network: the caller shows the plain sentence
@@ -68,7 +75,7 @@ class RealLlm implements LlmClient {
     }
     return last;
   }
-  private async once(input: { system: string; user: string; json?: boolean }, maxTokens: number): Promise<{ ok: boolean; text: string; error: string | null; finish: string | null }> {
+  private async once(input: { system: string; user: string; json?: boolean }, maxTokens: number): Promise<{ ok: boolean; text: string; error: string | null; finish: string | null; limit?: "daily" | "busy" }> {
     try {
       const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
@@ -83,7 +90,12 @@ class RealLlm implements LlmClient {
           ...(input.json ? { response_format: { type: "json_object" } } : {}),
         }),
       });
-      if (res.status === 429) return { ok: false, text: "", error: "The free AI model is busy right now. Try again in a minute.", finish: null };
+      if (res.status === 429) {
+        const body = await res.text().catch(() => "");
+        return dailyQuotaMessage(body)
+          ? { ok: false, text: "", error: "The free AI's daily limit is reached. It resets at midnight UTC.", finish: null, limit: "daily" }
+          : { ok: false, text: "", error: "The free AI model is busy right now. Try again in a minute.", finish: null, limit: "busy" };
+      }
       if (!res.ok) return { ok: false, text: "", error: `AI service answered ${res.status}`, finish: null };
       const data = (await res.json()) as { choices?: { message?: { content?: string | null }; finish_reason?: string | null }[] };
       const c = data.choices?.[0];
