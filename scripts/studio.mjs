@@ -134,6 +134,8 @@ export function envBlock(s, themes) {
       STUDIO_RULES: s.studioRules ? JSON.stringify(Object.fromEntries(Object.entries(s.studioRules).filter(([k]) => !k.startsWith("_")))) : "",
       // This studio's share of the account's free 10,000 Workers AI neurons a day ("0" = never call).
       STUDIO_AI_BUDGET: String(s.aiBudget ?? 0),
+      // Get it sponsored: "event" for a business studio, "experience" for a creator (shared/sponsored.ts).
+      SPONSOR_KIND: s.sponsorKind === "event" ? "event" : "experience",
       ...(s.whatsNew ? { WHATS_NEW: JSON.stringify(s.whatsNew) } : {}),
       ENV_NAME: "production",
       AUTH_MODE: "code",
@@ -174,6 +176,7 @@ export function wranglerConfig({ studios, themes }) {
       STUDIO_SOUND: "",
       STUDIO_RULES: JSON.stringify(DEV_STUDIO_RULES),
       STUDIO_AI_BUDGET: "0",
+      SPONSOR_KIND: "experience",
       ENV_NAME: "dev",
       AUTH_MODE: "code",
     },

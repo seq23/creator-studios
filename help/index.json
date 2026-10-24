@@ -414,6 +414,12 @@
       "screen": "deals"
     },
     {
+      "slug": "get-it-sponsored",
+      "title": "Get an experience sponsored",
+      "group": "brand_deals",
+      "screen": "deals"
+    },
+    {
       "slug": "deal-stages",
       "title": "Your deals, from pitch to paid",
       "group": "brand_deals",

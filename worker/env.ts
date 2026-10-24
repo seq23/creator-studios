@@ -114,6 +114,8 @@ export interface Env {
   STUDIO_RULES?: string;
   /** studios/<slug>.json "whatsNew" as JSON: the one-time note shown to the owner (shared/photoPosts.ts). */
   WHATS_NEW?: string;
+  /** studios/<slug>.json "sponsorKind": "event" for a business studio ("Get an event sponsored"), else "experience" (shared/sponsored.ts). */
+  SPONSOR_KIND?: string;
 }
 
 export interface SessionUser {

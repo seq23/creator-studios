@@ -23,6 +23,7 @@ import { Help } from "./pages/Help";
 import { HelpGuide } from "./pages/HelpGuide";
 import { Photos } from "./pages/Photos";
 import { DumpFiles } from "./pages/DumpFiles";
+import { Sponsored } from "./pages/Sponsored";
 
 export function App() {
   const { me, ready, unreachable, refreshMe } = useApp();
@@ -51,6 +52,8 @@ export function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/connections" element={<Connect />} />
           <Route path="/deals" element={<Deals />} />
+          <Route path="/deals/sponsored" element={<Sponsored />} />
+          <Route path="/deals/sponsored/:id" element={<Sponsored />} />
           <Route path="/help" element={<Help />} />
           <Route path="/help/:slug" element={<HelpGuide />} />
           <Route path="*" element={<Navigate to="/" replace />} />

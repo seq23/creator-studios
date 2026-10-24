@@ -1,0 +1,40 @@
+# Get it sponsored (owner-approved mock-up, 23 Oct 2026; jobs/sponsor.py). Started ONLY by the Worker
+# when she taps "Find brands for this" (repository_dispatch with a signed payload); the job fetches its spec
+# from the Worker, searches the free web, asks the free AI ladder, and calls back. $0 only.
+# Logs show step names and counts only (section 13).
+name: job-sponsor
+
+on:
+  repository_dispatch:
+    types: [sponsor]
+
+concurrency:
+  group: job-sponsor-${{ github.event.client_payload.job_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run
+        run: python3 jobs/sponsor.py
+        env:
+          JOB_ID: ${{ github.event.client_payload.job_id }}
+          JOB_NONCE: ${{ github.event.client_payload.nonce }}
+          JOB_TS: ${{ github.event.client_payload.ts }}
+          JOB_SIG: ${{ github.event.client_payload.sig }}
+          WORKER_URL: ${{ github.event.client_payload.worker_url }}
+          RUN_ID: ${{ github.run_id }}
+          OPENROUTER_JOB_BUDGET: "2"
+          # Which studio started this job: it picks that studio's shared secret (JOB_SHARED_SECRET_<SLUG>, or
+          # JOB_SHARED_SECRET in a studio's own job repository). Keys come only through that Worker's signed spec.
+          JOB_STUDIO: ${{ github.event.client_payload.studio }}
+          JOB_SHARED_SECRET: ${{ secrets[format('JOB_SHARED_SECRET_{0}', github.event.client_payload.studio)] || secrets.JOB_SHARED_SECRET }}

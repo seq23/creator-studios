@@ -52,7 +52,7 @@ import { readSettings } from "./settings";
 export const deals = new Hono<{ Bindings: Env; Variables: Vars }>();
 deals.use("*", requireUser);
 
-type C = Context<{ Bindings: Env; Variables: Vars }>;
+export type C = Context<{ Bindings: Env; Variables: Vars }>;
 
 // ---------- rows
 
@@ -491,8 +491,15 @@ const TONES: Tone[] = ["warm", "straight", "short"];
 const LENGTHS: Length[] = ["brief", "standard", "detailed"];
 
 /** One tap from a prospect card: the deal opens with its first pitch already written. */
-deals.post("/brands/:id/pitch", async (c) => {
-  const b = await brandById(c.env, c.req.param("id"));
+deals.post("/brands/:id/pitch", async (c) => openPitch(c, c.req.param("id")));
+
+/**
+ * Open (or reopen) a deal for this brand with its first pitch written. Shared with Get it
+ * sponsored ("Pitch this brand", routes/sponsored.ts), which passes the experience as the idea the
+ * email leads with. Nothing is sent: she sends every pitch herself.
+ */
+export async function openPitch(c: C, brandId: string, opts: { idea?: string | null; from?: string } = {}): Promise<Response> {
+  const b = await brandById(c.env, brandId);
   if (!b) return fail(c, 404, "That brand is gone.");
   if (!(await lockedProfile(c.env))) return fail(c, 409, "Lock your Brand Profile first, so pitches sound like you.", "upload-brand-docs");
   let d = await latestDealFor(c.env, b.id);
@@ -503,16 +510,17 @@ deals.post("/brands/:id/pitch", async (c) => {
   } else {
     const contacts = await contactsFor(c.env, b.id);
     const id = newId("dl");
-    await c.env.DB.prepare("INSERT INTO deals (id, brand_id, stage) VALUES (?, ?, ?)").bind(id, b.id, contacts.length ? "pitch" : "find_contact").run();
+    const terms = opts.idea ? JSON.stringify({ idea: opts.idea.slice(0, 300) }) : "{}";
+    await c.env.DB.prepare("INSERT INTO deals (id, brand_id, stage, terms) VALUES (?, ?, ?, ?)").bind(id, b.id, contacts.length ? "pitch" : "find_contact", terms).run();
     d = (await dealById(c.env, id))!;
     if (b.status === "suggested") await c.env.DB.prepare("UPDATE brands SET status = 'saved' WHERE id = ?").bind(b.id).run();
-    await recordEvent(c.env.DB, "deal.opened", id, { from: "prospect" }, c.get("user").email);
+    await recordEvent(c.env.DB, "deal.opened", id, { from: opts.from ?? "prospect" }, c.get("user").email);
   }
   const earlier = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM deals WHERE brand_id = ? AND agreed_at IS NOT NULL").bind(b.id).first<{ n: number }>();
   const key: ScenarioKey = b.kind === "agency" ? "agency_pitch" : (earlier?.n ?? 0) > 0 ? "warm_repitch" : "cold_pitch";
   const e = await writeEmail(c, d, b, key, "warm", "standard");
   return c.json({ dealId: d.id, emailId: e.id, note: e.note });
-});
+}
 
 deals.post("/deals/:id/emails", async (c) => {
   const d = await dealById(c.env, c.req.param("id"));
