@@ -33,6 +33,14 @@ export const WORDS_PER_RUN = 8;
  * it is New again and gets its words then.
  */
 export const WORDS_STATUSES = "('draft', 'approved')";
+/**
+ * How long an on-demand words pass (worker/routes/ops.ts, rewrite-words) may write before it answers.
+ * Each clip is one free-model call of up to a minute, so 8 clips ran past the 5 minutes after which the
+ * request was cut (24 Oct 2026: `studio.mjs words sample1` printed only "fetch failed" and the voice
+ * over for that run's clips never started). It stops between clips and says how many still wait; the
+ * hourly lane (no deadline) or the next call writes the rest.
+ */
+export const OPS_WORDS_BUDGET_MS = 180_000;
 /** A try at most once every 50 minutes per clip (the hourly lane). */
 export const WORDS_RETRY_MS = 50 * 60 * 1000;
 /** After this many tries (a day of hourly runs) the health light goes red. */
@@ -166,7 +174,7 @@ export function practiceDraft(c: Pick<PendingClip, "number" | "clip_type">): Dra
 }
 
 /** One hourly run. Returns how many clips got their words, how many still wait, and how many are past a day. */
-export async function wordsPass(env: Env, now = new Date()): Promise<{ written: number; waiting: number; stuck: number; daily_limit_until: string | null; misses: Partial<Record<WordsMiss, number>> }> {
+export async function wordsPass(env: Env, now = new Date(), opts: { deadline?: number } = {}): Promise<{ written: number; waiting: number; stuck: number; daily_limit_until: string | null; misses: Partial<Record<WordsMiss, number>> }> {
   const since = new Date(now.getTime() - WORDS_RETRY_MS).toISOString();
   const { results } = await env.DB.prepare(
     `SELECT id, dump_id, number, start_s, end_s, clip_type, on_screen, uses_ai_images, words_tries, score, score_reasons FROM clips
@@ -197,6 +205,8 @@ export async function wordsPass(env: Env, now = new Date()): Promise<{ written: 
       `never mention automation, software or how the video was made. No lists, no markdown, no notes about the task.` +
       (rules.place_words.length ? ` Use one of these local words naturally: ${rules.place_words.join(", ")}.` : "");
     for (const c of results) {
+      // Out of time (an on-demand call): stop between clips; the rest are still waiting, never lost.
+      if (opts.deadline !== undefined && Date.now() >= opts.deadline) break;
       // The other hooks in this dump (written ones, any status but deleted): never a repeat.
       const { results: others } = await env.DB.prepare("SELECT hook_text FROM clips WHERE dump_id = ? AND id != ? AND status != 'deleted' AND hook_text != ''")
         .bind(c.dump_id, c.id)

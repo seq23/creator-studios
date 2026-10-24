@@ -33,7 +33,7 @@ import { startOver } from "./dumps";
 import { PROFILE_IN_USE } from "../lib/profileInUse";
 import { monthlyNicheRefresh } from "../lib/niche";
 import { rewriteDumpWords } from "../lib/rewriteWords";
-import { wordsPass } from "../lib/wordsPass";
+import { OPS_WORDS_BUDGET_MS, wordsPass } from "../lib/wordsPass";
 
 export const ops = new Hono<{ Bindings: Env; Variables: Vars }>();
 
@@ -94,7 +94,7 @@ ops.post("/rewrite-words", async (c) => {
 ops.post("/words", async (c) => {
   const text = await signedBody(c);
   if (text === null) return fail(c, 401, "Bad signature.");
-  const r = await wordsPass(c.env);
+  const r = await wordsPass(c.env, new Date(), { deadline: Date.now() + OPS_WORDS_BUDGET_MS });
   await recordEvent(c.env.DB, "words.ops_run", null, { ...r }, OPS_ACTOR);
   return c.json({ ok: true, ...r });
 });
