@@ -10,6 +10,8 @@
 //     secretPlan refuses one if it is added;
 //   - every host-accounts studio's plan carries all of them (from its own 0600 files);
 //   - the list in scripts/studio.mjs is the list in worker/lib/hostKeys.ts;
+//   - the host-first studios (registry openrouterOrder "host-first", generated OPENROUTER_ORDER) are exactly
+//     the pinned HOST_FIRST, each carries the host's OpenRouter key, and every other env says "pasted-first";
 //   - nothing in worker/ or shared/ reads OPENROUTER_ / FIRECRAWL_ / HUNTER_API_KEY or STUDIO_EMAIL_FROM off the env but
 //     worker/lib/hostKeys.ts (the gate) and worker/lib/practice.ts (after hydrate ran hostBase).
 import { readFile, readdir } from "node:fs/promises";
@@ -26,8 +28,13 @@ export const ALLOWED = Object.freeze({
   // Owner's word 23 Oct 2026 ("One codebase"): Sheila's and Mercedes' studios joined the shared code;
   // only their studio email runs on a host Resend sender, everything else is their own.
   sheila: ["RESEND_API_KEY", "STUDIO_EMAIL_FROM"],
-  mercedes: ["RESEND_API_KEY", "STUDIO_EMAIL_FROM"],
+  // Owner's word 24 Oct 2026: Mercedes's AI writing runs on the host's OpenRouter FIRST (ORDER below),
+  // with her own pasted key as the backup.
+  mercedes: ["OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM"],
 });
+
+/** Pinned: the studios whose host OpenRouter key goes FIRST, her pasted key the backup. Every other studio: pasted wins. */
+export const HOST_FIRST = Object.freeze(["mercedes"]);
 
 const READERS_ALLOWED = new Set(["worker/lib/hostKeys.ts", "worker/lib/practice.ts", "worker/env.ts"]);
 const READ = /\.(OPENROUTER_API_KEY|FIRECRAWL_API_KEY|HUNTER_API_KEY|STUDIO_EMAIL_FROM)\b/;
@@ -43,7 +50,7 @@ async function walk(dir) {
 }
 
 /** Pure: studios, the parsed wrangler config, secretPlan, the two lists, and { relPath: text } of the Worker sources. */
-export function checkHostKeys({ studios, cfg, secretPlan, cliList, workerList, sources, allowed = ALLOWED }) {
+export function checkHostKeys({ studios, cfg, secretPlan, cliList, workerList, sources, allowed = ALLOWED, hostFirst = HOST_FIRST }) {
   const problems = [];
   let items = 0;
   const want = [...cliList].sort().join(",");
@@ -79,7 +86,14 @@ export function checkHostKeys({ studios, cfg, secretPlan, cliList, workerList, s
     if (s.kind === "client" && (s.hostKeys ?? []).length) problems.push(`studios/${s.slug}.json: a client studio has hostKeys`);
     const generated = (cfg.env?.[s.slug]?.vars?.HOST_KEYS ?? "").split(",").filter(Boolean);
     if (!same(generated, want)) problems.push(`wrangler env.${s.slug}: HOST_KEYS is [${generated.join(", ")}], pinned [${want.join(", ")}]`);
+    const first = hostFirst.includes(s.slug);
+    const order = cfg.env?.[s.slug]?.vars?.OPENROUTER_ORDER;
+    if ((s.openrouterOrder === "host-first") !== first) problems.push(`studios/${s.slug}.json: openrouterOrder is ${s.openrouterOrder ?? "unset"}, pinned ${first ? "host-first" : "unset (pasted key wins)"}`);
+    if (order !== (first ? "host-first" : "pasted-first")) problems.push(`wrangler env.${s.slug}: OPENROUTER_ORDER is ${order}, pinned ${first ? "host-first" : "pasted-first"}`);
+    if (first && !want.includes("OPENROUTER_API_KEY")) problems.push(`${s.slug} is host-first but the host's OPENROUTER_API_KEY is not pinned for it`);
   }
+  if (!hostFirst.length) problems.push("no host-first studio pinned; the key-order check read nothing (Rule 0)");
+  if (cfg.vars?.OPENROUTER_ORDER !== "pasted-first") problems.push(`wrangler.jsonc top level (local dev) OPENROUTER_ORDER is ${cfg.vars?.OPENROUTER_ORDER}, must be pasted-first`);
   if (cfg.vars?.HOST_KEYS) problems.push("wrangler.jsonc top level (local dev) carries HOST_KEYS");
   if (cfg.vars?.STUDIO_KIND !== "client") problems.push(`wrangler.jsonc top level (local dev) STUDIO_KIND is ${cfg.vars?.STUDIO_KIND}, must be client`);
   const files = Object.keys(sources);
@@ -91,6 +105,8 @@ export function checkHostKeys({ studios, cfg, secretPlan, cliList, workerList, s
     if (m) problems.push(`${f}: reads ${m[1]} off the env; only worker/lib/hostKeys.ts may (it gates on STUDIO_KIND)`);
   }
   if (!/allowedHostKeys\(env\)/.test(sources["worker/lib/hostKeys.ts"] ?? "")) problems.push("worker/lib/hostKeys.ts: hostBase/hostKeyFor no longer gate on allowedHostKeys (HOST_KEYS), so a studio could read a host key not pinned for it");
+  if (!/OPENROUTER_ORDER === "host-first"/.test(sources["worker/lib/hostKeys.ts"] ?? "")) problems.push("worker/lib/hostKeys.ts: hostFirst no longer reads OPENROUTER_ORDER, so the pinned key order governs nothing");
+  if (!/getOpenRouterFallback\(/.test(sources["worker/services/openrouter.ts"] ?? "") || !/getOpenRouterFallback\(/.test(sources["worker/routes/jobs.ts"] ?? "")) problems.push("worker/services/openrouter.ts and worker/routes/jobs.ts must pass the host-first studio's own key as the backup (getOpenRouterFallback)");
   if (!/hostBase\(env\)/.test(sources["worker/lib/practice.ts"] ?? "")) problems.push("worker/lib/practice.ts: hydrate no longer starts from hostBase(env), so a client studio would read the host's keys");
   return { items, problems };
 }

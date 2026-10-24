@@ -8,9 +8,12 @@
   "theme": "mercedes",
   "kind": "host-accounts",
   "hostKeys": [
+    "OPENROUTER_API_KEY",
     "RESEND_API_KEY",
     "STUDIO_EMAIL_FROM"
   ],
+  "openrouterOrder": "host-first",
+  "_openrouterOrder": "Owner's word 24 Oct 2026: AI writing runs on the host's OpenRouter key (1,000 free calls a day, the studios keep to 500) FIRST, with Mercedes's own pasted key (Setup) as the backup when the host's is refused, limited or gets no answer. Free models only on both.",
   "audienceTimezone": "America/New_York",
   "d1": {
     "name": "mercedes-creator-dashboard-db",
@@ -21,11 +24,12 @@
   },
   "githubRepo": "seq23/creator-studios",
   "hostSecrets": {
-    "_why": "Mercedes's studio joined the shared code on the owner's word, 23 Oct 2026 (\"One codebase\"): its Worker, D1, R2, domain and keys carried over. Studio email runs on a host Resend sender; everything else is Mercedes's own, pasted on Setup or already on the Worker.",
+    "_why": "Mercedes's studio joined the shared code on the owner's word, 23 Oct 2026 (\"One codebase\"): its Worker, D1, R2, domain and keys carried over. Studio email runs on a host Resend sender, AI writing on the host's OpenRouter first with her own as the backup (24 Oct 2026); everything else is Mercedes's own, pasted on Setup or already on the Worker.",
     "GITHUB_DISPATCH_TOKEN": "gh-auth-token",
     "YOUTUBE_API_KEY": "file?:YOUTUBE_API_KEY",
     "GOOGLE_CLIENT_ID": "studio-file?:GOOGLE_CLIENT_ID",
     "GOOGLE_CLIENT_SECRET": "studio-file?:GOOGLE_CLIENT_SECRET",
+    "OPENROUTER_API_KEY": "studio-file:OPENROUTER_API_KEY",
     "RESEND_API_KEY": "studio-file:RESEND_API_KEY",
     "STUDIO_EMAIL_FROM": "studio-file:STUDIO_EMAIL_FROM",
     "_kept": "The Worker already carries its YouTube and Google sign-in keys from before the move; secrets never rotates a set one, so these optional sources only matter for a fresh Worker.",

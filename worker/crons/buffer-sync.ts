@@ -12,7 +12,7 @@ import type { Env } from "../env";
 import { fakeServices } from "../env";
 import { inPracticeOnly } from "../lib/practice";
 import { getSetting, parseJson, recordEvent, setHealth, setSetting } from "../lib/db";
-import { getConnectionSecret, markConnection, type Service } from "../lib/connections";
+import { getConnectionSecret, getOpenRouterFallback, markConnection, type Service } from "../lib/connections";
 import { mediaToken, nowIso } from "../lib/ids";
 import { log } from "../lib/log";
 import { planAhead } from "../routes/posts";
@@ -393,7 +393,8 @@ export async function recheckEverything(env: Env): Promise<void> {
     ["hunter", checkHunter],
   ];
   for (const [service, check] of checks) {
-    const key = await getConnectionSecret(env, service);
+    // Her connection row speaks for her own key: on a host-first studio that is the backup, not the host's.
+    const key = (service === "openrouter" ? await getOpenRouterFallback(env) : null) ?? (await getConnectionSecret(env, service));
     if (!key) continue;
     const r = await check(env, key);
     await markConnection(env, service, r.ok ? "ok" : "error", r.error, r.meta);

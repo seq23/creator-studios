@@ -117,6 +117,9 @@ export function envBlock(s, themes) {
       // and only the ones named in HOST_KEYS (the registry's hostKeys; pinned per studio by validator host-keys-host-only).
       STUDIO_KIND: s.kind,
       HOST_KEYS: s.kind === "host-accounts" ? (s.hostKeys ?? []).join(",") : "",
+      // "host-first": the host's OpenRouter key first, her pasted key the backup (registry openrouterOrder,
+      // pinned per studio by validator host-keys-host-only). Always present; anything else = her pasted key wins.
+      OPENROUTER_ORDER: s.kind === "host-accounts" && s.openrouterOrder === "host-first" ? "host-first" : "pasted-first",
       STUDIO_THEME: JSON.stringify(themeFor(s, themes)),
       FAKE_SERVICES: "0",
       PUBLIC_BASE_URL: s.url,
@@ -167,6 +170,7 @@ export function wranglerConfig({ studios, themes }) {
       STUDIO_SLUG: "dev",
       STUDIO_KIND: "client",
       HOST_KEYS: "",
+      OPENROUTER_ORDER: "pasted-first",
       STUDIO_THEME: JSON.stringify(slate),
       FAKE_SERVICES: "1",
       PUBLIC_BASE_URL: "http://localhost:8787",

@@ -2,8 +2,9 @@
 // small, quick calls (pitch drafts, brief edits); the heavy runs happen in jobs/.
 import type { Env } from "../env";
 import { fakeServices } from "../env";
-import { getConnectionSecret } from "../lib/connections";
+import { getConnectionSecret, getOpenRouterFallback } from "../lib/connections";
 import { vendorStatusError } from "../lib/vendorStatus";
+import { log } from "../lib/log";
 
 export const FREE_MODEL = "openrouter/free";
 
@@ -60,14 +61,28 @@ export function hasJsonObject(text: string): boolean {
   }
 }
 
+type Completion = { ok: boolean; text: string; error: string | null; limit?: "daily" | "busy" };
+type CompleteInput = { system: string; user: string; json?: boolean; maxTokens?: number; accept?: (text: string) => boolean };
+
 class RealLlm implements LlmClient {
-  constructor(private key: string, private referer: string) {}
-  async complete(input: { system: string; user: string; json?: boolean; maxTokens?: number; accept?: (text: string) => boolean }) {
+  /** `fallback`: a host-first studio's own pasted key, asked when the first key gives no usable answer. */
+  constructor(private key: string, private referer: string, private fallback: string | null = null) {}
+  /**
+   * The first key, then (host-first studios only) the backup key when the first was refused (401/402),
+   * hit its daily limit or a busy model (429), or gave no usable answer from any model tried.
+   */
+  async complete(input: CompleteInput): Promise<Completion> {
+    const first = await this.completeWith(this.key, input);
+    if (!this.fallback || (first.ok && first.error === null)) return first;
+    log.info("llm.key_fallback", { why: first.limit ?? (first.ok ? "unusable" : "failed") });
+    return this.completeWith(this.fallback, input);
+  }
+  private async completeWith(key: string, input: CompleteInput): Promise<Completion> {
     const accept = input.accept ?? (input.json ? hasJsonObject : (t: string) => t.trim().length > 0);
     let maxTokens = input.maxTokens ?? 1200;
     let last: { ok: boolean; text: string; error: string | null; limit?: "daily" | "busy" } = { ok: false, text: "", error: "AI service did not answer." };
     for (let attempt = 0; attempt < LLM_ATTEMPTS; attempt++) {
-      const r = await this.once(input, maxTokens);
+      const r = await this.once(key, input, maxTokens);
       if (!r.ok) return r; // busy, key refused, network: the caller shows the plain sentence
       if (accept(r.text)) return { ok: true, text: r.text, error: null };
       last = { ok: true, text: r.text, error: "The AI's answer came back incomplete." };
@@ -75,11 +90,11 @@ class RealLlm implements LlmClient {
     }
     return last;
   }
-  private async once(input: { system: string; user: string; json?: boolean }, maxTokens: number): Promise<{ ok: boolean; text: string; error: string | null; finish: string | null; limit?: "daily" | "busy" }> {
+  private async once(key: string, input: { system: string; user: string; json?: boolean }, maxTokens: number): Promise<{ ok: boolean; text: string; error: string | null; finish: string | null; limit?: "daily" | "busy" }> {
     try {
       const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
-        headers: { Authorization: `Bearer ${this.key}`, "Content-Type": "application/json", "HTTP-Referer": this.referer, "X-Title": "Creator Studios" },
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "HTTP-Referer": this.referer, "X-Title": "Creator Studios" },
         body: JSON.stringify({
           model: FREE_MODEL,
           max_tokens: maxTokens,
@@ -114,5 +129,6 @@ class RealLlm implements LlmClient {
 export async function getLlm(env: Env, keyOverride?: string): Promise<LlmClient> {
   const key = keyOverride ?? (await getConnectionSecret(env, "openrouter"));
   if (fakeServices(env) || !key) return new FakeLlm(key);
-  return new RealLlm(key, env.PUBLIC_BASE_URL);
+  // A key passed in (a check of one key) is asked alone; otherwise a host-first studio's own key backs up the host's.
+  return new RealLlm(key, env.PUBLIC_BASE_URL, keyOverride ? null : await getOpenRouterFallback(env));
 }

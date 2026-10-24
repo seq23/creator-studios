@@ -16,6 +16,7 @@
 import { Hono, type Context } from "hono";
 import type { Env, Vars } from "../env";
 import { verifyJobMessage } from "../lib/crypto";
+import { getOpenRouterFallback } from "../lib/connections";
 import { contentRange, jobStorageScope, mayRead, mayWrite, signedRequestLine } from "../lib/jobStorage";
 import { completeParts, putPart } from "./uploads";
 import { UPLOAD_PART_SIZE } from "@shared/constants";
@@ -61,7 +62,10 @@ jobs.get("/:id/spec", async (c) => {
   await markJob(c.env, job.id, "running", null, c.req.header("x-job-run-id") ?? null);
   const spec = await handler.buildSpec(c.env, job.id, job.ref_id);
   log.info("job.spec", { type: job.type });
-  return c.json(spec);
+  // Host-first studios: her own OpenRouter key rides along as the backup; jobs/common.py run() reads it
+  // for every job, so its ladder moves to her key before Workers AI. Other studios' specs are unchanged.
+  const fallback = spec && typeof spec === "object" && !Array.isArray(spec) ? await getOpenRouterFallback(c.env) : null;
+  return c.json(fallback ? { ...(spec as Record<string, unknown>), llm_key_fallback: fallback } : spec);
 });
 
 /** The exact path + query as sent, still percent-encoded: what the job signed. */

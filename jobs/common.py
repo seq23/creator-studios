@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import io
 import json
 import os
 import re
@@ -100,22 +101,62 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_MAX_TOKENS_CEILING = 16_000
 
 
+# A host-first studio (worker/lib/hostKeys.ts hostFirst; Mercedes, owner's word 24 Oct 2026) sends its
+# own pasted key as the spec's `llm_key_fallback`: the host's key goes first, and once it is refused
+# (401/402), out of its daily quota (429 per-day) or gets no answer from any model tried (jobs/ai.py),
+# the job moves to her key for the rest of the run. Other studios never send one.
+OPENROUTER_KEYS: dict[str, Any] = {"fallback": None, "switched": False}
+
+
+def set_openrouter_fallback(key: Any) -> None:
+    OPENROUTER_KEYS["fallback"] = key if isinstance(key, str) and key else None
+    OPENROUTER_KEYS["switched"] = False
+
+
+def openrouter_key(key: str | None) -> str | None:
+    """The key to send now: the backup once the job has moved to it, else the one given."""
+    return OPENROUTER_KEYS["fallback"] if OPENROUTER_KEYS["switched"] and OPENROUTER_KEYS["fallback"] else key
+
+
+def switch_openrouter_key(why: str) -> bool:
+    """Move this job to the backup key. True only the first time, and only when there is one."""
+    if not OPENROUTER_KEYS["fallback"] or OPENROUTER_KEYS["switched"]:
+        return False
+    OPENROUTER_KEYS["switched"] = True
+    log("ai.key_fallback", why=why)
+    return True
+
+
+def key_refused(code: Any, body: str) -> bool:
+    """A status that says THIS key cannot answer (refused, unpaid, or its free daily quota used)."""
+    if code in (401, 402):
+        return True
+    b = (body or "").lower()
+    return code == 429 and ("per-day" in b or "per day" in b or "free-models-per-day" in b)
+
+
 def openrouter_content(key: str, payload: dict[str, Any], timeout: float = 180, usable: Any = None) -> tuple[str, dict[str, Any]]:
     """POST a chat completion; returns (content, raw response). HTTP errors propagate.
 
     `usable(content) -> bool`: when an answer that stopped for length is not usable, ask again
-    with more room (at most twice)."""
+    with more room (at most twice). On a host-first job a refused or used-up first key moves the
+    job to the backup key and asks again (set_openrouter_fallback)."""
     body = dict(payload)
     data: dict[str, Any] = {}
     content = ""
     for _ in range(3):
-        req = urllib.request.Request(OPENROUTER_URL, data=json.dumps(body).encode(), method="POST", headers={
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-            "X-Title": "Sample Studio",
-        })
-        with urllib.request.urlopen(req, timeout=timeout) as res:
-            data = json.loads(res.read().decode())
+        try:
+            data = _post_openrouter(openrouter_key(key) or key, body, timeout)
+        except urllib.error.HTTPError as e:
+            raw = b""
+            try:
+                raw = e.read() if e.fp else b""
+            except Exception:  # noqa: BLE001
+                raw = b""
+            if key_refused(e.code, raw.decode("utf-8", "replace")) and switch_openrouter_key(f"http_{e.code}"):
+                data = _post_openrouter(openrouter_key(key) or key, body, timeout)
+            else:
+                raise urllib.error.HTTPError(e.url, e.code, e.msg, e.hdrs, io.BytesIO(raw)) from None
         choice = (data.get("choices") or [{}])[0]
         content = (choice.get("message") or {}).get("content") or ""
         cut_short = choice.get("finish_reason") == "length"
@@ -127,6 +168,16 @@ def openrouter_content(key: str, payload: dict[str, Any], timeout: float = 180, 
         log("llm.more_room", max_tokens=more)
         body["max_tokens"] = more
     return content, data
+
+
+def _post_openrouter(key: str, body: dict[str, Any], timeout: float) -> dict[str, Any]:
+    req = urllib.request.Request(OPENROUTER_URL, data=json.dumps(body).encode(), method="POST", headers={
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "X-Title": "Sample Studio",
+    })
+    with urllib.request.urlopen(req, timeout=timeout) as res:
+        return json.loads(res.read().decode())
 
 
 def json_object_in(text: str) -> bool:
@@ -602,6 +653,7 @@ def run(main) -> None:
     spec: Any = None
     try:
         spec = job.spec()
+        set_openrouter_fallback(spec.get("llm_key_fallback") if isinstance(spec, dict) else None)
         result = main(job, spec)
         job.done(result)
     except SystemExit:

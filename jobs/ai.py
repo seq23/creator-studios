@@ -26,6 +26,12 @@ account's monthly credits are used up and it cannot pay, so every call is refuse
 endpoint no longer answers).
 
 Every call is counted per provider (CALLS_BY) and the job logs and returns the counts.
+
+Key order (owner's word 24 Oct 2026, Mercedes): a host-first studio's spec carries her own pasted key as
+`llm_key_fallback` (jobs/common.py set_openrouter_fallback). The host's key goes first; when it is
+refused (401/402), out of its daily quota, or gets no answer from every model tried, the job moves to her
+key for the rest of the run, still free models only and still inside OPENROUTER_JOB_BUDGET, and only
+then to Workers AI.
 """
 from __future__ import annotations
 
@@ -40,7 +46,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import json_object_in, log, openrouter_content  # noqa: E402
+from common import json_object_in, key_refused, log, openrouter_content, openrouter_key, switch_openrouter_key  # noqa: E402
 
 # A dump of ~9 videos and ~12 clips needs about 11 (3 batched shot-sheet calls, 1 copy call, 3 batched
 # critic calls, up to 4 for re-cuts); a 19-video dump with re-cuts about 25. 40 lets one big upload
@@ -125,13 +131,15 @@ def _ask_openrouter_only(key: str | None, payload_for: Callable[[str], dict[str,
     if not key or STATE["quota_out"]:
         return None, ""
     codes: list[Any] = []
-    for model in models[:2]:
+    tries = list(models[:2])
+    while tries:
+        model = tries.pop(0)
         if openrouter_left() <= max(0, reserve):
             log("ai.budget_used", provider="openrouter", kind=kind, budget=OPENROUTER_JOB_BUDGET, reserved=max(0, reserve))
             return None, ""
         CALLS_BY["openrouter"] += 1
         try:
-            content, _raw = ask(key, payload_for(model), timeout=timeout, usable=usable)
+            content, _raw = ask(openrouter_key(key), payload_for(model), timeout=timeout, usable=usable)
             if usable and not usable(content or ""):
                 raise ValueError("no json")
             return content, model
@@ -146,11 +154,20 @@ def _ask_openrouter_only(key: str | None, payload_for: Callable[[str], dict[str,
                 except Exception:  # noqa: BLE001
                     body = ""
             log("ai.call", provider="openrouter", kind=kind, ok=False, code=code)
+            # Host-first studio: a refused or used-up first key moves the job to her own key (backup),
+            # which asks the same models again before the daily breaker or Workers AI.
+            if key_refused(code, body) and switch_openrouter_key(f"http_{code}"):
+                tries = [model, *tries]
+                codes = []
+                continue
             if code == 429 and daily_quota_message(body):
                 STATE["quota_out"] = True
                 log("ai.quota_out", provider="openrouter", kind=kind, why="daily")
                 return None, ""
             time.sleep(2)
+    # No answer from any model tried: a host-first job asks them again on the backup key first.
+    if codes and switch_openrouter_key("no_answer"):
+        return _ask_openrouter_only(key, payload_for, models, kind, usable, timeout, ask, reserve)
     if codes and all(c == 429 for c in codes):
         STATE["quota_out"] = True
         log("ai.quota_out", provider="openrouter", kind=kind, why="every_model_busy")

@@ -25,8 +25,12 @@ import { clipTypeLabel, cleanLine, cleanScript, composeCaption, copiesPattern, c
 import { latestPlaybook } from "./niche";
 import { feelLine } from "@shared/videoFeel";
 
-/** Clips per run (each is one free model call at most). */
-export const WORDS_PER_RUN = 8;
+/**
+ * Clips per run (each is one free model call at most). 5 since 24 Oct 2026: three studios now carry the
+ * host's OpenRouter key (Mercedes host-first), and 5 x 24 x 3 stays inside 80% of the studios' 500 a day
+ * (validator free-quota-budgeted).
+ */
+export const WORDS_PER_RUN = 5;
 /**
  * Only clips that can still be posted get words: New and approved. A rejected clip spent five of
  * the eight hourly tries on 24 Oct 2026 while the clips she would see waited; if she restores one,
@@ -45,7 +49,7 @@ export const OPS_WORDS_BUDGET_MS = 180_000;
  * Model asks per clip per run. A refused answer (too long, a content rule, a hook that makes the dump
  * read alike) is asked again ONCE with the plain reason, instead of waiting an hour for a blind retry
  * (24 Oct 2026: three Porch & Party clips refused three hourly tries running, every one by the repeat
- * check). Two asks x WORDS_PER_RUN keeps an hourly run at 16 free-model calls at most.
+ * check). Two asks x WORDS_PER_RUN keeps an hourly run at 10 free-model calls at most.
  */
 export const WORDS_ASKS_PER_CLIP = 2;
 /** At most this many of the dump's hooks are listed for the model (all of them in a normal dump). */

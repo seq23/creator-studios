@@ -11,6 +11,12 @@
 // STUDIO_EMAIL_FROM from the Worker env (validator `host-keys-host-only`). hydrate()
 // (worker/lib/practice.ts) calls hostBase() first, so for a client studio these names are gone
 // before anything else sees the env.
+//
+// Key order (owner's word 24 Oct 2026, Mercedes): a studio whose registry entry says
+// openrouterOrder "host-first" (var OPENROUTER_ORDER) runs AI writing on the host's OpenRouter key
+// FIRST and keeps her own pasted key as the BACKUP, tried when the host's is refused or limited
+// (worker/services/openrouter.ts, jobs/ai.py + jobs/common.py). Every other studio: her pasted key
+// wins, the host's stands in only when she has none.
 import type { Env } from "../env";
 
 /** Worker secrets only a host-accounts studio may carry (scripts/studio.mjs secretPlan refuses them for a client). */
@@ -58,4 +64,13 @@ export function hostKeyFor(env: Pick<Env, "STUDIO_KIND" | "HOST_KEYS" | "OPENROU
   const name = HOST_KEY_SERVICES[service];
   if (!allowedHostKeys(env).has(name)) return null;
   return env[name] || null;
+}
+
+/**
+ * True when the host's key goes first and her pasted key is the backup: OpenRouter only, a
+ * host-accounts studio whose registry says openrouterOrder "host-first", and the host key is
+ * allowed (HOST_KEYS) and set. Anything else keeps the default: a pasted key wins.
+ */
+export function hostFirst(env: Pick<Env, "STUDIO_KIND" | "HOST_KEYS" | "OPENROUTER_API_KEY" | "FIRECRAWL_API_KEY" | "HUNTER_API_KEY" | "OPENROUTER_ORDER">, service: string): boolean {
+  return service === "openrouter" && env.OPENROUTER_ORDER === "host-first" && !!hostKeyFor(env, service);
 }
