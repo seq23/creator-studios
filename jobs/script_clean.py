@@ -75,19 +75,52 @@ def clean_line(text: str, limit: int = 300) -> str:
     return strip_markdown(text)[:limit]
 
 
+# What a voice can never say (24 Oct 2026, voice overs on one dump spoke "$350", hashtags run
+# together, an emoji, "Made with." and "Book your"): the TypeScript twin is shared/clipWords.ts
+# cleanScript (same lists, same order).
+SPOKEN_TAGS = re.compile(r"(^|[^\w])[#@]\w+")
+SPOKEN_EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF]\uFE0F?(?:\u200D[\U0001F000-\U0001FAFF\u2600-\u27BF]\uFE0F?)*|\uFE0F")
+SPOKEN_PRICE = re.compile(r"[$£€]\s?\d|\b\d[\d,.]*\s?(?:dollars|bucks|usd)\b", re.I)
+SPOKEN_AI_NOTE = re.compile(r"\bmade with\b", re.I)
+LITTLE_WORDS = {"a", "an", "the", "your", "our", "my", "to", "with", "and", "or", "of", "for", "in", "on", "at", "by", "from", "this", "that"}
+
+
+def _ends(s: str) -> bool:
+    return s.endswith((".", "!", "?"))
+
+
+def cut_words(text: str, max_words: int) -> str:
+    """Words cut to max_words, never ending on a little word, ended with a full stop."""
+    words = text.split()[:max_words]
+    while words and _norm(words[-1]) in LITTLE_WORDS:
+        words.pop()
+    out = re.sub(r"[,;:\u2014-]+$", "", " ".join(words))
+    return f"{out}." if out and not _ends(out) else out
+
+
 def clean_script(text: str, caption: str = "", ctas: Iterable[str] = (), max_words: int | None = None) -> str:
     """A voice-over script fit to speak, or '' when it must not be spoken (reasoning-shaped or
-    nothing left). Links are never read aloud; a sentence is never said twice; the call to action
-    at most once; a sentence that repeats the caption word for word is dropped."""
+    nothing left). Links, hashtags, handles and emoji are never read aloud; a sentence with a price
+    or the AI note is dropped; a sentence is never said twice; the call to action at most once; a
+    sentence that repeats the caption word for word is dropped; an unfinished last fragment goes
+    when a finished sentence came before it; a cut keeps whole sentences and never ends on a little word."""
     if is_reasoning(text):
         return ""
-    plain = URL.sub("", strip_markdown(text))
+    spoken = SPOKEN_EMOJI.sub(". ", SPOKEN_TAGS.sub(r"\1", text or ""))
+    plain = URL.sub("", strip_markdown(spoken))
+    plain = re.sub(r"^[.\s]+", "", re.sub(r"(?:\.\s*){2,}", ". ", plain))
     cap = [s for s in sentences(strip_markdown(URL.sub("", caption or ""))) if len(_norm(s).split()) >= 4]
     cta_words = [_norm(c) for c in ctas if _norm(c)]
+    every = sentences(plain)
+    finished = any(_ends(s) for s in every)
     kept: list[str] = []
     said_cta = False
-    for s in sentences(plain):
+    for i, s in enumerate(every):
         if not _norm(s):
+            continue
+        if SPOKEN_PRICE.search(s) or SPOKEN_AI_NOTE.search(s):
+            continue
+        if i == len(every) - 1 and not _ends(s) and finished:
             continue
         if any(_similar(s, k) for k in kept):
             continue
@@ -99,8 +132,13 @@ def clean_script(text: str, caption: str = "", ctas: Iterable[str] = (), max_wor
             continue
         kept.append(s)
     out = " ".join(kept).strip()
-    if max_words:
-        words = out.split()
-        if len(words) > max_words:
-            out = " ".join(words[:max_words]).rstrip(",;:") + ("" if out.endswith((".", "!", "?")) else ".")
+    if max_words and len(out.split()) > max_words:
+        fit: list[str] = []
+        for s in kept:
+            if len(" ".join([*fit, s]).split()) > max_words:
+                break
+            fit.append(s)
+        out = " ".join(fit) if fit else cut_words(out, max_words)
+    if out and not _ends(out):
+        out = cut_words(out, len(out.split()))
     return out if len(out) >= 6 else ""

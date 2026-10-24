@@ -26,6 +26,7 @@ export function autoVoiceState(switchOn: boolean, hasSample: boolean): AutoVoice
 }
 
 import { maxWords } from "@shared/autoVoice";
+import { cutWords } from "@shared/clipWords";
 import type { VoiceChoice } from "@shared/steer";
 
 /**
@@ -49,7 +50,7 @@ export function fitScript(text: string, seconds: number): string {
   if (words.length <= max) return words.join(" ");
   const cut = words.slice(0, max).join(" ");
   const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
-  return end > cut.length * 0.5 ? cut.slice(0, end + 1) : `${cut.replace(/[,;:]$/, "")}.`;
+  return end > cut.length * 0.5 ? cut.slice(0, end + 1) : cutWords(cut, max);
 }
 
 /**

@@ -19,6 +19,7 @@ import { finishWords, parseDraft, practiceDraft, wordsPass, WORDS_PER_RUN, WORDS
 import { draftScript } from "@worker/lib/autoVoice";
 import { clipPostText } from "@worker/lib/postText";
 import { postText } from "@shared/postText";
+import { fitScript } from "@worker/domain/autoVoice";
 import { cleanScript, clipTypeLabel, composeCaption, ctaLine, ctaPhrase, ctaTurnFor, isReasoning } from "@shared/clipWords";
 import { setSetting } from "@worker/lib/db";
 import { cleanGridLayout } from "@worker/domain/looks";
@@ -168,6 +169,25 @@ describe("the caption goes out exactly as the engine wrote it", () => {
     // A voice over is AI-made: the note is added once, after the divider.
     const v = await clipPostText(h.env, { caption: bare, hashtags: "", ai_voice: 1, clip_type: "payoff_first", number: 1, version: 1, dump_created_at: "2026-10-22T15:00:00.000Z" }, "tiktok");
     expect(v.text.endsWith("\n\n—\nMade with AI")).toBe(true);
+  });
+
+  it("a voice never says a price, a hashtag, an emoji, the AI note or half a phrase (the real scripts of 24 Oct 2026), on both sides", () => {
+    const real = [
+      "Memphis arch $350 🌹 #PorchAndParty #MemphisDecor 901 Message us",
+      "Walk in and feel the love 🕯️ Book your",
+      "Sweet moments begin here—message us to book! Made with.",
+      "Walk in to this. Soft lights and fresh blooms.",
+      "Your table is set and the candles are lit for the whole family tonight in Germantown",
+    ];
+    const ts = real.map((t) => cleanScript(t, "", RULES.cta_phrases, 9));
+    expect(ts).toEqual(["", "Walk in and feel the love.", "Sweet moments begin here—message us to book!", "Walk in to this. Soft lights and fresh blooms.", "Your table is set and the candles are lit."]);
+    for (const t of ts) {
+      expect(t).not.toMatch(/[$#@]|\d{3}|made with|\p{Extended_Pictographic}/iu);
+      if (t) expect(t).toMatch(/[.!?]$/);
+    }
+    const py = execFileSync("python3", ["-c", ["import json,sys", "sys.path.insert(0,'jobs')", "import script_clean as SC", `real=json.loads(${JSON.stringify(JSON.stringify(real))})`, `print(json.dumps([SC.clean_script(t,'',${JSON.stringify(RULES.cta_phrases)},9) for t in real]))`].join("\n")], { encoding: "utf8" });
+    expect(JSON.parse(py.trim().split("\n").pop()!)).toEqual(ts);
+    expect(fitScript("Petals on the bed for your anniversary night with candles everywhere", 3)).toBe("Petals on the bed.");
   });
 
   it("the Worker's caption layout and words cleaning are the engine's, byte for byte", () => {
