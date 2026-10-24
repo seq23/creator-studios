@@ -28,8 +28,9 @@ describe("hold causes: every reason has a cause, every cause a check version", (
     const src = read("jobs/critic.py");
     const block = /REASON_WORDS = \{([\s\S]*?)\n\}/.exec(src)![1];
     const pairs = [...block.matchAll(/"(\w+)":\s*"([^"]+)"/g)].map((m) => [m[1], m[2]] as const);
-    expect(pairs.length).toBe(4);
-    for (const [key, words] of pairs) expect(holdCause(words)).toBe(key);
+    expect(pairs.length).toBe(5);
+    // "unprotected" (a blur that could not run) is a privacy hold in its own words; every other key is its own cause.
+    for (const [key, words] of pairs) expect(holdCause(words)).toBe(key === "unprotected" ? "privacy" : key);
   });
   it("the Worker's and the engine's under-bar words and the rules words map too; anything else is not guessed", () => {
     expect(RULES_WORDS).toBe(RULES_HIDDEN);
@@ -80,7 +81,11 @@ describe("redoDecision: who is redone, and why not", () => {
   });
   it("a privacy hold waits for a newer check; held under an older check version it is redone with a fresh allowance", () => {
     const words = "a face, house number or name may be showing";
-    expect(redoDecision(held({ hidden_reason: words, hold_cause: "privacy", hold_check: 1 })).redo).toBe(false);
+    expect(redoDecision(held({ hidden_reason: words, hold_cause: "privacy", hold_check: HOLD_CAUSES.privacy.check })).redo).toBe(false);
+    // 23 Oct 2026, check 2 (the blur that failed on small house-number boxes): a clip held under check 1 is redone.
+    expect(HOLD_CAUSES.privacy.check).toBe(2);
+    expect(redoDecision(held({ hidden_reason: words, hold_cause: "privacy", hold_check: 1 }))).toMatchObject({ redo: true, cause: "privacy", fixedSince: true });
+    expect(redoDecision(held({ hidden_reason: "a house number or face could not be blurred, so it is held for a look", hold_check: 1 }))).toMatchObject({ redo: true, cause: "privacy" });
     // A build that fixes the check is check + 1: the clip held under 1 is redone, its old count does not carry.
     const now = HOLD_CAUSES.privacy.check;
     const asIfFixed = { ...HOLD_CAUSES.privacy, check: now + 1 };
