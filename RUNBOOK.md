@@ -83,6 +83,10 @@ npm run studio:invite <slug>        # a new first-login link for a client studio
 node scripts/studio.mjs start-over <slug> <dumpId> [--service="<a Brand Profile service>"] [--shape=transformation|walkthrough|talking|montage]
                                     # the studio's own Start over, signed with its 0600 JOB_SHARED_SECRET (worker/routes/ops.ts):
                                     # New clips go, approved/posted/rejected clips and uploads stay; no browser login needed
+node scripts/studio.mjs finish-cut <slug> <dumpId>
+                                    # a cut that SAVED its clips but was marked failed after (a timed-out callback):
+                                    # back to ready, nothing deleted, its light/email/editors/voice overs run;
+                                    # refuses (409) when its latest cut did not save clips, then use start-over
 
 # read a studio's D1 (example: who owns sample1, which services are set up; never secret values)
 npx wrangler d1 execute creator-studios-sample1-db --remote --env sample1 --json \

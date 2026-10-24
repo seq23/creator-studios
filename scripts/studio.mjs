@@ -586,15 +586,28 @@ async function create(slug) {
  * --service / --shape make a "Change" pick first.
  */
 async function startOverCmd(slug, dumpId) {
+  const opt = (k) => process.argv.find((x) => x.startsWith(`--${k}=`))?.slice(k.length + 3);
+  await opsCall(slug, "start-over", { dump_id: dumpId, ...(opt("service") ? { service: opt("service") } : {}), ...(opt("shape") ? { shape: opt("shape") } : {}) });
+}
+
+/**
+ * Finish a cut that saved its clips but was marked failed afterwards (worker/routes/ops.ts
+ * finish-cut): the dump back to ready, nothing deleted, the cut's follow-on run.
+ */
+async function finishCutCmd(slug, dumpId) {
+  await opsCall(slug, "finish-cut", { dump_id: dumpId });
+}
+
+/** One signed ops call, with the studio's JOB_SHARED_SECRET from its 0600 file (never printed). */
+async function opsCall(slug, action, payload) {
   const { s } = studioBySlug(slug);
   const file = path.join(secretsDir(), slug, "JOB_SHARED_SECRET");
   if (!existsSync(file)) throw new Error(`no ${file}: the studio's job secret is needed to sign`);
   const secret = readFileSync(file, "utf8").trim();
-  const opt = (k) => process.argv.find((x) => x.startsWith(`--${k}=`))?.slice(k.length + 3);
-  const body = JSON.stringify({ dump_id: dumpId, ...(opt("service") ? { service: opt("service") } : {}), ...(opt("shape") ? { shape: opt("shape") } : {}) });
+  const body = JSON.stringify(payload);
   const ts = Math.floor(Date.now() / 1000);
   const sig = createHmac("sha256", secret).update(`${ts}.ops:${body}`).digest("hex");
-  const res = await fetch(`${s.url}/api/ops/start-over`, { method: "POST", headers: { "content-type": "application/json", "x-ops-timestamp": String(ts), "x-ops-signature": sig }, body });
+  const res = await fetch(`${s.url}/api/ops/${action}`, { method: "POST", headers: { "content-type": "application/json", "x-ops-timestamp": String(ts), "x-ops-signature": sig }, body });
   const out = await res.json().catch(() => ({}));
   console.log(`${res.status} ${JSON.stringify(out)}`);
   if (!res.ok) process.exit(1);
@@ -627,14 +640,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     },
     invite: () => invite(arg),
     "start-over": () => startOverCmd(arg, process.argv[4]),
+    "finish-cut": () => finishCutCmd(arg, process.argv[4]),
     storage: () => {
       provisionStorage(studioBySlug(arg).s);
       gen();
     },
   };
   const fn = commands[cmd];
-  if (!fn || (["create", "deploy", "secrets", "invite", "storage", "start-over"].includes(cmd) && !arg)) {
-    console.log("usage: node scripts/studio.mjs gen|check|list | create <slug> | deploy <slug>|--all | secrets <slug>|--all [--refresh] [--only=NAME,…] | invite <slug> | start-over <slug> <dumpId> [--service=…] [--shape=…]");
+  if (!fn || (["create", "deploy", "secrets", "invite", "storage", "start-over", "finish-cut"].includes(cmd) && !arg)) {
+    console.log("usage: node scripts/studio.mjs gen|check|list | create <slug> | deploy <slug>|--all | secrets <slug>|--all [--refresh] [--only=NAME,…] | invite <slug> | start-over <slug> <dumpId> [--service=…] [--shape=…] | finish-cut <slug> <dumpId>");
     process.exit(2);
   }
   Promise.resolve(fn()).catch((e) => {

@@ -19,9 +19,18 @@ import { photoPackJob } from "./photopack";
 import { nicheJob } from "./niche";
 import { pastVideosJob } from "./pastvideos";
 
+/**
+ * How the callback runs an apply: `defer` hands slow follow-on work (AI calls, vendor calls,
+ * emails) to after the response (ctx.waitUntil), so the job's callback answers in seconds and
+ * the job is marked done. Without it (tests, the fake runner) the work runs inline.
+ */
+export interface ApplyRun {
+  defer?(work: () => Promise<void>): void;
+}
+
 export interface JobHandler {
   buildSpec(env: Env, jobId: string, refId: string | null): Promise<unknown>;
-  applyResult(env: Env, jobId: string, refId: string | null, result: unknown): Promise<void>;
+  applyResult(env: Env, jobId: string, refId: string | null, result: unknown, run?: ApplyRun): Promise<void>;
   onFailure(env: Env, jobId: string, refId: string | null, safeError: string): Promise<void>;
   onProgress?(env: Env, jobId: string, refId: string | null, progress: { step: string; done: number; total: number }): Promise<void>;
   fakeRun?(env: Env, jobId: string, refId: string | null, options: Record<string, unknown>): Promise<unknown>;

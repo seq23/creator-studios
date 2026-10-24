@@ -20,6 +20,7 @@ import { refreshPublicStats } from "../lib/publicStats";
 import { youtubeDirectSync } from "../lib/youtubeDirect";
 import { photoPostsTick, photoStopLights } from "../lib/photoPosts";
 import { wordsPass } from "../lib/wordsPass";
+import { finishPendingCuts } from "../jobs/cut";
 import { ensureFirstResearch } from "../lib/setupWait";
 import { sendWaitingDumps } from "../routes/dumps";
 
@@ -57,6 +58,8 @@ export async function runCron(env: Env, cron: string): Promise<void> {
       await sendWaitingDumps(env, null);
       // Studio fix: clips that came back with no words of their own get them (worker/lib/wordsPass.ts).
       await wordsPass(env).catch(() => log.warn("cron.words_failed"));
+      // A cut's follow-on (light, email, editors, voice overs) left over after its callback answered.
+      await finishPendingCuts(env).catch(() => log.warn("cron.cut_follow_on_failed"));
       // Connected editors (docs/EDITORS.md): the screens ask while they are open; this catches the rest.
       const e = await pollEditorJobs(env);
       if (e.polled) log.info("cron.editors", e);
