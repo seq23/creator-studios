@@ -30,7 +30,7 @@ import type { Features } from "@shared/types";
 import { readSound } from "../routes/settings";
 import { cleanScript } from "@shared/clipWords";
 import { readStudioRules } from "./studioRules";
-import { voiceInUse } from "@shared/sound";
+import { voiceInUse, voiceReadyFor } from "@shared/sound";
 import { cleanVoiceNotes, shotLines, shotScript, shotsOf } from "@shared/voiceShots";
 import { feelLine } from "@shared/videoFeel";
 
@@ -46,8 +46,7 @@ export async function autoVoiceOn(env: Env): Promise<boolean> {
  * stock voice af_heart until her recording exists (shared/sound.ts voiceInUse).
  */
 export async function voiceReady(env: Env): Promise<boolean> {
-  const v = voiceInUse(await readSound(env), await hasVoiceSample(env));
-  return v.speaks === "mine" || !!v.stock_voice;
+  return voiceReadyFor(voiceInUse(await readSound(env), await hasVoiceSample(env)));
 }
 
 /** The stock voice's id when voice overs use one (picked, or no recording yet), else null (her own recorded voice). */

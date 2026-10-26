@@ -84,6 +84,11 @@ export function voiceInUse(sound: SoundSettings, hasSample: boolean): VoiceInUse
   return { speaks: "stock", stock_voice: sound.stock_voice || DEFAULT_STOCK_VOICE, why: "no_recording_yet" };
 }
 
+/** Voice overs can be made with this voice: her recording, or a stock voice that has an id. Pure; the Worker's voiceReady. */
+export function voiceReadyFor(v: VoiceInUse): boolean {
+  return v.speaks === "mine" || !!v.stock_voice;
+}
+
 /** The Sound screen's sentence for voiceInUse, in plain words. Pure. */
 export function voiceInUseLine(v: VoiceInUse): string {
   // "Voice 1: warm, a woman" → "Voice 1", the name the Sound screen's list shows first.

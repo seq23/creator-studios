@@ -11,7 +11,7 @@ import { useApp } from "../state";
 import { PLATFORMS, PLATFORM_LABEL } from "@shared/constants";
 import { Icon } from "../components/Icon";
 import { EditingCard } from "../components/EditingSettings";
-import { AUTO_VOICE_HINT } from "@shared/autoVoice";
+import { AUTO_VOICE_HINT, NO_RECORDING_HINT } from "@shared/autoVoice";
 import { StorageSection } from "../components/StorageSection";
 import { SoundCard } from "../components/SoundSettings";
 import { ClipRulesCard } from "../components/ClipRulesSettings";
@@ -22,7 +22,7 @@ export function Settings() {
   const toast = useToast();
   const s = useLoad(() => get<SettingsShape>("/api/settings"));
   const health = useLoad(() => get<HealthItem[]>("/api/settings/health"));
-  // "Record your voice first" under Automatic voice overs: the server says when it is on but her voice isn't saved.
+  // Under Automatic voice overs: on with no recording saved, a studio voice speaks until hers exists.
   const voiceState = useLoad(() => get<{ auto: "on" | "needs_voice" | "off"; hasSample?: boolean }>("/api/voice"));
   const [draft, setDraft] = useState<SettingsShape | null>(null);
   const [emails, setEmails] = useState("");
@@ -143,9 +143,9 @@ export function Settings() {
             <h2>Features</h2>
             <Card>
               <Switch label="Automatic voice overs" hint={AUTO_VOICE_HINT} checked={draft.features.voice} onChange={(v) => owner && save({ features: { ...draft.features, voice: v } })} />
-              {voiceState.data?.auto === "needs_voice" ? (
-                <p className="hint" data-auto-voice="needs_voice">
-                  <Link to="/voice#voice-steps">Record your voice first</Link>: until then no voice overs are made, and nothing else changes.
+              {voiceState.data?.auto === "on" && voiceState.data.hasSample === false ? (
+                <p className="hint" data-auto-voice="studio_voice">
+                  {NO_RECORDING_HINT} <Link to="/voice#voice-steps">Record your voice</Link>
                 </p>
               ) : null}
               <Switch label="Deeper web research" hint="Off = the brief uses the free web search only. On = Perplexity search through OpenRouter too, about $0.25 per brief, only when OpenRouter is connected." checked={draft.features.deeper_research} onChange={(v) => owner && save({ features: { ...draft.features, deeper_research: v } })} />
