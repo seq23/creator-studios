@@ -9,7 +9,9 @@ import path from "node:path";
 import type { Env } from "@worker/env";
 import { sqliteD1 } from "./helpers/sqlite-d1";
 import { memoryR2 } from "./helpers/r2-memory";
-import { DEFAULT_STOCK_VOICE, SOUND_DEFAULT, soundSettings, voiceInUse, voiceInUseLine } from "@shared/sound";
+import { DEFAULT_STOCK_VOICE, SOUND_DEFAULT, STOCK_VOICES, soundSettings, voiceInUse, voiceInUseLine, voiceReadyFor, type SoundSettings } from "@shared/sound";
+import { autoVoiceState, voiceFor } from "@worker/domain/autoVoice";
+import { NO_RECORDING_HINT } from "@shared/autoVoice";
 import { cleanShotList, cleanVoiceNotes, shotLines, shotScript, shotsOf } from "@shared/voiceShots";
 
 const prompts: { system: string; user: string }[] = [];
@@ -69,6 +71,29 @@ describe("no recording yet: the stock voice af_heart, then hers by itself", () =
     const s = soundSettings(JSON.stringify(reg.sound), null);
     expect(voiceInUse(s, false)).toEqual({ speaks: "stock", stock_voice: "af_heart", why: "picked_stock" });
     expect(voiceInUse(s, true).stock_voice).toBe("af_heart");
+  });
+
+  it("voice overs never wait on a recording: every sound setting, recorded or not, is ready and the switch reads on", () => {
+    // The e2e auto-voice spec went red for 4 nights (24-26 Oct 2026) still asserting the old quiet
+    // "needs_voice"; this pins the new truth in the check gate, for every sound setting there is.
+    let examined = 0;
+    for (const voice_source of ["mine", "stock"] as const)
+      for (const { id } of STOCK_VOICES)
+        for (const hasSample of [false, true]) {
+          const sound: SoundSettings = { ...SOUND_DEFAULT, voice_source, stock_voice: id };
+          const ready = voiceReadyFor(voiceInUse(sound, hasSample));
+          expect(ready, `${voice_source}/${id}/${hasSample}`).toBe(true);
+          expect(autoVoiceState(true, ready)).toBe("on");
+          expect(voiceFor(undefined, true, ready)).toBe("quiet");
+          examined++;
+        }
+    expect(examined).toBeGreaterThanOrEqual(4); // hard-fail on an empty voice list
+    expect(NO_RECORDING_HINT).not.toMatch(/nothing is made|no voice overs are made/i);
+    for (const page of ["app/pages/Settings.tsx", "app/pages/Voice.tsx"]) {
+      const src = readFileSync(path.join(ROOT, page), "utf8");
+      expect(src, page).toContain("NO_RECORDING_HINT");
+      expect(src, page).not.toContain('data-auto-voice="needs_voice"');
+    }
   });
 
   it("the Worker: ready with no recording (af_heart), her voice once a consented sample exists", async () => {

@@ -19,7 +19,7 @@ import { Card, DismissButton, Dot, Empty, HelpButton, Modal, MoreRow, Notice, Pa
 import { archiveWithUndo, restoreArchived } from "../lib/archive";
 import SCRIPT from "../content/voice-script.md?raw";
 import "../styles/voice.css";
-import { AUTO_VOICE_HINT } from "@shared/autoVoice";
+import { AUTO_VOICE_HINT, NO_RECORDING_HINT } from "@shared/autoVoice";
 
 type Engine = "built-in" | "elevenlabs";
 
@@ -492,8 +492,8 @@ function ClipsSwitch({ v, onChange }: { v: VoiceState; onChange: () => void }) {
         </span>
       </label>
       {on && !v.hasSample ? (
-        <p className="hint" data-auto-voice="needs_voice">
-          <a href="#voice-steps">Record your voice first</a>: follow the steps, and clips with no talking get a voice over from then on. Until then nothing is made and nothing is wrong.
+        <p className="hint" data-auto-voice="studio_voice">
+          {NO_RECORDING_HINT} <a href="#voice-steps">Record your voice</a>
         </p>
       ) : null}
     </Card>

@@ -1,9 +1,9 @@
 // Automatic voice overs (owner, 26 Sep 2026), phone and desktop, fake services: with the switch on
 // and her voice saved, a dump's clips with no talking come back voiced (one voice job run for the
 // dump), a clip where she talks does not; Review says so and offers Remove and Redo, and Redo opens
-// "Edit the script" to re-voice and re-mix just that clip. On with no voice saved: the switch says
-// "Record your voice first", nothing fails. The section 6 gate and the voice sample are set on the
-// local D1 and put back afterwards.
+// "Edit the script" to re-voice and re-mix just that clip. On with no voice saved: a studio voice
+// (af_heart) speaks until she records (Follow-on V), the switch says so, nothing fails. The
+// section 6 gate and the voice sample are set on the local D1 and put back afterwards.
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { sql as d1 } from "./helpers";
 
@@ -60,21 +60,32 @@ async function clipsOf(request: APIRequestContext, dumpId: string): Promise<Clip
   return body.groups.find((g) => g.dump.id === dumpId)?.clips ?? [];
 }
 
-test("on, no voice saved yet: the switch says Record your voice first; a dump makes no voice overs and nothing fails", async ({ page }) => {
+test("on, no voice saved yet: a studio voice (af_heart) voices the clips with no talking until she records; the switch says so; nothing fails", async ({ page }) => {
+  // Follow-on V (23 Oct 2026): voice overs never wait on a recording (shared/sound.ts voiceInUse).
   d1("UPDATE voice SET sample_r2_key = NULL, consent_at = NULL WHERE id = 1");
-  expect((await (await page.request.get("/api/voice")).json()).auto).toBe("needs_voice");
+  const state = (await (await page.request.get("/api/voice")).json()) as { auto: string; hasSample: boolean; ready: boolean; stock_voice: string | null };
+  expect(state).toMatchObject({ auto: "on", hasSample: false, ready: true, stock_voice: "af_heart" });
   await page.goto("/settings");
-  const hint = page.locator('[data-auto-voice="needs_voice"]');
-  await expect(hint).toContainText("Record your voice first");
-  await expect(hint.getByRole("link", { name: "Record your voice first" })).toHaveAttribute("href", "/voice#voice-steps");
+  const hint = page.locator('[data-auto-voice="studio_voice"]');
+  await expect(hint).toContainText("Until you record your voice, a studio voice speaks the voice overs");
+  await expect(hint.getByRole("link", { name: "Record your voice" })).toHaveAttribute("href", "/voice#voice-steps");
+  await expect(page.locator('[data-auto-voice="needs_voice"]')).toHaveCount(0);
   await page.goto("/voice");
-  await expect(page.locator('[data-auto-voice="needs_voice"]')).toContainText("nothing is wrong");
+  const voiceHint = page.locator('[data-auto-voice="studio_voice"]');
+  await expect(voiceHint).toContainText("your own voice takes over by itself");
+  await expect(voiceHint).not.toContainText("nothing is made");
 
   const since = new Date().toISOString();
   const dumpId = await dumpOf(page.request);
-  expect((await clipsOf(page.request, dumpId)).every((c) => c.voice_over === null)).toBe(true);
-  const voiceJobs = ((await (await page.request.get("/api/jobs")).json()) as { type: string; ref_id: string; created_at: string }[]).filter((j) => j.type === "voice" && j.ref_id?.startsWith("auto/") && j.created_at >= since);
-  expect(voiceJobs).toHaveLength(0);
+  await runJob(page.request, (r) => r.startsWith("auto/")); // ONE run for the whole dump, in the studio voice
+  const clips = await clipsOf(page.request, dumpId);
+  const voiced = clips.filter((c) => c.voice_over === "ready");
+  expect(voiced.length).toBeGreaterThan(0);
+  expect(voiced.every((c) => c.recipe === "montage" && c.voice_auto)).toBe(true);
+  expect(clips.filter((c) => c.recipe !== "montage").every((c) => c.voice_over === null)).toBe(true);
+  const voiceJobs = ((await (await page.request.get("/api/jobs")).json()) as { type: string; ref_id: string; created_at: string; status: string }[]).filter((j) => j.type === "voice" && j.ref_id?.startsWith("auto/") && j.created_at >= since);
+  expect(voiceJobs).toHaveLength(1);
+  expect(voiceJobs[0].status).not.toBe("failed");
   const health = (await (await page.request.get("/api/settings/health")).json()) as { name: string; light: string }[];
   expect(health.find((h) => h.name === "Voice")?.light ?? "none").not.toBe("red");
 });
