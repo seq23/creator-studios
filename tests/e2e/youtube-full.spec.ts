@@ -54,7 +54,7 @@ test("Dump: the third card, one video, size and free space, then Review: thumbna
   await expect(page.locator("[data-door-picked]")).toHaveText(/You picked: A full video for YouTube/);
   await expect(page.getByText("one video, landscape or any shape · it goes up whole")).toBeVisible();
   // no cutting controls on this door
-  await expect(page.getByRole("group", { name: "Look" })).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "Look", exact: true })).toHaveCount(0);
 
   await page.locator('input[type="file"]').first().setInputFiles({ name: "kitchen-tour.mp4", mimeType: "video/mp4", buffer: video() });
   await expect(page.getByText("Uploaded")).toBeVisible({ timeout: 20_000 });
@@ -88,7 +88,7 @@ test("Dump: the third card, one video, size and free space, then Review: thumbna
   const dialog = page.getByRole("dialog", { name: "Edit your YouTube video" });
   await dialog.getByLabel("Title").fill("A morning routine for busy weeks");
   await dialog.getByLabel("Tags").fill("morning, routine, tips");
-  await dialog.getByRole("button", { name: "Save" }).click();
+  await dialog.getByRole("button", { name: "Save", exact: true }).click();
   await expect(item.locator(".fv-title")).toHaveText("A morning routine for busy weeks");
 
   await item.getByRole("button", { name: "Approve" }).click();

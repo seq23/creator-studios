@@ -157,7 +157,7 @@ test("edit a caption, swap to the other hook, untick a platform, mark a paid par
   await expect(dialog.getByLabel("On-screen hook")).toHaveValue(clip.hook_alt!);
   await dialog.getByLabel("YouTube Shorts").uncheck();
   await dialog.getByText("Paid partnership", { exact: true }).click();
-  await dialog.getByRole("button", { name: "Save" }).click();
+  await dialog.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.locator(".toast").first()).toContainText("Saved");
 
   await expect(card).toContainText("My own words for this one #ad");
@@ -194,13 +194,13 @@ test("reopening Edit right after Save shows the saved values, so a second Save k
   let dialog = page.getByRole("dialog", { name: "Edit this clip" });
   await dialog.getByLabel("Caption", { exact: true }).fill("Saved words, first save");
   await dialog.getByText("Paid partnership", { exact: true }).click();
-  await dialog.getByRole("button", { name: "Save" }).click();
+  await dialog.getByRole("button", { name: "Save", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await card.getByRole("button", { name: "Edit caption & hook" }).click();
   dialog = page.getByRole("dialog", { name: "Edit this clip" });
   await expect(dialog.getByLabel("Caption", { exact: true })).toHaveValue("Saved words, first save");
   await expect(dialog.getByRole("checkbox", { name: /Paid partnership/ })).toBeChecked();
-  await dialog.getByRole("button", { name: "Save" }).click();
+  await dialog.getByRole("button", { name: "Save", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await page.unroute("**/api/clips?*");
   const [saved] = (await clipsOf(page.request, dumpId)).filter((c) => c.id === clip.id);
