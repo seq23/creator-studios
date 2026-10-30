@@ -14,6 +14,7 @@ export const REGISTER = {
   "auto-voice-silent-only": "a voice over laid on a clip where she talks drowns her own words and posts AI audio she never asked for (owner, 26 Sep 2026: clips with speech are never voiced automatically)",
   "bot-prs-get-checks": "a PR opened by a workflow gets no checks, so land can never see it green (help-screenshots PR #21, live test 26 Sep 2026)",
   "design-tokens": "a raw colour, font or off-scale size outside tokens.css is how screens drift apart (docs/design/DESIGN.md)",
+  "e2e-names-unambiguous": "Playwright matches a name as a case-insensitive substring and the practice cut gives one dump in twelve the alt hook \"Save this for later\", so { name: \"Save\" } hit two buttons and e2e went red on main at random (30 Oct 2026, run 41019582387)",
   "editors-documented": "a connected editor nobody researched, or a key box for a tool with no API, sends her to a dead end (owner, 25 Sep 2026: only the most popular, honestly)",
   "ffmpeg-not-from-apt": "the apt install of ffmpeg timed out three times and killed the live cut of a client's dump (23 Oct 2026); ffmpeg comes from the static build",
   "free-quota-budgeted": "the studios keep to ~500 of the $0-routing account's 1,000 free-model calls a day (it was a 50-a-day free-tier key until 24 Oct 2026); one dump used ~45 (a call per video, per clip, six retries per failure) and golden-set went red at 0e0eebb (23 Oct 2026): calls are batched, budgeted per job, counted per provider, with a $0 local model behind",

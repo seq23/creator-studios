@@ -98,7 +98,7 @@ test("Dump: 20 at a time of 50, search, archive with Undo, Show archived and Res
   await expect(history.locator("[data-count]")).toHaveText(`Showing 40 of ${total} dumps`);
   await history.getByRole("button", { name: "Needs a look" }).click();
   await expect(history.locator("[data-dump-row]")).toHaveCount(Math.min(20, failed));
-  await history.getByRole("button", { name: "All" }).click();
+  await history.getByRole("button", { name: "All", exact: true }).click();
   await expect(history.locator("[data-count]")).toHaveText(`Showing 20 of ${total} dumps`);
   // a dump still cutting has no archive button (it is not finished); take the first one that has it
   const id = await history.locator('[data-dump-row]:has(button[aria-label^="Archive the dump from"])').first().getAttribute("data-dump-row");

@@ -96,7 +96,7 @@ test("steered by chips and a note: the clips follow, the dump says what it could
   await page.goto("/dump");
   await page.getByRole("radio", { name: /New videos I just filmed/ }).click();
   await upload(page);
-  const look = page.getByRole("group", { name: "Look" });
+  const look = page.getByRole("group", { name: "Look", exact: true });
   await look.getByRole("button", { name: "Grid of four" }).click();
   await expect(look.getByRole("button", { name: "Look: surprise me" })).toHaveAttribute("aria-pressed", "false");
   await page.getByRole("group", { name: "How many" }).getByRole("button", { name: "5 clips" }).click();
