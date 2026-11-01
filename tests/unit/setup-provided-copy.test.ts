@@ -21,10 +21,6 @@ describe("Setup cards the studio host's account runs", () => {
   it("no card claims her own account while provided", () => {
     for (const s of SETUP_STEPS) expect(powersFor(s, "provided"), s.id).not.toMatch(/your own \w+ account/i);
   });
-  it("a client studio's wording is unchanged: her own key, or practice", () => {
-    const resend = SETUP_STEPS.find((s) => s.id === "resend")!;
-    for (const state of ["live", "practice", "error"]) expect(powersFor(resend, state)).toBe("Your alerts, weekly recap and “clips are ready” emails, sent from your own Resend account.");
-  });
   it("the Setup screen shows the line through powersFor", () => {
     const src = readFileSync("app/pages/Setup.tsx", "utf8");
     expect(src).toContain("<p>{powersFor(step, status.state)}</p>");

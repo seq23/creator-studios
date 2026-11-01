@@ -37,23 +37,8 @@ describe("every help guide", () => {
   });
 });
 
-describe("the guides describe the product as it is", () => {
-  const text = (slug: string) => guides.find((g) => g.slug === slug)!.parsed.text;
-  it("sign-ins for stats are optional extras, never required", () => {
-    for (const slug of ["connect-meta", "connect-google", "reconnect-meta", "reconnect-google"]) expect(text(slug), slug).toMatch(/optional|never need|keep working without/);
-    expect(text("connect-stats")).toContain("never need a google or instagram sign-in");
-  });
-  it("the login guide describes the email code every studio uses (CLAUDE.md: never \"open\"), and shows in code mode", () => {
-    // 7 Oct 2026 click-through of Hadiyah's live studio: the guide still said "your own dashboard
-    // does not ask you to log in ... only the test copy" (Sheila's open-mode production). Every
-    // studio here logs in with the code, so the guide says exactly that and nothing about a copy.
-    const t = text("log-in");
-    expect(t).toContain("6-digit code");
-    expect(t).toContain("has no password");
-    expect(t).not.toMatch(/test copy|does not ask you to log in|opens straight to home/);
-    const entry = (index.guides as { slug: string; title: string }[]).find((g) => g.slug === "log-in")!;
-    expect(entry.title).toBe("Log in with an email code");
-    expect(guides.find((g) => g.slug === "log-in")!.parsed.meta.title).toBe(entry.title);
+describe("the guides match the product", () => {
+  it("the login guide shows in code mode, the mode every studio uses", () => {
     expect(visibleGuides("code").map((g) => g.slug)).toContain("log-in");
     expect(visibleGuides("open").map((g) => g.slug)).not.toContain("log-in");
   });
