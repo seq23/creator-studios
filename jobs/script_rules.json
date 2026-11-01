@@ -37,7 +37,13 @@
     "reasoning:",
     "output:",
     "self-correction",
-    "critique:"
+    "critique:",
+    "user safety",
+    "safety:",
+    "safety categories",
+    "describing the scene",
+    "speaking plainly",
+    "plain sentences"
   ],
   "markdown_signs": [
     "**",

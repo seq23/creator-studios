@@ -11,7 +11,7 @@
 // post is disclosed through Buffer's isAiGenerated (worker/services/buffer.ts postMetadata).
 // Auto off, or no voice yet: nothing happens, quietly (the switch says "Record your voice first").
 import type { Env } from "../env";
-import { getSetting, recordEvent } from "./db";
+import { getSetting, recordEvent, setHealth } from "./db";
 import { newId } from "./ids";
 import { log } from "./log";
 import { chosenCtas } from "@shared/studioRules";
@@ -33,6 +33,8 @@ import { readStudioRules } from "./studioRules";
 import { voiceInUse, voiceReadyFor } from "@shared/sound";
 import { cleanVoiceNotes, shotLines, shotScript, shotsOf } from "@shared/voiceShots";
 import { feelLine } from "@shared/videoFeel";
+import { servicesOf } from "@shared/services";
+import { placeFor, sellStarter, serviceForClip, spokenBusiness, voiceScriptProblem, withSale, type SellContext } from "@shared/sellLine";
 
 export const AUTO_BATCH_PREFIX = "auto/";
 
@@ -75,10 +77,12 @@ interface TargetClip {
   shot_list?: string | null;
   parts?: string | null;
   voice_notes?: string | null;
+  /** The service the shot sheet labelled (business studios), or null. */
+  service?: string | null;
 }
 
 /** The columns draftScript reads, for the clip queries below (c = clips, d = dumps). */
-const SCRIPT_COLS = "c.id, c.hook_text, c.caption, c.start_s, c.end_s, c.speech, c.on_screen, c.shape, c.voice_script, c.shot_list, c.parts, d.voice_notes";
+const SCRIPT_COLS = "c.id, c.hook_text, c.caption, c.start_s, c.end_s, c.speech, c.on_screen, c.shape, c.voice_script, c.shot_list, c.parts, c.service, d.voice_notes";
 
 /**
  * A script for one clip with no talking, in her voice, fitted to the clip. Never empty.
@@ -98,36 +102,78 @@ export async function inBatches<T, R>(items: T[], size: number, work: (item: T) 
   return out;
 }
 
+/** The call to action for this clip: the studio's chosen phrases, rotated by clip so a dump varies. */
+export function ctaForClip(chosen: readonly string[], clipId: string): string | null {
+  if (!chosen.length) return null;
+  let h = 0;
+  for (const ch of clipId) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return chosen[h % chosen.length];
+}
+
+/**
+ * A business studio (registry sponsorKind "event") with services in its locked Brand Profile sells
+ * the one this clip shows (owner, 1 Nov 2026: "she was supposed to be selling pnp services"). A
+ * creator studio sells nothing: null. Pure apart from its inputs.
+ */
+export function sellContextFor(
+  env: Pick<Env, "SPONSOR_KIND" | "APP_NAME">,
+  profile: Record<string, string> | null,
+  clip: Pick<TargetClip, "hook_text" | "on_screen" | "shot_list" | "service">,
+  cta: string | null,
+  placeWords: readonly string[],
+): { sell: SellContext; place: string | null } | null {
+  if (env.SPONSOR_KIND !== "event") return null;
+  const services = servicesOf(profile);
+  if (!services.length) return null;
+  const text = [clip.hook_text, clip.on_screen ?? "", clip.shot_list ?? ""].join(" ");
+  const service = serviceForClip(services, profile?.service_looks, text, clip.service);
+  return { sell: { service, business: spokenBusiness(env.APP_NAME ?? ""), cta }, place: placeFor(placeWords, text) };
+}
+
 export async function draftScript(env: Env, clip: TargetClip): Promise<string> {
   const seconds = clip.end_s - clip.start_s;
-  const ctas = (await readStudioRules(env)).cta_phrases;
+  const max = maxWords(seconds);
+  const rules = await readStudioRules(env);
+  const ctas = rules.cta_phrases;
   const notes = cleanVoiceNotes(clip.voice_notes);
-  const own = clip.voice_script ? cleanScript(clip.voice_script, clip.caption, ctas, maxWords(seconds)) : "";
-  if (own.length >= 10 && !notes) return fitScript(own, seconds);
   const profile = await lockedProfile(env);
   // Opt-in (shared/studioRules.ts): a call to action only when the studio chose one.
   const chosen = chosenCtas({ cta_phrases: ctas }, profile?.ctas);
-  const cta = chosen[0] ?? null;
+  const cta = ctaForClip(chosen, clip.id);
+  const selling = sellContextFor(env, profile as Record<string, string> | null, clip, cta, rules.place_words);
+  // The guard (shared/sellLine.ts): a model's verdict or label, a shot line, a stage direction or a
+  // stub is never spoken; a business studio's line names the service and ends on its CTA.
+  const ok = (t: string) => !!t && voiceScriptProblem(t, selling?.sell) === null;
+  const sale = (t: string) => (selling && t ? withSale(t, selling.sell, selling.place, max) : t);
+  const own = clip.voice_script ? cleanScript(clip.voice_script, clip.caption, ctas, maxWords(seconds)) : "";
+  if (!selling && own.length >= 10 && !notes && ok(own)) return fitScript(own, seconds);
   const shots = shotsOf(clip);
   // Grounded (studio intelligence layer 4): no sentence mentions automation, none claims a finished
   // result or a "before" the picture does not show (shared/grounded.ts, one word list with the cutter).
   const ground = clip.shape ? { hasAfter: clip.shape === "transformation" || clip.shape === "walkthrough", hasBefore: clip.shape === "transformation" } : { hasAfter: true, hasBefore: true };
   // No AI: the engine's script when it passed, else the shots in order (never the caption).
-  const fromShots = cleanScript(groundScript(shotScript(shots, clip.hook_text, cta), ground), clip.caption, ctas, maxWords(seconds));
+  const fromShots = cleanScript(groundScript(shotScript(shots, clip.hook_text, selling ? null : cta), ground), clip.caption, ctas, max);
+  const candidates = selling
+    ? [sale(own), sale(fromShots), sellStarter(selling.sell, selling.place, max)]
+    : [own.length >= 10 ? fitScript(own, seconds) : "", fromShots.length >= 10 ? fitScript(fromShots, seconds) : ""];
   const starter =
-    (own.length >= 10 ? fitScript(own, seconds) : "") ||
-    (fromShots.length >= 10 ? fitScript(fromShots, seconds) : "") ||
+    candidates.find(ok) ||
     groundScript(starterScript(clip, cta, seconds), ground) ||
     fitScript(cta ? `${cta.replace(/[.!]*$/, "")}.` : "Take a look.", seconds);
   if (fakeServices(env)) return starter;
   const llm = await getLlm(env);
+  const voice = `Her voice: ${profile?.voice || "warm and direct"}.${feelLine(profile)} Never mention: ${profile?.off_limits || "nothing listed"}.`;
+  const system = selling
+    ? `You write the spoken voice-over for a ${Math.round(seconds)}-second vertical video with no talking, for ${selling.sell.business}, a local business. Its job is to sell ${selling.sell.business}'s service shown here: ${selling.sell.service}. ${selling.sell.business} sells only: ${servicesOf(profile as Record<string, string> | null).join("; ")}; never offer anything else. In at most ${Math.max(4, max - (cta ? cta.split(/\s+/).length : 0))} words: what is on screen in a few warm words, then that ${selling.sell.business} does ${(selling.sell.service ?? "").toLowerCase()}${selling.place ? ` in ${selling.place}` : ""}. ${voice} Never say a price, a number of dollars, a discount or a deadline. Never repeat the caption or the on-screen hook word for word. Never mention automation, software or how the video was made. Do not add a call to action; it is added after your words. Reply with the spoken words only, plain sentences.`
+    : `You write a voice-over for a ${Math.round(seconds)}-second vertical video with no talking in it (b-roll, montage, product shots), for the creator ${kitName(env)}, spoken in her own voice. At most ${max} words. ${voice} Do: ${profile?.do_dont || ""}. ${chosen.length ? `End with one call to action from: ${chosen.join(" | ")}.` : "No call to action: she has not chosen one, so never ask people to follow, shop, comment or click."} Describe only what is on screen, following the shots in order and in time (each line is one shot: its seconds, its stage, what it shows); say each part while it is on screen. Never repeat the caption or the on-screen hook word for word. Never mention automation, software or how the video was made. Reply with the script only, plain spoken sentences.`;
   const r = await llm.complete({
-    system: `You write a voice-over for a ${Math.round(seconds)}-second vertical video with no talking in it (b-roll, montage, product shots), for the creator ${kitName(env)}, spoken in her own voice. At most ${maxWords(seconds)} words. Her voice: ${profile?.voice || "warm and direct"}.${feelLine(profile)} Do: ${profile?.do_dont || ""}. Never mention: ${profile?.off_limits || "nothing listed"}. ${chosen.length ? `End with one call to action from: ${chosen.join(" | ")}.` : "No call to action: she has not chosen one, so never ask people to follow, shop, comment or click."} Describe only what is on screen, following the shots in order and in time (each line is one shot: its seconds, its stage, what it shows); say each part while it is on screen. Never repeat the caption or the on-screen hook word for word. Never mention automation, software or how the video was made. Reply with the script only, plain spoken sentences.`,
+    system,
     user: `Shots, in order:\n${shotLines(shots)}\nOn-screen hook (do not read it out): ${clip.hook_text}\nCaption (do not repeat it): ${clip.caption}${notes ? `\nNotes for the voice from her (use them; they never override what the shots show): ${notes}` : ""}`,
     maxTokens: 300,
   });
-  const text = r.ok ? cleanScript(groundScript(r.text.trim().replace(/^["“]|["”]$/g, ""), ground), clip.caption, ctas, maxWords(seconds)) : "";
-  return text.length >= 10 ? fitScript(text, seconds) : starter;
+  const cleaned = r.ok ? cleanScript(groundScript(r.text.trim().replace(/^["“]|["”]$/g, ""), ground), clip.caption, ctas, max) : "";
+  const text = cleaned.length >= 10 ? (selling ? sale(cleaned) : fitScript(cleaned, seconds)) : "";
+  return ok(text) ? text : starter;
 }
 
 /** One clip with everything draftScript reads (its shots, the dump's notes for the voice), or null. */
@@ -252,4 +298,46 @@ export async function redoVoiceOver(env: Env, clipId: string, script: string): P
   await removeVoiceOver(env, clipId);
   const r = await voiceClips(env, [{ clip, script, auto: wasAuto }]); // her words as written (the route checks the length)
   return { batch: r.batch };
+}
+
+/** Voice overs re-checked per hourly run (each redo drafts a script; DRAFT_AT_ONCE at a time). */
+export const VOICE_REDO_MAX = 30;
+export const VOICE_REDO_LIGHT = "Voice over check";
+
+/**
+ * Below-par voice overs are redone on their own (owner's standing rule; 1 Nov 2026: Porch & Party
+ * Studio's clips said "User Safety: safe." and sold nothing). Hourly, every studio: each automatic
+ * voice over on a clip waiting in Review is checked with the same guard draftScript uses
+ * (shared/sellLine.ts voiceScriptProblem); a failing one is drafted again, and only when the new
+ * script passes is the old voice over removed and the clip re-voiced (one voice job run for all).
+ * Her own words (Redo with her words, auto = 0) are never touched. Rule 0: the light says what ran.
+ */
+export async function redoBadVoiceOvers(env: Env): Promise<{ checked: number; bad: number; redone: number }> {
+  const { results } = await env.DB.prepare(
+    `SELECT n.script AS narration_script, ${SCRIPT_COLS} FROM narrations n JOIN clips c ON c.id = n.clip_id LEFT JOIN dumps d ON d.id = c.dump_id
+     WHERE n.auto = 1 AND c.status = 'draft' AND COALESCE(n.mix_status, '') != 'mixing' AND COALESCE(n.status, '') NOT IN ('queued', 'generating')
+     ORDER BY c.created_at DESC LIMIT 300`,
+  ).all<TargetClip & { narration_script: string | null }>();
+  const rules = await readStudioRules(env);
+  const profile = (await lockedProfile(env)) as Record<string, string> | null;
+  const chosen = chosenCtas({ cta_phrases: rules.cta_phrases }, profile?.ctas);
+  const bad = results.filter((c) => {
+    const selling = sellContextFor(env, profile, c, ctaForClip(chosen, c.id), rules.place_words);
+    return voiceScriptProblem(c.narration_script, selling?.sell) !== null;
+  });
+  const todo = bad.slice(0, VOICE_REDO_MAX);
+  const drafted = await inBatches(todo, DRAFT_AT_ONCE, (clip) => draftScript(env, clip));
+  const items = drafted
+    .map((script, i) => ({ clip: todo[i], script, auto: true }))
+    .filter((it) => {
+      const selling = sellContextFor(env, profile, it.clip, ctaForClip(chosen, it.clip.id), rules.place_words);
+      return voiceScriptProblem(it.script, selling?.sell) === null;
+    });
+  for (const it of items) await removeVoiceOver(env, it.clip.id);
+  const r = await voiceClips(env, items);
+  const note = `Checked ${results.length} voice overs waiting in Review: ${bad.length} below par, ${items.length} redone${r.batch || !items.length ? "" : " (voice job not started)"}.`;
+  await setHealth(env.DB, VOICE_REDO_LIGHT, bad.length > items.length || (items.length && !r.batch) ? "yellow" : "green", note, null);
+  if (items.length) await recordEvent(env.DB, "voice.redo", null, { checked: results.length, bad: bad.length, redone: items.length });
+  log.info("voice.redo", { checked: results.length, bad: bad.length, redone: items.length });
+  return { checked: results.length, bad: bad.length, redone: items.length };
 }

@@ -67,7 +67,7 @@ export function cleanLine(text: string, limit = 300): string {
 // The Python twin is jobs/script_clean.py clean_script (same lists, same order).
 const SPOKEN_TAGS = /(^|[^\w])[#@]\w+/g;
 const SPOKEN_EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]\u{FE0F}?(?:\u{200D}[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]\u{FE0F}?)*|\u{FE0F}/gu;
-const SPOKEN_PRICE = /[$£€]\s?\d|\b\d[\d,.]*\s?(?:dollars|bucks|usd)\b/i;
+const SPOKEN_PRICE = /[$£€]\s?\d|\b\d[\d,.]*\s?(?:dollars|bucks|usd)\b|\bpric(?:e|es|ing)\b/i; // 1 Nov 2026: "Check prices at ." was spoken
 const SPOKEN_AI_NOTE = /\bmade with\b/i;
 const LITTLE_WORDS = new Set(["a", "an", "the", "your", "our", "my", "to", "with", "and", "or", "of", "for", "in", "on", "at", "by", "from", "this", "that"]);
 const ENDS = /[.!?]$/;

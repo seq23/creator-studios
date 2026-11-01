@@ -80,7 +80,7 @@ def clean_line(text: str, limit: int = 300) -> str:
 # cleanScript (same lists, same order).
 SPOKEN_TAGS = re.compile(r"(^|[^\w])[#@]\w+")
 SPOKEN_EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF]\uFE0F?(?:\u200D[\U0001F000-\U0001FAFF\u2600-\u27BF]\uFE0F?)*|\uFE0F")
-SPOKEN_PRICE = re.compile(r"[$£€]\s?\d|\b\d[\d,.]*\s?(?:dollars|bucks|usd)\b", re.I)
+SPOKEN_PRICE = re.compile(r"[$£€]\s?\d|\b\d[\d,.]*\s?(?:dollars|bucks|usd)\b|\bpric(?:e|es|ing)\b", re.I)
 SPOKEN_AI_NOTE = re.compile(r"\bmade with\b", re.I)
 LITTLE_WORDS = {"a", "an", "the", "your", "our", "my", "to", "with", "and", "or", "of", "for", "in", "on", "at", "by", "from", "this", "that"}
 
