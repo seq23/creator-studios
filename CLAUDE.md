@@ -1,5 +1,7 @@
 # creator-studios — working rules
 
+Operational gotchas (free AI limits, hostnames) are in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
+
 Read `README.md` first (what this is, the studios, adding one, deploy). `RUNBOOK.md` is the
 operational reference ("runbook creator-studios" opens it).
 
