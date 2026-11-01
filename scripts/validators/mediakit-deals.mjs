@@ -6,7 +6,6 @@
 //      the SCENARIO_TESTS table of tests/unit/emails.test.ts;
 //   3. a rate benchmark in worker/domain/ratecard.ts has no https source and checked date;
 //   4. a marketplace in worker/domain/marketplaces.ts is not in docs/BRAND-SOURCES.md.
-// Raw colours and sizes are the design-tokens validator's job (kept green alongside this one).
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 

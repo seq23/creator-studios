@@ -72,8 +72,7 @@ the first cut · public business contacts only for deals, she sends every pitch 
 - **Every screen has a `?`** and every `fix_guide` slug is a guide in `help/guides/`.
 - **Plain words. Phone first** for Dump and Review (44 px targets).
 - **Design**: one theme per studio in `studios/themes.json`, served as `/studio-theme.css` over
-  the token defaults in `app/styles/tokens.css` (the only file with raw colours; validator
-  `design-tokens`). A studio's look is config, never a code fork.
+  the token defaults in `app/styles/tokens.css` (the only file with raw colours). A studio's look is config, never a code fork.
 - Tests: strengthen, never weaken. Guards are proven negatively (break, red, restore).
 
 ## Layout

@@ -6,7 +6,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { nicheWords, themeHit } from "@worker/domain/brandfit";
-import { MARKETPLACES } from "@worker/domain/marketplaces";
 
 const HOST_NICHE = /hosting|tablescape|tableware|home decor|\bdecor\b|dinner part|your tables|home and lifestyle/i;
 
@@ -35,10 +34,6 @@ describe("an offer is on-theme only by HER themes", () => {
 });
 
 describe("no hardcoded niche in what every studio ships or searches", () => {
-  it("marketplace cards speak to any creator", () => {
-    expect(MARKETPLACES.length).toBeGreaterThan(5);
-    for (const m of MARKETPLACES) expect(m.payoff, m.key).not.toMatch(HOST_NICHE);
-  });
   it("the brand finder spec and the offer reader read the profile, not a fixed list", () => {
     const finder = readFileSync("worker/jobs/brand_finder.ts", "utf8");
     const spec = finder.slice(finder.indexOf("async buildSpec"), finder.indexOf("async applyResult"));

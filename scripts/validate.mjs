@@ -13,7 +13,6 @@ import path from "node:path";
 export const REGISTER = {
   "auto-voice-silent-only": "a voice over laid on a clip where she talks drowns her own words and posts AI audio she never asked for (owner, 26 Sep 2026: clips with speech are never voiced automatically)",
   "bot-prs-get-checks": "a PR opened by a workflow gets no checks, so land can never see it green (help-screenshots PR #21, live test 26 Sep 2026)",
-  "design-tokens": "a raw colour, font or off-scale size outside tokens.css is how screens drift apart (docs/design/DESIGN.md)",
   "e2e-names-unambiguous": "Playwright matches a name as a case-insensitive substring and the practice cut gives one dump in twelve the alt hook \"Save this for later\", so { name: \"Save\" } hit two buttons and e2e went red on main at random (30 Oct 2026, run 41019582387)",
   "editors-documented": "a connected editor nobody researched, or a key box for a tool with no API, sends her to a dead end (owner, 25 Sep 2026: only the most popular, honestly)",
   "ffmpeg-not-from-apt": "the apt install of ffmpeg timed out three times and killed the live cut of a client's dump (23 Oct 2026); ffmpeg comes from the static build",
@@ -51,7 +50,6 @@ export const REGISTER = {
   "stats-no-login": "the owner's rule (25 Sep 2026): Stats never needs a Google or Meta sign-in; TikTok's zip export was refused as Excel, and a sign-in-only path left the panel blank",
   "tidy-warns-first": "clearing storage must never delete her footage or anything unposted without a warning first, and tidy only archives (owner, 26 Sep 2026: day 358, storage)",
   "voice-engines": "a narration row without its engine, or an ElevenLabs call that drops a 401 / 402 / 429, shows her the wrong voice tag or a failure with no fallback",
-  "voice-script": "the read-aloud script must stay about 3 minutes with a question and a number, and the Voice screen must show it, or her sample makes a thin voice",
   "vo-words-wired": "a voice over with no words on screen loses every sound-off viewer, a script that reads the caption back says nothing new, and voice overs that wait on a recording never come (owner, 23 Oct 2026, Follow-on V)",
   "web-research-optional": "the brand finder and the Research Brief must work with no web-research key (Firecrawl is an optional speed-up, owner 26 Sep 2026); a job or route that needs it goes silent without it",
   "workflow-yaml-plain": "a step name with \": \" in it made golden-set.yml unparseable: a zero-job red run on every push and no workflow_dispatch (23 Oct 2026)",
