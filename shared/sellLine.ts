@@ -74,6 +74,8 @@ export function voiceScriptProblem(script: string | null | undefined, sell?: Sel
     if (!named) return "no_service";
   }
   if (sell?.service && sell.cta && !norm(t).endsWith(norm(sell.cta))) return "no_cta";
+  // One call to action, the studio's, at the end ("Book now. Book your date." was spoken, 1 Nov 2026).
+  if (sell?.service && sell.cta && t.split(/(?<=[.!?])\s+/).slice(0, -1).some((s) => CTA_LIKE.test(s.trim()))) return "no_cta";
   return null;
 }
 
