@@ -51,8 +51,7 @@ the first cut · public business contacts only for deals, she sends every pitch 
 - **Nothing waits on the owner.** A finding becomes an action with a measurement and an
   automatic fallback, never a question or a "waiting on the owner" stop. Only a secret or an
   account she alone holds may stop, and it stops as a NAMED stop (a health light + fix guide, or
-  a line under "Named stops" in RUNBOOK) with the paste-ready command. `tests/unit/studios.test.ts`
-  reads this line.
+  a line under "Named stops" in RUNBOOK) with the paste-ready command.
 - **Practice mode, never an error.** A service with no key runs on its stand-in, labelled on every
   screen (Shell banner) and on Setup. Keys are read from encrypted storage FIRST (Setup, AES-GCM
   in D1 with `SECRETS_KEY`), then Worker secrets (`worker/lib/practice.ts`). Guard:
