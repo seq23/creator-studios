@@ -34,7 +34,7 @@ import { voiceInUse, voiceReadyFor } from "@shared/sound";
 import { cleanVoiceNotes, shotLines, shotScript, shotsOf } from "@shared/voiceShots";
 import { feelLine } from "@shared/videoFeel";
 import { servicesOf } from "@shared/services";
-import { firstUnused, lineKey, placeFor, plainStarter, sellStarters, serviceForClip, spokenBusiness, voiceScriptProblem, withSale, type SellContext } from "@shared/sellLine";
+import { firstUnused, lineKey, placeFor, plainStarter, sellStarters, serviceForClip, spokenBusiness, thingsShown, voiceScriptProblem, withSale, type SellContext } from "@shared/sellLine";
 
 export const AUTO_BATCH_PREFIX = "auto/";
 
@@ -130,7 +130,13 @@ export function sellContextFor(
   if (!services.length) return null;
   const text = [clip.hook_text, clip.on_screen ?? "", clip.shot_list ?? ""].join(" ");
   const service = serviceForClip(services, profile?.service_looks, text, clip.service);
-  return { sell: { service, business: spokenBusiness(env.APP_NAME ?? ""), cta, seed: clip.id }, place: placeFor(placeWords, text, clip.id) };
+  const things = thingsShown(profile?.service_looks, service, [clip.on_screen ?? "", clip.shot_list ?? ""].join(" "));
+  return { sell: { service, business: spokenBusiness(env.APP_NAME ?? ""), cta, seed: clip.id, things }, place: placeFor(placeWords, text, clip.id) };
+}
+
+/** What the clip already shows in words (its hook, its on-screen line, each shot): a voice over never just reads one back. */
+export function shownOf(clip: TargetClip): string[] {
+  return [clip.hook_text, clip.on_screen ?? "", ...shotsOf(clip).map((s) => s.what)];
 }
 
 /** Short clips (about 6 s or less) get a one-sentence selling line written for them, not a long one cut down. */
@@ -154,7 +160,8 @@ export async function draftScript(env: Env, clip: TargetClip, taken: ReadonlySet
   const selling = sellContextFor(env, profile as Record<string, string> | null, clip, cta, rules.place_words);
   // The guard (shared/sellLine.ts): a model's verdict or label, a shot line, a stage direction or a
   // stub is never spoken; a business studio's line names the service and ends on its CTA.
-  const ok = (t: string) => !!t && voiceScriptProblem(t, selling?.sell) === null && !taken.has(lineKey(t));
+  const shown = shownOf(clip);
+  const ok = (t: string) => !!t && voiceScriptProblem(t, selling?.sell, shown) === null && !taken.has(lineKey(t));
   const sale = (t: string) => (selling && t ? withSale(t, selling.sell, selling.place, max) : t);
   const own = clip.voice_script ? cleanScript(clip.voice_script, clip.caption, ctas, maxWords(seconds)) : "";
   if (!selling && own.length >= 10 && !notes && ok(own)) return fitScript(own, seconds);
@@ -175,8 +182,8 @@ export async function draftScript(env: Env, clip: TargetClip, taken: ReadonlySet
   const llm = await getLlm(env);
   const voice = `Her voice: ${profile?.voice || "warm and direct"}.${feelLine(profile)} Never mention: ${profile?.off_limits || "nothing listed"}.`;
   const system = selling
-    ? `You write the spoken voice-over for a ${Math.round(seconds)}-second vertical video with no talking, for ${selling.sell.business}, a local business. Its job is to sell ${selling.sell.business}'s service shown here: ${selling.sell.service}. ${selling.sell.business} sells only: ${servicesOf(profile as Record<string, string> | null).join("; ")}; never offer anything else. ${max <= SHORT_LINE_WORDS ? `ONE short sentence of ${Math.max(4, max - 1 - (cta ? cta.split(/\s+/).length : 0))} words or fewer that names what is on screen and the service (its name may be shortened, e.g. "${(selling.sell.service ?? "").toLowerCase()}"${selling.place ? ` or "${selling.place}"` : ""}), e.g. "Soft lights and fresh flowers: ${(selling.sell.service ?? "").toLowerCase()}, done for you."` : `In at most ${Math.max(4, max - (cta ? cta.split(/\s+/).length : 0))} words: what is on screen in a few warm words, then that ${selling.sell.business} does ${(selling.sell.service ?? "").toLowerCase()}${selling.place ? ` in ${selling.place}` : ""}.`} ${voice} Never say a price, a number of dollars, a discount or a deadline. Never repeat the caption or the on-screen hook word for word. Never mention automation, software or how the video was made. Do not add a call to action; it is added after your words. Reply with the spoken words only, plain sentences, e.g. "Balloons, candles and a big gold number. Porch and Party sets up birthday rooms in Memphis."`.replace(/Porch and Party sets up birthday rooms in Memphis/, `${selling.sell.business} does ${(selling.sell.service ?? "").toLowerCase()}${selling.place ? ` in ${selling.place}` : ""}`)
-    : `You write a voice-over for a ${Math.round(seconds)}-second vertical video with no talking in it (b-roll, montage, product shots), for the creator ${kitName(env)}, spoken in her own voice. At most ${max} words. ${voice} Do: ${profile?.do_dont || ""}. ${chosen.length ? `End with one call to action from: ${chosen.join(" | ")}.` : "No call to action: she has not chosen one, so never ask people to follow, shop, comment or click."} Describe only what is on screen, following the shots in order and in time (each line is one shot: its seconds, its stage, what it shows); say each part while it is on screen. Never repeat the caption or the on-screen hook word for word. Never mention automation, software or how the video was made. Reply with the script only, plain spoken sentences.`;
+    ? `You write the spoken voice-over for a ${Math.round(seconds)}-second vertical video with no talking, for ${selling.sell.business}, a local business. Its job is to sell ${selling.sell.business}'s service shown here: ${selling.sell.service}. ${selling.sell.business} sells only: ${servicesOf(profile as Record<string, string> | null).join("; ")}; never offer anything else. ${max <= SHORT_LINE_WORDS ? `ONE short sentence of ${Math.max(4, max - 1 - (cta ? cta.split(/\s+/).length : 0))} words or fewer that names what is on screen and the service (its name may be shortened, e.g. "${(selling.sell.service ?? "").toLowerCase()}"${selling.place ? ` or "${selling.place}"` : ""}), as a whole sentence a person would say out loud, with a verb, e.g. "We set up ${(selling.sell.service ?? "").toLowerCase()}${selling.place ? ` all over ${selling.place}` : ""}." Never a label, a colon, a list of things or the service name on its own.` : `In at most ${Math.max(4, max - (cta ? cta.split(/\s+/).length : 0))} words: what is on screen in a few warm words, then that ${selling.sell.business} does ${(selling.sell.service ?? "").toLowerCase()}${selling.place ? ` in ${selling.place}` : ""}.`} ${voice} Never say a price, a number of dollars, a discount or a deadline. Never repeat the caption or the on-screen hook word for word. Never mention automation, software or how the video was made. Do not add a call to action; it is added after your words. Reply with the spoken words only, plain sentences with verbs (no colons, no labels, never "First," or "Then"), e.g. "Balloons and candles fill the room. Porch and Party sets up birthday rooms in Memphis."`.replace(/Porch and Party sets up birthday rooms in Memphis/, `${selling.sell.business} does ${(selling.sell.service ?? "").toLowerCase()}${selling.place ? ` in ${selling.place}` : ""}`)
+    : `You write a voice-over for a ${Math.round(seconds)}-second vertical video with no talking in it (b-roll, montage, product shots), for the creator ${kitName(env)}, spoken in her own voice. At most ${max} words. ${voice} Do: ${profile?.do_dont || ""}. ${chosen.length ? `End with one call to action from: ${chosen.join(" | ")}.` : "No call to action: she has not chosen one, so never ask people to follow, shop, comment or click."} Describe only what is on screen, following the shots in order and in time (each line is one shot: its seconds, its stage, what it shows); say each part while it is on screen, in her own words as one flowing story: never read the shot list out ("First, …", "Then …", seconds, a description pasted as is). Never repeat the caption or the on-screen hook word for word. Never mention automation, software or how the video was made. Reply with the script only, plain spoken sentences.`;
   const r = await llm.complete({
     system,
     user: `Shots, in order:\n${shotLines(shots)}\nOn-screen hook (do not read it out): ${clip.hook_text}\nCaption (do not repeat it): ${clip.caption}${notes ? `\nNotes for the voice from her (use them; they never override what the shots show): ${notes}` : ""}`,
@@ -367,7 +374,7 @@ export async function redoBadVoiceOvers(env: Env): Promise<{ checked: number; ba
   const bad = results.filter((c) => {
     if (repeated(c)) return true;
     const selling = sellContextFor(env, profile, c, ctaForClip(chosen, c.id, maxWords(c.end_s - c.start_s)), rules.place_words);
-    return voiceScriptProblem(c.narration_script, selling?.sell) !== null || plainStarter(c.narration_script, selling?.sell, rules.place_words);
+    return voiceScriptProblem(c.narration_script, selling?.sell, shownOf(c)) !== null || plainStarter(c.narration_script, selling?.sell, rules.place_words);
   });
   const todo = bad.slice(0, VOICE_REDO_MAX);
   // Every redo in ONE run (owner, 1 Nov 2026: repeats cleared two an hour): each new line is unique
@@ -378,7 +385,7 @@ export async function redoBadVoiceOvers(env: Env): Promise<{ checked: number; ba
     .map((script, i) => ({ clip: todo[i], script, auto: true }))
     .filter((it) => {
       const selling = sellContextFor(env, profile, it.clip, ctaForClip(chosen, it.clip.id, maxWords(it.clip.end_s - it.clip.start_s)), rules.place_words);
-      return voiceScriptProblem(it.script, selling?.sell) === null;
+      return voiceScriptProblem(it.script, selling?.sell, shownOf(it.clip)) === null;
     });
   for (const it of items) await removeVoiceOver(env, it.clip.id);
   const r = await voiceClips(env, items);

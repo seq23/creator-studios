@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "@worker/env";
 import { sqliteD1 } from "./helpers/sqlite-d1";
 import { memoryR2 } from "./helpers/r2-memory";
-import { voiceScriptProblem, serviceForClip, lineKey, plainStarter } from "@shared/sellLine";
+import { voiceScriptProblem, serviceForClip, lineKey, plainStarter, sellStarters, thingsShown } from "@shared/sellLine";
 
 let reply = "User Safety: safe.";
 vi.mock("@worker/services/openrouter", async (orig) => ({
@@ -61,9 +61,9 @@ describe("a voice over is a line that sells, never a model's label", () => {
       expect(voiceScriptProblem(bad, null), bad).not.toBeNull();
     }
     expect(voiceScriptProblem("Walk in to candlelit love. Request a quote.", sell)).toBe("no_service");
-    expect(voiceScriptProblem("Balloons and candles. Celebration room decor in Memphis.", sell)).toBe("no_cta");
-    expect(voiceScriptProblem("Balloons and candles. Celebration room decor in Memphis. Request a quote.", sell)).toBeNull();
-    expect(voiceScriptProblem("Candles and roses. Celebration room decor in Memphis. Book now. Request a quote.", sell)).toBe("no_cta");
+    expect(voiceScriptProblem("Balloons and candles. We do celebration room decor in Memphis.", sell)).toBe("no_cta");
+    expect(voiceScriptProblem("Balloons and candles. We do celebration room decor in Memphis. Request a quote.", sell)).toBeNull();
+    expect(voiceScriptProblem("Candles and roses. We do celebration room decor in Memphis. Book now. Request a quote.", sell)).toBe("no_cta");
   });
 
   it("the service comes from the profile's own words for what the clip shows", () => {
@@ -103,7 +103,7 @@ describe("a voice over is a line that sells, never a model's label", () => {
   });
 
   it("one line on several waiting clips is redone until each clip has its own", async () => {
-    const same = "Celebration room decor in Memphis. Book your date.";
+    const same = "We do celebration room decor in Memphis. Book your date.";
     // One CTA, so both lines pass every other check and only the repeat is below par.
     env = { ...env, STUDIO_RULES: JSON.stringify({ ...JSON.parse(env.STUDIO_RULES as string), cta_phrases: ["Book your date"] }) } as Env;
     db.raw.exec(`INSERT INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, hook_text, caption, score, r2_key, status, speech, on_screen, service)
@@ -142,9 +142,9 @@ describe("a voice over is a line that sells, never a model's label", () => {
 
   it("a short clip keeps the model's short selling line, not the plain starter", async () => {
     // A first sentence too long for 5 s used to drop the whole answer (the starter was spoken instead).
-    reply = "Pumpkins and wreaths greet every single guest at your front door tonight. Pumpkin porches, done right.";
+    reply = "Pumpkins and wreaths greet every single guest at your front door tonight. We dress porches with pumpkins.";
     const line = await draftScript(env, (await clipForScript(env, "clp_porch0000001"))!);
-    expect(line, line).toMatch(/^Pumpkin porches, done right\. /);
+    expect(line, line).toMatch(/^We dress porches with pumpkins\. /);
     expect(endsOnCta(line)).toBe(true);
     expect(line.split(/\s+/).length).toBeLessThanOrEqual(9);
   });
@@ -199,13 +199,13 @@ describe("the old plain no-AI line is redone with a real selling line", () => {
   });
 
   it("the hourly sweep swaps a waiting clip's plain line for the AI's short one", async () => {
-    reply = "Wreaths and pumpkins: holiday porches, ready.";
+    reply = "Wreaths and pumpkins dress your porch.";
     db.raw.exec(`INSERT INTO narrations (id, script, clip_id, status, engine, auto, ai_generated, mix_status) VALUES
       ('nar_plain', 'Holiday porches, done for you. Request a quote.', 'clp_porch0000001', 'ready', 'built-in', 1, 1, 'ready')`);
     const r = await redoBadVoiceOvers(env);
     expect(r).toEqual({ checked: 1, bad: 1, redone: 1 });
     const script = (db.raw.prepare("SELECT script FROM narrations").get() as { script: string }).script;
-    expect(script).toMatch(/^Wreaths and pumpkins: holiday porches, ready\. /);
+    expect(script).toMatch(/^Wreaths and pumpkins dress your porch\. /);
     expect(endsOnCta(script)).toBe(true);
   });
 });
@@ -238,3 +238,106 @@ describe("a sentence that stops mid-thought is never spoken (Mercedes, 1 Nov 202
   });
 });
 
+
+describe("a voice over is a sentence a person says, never a tag or the shot sheet read back (1 Nov 2026)", () => {
+  const porch = { service: "Holiday porches", business: "Porch and Party", cta: "Book your date" };
+  const room = { service: "Celebration room decor", business: "Porch and Party", cta: "Request a quote" };
+
+  it("label-shaped lines spoken on Porch & Party are refused; spoken sentences pass", () => {
+    for (const [bad, sell] of [
+      ["Pumpkin porch: holiday porches. Book your date.", porch],
+      ["Wreaths and greenery: holiday porches. Book your date.", porch],
+      ["Germantown holiday porches, done for you. Book your date.", porch],
+      ["Celebration room decor in Memphis. Request a quote.", room],
+      ["Germantown celebration room decor. Request a quote.", room],
+      ["Rose petal celebration room decor. Request a quote.", room],
+      ["Celebration room decor by Porch and Party, here in Memphis. Request a quote.", room],
+      ["Want this at your place? Celebration room decor in Bartlett. Request a quote.", room],
+      ["Joyful table, blooming celebration vibes. Request a quote.", room],
+    ] as const)
+      expect(voiceScriptProblem(bad, sell), bad).toBe("label");
+    // the clip's own hook read back as the line
+    expect(voiceScriptProblem("Pumpkin lights guide you inside in Memphis. Book your date.", porch, ["Pumpkin lights guide you inside in Memphis"])).toBe("label");
+    for (const good of [
+      "Pumpkins and a fall wreath on your porch in Germantown. Book your date.",
+      "Germantown, we do holiday porches. Book your date.",
+      "Porch and Party brings holiday porches to your door in Memphis. Book your date.",
+      "This door sparkles with holiday magic. We set up holiday porches. Book your date.",
+    ])
+      expect(voiceScriptProblem(good, porch), good).toBeNull();
+  });
+
+  it("the shot sheet read back is refused; a creator's own spoken line passes", () => {
+    for (const bad of [
+      "Instant warm glow. First, A barista pours steamed milk into a coffee cup to create latte art. Then People socialize and pose together inside a house near a staircase.",
+      "First, fabric on the table. Then, the pins go in.",
+      "Starting the day right. Then, shaking up some Brooklyn energy with my girls.",
+      "At 0:03 the milk swirls into a heart.",
+      "The milk pours in at 2.5 s and the heart forms.",
+      "Morning coffee, A barista pours the milk.",
+    ])
+      expect(voiceScriptProblem(bad, null), bad).toBe("readback");
+    for (const good of [
+      "I pour the steamed milk, watching the art come to life.",
+      "Fabric goes down first. Then every pin, one by one. And the dress is done.",
+      "My favourite 90s song plays while the milk swirls.",
+      "In Paris, I watched a barista craft the prettiest latte art.",
+    ])
+      expect(voiceScriptProblem(good, null), good).toBeNull();
+  });
+
+  it("the no-AI line is a spoken sentence naming the service, a town and what the clip shows, unique per clip", () => {
+    const LOOKS_PORCH = "Holiday porches: a front porch and door dressed for the season with wreaths, garland, lanterns, pumpkins or trees; before is the plain, bare porch";
+    expect(thingsShown(LOOKS_PORCH, "Holiday porches", "A front door decorated with pumpkins and wreaths")).toBe("wreaths and pumpkins");
+    expect(thingsShown(LOOKS_PORCH, "Holiday porches", "A plain wooden bench")).toBeNull();
+    const towns = ["Memphis", "Germantown", "Collierville", "Bartlett"];
+    const seen = new Set<string>();
+    for (const max of [9, 14, 30])
+      for (const sell of [porch, room]) {
+        const lines = sellStarters({ ...sell, seed: `clp_${max}`, things: "wreaths and pumpkins" }, towns, max);
+        expect(lines.length).toBeGreaterThanOrEqual(3);
+        for (const l of lines) {
+          expect(voiceScriptProblem(l, sell), l).toBeNull();
+          expect(l.split(/\s+/).length).toBeLessThanOrEqual(max);
+          expect(l, l).toMatch(/Memphis|Germantown|Collierville|Bartlett/);
+          expect(l, l).not.toMatch(/:/);
+          seen.add(lineKey(l));
+        }
+      }
+    expect(seen.size).toBeGreaterThanOrEqual(30);
+    const long = sellStarters({ ...porch, seed: "x", things: "wreaths and pumpkins" }, towns, 40);
+    expect(long.some((l) => l.startsWith("Wreaths and pumpkins, all set up for you."))).toBe(true);
+  });
+
+  it("the hourly sweep redoes a waiting tag line and a Mercedes shot-sheet line, the redo passing the check", async () => {
+    reply = "User Safety: safe.";
+    db.raw.exec(`INSERT INTO narrations (id, script, clip_id, status, engine, auto, ai_generated, mix_status) VALUES
+      ('nar_tag', 'Pumpkin porch: holiday porches. Book your date.', 'clp_porch0000001', 'ready', 'built-in', 1, 1, 'ready'),
+      ('nar_lbl', 'Celebration room decor in Memphis. Request a quote.', 'clp_room00000001', 'ready', 'built-in', 1, 1, 'ready')`);
+    const r = await redoBadVoiceOvers(env);
+    expect(r).toEqual({ checked: 2, bad: 2, redone: 2 });
+    const rows = db.raw.prepare("SELECT clip_id, script FROM narrations").all() as { clip_id: string; script: string }[];
+    for (const x of rows) {
+      expect(x.script).not.toMatch(/:/);
+      expect(voiceScriptProblem(x.script, { service: x.clip_id.includes("porch") ? "Holiday porches" : "Celebration room decor", business: "Porch and Party", cta: null })).toBeNull();
+      expect(endsOnCta(x.script)).toBe(true);
+    }
+    expect(rows.find((x) => x.clip_id === "clp_porch0000001")!.script).toMatch(/holiday porches/i);
+  });
+
+  it("a creator studio's shot-sheet line is redone into her own words, no call to action", async () => {
+    const creator = { ...env, SPONSOR_KIND: "creator", APP_NAME: "Mercedes Studio", STUDIO_RULES: JSON.stringify({ cta_phrases: [], ai_note: "all", place_words: [], prices: false }) } as unknown as Env;
+    db.raw.exec(`UPDATE brand_profile SET sections = '{"voice":"Warm"}';
+      INSERT INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, hook_text, caption, score, r2_key, status, speech, on_screen)
+      VALUES ('clp_merc00000001', 'ast_p', 'dmp_p', 0, 25, 'montage', 'Instant warm glow', 'Coffee day', 70, 'clips/x.mp4', 'draft', 0, 'A barista pours steamed milk into a coffee cup');
+      INSERT INTO narrations (id, script, clip_id, status, engine, auto, ai_generated, mix_status) VALUES
+      ('nar_m', 'Instant warm glow. First, A barista pours steamed milk into a coffee cup to create latte art.', 'clp_merc00000001', 'ready', 'built-in', 1, 1, 'ready');
+      DELETE FROM clips WHERE id IN ('clp_porch0000001', 'clp_room00000001');`);
+    reply = "Warm light, a slow pour, and my whole morning softens. This is the cup I wait for all week.";
+    const r = await redoBadVoiceOvers(creator);
+    expect(r).toEqual({ checked: 1, bad: 1, redone: 1 });
+    const script = (db.raw.prepare("SELECT script FROM narrations").get() as { script: string }).script;
+    expect(script).toBe(reply);
+    expect(voiceScriptProblem(script, null)).toBeNull();
+  });
+});
