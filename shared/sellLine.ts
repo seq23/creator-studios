@@ -210,6 +210,24 @@ export function sellStarter(sell: SellContext, place: string | null, max: number
   return sellStarters(sell, [place], max)[0];
 }
 
+const FILLER = new Set(["let", "do", "does", "done", "your", "right", "here", "for", "you", "make", "it", "special", "with", "from", "this", "is", "by", "want", "at", "place", "made", "easy", "ready", "the", "our", "and"]);
+
+/**
+ * The plain no-AI line from before 1 Nov 2026 ("Holiday porches, done for you. Book your date."):
+ * nothing but the service, the business and filler, and no town although the studio serves some.
+ * Below par on a business studio, so the hourly sweep redoes it with the AI's short line (owner,
+ * 1 Nov 2026: most of Porch & Party's 5-second clips said only that). Today's no-AI lines always
+ * name a town (sellStarters), so a redo never loops.
+ */
+export function plainStarter(script: string | null | undefined, sell: SellContext | null | undefined, places: readonly string[]): boolean {
+  if (!sell?.service || !places.length) return false;
+  let body = (script ?? "").trim();
+  if (sell.cta && norm(body).endsWith(norm(sell.cta))) body = body.split(/(?<=[.!?])\s+/).slice(0, -1).join(" ");
+  if (!body || places.some((p) => norm(body).includes(norm(p)))) return false;
+  const own = new Set([...norm(sell.service).split(" "), ...norm(sell.business).split(" ")]);
+  return norm(body).split(" ").every((w) => own.has(w) || FILLER.has(w));
+}
+
 /** The first line not already spoken on another clip of this studio, else the first. */
 export function firstUnused(lines: readonly string[], taken: ReadonlySet<string>): string | null {
   return lines.find((l) => !!l && !taken.has(lineKey(l))) ?? null;

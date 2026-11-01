@@ -34,7 +34,7 @@ import { voiceInUse, voiceReadyFor } from "@shared/sound";
 import { cleanVoiceNotes, shotLines, shotScript, shotsOf } from "@shared/voiceShots";
 import { feelLine } from "@shared/videoFeel";
 import { servicesOf } from "@shared/services";
-import { firstUnused, lineKey, placeFor, sellStarters, serviceForClip, spokenBusiness, voiceScriptProblem, withSale, type SellContext } from "@shared/sellLine";
+import { firstUnused, lineKey, placeFor, plainStarter, sellStarters, serviceForClip, spokenBusiness, voiceScriptProblem, withSale, type SellContext } from "@shared/sellLine";
 
 export const AUTO_BATCH_PREFIX = "auto/";
 
@@ -367,7 +367,7 @@ export async function redoBadVoiceOvers(env: Env): Promise<{ checked: number; ba
   const bad = results.filter((c) => {
     if (repeated(c)) return true;
     const selling = sellContextFor(env, profile, c, ctaForClip(chosen, c.id, maxWords(c.end_s - c.start_s)), rules.place_words);
-    return voiceScriptProblem(c.narration_script, selling?.sell) !== null;
+    return voiceScriptProblem(c.narration_script, selling?.sell) !== null || plainStarter(c.narration_script, selling?.sell, rules.place_words);
   });
   const todo = bad.slice(0, VOICE_REDO_MAX);
   // Every redo in ONE run (owner, 1 Nov 2026: repeats cleared two an hour): each new line is unique
