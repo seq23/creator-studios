@@ -24,6 +24,8 @@ export interface OutgoingEmail {
   html: string;
   text: string;
   refId?: string | null;
+  /** A send the host developer asked for by pressing a button (the [Test] heads-up). Not a notice. */
+  requested?: boolean;
 }
 
 export interface EmailResult {
@@ -70,16 +72,32 @@ export function resendRefusal(status: number, body: string): string {
  * Per-studio notify-to override (Worker secret NOTIFY_EMAIL; owner's ruling 22 Oct 2026 for Porch &
  * Party Studio: every studio email goes only to the host, none to the owner). Every kind except the
  * login code is re-addressed to NOTIFY_EMAIL alone; a login code still goes to the address typed on
- * the login page, so the owner can sign in. Pure.
+ * the login page, so the owner can sign in.
+ *
+ * Then the host developer's own address (DEVELOPER_EMAIL) is taken off every notice, in every studio
+ * (owner's ruling 1 Nov 2026: "I don't need creator studio emails at all, not even pnp studio"). That
+ * ends the Porch & Party brief, clips-ready, weekly recap and posting-problem mail (its NOTIFY_EMAIL is
+ * that address) and any copy to her from the client studios. Mail to the studio's own owner and
+ * notify list is untouched. Kept: login codes, and a send she asked for by pressing a button
+ * (`requested`, the [Test] heads-up). Pure.
  */
-export function routeRecipients(env: Pick<Env, "NOTIFY_EMAIL">, mail: Pick<OutgoingEmail, "kind" | "to">): string[] {
+export function routeRecipients(env: Pick<Env, "NOTIFY_EMAIL" | "DEVELOPER_EMAIL">, mail: Pick<OutgoingEmail, "kind" | "to" | "requested">): string[] {
+  if (mail.kind === "login_code") return mail.to;
   const override = (env.NOTIFY_EMAIL ?? "").trim().toLowerCase();
-  if (!override || mail.kind === "login_code") return mail.to;
-  return [override];
+  const to = override ? [override] : mail.to;
+  if (mail.requested) return to;
+  const dev = (env.DEVELOPER_EMAIL ?? "").trim().toLowerCase();
+  return dev ? to.filter((a) => a.trim().toLowerCase() !== dev) : to;
 }
 
 export async function sendEmail(env: Env, original: OutgoingEmail): Promise<EmailResult> {
   const mail: OutgoingEmail = { ...original, to: routeRecipients(env, original) };
+  // Nobody left to tell (the 1 Nov 2026 ruling took the host developer off it): a named skip, never a
+  // send to an empty list and never a red Email light.
+  if (!mail.to.length) {
+    log.info("email.suppressed", { kind: mail.kind, reason: "no_recipient_after_routing" });
+    return { ok: true, providerId: null, error: null };
+  }
   // Practice: the studio has no Resend of its own yet. Recorded (provider id practice_…), not sent.
   const practiceMail = mail.kind !== "login_code" && !fakeServices(env) && practice(env, "resend");
   const result = fakeServices(env)

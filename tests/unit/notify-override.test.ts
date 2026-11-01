@@ -60,3 +60,46 @@ describe("NOTIFY_EMAIL: every studio email to the host only", () => {
     }
   });
 });
+
+// Owner's ruling 1 Nov 2026: "I don't need creator studio emails at all, not even pnp studio." The host
+// developer (DEVELOPER_EMAIL) gets no studio notice from any studio. Porch & Party's NOTIFY_EMAIL is that
+// same address, so P&P Studio sends no notice to her at all; the login code still reaches her.
+describe("the host developer gets no studio notices (1 Nov 2026)", () => {
+  const DEV = "dev@dev.example";
+  const CLIENT = "client@client.example";
+
+  it("sample1 (NOTIFY_EMAIL is the developer's address): no non-sign-in mail reaches her, of any kind", async () => {
+    const e = env({ NOTIFY_EMAIL: DEV, DEVELOPER_EMAIL: ` ${DEV.toUpperCase()} ` } as Partial<Env>);
+    for (const kind of KINDS) {
+      expect(routeRecipients(e, { kind, to: [DEV, OWNER] }), kind).toEqual([]);
+      const r = await sendEmail(e, { kind, to: [DEV], subject: "s", html: "<p>x</p>", text: "x" });
+      expect(r.ok, kind).toBe(true);
+    }
+    expect(rows()).toEqual([]);
+    await sendEmail(e, { kind: "login_code", to: [DEV], subject: "code", html: "<p>1</p>", text: "1" });
+    expect(rows()).toEqual([{ kind: "login_code", to_email: DEV }]);
+  });
+
+  it("no Resend call is made when routing leaves nobody, and the Email light is not turned red", async () => {
+    const calls: unknown[] = [];
+    vi.stubGlobal("fetch", async (_u: string, init?: RequestInit) => {
+      calls.push(init?.body);
+      return new Response(JSON.stringify({ id: "em_1" }), { status: 200 });
+    });
+    const e = env({ FAKE_SERVICES: "0", RESEND_API_KEY: "re_x", NOTIFY_EMAIL: DEV, DEVELOPER_EMAIL: DEV, PRACTICE: [] } as Partial<Env>);
+    for (const kind of KINDS) await sendEmail(e, { kind, to: [DEV], subject: "s", html: "<p>x</p>", text: "x" });
+    expect(calls).toEqual([]);
+    const red = d.raw.prepare("SELECT COUNT(*) AS n FROM health WHERE light = 'red'").get() as { n: number } | undefined;
+    expect(red?.n ?? 0).toBe(0);
+  });
+
+  it("client studios: the client still gets every notice; only the developer's copy goes", () => {
+    for (const kind of KINDS) expect(routeRecipients({ DEVELOPER_EMAIL: DEV }, { kind, to: [CLIENT, DEV] }), kind).toEqual([CLIENT]);
+    expect(routeRecipients({ DEVELOPER_EMAIL: DEV }, { kind: "login_code", to: [DEV] })).toEqual([DEV]);
+  });
+
+  it("a send she asks for by pressing a button (the [Test] heads-up) still reaches her", () => {
+    expect(routeRecipients({ DEVELOPER_EMAIL: DEV }, { kind: "heads_up", to: [DEV], requested: true })).toEqual([DEV]);
+    expect(routeRecipients({ DEVELOPER_EMAIL: DEV }, { kind: "heads_up", to: [DEV] })).toEqual([]);
+  });
+});

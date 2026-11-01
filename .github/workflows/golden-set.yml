@@ -9,7 +9,8 @@ name: golden-set
 
 on:
   schedule:
-    - cron: "23 6 * * 1"   # Mondays 06:23 UTC
+    - cron: "23 1 * * 1"  # Mondays 01:23 CT
+      timezone: America/Chicago
   workflow_dispatch:
     inputs:
       local_only:

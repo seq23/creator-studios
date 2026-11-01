@@ -11,6 +11,8 @@
     "RESEND_API_KEY",
     "STUDIO_EMAIL_FROM"
   ],
+  "weeklyCron": "40 11 * * 1",
+  "_weeklyCron": "Monday lane (recap, stats, brand finder), UTC: 05:40 Central Standard Time. Staggered 20 minutes apart across the live studios (schedule rebalance, 1 Nov 2026).",
   "audienceTimezone": "America/New_York",
   "d1": {
     "name": "sheila-creator-dashboard-db",

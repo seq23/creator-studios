@@ -17,6 +17,8 @@
     "RESEND_API_KEY",
     "STUDIO_EMAIL_FROM"
   ],
+  "weeklyCron": "0 12 * * 1",
+  "_weeklyCron": "Monday lane (recap, stats, brand finder), UTC: 06:00 Central Standard Time. Staggered 20 minutes apart across the live studios (schedule rebalance, 1 Nov 2026).",
   "audienceTimezone": "America/Chicago",
   "d1": {
     "name": "creator-studios-sample1-db",
