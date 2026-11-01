@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "@worker/env";
 import { sqliteD1 } from "./helpers/sqlite-d1";
 import { memoryR2 } from "./helpers/r2-memory";
-import { voiceScriptProblem, serviceForClip } from "@shared/sellLine";
+import { voiceScriptProblem, serviceForClip, lineKey } from "@shared/sellLine";
 
 let reply = "User Safety: safe.";
 vi.mock("@worker/services/openrouter", async (orig) => ({
@@ -19,7 +19,7 @@ vi.mock("@worker/services/github", async (orig) => ({
   dispatchJob: async () => ({ dispatched: true }),
 }));
 
-const { clipForScript, draftScript, redoBadVoiceOvers } = await import("@worker/lib/autoVoice");
+const { clipForScript, draftScript, redoBadVoiceOvers, voiceAllInDump } = await import("@worker/lib/autoVoice");
 
 // Porch & Party Studio's real profile lines (services and what each looks like).
 const LOOKS = [
@@ -117,4 +117,93 @@ describe("a voice over is a line that sells, never a model's label", () => {
     expect(new Set(scripts).size).toBe(scripts.length);
     for (const s of scripts) expect(endsOnCta(s)).toBe(true);
   });
+
+  // Made-up clips shaped like Porch & Party Studio's real ones (1 Nov 2026): one dump of porch doors,
+  // bedroom setups and tables, every clip stored as "Celebration room decor".
+  const PNP_CLIPS: [string, string][] = [
+    ["A front door decorated with pumpkins and wreaths", "Holiday porches"],
+    ["A decorated front door with garland and lights", "Holiday porches"],
+    ["A front door decorated with Christmas-themed wreaths and garlands.", "Holiday porches"],
+    ["Pumpkins lining the porch steps by the front door", "Holiday porches"],
+    ["A bed with rose petals and candles in a heart shape.", "Celebration room decor"],
+    ["A bedroom with a Happy Birthday sign and rose petals", "Celebration room decor"],
+    ["A long board of fruit, cheese and crackers", "Grazing tables"],
+    ["Giant Jenga and cornhole set up on the lawn", "Game rentals"],
+  ];
+  const addClips = (rows: [string, string][], secs = 5) =>
+    rows.forEach(([what], i) =>
+      db.raw.exec(`INSERT INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, hook_text, caption, score, r2_key, status, speech, on_screen, service)
+        VALUES ('clp_mix${String(i).padStart(9, "0")}', 'ast_p', 'dmp_p', 0, ${secs}, 'montage', 'A look', 'A look', 70, 'clips/m${i}.mp4', 'draft', 0, '${what.replace(/'/g, "''")}', 'Celebration room decor')`),
+    );
+
+  it("each clip sells the service it shows, whatever one label the shot sheet stored", () => {
+    for (const [what, want] of PNP_CLIPS) expect(serviceForClip(SERVICES, LOOKS, what, "Celebration room decor"), what).toBe(want);
+  });
+
+  it("a short clip keeps the model's short selling line, not the plain starter", async () => {
+    // A first sentence too long for 5 s used to drop the whole answer (the starter was spoken instead).
+    reply = "Pumpkins and wreaths greet every single guest at your front door tonight. Pumpkin porches, done right.";
+    const line = await draftScript(env, (await clipForScript(env, "clp_porch0000001"))!);
+    expect(line, line).toMatch(/^Pumpkin porches, done right\. /);
+    expect(endsOnCta(line)).toBe(true);
+    expect(line.split(/\s+/).length).toBeLessThanOrEqual(9);
+  });
+
+  it("with no usable AI, short clips still each get their own line naming the service and a town", async () => {
+    addClips([...PNP_CLIPS, ...PNP_CLIPS, ...PNP_CLIPS]); // 24 clips, 3 of each look, plus the two in beforeEach
+    const r = await voiceAllInDump(env, "dmp_p");
+    expect(r.clips).toBe(26);
+    const rows = db.raw.prepare("SELECT n.script, c.on_screen FROM narrations n JOIN clips c ON c.id = n.clip_id").all() as { script: string; on_screen: string }[];
+    expect(rows.length).toBe(26);
+    expect(new Set(rows.map((x) => lineKey(x.script))).size).toBe(rows.length);
+    for (const x of rows) {
+      const want = PNP_CLIPS.find(([w]) => w === x.on_screen)?.[1];
+      if (want) expect(x.script.toLowerCase(), x.on_screen).toContain(want.toLowerCase());
+      expect(x.script, x.script).toMatch(/Memphis|Germantown/);
+      expect(endsOnCta(x.script)).toBe(true);
+      expect(voiceScriptProblem(x.script, null)).toBeNull();
+    }
+  });
+
+  it("repeats across six clips are all redone in one run, each to its own line", async () => {
+    addClips(PNP_CLIPS.slice(0, 6));
+    const lines = ["Holiday porches by Porch and Party. Book your date.", "Celebration room decor in Memphis. Book your date.", "Holiday porches, done for you. Request a quote."];
+    for (let i = 0; i < 6; i++)
+      db.raw.exec(`INSERT INTO narrations (id, script, clip_id, status, engine, auto, ai_generated, mix_status) VALUES ('nar_d${i}', '${lines[i % 3]}', 'clp_mix${String(i).padStart(9, "0")}', 'ready', 'built-in', 1, 1, 'ready')`);
+    const r = await redoBadVoiceOvers(env);
+    expect(r.bad).toBeGreaterThanOrEqual(3);
+    expect(r.redone).toBe(r.bad);
+    const scripts = (db.raw.prepare("SELECT script FROM narrations").all() as { script: string }[]).map((x) => x.script);
+    expect(scripts.length).toBe(6);
+    expect(new Set(scripts.map(lineKey)).size).toBe(6);
+  });
 });
+
+describe("a sentence that stops mid-thought is never spoken (Mercedes, 1 Nov 2026)", () => {
+  it("unfinished lines are refused; finished ones pass", () => {
+    for (const bad of [
+      "This is the one move I make each morning—it turns an ordinary pour into something that feels.",
+      "There are moments — like watching steamed milk spiral into a rose — that feel like.",
+      "The barista pours steamed milk slowly, shaping.",
+      "Morning coffee with my favourite people and",
+      "Morning coffee with my favourite people and the.",
+    ])
+      expect(voiceScriptProblem(bad, null), bad).toBe("unfinished");
+    for (const good of ["The second the vinyl spins, the day feels right.", "And there it is—art in your cup, brewed with love.", "Come on in and watch this."])
+      expect(voiceScriptProblem(good, null), good).toBeNull();
+  });
+
+  it("a creator studio's cut-off line is redone, finished and with no call to action she never chose", async () => {
+    env = { ...env, SPONSOR_KIND: "creator", APP_NAME: "Mercedes Studio", STUDIO_RULES: JSON.stringify({ cta_phrases: [], ai_note: "all", place_words: [], prices: false }) } as unknown as Env;
+    db.raw.exec("UPDATE brand_profile SET sections = '{\"voice\":\"Warm\"}'");
+    reply = "Steamed milk swirls into a rose, slow and steady.";
+    db.raw.exec(`INSERT INTO narrations (id, script, clip_id, status, engine, auto, ai_generated, mix_status) VALUES
+      ('nar_cut', 'This is the one move I make each morning—it turns an ordinary pour into something that feels.', 'clp_room00000001', 'ready', 'built-in', 1, 1, 'ready')`);
+    const r = await redoBadVoiceOvers(env);
+    expect(r).toEqual({ checked: 1, bad: 1, redone: 1 });
+    const script = (db.raw.prepare("SELECT script FROM narrations").get() as { script: string }).script;
+    expect(voiceScriptProblem(script, null)).toBeNull();
+    expect(script).not.toMatch(/book|request|get in touch|message us|follow/i);
+  });
+});
+

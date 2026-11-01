@@ -1964,6 +1964,10 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         if avoid_windows or fixes:
             # Try another version: away from the version she has, doing what her one-tap fixes ask (spec.fixes).
             plans = CM.apply_fixes(plans, fixes, by_key, pb, lambda pt: avoid_overlap(Moment(pt.asset_id, "montage", pt.start, pt.end, [(pt.start, pt.end)]), avoid_windows))[:1]
+        if not hers:
+            # Each clip is labelled with the service its own shots show, not the dump's (jobs/plan.py clip_service).
+            for pl in plans:
+                pl.service = P.clip_service(pl.parts, sheets, service)
         P.write_copy(key, plans, profile, services, OPENROUTER_MODEL, ask_text, feedback={0: spec.get("change_request")} if spec.get("change_request") and plans else None, guard=text_ok, rules=PR.copy_rules(rules), memory=memory, extra={**copy_extra(rules_s, pb, len(plans)), **voice_context(spec), "hook_rules": HOOK_RULES})
         spec["_used_hooks"] = [pl.hook for pl in plans if pl.hook and not pl.words_pending][-40:]
         for j, pl in enumerate(plans):

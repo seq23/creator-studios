@@ -245,7 +245,8 @@ describe("voice-over scripts are drafted a few at a time", () => {
   });
   it("both voice paths draft through inBatches, never one await per clip", () => {
     const src = readFileSync("worker/lib/autoVoice.ts", "utf8");
-    expect(src.match(/inBatches\(targets, DRAFT_AT_ONCE/g)?.length).toBe(2);
+    expect(src.match(/draftUnique\(env, targets, /g)?.length).toBe(2);
+    expect(src).toMatch(/export async function draftUnique[\s\S]{0,400}inBatches\(clips, DRAFT_AT_ONCE/);
     expect(src).not.toMatch(/for \(const clip of targets\) items\.push\(\{ clip, script: await draftScript/);
   });
 });

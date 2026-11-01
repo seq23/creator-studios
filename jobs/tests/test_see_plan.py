@@ -494,3 +494,23 @@ class HerServiceTest(unittest.TestCase):
         # A finished shot of ANOTHER service is still never used.
         c = V.ShotSheet("c", 8.0, [V.Shot(0, 8, state="after", service="beta work", confidence=0.9)], "vision:x")
         self.assertEqual(P.pools([c], "alpha work", hers=True)["after"], [])
+
+
+class ClipServiceTest(unittest.TestCase):
+    """Owner, 1 Nov 2026: every clip of a mixed dump carried the dump's service ("Celebration room
+    decor"), so a porch-door clip was voiced as room decor. Each clip takes the service its own shots show."""
+
+    def test_each_clip_takes_its_own_shots_service(self):
+        services = ["Celebration room decor", "Holiday porches", "Grazing tables"]
+        rooms = [sheet(f"r{i}", 10.0, shot(0, 10, "after", "Celebration room decor", "A bed with rose petals and candles")) for i in range(3)]
+        door = sheet("door", 6.0, shot(0, 6, "after", "Holiday porches", "A front door decorated with pumpkins and wreaths"))
+        sheets = {s.asset_id: s for s in [*rooms, door]}
+        dump, _ = P.dump_service(list(sheets.values()), None, services)
+        self.assertEqual(dump, "Celebration room decor")  # the dump's majority
+        porch_clip = [P.Part("door", 0, 5, "after", "")]
+        room_clip = [P.Part("r0", 0, 5, "after", "")]
+        self.assertEqual(P.clip_service(porch_clip, sheets, dump), "Holiday porches")
+        self.assertEqual(P.clip_service(room_clip, sheets, dump), "Celebration room decor")
+        # A clip whose shots carry no sure service keeps the dump's.
+        unsure = {"u": sheet("u", 6.0, shot(0, 6, "after", "Holiday porches", "a blur", conf=0.2))}
+        self.assertEqual(P.clip_service([P.Part("u", 0, 5, "after", "")], unsure, dump), dump)

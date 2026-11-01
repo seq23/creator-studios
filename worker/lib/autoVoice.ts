@@ -34,7 +34,7 @@ import { voiceInUse, voiceReadyFor } from "@shared/sound";
 import { cleanVoiceNotes, shotLines, shotScript, shotsOf } from "@shared/voiceShots";
 import { feelLine } from "@shared/videoFeel";
 import { servicesOf } from "@shared/services";
-import { placeFor, sellStarter, serviceForClip, spokenBusiness, voiceScriptProblem, withSale, type SellContext } from "@shared/sellLine";
+import { firstUnused, lineKey, placeFor, sellStarters, serviceForClip, spokenBusiness, voiceScriptProblem, withSale, type SellContext } from "@shared/sellLine";
 
 export const AUTO_BATCH_PREFIX = "auto/";
 
@@ -133,7 +133,15 @@ export function sellContextFor(
   return { sell: { service, business: spokenBusiness(env.APP_NAME ?? ""), cta, seed: clip.id }, place: placeFor(placeWords, text, clip.id) };
 }
 
-export async function draftScript(env: Env, clip: TargetClip): Promise<string> {
+/** Short clips (about 6 s or less) get a one-sentence selling line written for them, not a long one cut down. */
+export const SHORT_LINE_WORDS = 12;
+
+/**
+ * `taken`: the lines already spoken on this studio's other clips (lineKey); a script never repeats
+ * one (owner, 1 Nov 2026: three lines were spoken on six Porch & Party clips). `noAi`: the starter
+ * lines only (a second pass when two clips drafted at once came back the same).
+ */
+export async function draftScript(env: Env, clip: TargetClip, taken: ReadonlySet<string> = new Set(), opts: { noAi?: boolean } = {}): Promise<string> {
   const seconds = clip.end_s - clip.start_s;
   const max = maxWords(seconds);
   const rules = await readStudioRules(env);
@@ -146,7 +154,7 @@ export async function draftScript(env: Env, clip: TargetClip): Promise<string> {
   const selling = sellContextFor(env, profile as Record<string, string> | null, clip, cta, rules.place_words);
   // The guard (shared/sellLine.ts): a model's verdict or label, a shot line, a stage direction or a
   // stub is never spoken; a business studio's line names the service and ends on its CTA.
-  const ok = (t: string) => !!t && voiceScriptProblem(t, selling?.sell) === null;
+  const ok = (t: string) => !!t && voiceScriptProblem(t, selling?.sell) === null && !taken.has(lineKey(t));
   const sale = (t: string) => (selling && t ? withSale(t, selling.sell, selling.place, max) : t);
   const own = clip.voice_script ? cleanScript(clip.voice_script, clip.caption, ctas, maxWords(seconds)) : "";
   if (!selling && own.length >= 10 && !notes && ok(own)) return fitScript(own, seconds);
@@ -157,26 +165,50 @@ export async function draftScript(env: Env, clip: TargetClip): Promise<string> {
   // No AI: the engine's script when it passed, else the shots in order (never the caption).
   const fromShots = cleanScript(groundScript(shotScript(shots, clip.hook_text, selling ? null : cta), ground), clip.caption, ctas, max);
   const candidates = selling
-    ? [sale(own), sale(fromShots), sellStarter(selling.sell, selling.place, max)]
+    ? [sale(own), sale(fromShots), ...sellStarters(selling.sell, [selling.place, ...rules.place_words.filter((p) => p !== selling.place)], max)]
     : [own.length >= 10 ? fitScript(own, seconds) : "", fromShots.length >= 10 ? fitScript(fromShots, seconds) : ""];
   const starter =
     candidates.find(ok) ||
     groundScript(starterScript(clip, cta, seconds), ground) ||
     fitScript(cta ? `${cta.replace(/[.!]*$/, "")}.` : "Take a look.", seconds);
-  if (fakeServices(env)) return starter;
+  if (fakeServices(env) || opts.noAi) return starter;
   const llm = await getLlm(env);
   const voice = `Her voice: ${profile?.voice || "warm and direct"}.${feelLine(profile)} Never mention: ${profile?.off_limits || "nothing listed"}.`;
   const system = selling
-    ? `You write the spoken voice-over for a ${Math.round(seconds)}-second vertical video with no talking, for ${selling.sell.business}, a local business. Its job is to sell ${selling.sell.business}'s service shown here: ${selling.sell.service}. ${selling.sell.business} sells only: ${servicesOf(profile as Record<string, string> | null).join("; ")}; never offer anything else. In at most ${Math.max(4, max - (cta ? cta.split(/\s+/).length : 0))} words: what is on screen in a few warm words, then that ${selling.sell.business} does ${(selling.sell.service ?? "").toLowerCase()}${selling.place ? ` in ${selling.place}` : ""}. ${voice} Never say a price, a number of dollars, a discount or a deadline. Never repeat the caption or the on-screen hook word for word. Never mention automation, software or how the video was made. Do not add a call to action; it is added after your words. Reply with the spoken words only, plain sentences, e.g. "Balloons, candles and a big gold number. Porch and Party sets up birthday rooms in Memphis."`.replace(/Porch and Party sets up birthday rooms in Memphis/, `${selling.sell.business} does ${(selling.sell.service ?? "").toLowerCase()}${selling.place ? ` in ${selling.place}` : ""}`)
+    ? `You write the spoken voice-over for a ${Math.round(seconds)}-second vertical video with no talking, for ${selling.sell.business}, a local business. Its job is to sell ${selling.sell.business}'s service shown here: ${selling.sell.service}. ${selling.sell.business} sells only: ${servicesOf(profile as Record<string, string> | null).join("; ")}; never offer anything else. ${max <= SHORT_LINE_WORDS ? `ONE short sentence of ${Math.max(4, max - 1 - (cta ? cta.split(/\s+/).length : 0))} words or fewer that names what is on screen and the service (its name may be shortened, e.g. "${(selling.sell.service ?? "").toLowerCase()}"${selling.place ? ` or "${selling.place}"` : ""}), e.g. "Soft lights and fresh flowers: ${(selling.sell.service ?? "").toLowerCase()}, done for you."` : `In at most ${Math.max(4, max - (cta ? cta.split(/\s+/).length : 0))} words: what is on screen in a few warm words, then that ${selling.sell.business} does ${(selling.sell.service ?? "").toLowerCase()}${selling.place ? ` in ${selling.place}` : ""}.`} ${voice} Never say a price, a number of dollars, a discount or a deadline. Never repeat the caption or the on-screen hook word for word. Never mention automation, software or how the video was made. Do not add a call to action; it is added after your words. Reply with the spoken words only, plain sentences, e.g. "Balloons, candles and a big gold number. Porch and Party sets up birthday rooms in Memphis."`.replace(/Porch and Party sets up birthday rooms in Memphis/, `${selling.sell.business} does ${(selling.sell.service ?? "").toLowerCase()}${selling.place ? ` in ${selling.place}` : ""}`)
     : `You write a voice-over for a ${Math.round(seconds)}-second vertical video with no talking in it (b-roll, montage, product shots), for the creator ${kitName(env)}, spoken in her own voice. At most ${max} words. ${voice} Do: ${profile?.do_dont || ""}. ${chosen.length ? `End with one call to action from: ${chosen.join(" | ")}.` : "No call to action: she has not chosen one, so never ask people to follow, shop, comment or click."} Describe only what is on screen, following the shots in order and in time (each line is one shot: its seconds, its stage, what it shows); say each part while it is on screen. Never repeat the caption or the on-screen hook word for word. Never mention automation, software or how the video was made. Reply with the script only, plain spoken sentences.`;
   const r = await llm.complete({
     system,
     user: `Shots, in order:\n${shotLines(shots)}\nOn-screen hook (do not read it out): ${clip.hook_text}\nCaption (do not repeat it): ${clip.caption}${notes ? `\nNotes for the voice from her (use them; they never override what the shots show): ${notes}` : ""}`,
     maxTokens: 300,
   });
-  const cleaned = r.ok ? cleanScript(groundScript(r.text.trim().replace(/^["“]|["”]$/g, ""), ground), clip.caption, ctas, max) : "";
+  // Not cut to length here: withSale / fitScript keep whole sentences that fit (a cut mid-sentence is never spoken).
+  const cleaned = r.ok ? cleanScript(groundScript(r.text.trim().replace(/^["“]|["”]$/g, ""), ground), clip.caption, ctas) : "";
   const text = cleaned.length >= 10 ? (selling ? sale(cleaned) : fitScript(cleaned, seconds)) : "";
   return ok(text) ? text : starter;
+}
+
+/** The lines spoken on this studio's clips now (lineKey), but those on `except` clips (the ones being redone). */
+export async function linesInUse(env: Env, except: ReadonlySet<string> = new Set()): Promise<Set<string>> {
+  const { results } = await env.DB.prepare("SELECT n.clip_id, n.script FROM narrations n JOIN clips c ON c.id = n.clip_id WHERE c.status != 'deleted'").all<{ clip_id: string; script: string | null }>();
+  return new Set(results.filter((r) => !except.has(r.clip_id) && r.script).map((r) => lineKey(r.script)));
+}
+
+/**
+ * Scripts for these clips, DRAFT_AT_ONCE at a time, none repeating a line in `taken` or each other:
+ * two drafted at once that came back the same get the next unused starter line (no second AI call).
+ * Adds every script to `taken`.
+ */
+export async function draftUnique(env: Env, clips: TargetClip[], taken: Set<string>): Promise<string[]> {
+  const drafted = await inBatches(clips, DRAFT_AT_ONCE, (clip) => draftScript(env, clip, taken));
+  const out: string[] = [];
+  for (let i = 0; i < clips.length; i++) {
+    let script = drafted[i];
+    if (taken.has(lineKey(script))) script = firstUnused([await draftScript(env, clips[i], taken, { noAi: true })], taken) ?? script;
+    taken.add(lineKey(script));
+    out.push(script);
+  }
+  return out;
 }
 
 /** One clip with everything draftScript reads (its shots, the dump's notes for the voice), or null. */
@@ -255,7 +287,7 @@ export async function autoVoiceDump(env: Env, dumpId: string): Promise<{ state: 
   if (!targets.length) return { state: "voiced", clips: 0 };
   // Scripts drafted DRAFT_AT_ONCE at a time, in clip order: one at a time took 88 s for 9 clips on
   // Mercedes's first cut (24 Oct 2026), past the 30 s a cut's follow-on gets after its callback answers.
-  const items = (await inBatches(targets, DRAFT_AT_ONCE, (clip) => draftScript(env, clip))).map((script, i) => ({ clip: targets[i], script, auto: true }));
+  const items = (await draftUnique(env, targets, await linesInUse(env))).map((script, i) => ({ clip: targets[i], script, auto: true }));
   const r = await voiceClips(env, items);
   await recordEvent(env.DB, "voice.auto", dumpId, { clips: targets.length, premium: r.premium, built_in: r.builtIn });
   log.info("voice.auto", { clips: targets.length, premium: r.premium, built_in: r.builtIn });
@@ -277,7 +309,7 @@ export async function voiceAllInDump(env: Env, dumpId: string): Promise<{ clips:
   if (!targets.length) return { clips: 0, started: false };
   // Scripts drafted DRAFT_AT_ONCE at a time, in clip order: one at a time took 88 s for 9 clips on
   // Mercedes's first cut (24 Oct 2026), past the 30 s a cut's follow-on gets after its callback answers.
-  const items = (await inBatches(targets, DRAFT_AT_ONCE, (clip) => draftScript(env, clip))).map((script, i) => ({ clip: targets[i], script, auto: true }));
+  const items = (await draftUnique(env, targets, await linesInUse(env))).map((script, i) => ({ clip: targets[i], script, auto: true }));
   const r = await voiceClips(env, items);
   await recordEvent(env.DB, "voice.all", dumpId, { clips: targets.length });
   log.info("voice.all", { clips: targets.length, started: !!r.batch });
@@ -327,7 +359,7 @@ export async function redoBadVoiceOvers(env: Env): Promise<{ checked: number; ba
   // One line spoken on several clips in Review is below par too: the first keeps it, the rest are redone.
   const seen = new Set<string>();
   const repeated = (c: { narration_script: string | null }) => {
-    const k = (c.narration_script ?? "").toLowerCase().replace(/[^a-z0-9 ]+/g, "").trim();
+    const k = lineKey(c.narration_script);
     if (seen.has(k)) return true;
     seen.add(k);
     return false;
@@ -338,15 +370,13 @@ export async function redoBadVoiceOvers(env: Env): Promise<{ checked: number; ba
     return voiceScriptProblem(c.narration_script, selling?.sell) !== null;
   });
   const todo = bad.slice(0, VOICE_REDO_MAX);
-  const drafted = await inBatches(todo, DRAFT_AT_ONCE, (clip) => draftScript(env, clip));
-  const key = (t: string | null) => (t ?? "").toLowerCase().replace(/[^a-z0-9 ]+/g, "").trim();
-  const kept = new Set(results.filter((c) => !bad.includes(c)).map((c) => key(c.narration_script)));
+  // Every redo in ONE run (owner, 1 Nov 2026: repeats cleared two an hour): each new line is unique
+  // against the lines staying in the studio and the other redos (draftUnique), so none waits.
+  const taken = await linesInUse(env, new Set(todo.map((c) => c.id)));
+  const drafted = await draftUnique(env, todo, taken);
   const items = drafted
     .map((script, i) => ({ clip: todo[i], script, auto: true }))
     .filter((it) => {
-      // A redo that would repeat a line already in Review waits for the next run (the AI, not the starter).
-      if (kept.has(key(it.script))) return false;
-      kept.add(key(it.script));
       const selling = sellContextFor(env, profile, it.clip, ctaForClip(chosen, it.clip.id, maxWords(it.clip.end_s - it.clip.start_s)), rules.place_words);
       return voiceScriptProblem(it.script, selling?.sell) === null;
     });
