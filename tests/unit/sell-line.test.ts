@@ -63,6 +63,7 @@ describe("a voice over is a line that sells, never a model's label", () => {
     expect(voiceScriptProblem("Walk in to candlelit love. Request a quote.", sell)).toBe("no_service");
     expect(voiceScriptProblem("Balloons and candles. Celebration room decor in Memphis.", sell)).toBe("no_cta");
     expect(voiceScriptProblem("Balloons and candles. Celebration room decor in Memphis. Request a quote.", sell)).toBeNull();
+    expect(voiceScriptProblem("Candles and roses. Celebration room decor in Memphis. Book now. Request a quote.", sell)).toBe("no_cta");
   });
 
   it("the service comes from the profile's own words for what the clip shows", () => {
