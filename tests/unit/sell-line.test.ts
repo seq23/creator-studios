@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "@worker/env";
 import { sqliteD1 } from "./helpers/sqlite-d1";
 import { memoryR2 } from "./helpers/r2-memory";
-import { voiceScriptProblem, serviceForClip, lineKey } from "@shared/sellLine";
+import { voiceScriptProblem, serviceForClip, lineKey, plainStarter } from "@shared/sellLine";
 
 let reply = "User Safety: safe.";
 vi.mock("@worker/services/openrouter", async (orig) => ({
@@ -176,6 +176,37 @@ describe("a voice over is a line that sells, never a model's label", () => {
     const scripts = (db.raw.prepare("SELECT script FROM narrations").all() as { script: string }[]).map((x) => x.script);
     expect(scripts.length).toBe(6);
     expect(new Set(scripts.map(lineKey)).size).toBe(6);
+  });
+});
+
+describe("the old plain no-AI line is redone with a real selling line", () => {
+  it("only a line of service, business and filler with no town counts as plain", () => {
+    const sell = (service: string, cta: string) => ({ service, business: "Porch and Party", cta });
+    const towns = ["Memphis", "Germantown"];
+    for (const [line, svc, cta] of [
+      ["Holiday porches, done for you. Book your date.", "Holiday porches", "Book your date"],
+      ["Celebration room decor, made easy. Request a quote.", "Celebration room decor", "Request a quote"],
+      ["Holiday porches by Porch and Party. Book your date.", "Holiday porches", "Book your date"],
+    ])
+      expect(plainStarter(line, sell(svc, cta), towns), line).toBe(true);
+    for (const [line, svc, cta] of [
+      ["Celebration room decor in Memphis. Book your date.", "Celebration room decor", "Book your date"],
+      ["Pumpkins and wreaths on your porch. Book your date.", "Holiday porches", "Book your date"],
+      ["Wreaths and greenery: holiday porches. Book your date.", "Holiday porches", "Book your date"],
+    ])
+      expect(plainStarter(line, sell(svc, cta), towns), line).toBe(false);
+    expect(plainStarter("Holiday porches, done for you. Book your date.", sell("Holiday porches", "Book your date"), [])).toBe(false);
+  });
+
+  it("the hourly sweep swaps a waiting clip's plain line for the AI's short one", async () => {
+    reply = "Wreaths and pumpkins: holiday porches, ready.";
+    db.raw.exec(`INSERT INTO narrations (id, script, clip_id, status, engine, auto, ai_generated, mix_status) VALUES
+      ('nar_plain', 'Holiday porches, done for you. Request a quote.', 'clp_porch0000001', 'ready', 'built-in', 1, 1, 'ready')`);
+    const r = await redoBadVoiceOvers(env);
+    expect(r).toEqual({ checked: 1, bad: 1, redone: 1 });
+    const script = (db.raw.prepare("SELECT script FROM narrations").get() as { script: string }).script;
+    expect(script).toMatch(/^Wreaths and pumpkins: holiday porches, ready\. /);
+    expect(endsOnCta(script)).toBe(true);
   });
 });
 
