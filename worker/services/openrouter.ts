@@ -1,5 +1,6 @@
 // OpenRouter, free models by default (section 1 decision 6). Used by the Worker for
 // small, quick calls (pitch drafts, brief edits); the heavy runs happen in jobs/.
+import { isModelVerdict } from "@shared/sellLine";
 import type { Env } from "../env";
 import { fakeServices } from "../env";
 import { getConnectionSecret, getOpenRouterFallback } from "../lib/connections";
@@ -78,7 +79,8 @@ class RealLlm implements LlmClient {
     return this.completeWith(this.fallback, input);
   }
   private async completeWith(key: string, input: CompleteInput): Promise<Completion> {
-    const accept = input.accept ?? (input.json ? hasJsonObject : (t: string) => t.trim().length > 0);
+    // A safety model's verdict ("User Safety: safe.", 1 Nov 2026) is no answer: the next model is asked.
+    const accept = input.accept ?? (input.json ? hasJsonObject : (t: string) => t.trim().length > 0 && !isModelVerdict(t));
     let maxTokens = input.maxTokens ?? 1200;
     let last: { ok: boolean; text: string; error: string | null; limit?: "daily" | "busy" } = { ok: false, text: "", error: "AI service did not answer." };
     for (let attempt = 0; attempt < LLM_ATTEMPTS; attempt++) {
