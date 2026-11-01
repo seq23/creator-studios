@@ -13,6 +13,7 @@ import { DEFAULT_STOCK_VOICE, SOUND_DEFAULT, STOCK_VOICES, soundSettings, voiceI
 import { autoVoiceState, voiceFor } from "@worker/domain/autoVoice";
 import { NO_RECORDING_HINT } from "@shared/autoVoice";
 import { cleanShotList, cleanVoiceNotes, shotLines, shotScript, shotsOf } from "@shared/voiceShots";
+import { voiceScriptProblem } from "@shared/sellLine";
 
 const prompts: { system: string; user: string }[] = [];
 let reply = "Fabric goes down first. Then every pin, one by one. And the dress is done.";
@@ -121,7 +122,10 @@ describe("the script follows the shots", () => {
   it("the writer gets timed lines in stage order; the starter walks the shots and never says the caption", () => {
     expect(shotLines(SHOTS)).toBe("0.0–2.4 s · getting ready · fabric laid out on the table\n2.4–6.0 s · the work · pins going into the hem\n6.0–9.5 s · the finished result · the finished dress on the form");
     const s = shotScript(SHOTS, "One dress, one afternoon…", "Book a fitting");
-    expect(s).toBe("One dress, one afternoon. First, fabric laid out on the table. Then pins going into the hem. And here it is: the finished dress on the form. Book a fitting.");
+    expect(s).toBe("One dress, one afternoon. Fabric laid out on the table. Pins going into the hem. And there it is, the finished dress on the form. Book a fitting.");
+    // Never the shot sheet read back (Mercedes, 1 Nov 2026: "First, A barista pours…").
+    expect(voiceScriptProblem(s, null)).toBeNull();
+    expect(voiceScriptProblem(shotScript([{ t0: 0, t1: 5, stage: "", what: "A barista pours steamed milk" }, { t0: 5, t1: 9, stage: "", what: "People pose by a staircase" }], "Instant warm glow", null), null)).toBeNull();
   });
 
   it("draftScript sends the shots and her notes for the voice to the writer, never the caption as a line to say", async () => {
@@ -152,7 +156,8 @@ describe("the script follows the shots", () => {
     expect(s).toContain("Pins go in one by one.");
     reply = "";
     const starter = await draftScript(env, (await clipForScript(env, "clp_v00000000001"))!);
-    expect(starter).toContain("First, fabric laid out on the table.");
+    expect(starter).toContain("Fabric laid out on the table.");
+    expect(voiceScriptProblem(starter, null)).toBeNull();
     expect(starter.toLowerCase()).not.toContain("sewing the hem");
   });
 

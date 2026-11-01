@@ -82,8 +82,10 @@ const sentence = (s: string) => {
 };
 
 /**
- * The starter script (the free AI busy): the hook, then each distinct shot in order, worded by its
- * stage ("First, …", "Then …", "And here it is: …"), then her call to action. Never the caption. Pure.
+ * The starter script (the free AI busy): the hook, then each distinct shot in order as its own
+ * plain sentence, the finished one as "And there it is, …", then her call to action. Never the
+ * caption, never the shot sheet's own wording ("First, …", "Then …": a 25 s Mercedes clip said
+ * "First, A barista pours…", 1 Nov 2026; shared/sellLine.ts shotReadback refuses it). Pure.
  */
 export function shotScript(shots: ClipShot[], hook: string, cta: string | null): string {
   const seen = new Set<string>();
@@ -91,12 +93,11 @@ export function shotScript(shots: ClipShot[], hook: string, cta: string | null):
   const h = sentence(hook.replace(/[…]+$/, ""));
   if (h) lines.push(h);
   const distinct = shots.filter((s) => s.what && !seen.has(s.what.toLowerCase()) && seen.add(s.what.toLowerCase()));
-  distinct.forEach((s, i) => {
-    const what = s.what.replace(/[.!?]+$/, "");
-    if (s.stage === "hero" || s.stage === "finished") lines.push(`And here it is: ${what}.`);
-    else if (i === 0) lines.push(`First, ${what}.`);
-    else lines.push(`Then ${what}.`);
-  });
+  for (const s of distinct) {
+    const what = s.what.replace(/[.!?]+$/, "").trim();
+    if (s.stage === "hero" || s.stage === "finished") lines.push(`And there it is, ${what.charAt(0).toLowerCase()}${what.slice(1)}.`);
+    else lines.push(sentence(what));
+  }
   if (cta) lines.push(sentence(cta));
   return lines.join(" ");
 }
