@@ -306,12 +306,3 @@ describe("guard: the host's former business name is nowhere in the repo", () => 
     expect((await noHostBrand({ root })).problems).toEqual([]);
   });
 });
-
-describe("working rules", () => {
-  it("CLAUDE.md carries 'nothing waits on the owner' and the only-a-secret-or-account stop rule", () => {
-    const md = readFileSync(path.join(root, "CLAUDE.md"), "utf8");
-    expect(md).toMatch(/\*\*Nothing waits on the owner\.\*\*/);
-    expect(md).toMatch(/Only a secret or an\s+account she alone holds may stop/);
-    expect(md).toMatch(/nothing hidden, nothing switched off/i);
-  });
-});

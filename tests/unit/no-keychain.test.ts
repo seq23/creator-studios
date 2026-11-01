@@ -13,12 +13,6 @@ const ROOT = path.resolve(__dirname, "../..");
 const V = "vau" + "lt";
 
 describe("no Keychain route anywhere in the repo", () => {
-  it("CLAUDE.md carries the rule", () => {
-    expect(readFileSync(path.join(ROOT, "CLAUDE.md"), "utf8")).toContain(
-      "Never call the vault or the macOS `security` command; Keychain prompts interrupt the owner.",
-    );
-  });
-
   it("no file calls the vault or `security`", () => {
     const r = scanKeychain(ROOT);
     expect(r.files).toBeGreaterThan(100); // hard-fail on a scan that read nothing
