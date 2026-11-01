@@ -31,7 +31,7 @@ export function isModelVerdict(text: string): boolean {
 /** "Label: value." with nothing else: a field, not a sentence. */
 const LABEL_ONLY = /^[A-Za-z][A-Za-z ]{0,30}:\s*[A-Za-z]{1,20}[.!]?$/;
 /** A shot line read back ("0.0–1.2 s · a close look · …", "0.0–1.2 s: …"). */
-const SHOT_LINE = /\d+(?:\.\d+)?\s*[–-]\s*\d+(?:\.\d+)?\s*s\b\s*[·:]/;
+const SHOT_LINE = /\d+(?:\.\d+)?\s*[–-]\s*\d+(?:\.\d+)?\s*(?:s\b)?\s*[·:]/;
 /** A description of the voice instead of the words ("A warm, upbeat friend speaking plainly…"). */
 const STAGE_DIRECTION = /\b(?:voice[- ]?over|voiceover|narrates|narrator|speaking plainly|describing the scene|plain sentences|upbeat voice|warm voice|spoken in her)\b/i;
 
@@ -42,7 +42,18 @@ export interface SellContext {
   business: string;
   /** The call to action it ends on, or null when the studio chose none. */
   cta: string | null;
+  /** Varies the no-AI line between clips (the clip id), so Review never shows one line on every clip. */
+  seed?: string;
 }
+
+/** A sentence that is itself a call to action ("Book now.", "Book your visit today.", "Message us"): the studio's own CTA closes the line instead. */
+const CTA_LIKE = /^(?:book|request|call|text|message|dm|contact|reach out|get in touch|get a quote|visit|order|shop|tap|click|follow|link in bio|swing by|stop by|come see)\b/i;
+
+const hash = (s: string) => {
+  let h = 0;
+  for (const ch of s ?? "") h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h;
+};
 
 const norm = (s: string) => (s ?? "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
 
@@ -109,10 +120,11 @@ export function spokenBusiness(appName: string): string {
   return (appName ?? "").replace(/\s+studio$/i, "").replace(/\s*&\s*/g, " and ").replace(/\s+/g, " ").trim();
 }
 
-/** The place to say: a place word the clip already uses, else the studio's first. */
-export function placeFor(placeWords: readonly string[], clipText: string): string | null {
+/** The place to say: a place word the clip already uses, else one the studio serves. */
+export function placeFor(placeWords: readonly string[], clipText: string, seed = ""): string | null {
   const low = (clipText ?? "").toLowerCase();
-  return placeWords.find((p) => low.includes(p.toLowerCase())) ?? placeWords[0] ?? null;
+  // Else one of the places the studio serves, by clip (every one is true; the first on every clip read the same).
+  return placeWords.find((p) => low.includes(p.toLowerCase())) ?? (placeWords.length ? placeWords[hash(seed) % placeWords.length] : null);
 }
 
 const count = (t: string) => t.split(/\s+/).filter(Boolean).length;
@@ -126,21 +138,28 @@ export function ctaSentence(cta: string): string {
 }
 
 /**
- * The selling line with no AI, within `max` words: the longest of
- * "<Service> by <Business>, here in <Place>." / "<Service> by <Business>." / "<Service> in <Place>." / "<Service>.",
+ * The selling line with no AI, within `max` words: one of a few warm shapes ("Let Porch and Party
+ * do your holiday porches, here in Memphis.", "Porch and Party does grazing tables in Germantown.",
+ * …), the longest that fits, picked by the clip so a dump's clips do not all say the same line;
  * then the call to action. Never empty.
  */
 export function sellStarter(sell: SellContext, place: string | null, max: number): string {
-  const service = upper1(lower1(sell.service ?? sell.business));
+  const svc = lower1(sell.service ?? sell.business);
+  const Svc = upper1(svc);
+  const biz = sell.business;
   const cta = sell.cta ? ` ${ctaSentence(sell.cta)}` : "";
   const room = max - count(cta);
-  const options = [
-    sell.business && place ? `${service} by ${sell.business}, here in ${place}.` : "",
-    sell.business ? `${service} by ${sell.business}.` : "",
-    place ? `${service} in ${place}.` : "",
-    `${service}.`,
-  ].filter(Boolean);
-  const body = options.find((o) => count(o) <= room) ?? options[options.length - 1];
+  const at = place ? ` in ${place}` : "";
+  const P = place ?? "";
+  const shapes: string[][] = [
+    // longest first within each family; the clip picks a family, the room picks the shape
+    [biz ? `Let ${biz} do your ${svc}, right here${at}.` : "", biz ? `${biz} does ${svc}${at}.` : "", `${Svc}, done for you${at}.`, `${Svc}, done for you.`],
+    [biz ? `Make it special with ${svc} from ${biz}${at}.` : "", biz ? `${Svc} from ${biz}${at}.` : "", P ? `${P} ${svc}, done for you.` : "", P ? `${P} ${svc}.` : ""],
+    [biz ? `This is ${svc} by ${biz}${at}.` : "", biz ? `${Svc} by ${biz}.` : "", `${Svc}${at}.`],
+    [`Want this at your place? ${Svc}${at}.`, `${Svc}${at}, made easy.`, `${Svc}, made easy.`],
+  ];
+  const family = shapes[hash(sell.seed ?? svc) % shapes.length].filter(Boolean);
+  const body = family.find((o) => count(o) <= room) ?? `${Svc}.`;
   return `${body}${cta}`.trim();
 }
 
@@ -154,7 +173,7 @@ export function withSale(body: string, sell: SellContext, place: string | null, 
   const sentences = (body ?? "").split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
   const kept: string[] = [];
   for (const s of sentences) {
-    if (sell.cta && norm(s).includes(norm(sell.cta))) continue; // the CTA is said once, at the end
+    if ((sell.cta && norm(s).includes(norm(sell.cta))) || CTA_LIKE.test(s)) continue; // one CTA, the studio's, at the end
     if (count([...kept, s].join(" ")) > room) break;
     kept.push(s);
   }

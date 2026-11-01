@@ -103,8 +103,11 @@ export async function inBatches<T, R>(items: T[], size: number, work: (item: T) 
 }
 
 /** The call to action for this clip: the studio's chosen phrases, rotated by clip so a dump varies. */
-export function ctaForClip(chosen: readonly string[], clipId: string): string | null {
+export function ctaForClip(chosen: readonly string[], clipId: string, max = 99): string | null {
   if (!chosen.length) return null;
+  // A short clip gets a short CTA, so the selling line still fits (a 5 s clip has 9 words).
+  const short = chosen.filter((c) => c.split(/\s+/).length * 3 <= max);
+  if (short.length) chosen = short;
   let h = 0;
   for (const ch of clipId) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return chosen[h % chosen.length];
@@ -118,7 +121,7 @@ export function ctaForClip(chosen: readonly string[], clipId: string): string | 
 export function sellContextFor(
   env: Pick<Env, "SPONSOR_KIND" | "APP_NAME">,
   profile: Record<string, string> | null,
-  clip: Pick<TargetClip, "hook_text" | "on_screen" | "shot_list" | "service">,
+  clip: Pick<TargetClip, "id" | "hook_text" | "on_screen" | "shot_list" | "service">,
   cta: string | null,
   placeWords: readonly string[],
 ): { sell: SellContext; place: string | null } | null {
@@ -127,7 +130,7 @@ export function sellContextFor(
   if (!services.length) return null;
   const text = [clip.hook_text, clip.on_screen ?? "", clip.shot_list ?? ""].join(" ");
   const service = serviceForClip(services, profile?.service_looks, text, clip.service);
-  return { sell: { service, business: spokenBusiness(env.APP_NAME ?? ""), cta }, place: placeFor(placeWords, text) };
+  return { sell: { service, business: spokenBusiness(env.APP_NAME ?? ""), cta, seed: clip.id }, place: placeFor(placeWords, text, clip.id) };
 }
 
 export async function draftScript(env: Env, clip: TargetClip): Promise<string> {
@@ -139,7 +142,7 @@ export async function draftScript(env: Env, clip: TargetClip): Promise<string> {
   const profile = await lockedProfile(env);
   // Opt-in (shared/studioRules.ts): a call to action only when the studio chose one.
   const chosen = chosenCtas({ cta_phrases: ctas }, profile?.ctas);
-  const cta = ctaForClip(chosen, clip.id);
+  const cta = ctaForClip(chosen, clip.id, max);
   const selling = sellContextFor(env, profile as Record<string, string> | null, clip, cta, rules.place_words);
   // The guard (shared/sellLine.ts): a model's verdict or label, a shot line, a stage direction or a
   // stub is never spoken; a business studio's line names the service and ends on its CTA.
@@ -164,7 +167,7 @@ export async function draftScript(env: Env, clip: TargetClip): Promise<string> {
   const llm = await getLlm(env);
   const voice = `Her voice: ${profile?.voice || "warm and direct"}.${feelLine(profile)} Never mention: ${profile?.off_limits || "nothing listed"}.`;
   const system = selling
-    ? `You write the spoken voice-over for a ${Math.round(seconds)}-second vertical video with no talking, for ${selling.sell.business}, a local business. Its job is to sell ${selling.sell.business}'s service shown here: ${selling.sell.service}. ${selling.sell.business} sells only: ${servicesOf(profile as Record<string, string> | null).join("; ")}; never offer anything else. In at most ${Math.max(4, max - (cta ? cta.split(/\s+/).length : 0))} words: what is on screen in a few warm words, then that ${selling.sell.business} does ${(selling.sell.service ?? "").toLowerCase()}${selling.place ? ` in ${selling.place}` : ""}. ${voice} Never say a price, a number of dollars, a discount or a deadline. Never repeat the caption or the on-screen hook word for word. Never mention automation, software or how the video was made. Do not add a call to action; it is added after your words. Reply with the spoken words only, plain sentences.`
+    ? `You write the spoken voice-over for a ${Math.round(seconds)}-second vertical video with no talking, for ${selling.sell.business}, a local business. Its job is to sell ${selling.sell.business}'s service shown here: ${selling.sell.service}. ${selling.sell.business} sells only: ${servicesOf(profile as Record<string, string> | null).join("; ")}; never offer anything else. In at most ${Math.max(4, max - (cta ? cta.split(/\s+/).length : 0))} words: what is on screen in a few warm words, then that ${selling.sell.business} does ${(selling.sell.service ?? "").toLowerCase()}${selling.place ? ` in ${selling.place}` : ""}. ${voice} Never say a price, a number of dollars, a discount or a deadline. Never repeat the caption or the on-screen hook word for word. Never mention automation, software or how the video was made. Do not add a call to action; it is added after your words. Reply with the spoken words only, plain sentences, e.g. "Balloons, candles and a big gold number. Porch and Party sets up birthday rooms in Memphis."`.replace(/Porch and Party sets up birthday rooms in Memphis/, `${selling.sell.business} does ${(selling.sell.service ?? "").toLowerCase()}${selling.place ? ` in ${selling.place}` : ""}`)
     : `You write a voice-over for a ${Math.round(seconds)}-second vertical video with no talking in it (b-roll, montage, product shots), for the creator ${kitName(env)}, spoken in her own voice. At most ${max} words. ${voice} Do: ${profile?.do_dont || ""}. ${chosen.length ? `End with one call to action from: ${chosen.join(" | ")}.` : "No call to action: she has not chosen one, so never ask people to follow, shop, comment or click."} Describe only what is on screen, following the shots in order and in time (each line is one shot: its seconds, its stage, what it shows); say each part while it is on screen. Never repeat the caption or the on-screen hook word for word. Never mention automation, software or how the video was made. Reply with the script only, plain spoken sentences.`;
   const r = await llm.complete({
     system,
@@ -321,16 +324,30 @@ export async function redoBadVoiceOvers(env: Env): Promise<{ checked: number; ba
   const rules = await readStudioRules(env);
   const profile = (await lockedProfile(env)) as Record<string, string> | null;
   const chosen = chosenCtas({ cta_phrases: rules.cta_phrases }, profile?.ctas);
+  // One line spoken on several clips in Review is below par too: the first keeps it, the rest are redone.
+  const seen = new Set<string>();
+  const repeated = (c: { narration_script: string | null }) => {
+    const k = (c.narration_script ?? "").toLowerCase().replace(/[^a-z0-9 ]+/g, "").trim();
+    if (seen.has(k)) return true;
+    seen.add(k);
+    return false;
+  };
   const bad = results.filter((c) => {
-    const selling = sellContextFor(env, profile, c, ctaForClip(chosen, c.id), rules.place_words);
+    if (repeated(c)) return true;
+    const selling = sellContextFor(env, profile, c, ctaForClip(chosen, c.id, maxWords(c.end_s - c.start_s)), rules.place_words);
     return voiceScriptProblem(c.narration_script, selling?.sell) !== null;
   });
   const todo = bad.slice(0, VOICE_REDO_MAX);
   const drafted = await inBatches(todo, DRAFT_AT_ONCE, (clip) => draftScript(env, clip));
+  const key = (t: string | null) => (t ?? "").toLowerCase().replace(/[^a-z0-9 ]+/g, "").trim();
+  const kept = new Set(results.filter((c) => !bad.includes(c)).map((c) => key(c.narration_script)));
   const items = drafted
     .map((script, i) => ({ clip: todo[i], script, auto: true }))
     .filter((it) => {
-      const selling = sellContextFor(env, profile, it.clip, ctaForClip(chosen, it.clip.id), rules.place_words);
+      // A redo that would repeat a line already in Review waits for the next run (the AI, not the starter).
+      if (kept.has(key(it.script))) return false;
+      kept.add(key(it.script));
+      const selling = sellContextFor(env, profile, it.clip, ctaForClip(chosen, it.clip.id, maxWords(it.clip.end_s - it.clip.start_s)), rules.place_words);
       return voiceScriptProblem(it.script, selling?.sell) === null;
     });
   for (const it of items) await removeVoiceOver(env, it.clip.id);

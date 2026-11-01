@@ -56,7 +56,7 @@ const endsOnCta = (s: string) => CTAS.some((c) => s.toLowerCase().endsWith(`${c.
 describe("a voice over is a line that sells, never a model's label", () => {
   it("the scripts spoken on 1 Nov 2026 are all refused; a selling line passes", () => {
     const sell = { service: "Celebration room decor", business: "Porch and Party", cta: "Request a quote" };
-    for (const bad of ["User Safety: safe.", "safe", "0.0–3.9 s · a close look · Yellow balloons float by.", "0.0–1.2 s: A barista swirls milk, art.", "A warm, upbeat friend speaking plainly, describing the scene.", "a short spoken voice-over, plain sentences.", "Request a quote.", ""]) {
+    for (const bad of ["User Safety: safe.", "safe", "0.0–3.9 s · a close look · Yellow balloons float by.", "0.0–1.2 s: A barista swirls milk, art.", "0.0–1.2: Milk swirls into art.", "A warm, upbeat friend speaking plainly, describing the scene.", "a short spoken voice-over, plain sentences.", "Request a quote.", ""]) {
       expect(voiceScriptProblem(bad, sell), bad).not.toBeNull();
       expect(voiceScriptProblem(bad, null), bad).not.toBeNull();
     }
@@ -81,6 +81,11 @@ describe("a voice over is a line that sells, never a model's label", () => {
     expect(room).toMatch(/celebration room decor/i);
     expect(room.toLowerCase()).not.toContain("price");
     expect(endsOnCta(room)).toBe(true);
+    // A model's own call to action is dropped: the studio's CTA is said once, at the end.
+    reply = "Candles and roses on the floor. Book now.";
+    const once = await draftScript(env, (await clipForScript(env, "clp_room00000001"))!);
+    expect(once.toLowerCase()).not.toContain("book now");
+    expect(endsOnCta(once)).toBe(true);
   });
 
   it("the hourly sweep redoes a waiting clip's below-par voice over, never her own words", async () => {
@@ -94,5 +99,21 @@ describe("a voice over is a line that sells, never a model's label", () => {
     expect(porch.script).toMatch(/Holiday porches/i);
     expect(endsOnCta(porch.script)).toBe(true);
     expect(rows.find((x) => x.clip_id === "clp_room00000001")!.script).toBe("User Safety: safe.");
+  });
+
+  it("one line on several waiting clips is redone until each clip has its own", async () => {
+    const same = "Celebration room decor in Memphis. Book your date.";
+    // One CTA, so both lines pass every other check and only the repeat is below par.
+    env = { ...env, STUDIO_RULES: JSON.stringify({ ...JSON.parse(env.STUDIO_RULES as string), cta_phrases: ["Book your date"] }) } as Env;
+    db.raw.exec(`INSERT INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, hook_text, caption, score, r2_key, status, speech, on_screen, service)
+      VALUES ('clp_room00000002', 'ast_p', 'dmp_p', 0, 5, 'montage', 'Balloons for her birthday', 'Birthday', 70, 'clips/c.mp4', 'draft', 0, 'A room with balloons', 'Celebration room decor');
+      INSERT INTO narrations (id, script, clip_id, status, engine, auto, ai_generated, mix_status) VALUES
+      ('nar_1', '${same}', 'clp_room00000001', 'ready', 'built-in', 1, 1, 'ready'),
+      ('nar_2', '${same}', 'clp_room00000002', 'ready', 'built-in', 1, 1, 'ready');`);
+    const r = await redoBadVoiceOvers(env);
+    expect(r.bad).toBe(1);
+    const scripts = (db.raw.prepare("SELECT script FROM narrations").all() as { script: string }[]).map((x) => x.script);
+    expect(new Set(scripts).size).toBe(scripts.length);
+    for (const s of scripts) expect(endsOnCta(s)).toBe(true);
   });
 });
