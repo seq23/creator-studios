@@ -5,6 +5,10 @@ Operational gotchas (free AI limits, hostnames) are in [`docs/OPERATIONS.md`](do
 Read `README.md` first (what this is, the studios, adding one, deploy). `RUNBOOK.md` is the
 operational reference ("runbook creator-studios" opens it).
 
+## Company brain
+
+Read `~/Brains/spry.md` before any work (business facts, priorities, voice, settled decisions). New business facts go to the brain via Boss OS, not into this repo or memory. Repo how-tos stay in `docs/`.
+
 ## What this repo is
 
 - **One codebase, deployed as separate studios.** Each studio is one registry entry,
