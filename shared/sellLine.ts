@@ -137,6 +137,9 @@ export interface SellContext {
 /** A sentence that is itself a call to action ("Book now.", "Book your visit today.", "Message us"): the studio's own CTA closes the line instead. */
 const CTA_LIKE = /^(?:book|request|call|text|message|dm|contact|reach out|get in touch|get a quote|visit|order|shop|tap|click|follow|link in bio|swing by|stop by|come see)\b/i;
 
+/** A call to action tucked inside a sentence after a dash or comma ("…in Collierville—reserve yours."). */
+const MID_CTA = /(?:[—–]|\s-\s|,)\s*(?:reserve|book|request|call|text|message|dm|contact|reach out|get in touch|order|shop|tap|click|follow)\b[^.!?]*[.!?]/i;
+
 const hash = (s: string) => {
   let h = 0;
   for (const ch of s ?? "") h = (h * 31 + ch.charCodeAt(0)) >>> 0;
@@ -172,6 +175,9 @@ export function voiceScriptProblem(
     if (!named) return "no_service";
   }
   if (sell?.service && sell.cta && !norm(t).endsWith(norm(sell.cta))) return "no_cta";
+  // One call to action, the studio's, at the end ("Book now. Book your date." was spoken, 1 Nov 2026;
+  // "…in Collierville—reserve yours. Request a quote." the same evening).
+  if (sell?.service && sell.cta && MID_CTA.test(t.split(/(?<=[.!?])\s+/).slice(0, -1).join(" "))) return "no_cta";
   // One call to action, the studio's, at the end ("Book now. Book your date." was spoken, 1 Nov 2026).
   if (sell?.service && sell.cta && t.split(/(?<=[.!?])\s+/).slice(0, -1).some((s) => CTA_LIKE.test(s.trim()))) return "no_cta";
   return null;
@@ -257,8 +263,16 @@ export function ctaSentence(cta: string): string {
   return end(upper1(cta.trim()));
 }
 
-/** A line's identity for "no two clips in a studio say the same line": lower case, letters and digits only. */
-export const lineKey = (t: string | null | undefined) => norm(t ?? "");
+/**
+ * A line's identity for "no two clips in a studio say the same line": lower case, letters and digits
+ * only, its closing call to action left out (owner's P&P Review, 1 Nov 2026: "Germantown loves our
+ * celebration room decor." on two clips, one ending "Book your date.", one "Request a quote.").
+ */
+export const lineKey = (t: string | null | undefined) => {
+  const parts = sentencesOf((t ?? "").trim());
+  const body = parts.length > 1 && CTA_LIKE.test(parts[parts.length - 1]) ? parts.slice(0, -1) : parts;
+  return norm(body.join(" "));
+};
 
 /**
  * Every selling line with no AI that fits `max` words (call to action included), for this clip:
@@ -286,20 +300,23 @@ export function sellStarters(sell: SellContext, places: readonly (string | null)
       [biz ? `${biz} brings ${svc} to your door${inP}.` : "", `We bring ${svc} to ${P ?? "you"}.`, P ? `${lead}we do ${svc}.` : `We do ${svc}.`],
       [biz ? `Let ${biz} take care of your ${svc}${inP}.` : "", `Let us do your ${svc}${inP}.`, P ? `${P} loves our ${svc}.` : `You'll love our ${svc}.`],
       [`We set up ${svc} all over ${P ?? "town"}, start to finish.`, `We set up ${svc}${inP}.`, P ? `${lead}meet our ${svc}.` : `Meet our ${svc}.`],
-      [P ? `Want ${svc} at your ${P} home? We come to you.` : "", `Want ${svc}${inP}? We come to you.`, P ? `${lead}we do ${svc}.` : `We do ${svc}.`],
-      [biz ? `${Svc} is what ${biz} does best, right here${inP}.` : "", `${Svc} is what we do${inP}.`, P ? `${P} loves our ${svc}.` : `We love doing ${svc}.`],
-      [T ? `${T}, all set up for you. We do ${svc}${inP}.` : "", P ? `Your ${P} home deserves ${svc}.` : `Your home deserves ${svc}.`, P ? `${lead}meet our ${svc}.` : `Meet our ${svc}.`],
+      [P ? `Want ${svc} at your ${P} home? We come to you.` : "", `Want ${svc}${inP}? We come to you.`, P ? `${lead}we style ${svc}.` : `We style ${svc}.`],
+      [biz ? `${Svc} is what ${biz} does best, right here${inP}.` : "", `${Svc} is what we do${inP}.`, P ? `${lead}try our ${svc}.` : `We love doing ${svc}.`],
+      [T ? `${T}, all set up for you. We do ${svc}${inP}.` : "", P ? `Your ${P} home deserves ${svc}.` : `Your home deserves ${svc}.`, P ? `${lead}enjoy our ${svc}.` : `Enjoy our ${svc}.`],
     ];
   };
   const out: string[] = [];
   // Every shape in every town once; neighbours differ in both, so clips drafted together do not sound alike.
-  for (let r = 0; r < order.length; r++) {
-    for (let k = 0; k < 6; k++) {
-      const family = shapesAt(order[(k + r) % order.length])[(k + h) % 6].filter(Boolean);
-      const body = family.find((o) => count(o) <= room);
-      if (body) out.push(`${body}${cta}`.trim());
+  // The longest that fits in each shape first; then the shorter ones of each, so a studio with many
+  // short clips in few towns still has a line for each clip (a repeat is the body, whatever the CTA).
+  for (let depth = 0; depth < 3; depth++)
+    for (let r = 0; r < order.length; r++) {
+      for (let k = 0; k < 6; k++) {
+        const family = shapesAt(order[(k + r) % order.length])[(k + h) % 6].filter((o) => !!o && count(o) <= room);
+        const body = family[depth];
+        if (body) out.push(`${body}${cta}`.trim());
+      }
     }
-  }
   const seen = new Set<string>();
   const uniq = out.filter((l) => !seen.has(lineKey(l)) && !!seen.add(lineKey(l)));
   return uniq.length ? uniq : [`${Svc}.${cta}`.trim()];

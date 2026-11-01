@@ -19,7 +19,7 @@ vi.mock("@worker/services/github", async (orig) => ({
   dispatchJob: async () => ({ dispatched: true }),
 }));
 
-const { clipForScript, draftScript, redoBadVoiceOvers, voiceAllInDump } = await import("@worker/lib/autoVoice");
+const { clipForScript, ctaForClip, draftScript, redoBadVoiceOvers, voiceAllInDump } = await import("@worker/lib/autoVoice");
 
 // Porch & Party Studio's real profile lines (services and what each looks like).
 const LOOKS = [
@@ -339,5 +339,28 @@ describe("a voice over is a sentence a person says, never a tag or the shot shee
     const script = (db.raw.prepare("SELECT script FROM narrations").get() as { script: string }).script;
     expect(script).toBe(reply);
     expect(voiceScriptProblem(script, null)).toBeNull();
+  });
+
+  it("one body on two clips is a repeat whatever CTA closes it; a second CTA tucked mid-line is refused", () => {
+    expect(lineKey("Germantown loves our celebration room decor. Book your date.")).toBe(lineKey("Germantown loves our celebration room decor. Request a quote."));
+    expect(lineKey("Germantown loves our celebration room decor. Book your date.")).not.toBe(lineKey("Memphis loves our celebration room decor. Book your date."));
+    expect(lineKey("I pour the milk. The art comes to life.")).not.toBe(lineKey("I pour the milk. The day slows down."));
+    expect(voiceScriptProblem("Rose petals welcome candlelight. Porch and Party does celebration room decor in Collierville—reserve yours. Request a quote.", room)).toBe("no_cta");
+    expect(voiceScriptProblem("Rose petals welcome candlelight. Porch and Party does celebration room decor in Collierville. Request a quote.", room)).toBeNull();
+  });
+
+  it("the hourly sweep redoes a body already spoken on another clip with a different CTA", async () => {
+    reply = "User Safety: safe.";
+    env = { ...env, STUDIO_RULES: JSON.stringify({ ...JSON.parse(env.STUDIO_RULES as string), cta_phrases: ["Book your date", "Request a quote"] }) } as Env;
+    db.raw.exec(`INSERT INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, hook_text, caption, score, r2_key, status, speech, on_screen, service)
+      VALUES ('clp_room00000002', 'ast_p', 'dmp_p', 0, 5, 'montage', 'Balloons for her birthday', 'Birthday', 70, 'clips/c.mp4', 'draft', 0, 'A room with balloons', 'Celebration room decor');
+      DELETE FROM clips WHERE id = 'clp_porch0000001';
+      INSERT INTO narrations (id, script, clip_id, status, engine, auto, ai_generated, mix_status) VALUES
+      ('nar_a', 'Germantown loves our celebration room decor. ${ctaForClip(["Book your date", "Request a quote"], "clp_room00000002", 9)}.', 'clp_room00000002', 'ready', 'built-in', 1, 1, 'ready'),
+      ('nar_b', 'Germantown loves our celebration room decor. ${ctaForClip(["Book your date", "Request a quote"], "clp_room00000001", 9)}.', 'clp_room00000001', 'ready', 'built-in', 1, 1, 'ready')`);
+    const r = await redoBadVoiceOvers(env);
+    expect(r).toEqual({ checked: 2, bad: 1, redone: 1 });
+    const scripts = (db.raw.prepare("SELECT script FROM narrations").all() as { script: string }[]).map((x) => x.script);
+    expect(new Set(scripts.map(lineKey)).size).toBe(2);
   });
 });
