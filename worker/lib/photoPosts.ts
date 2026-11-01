@@ -385,7 +385,7 @@ export async function sendTestHeadsUp(env: Env, packId: string): Promise<{ ok: b
   const { results } = await env.DB.prepare("SELECT id, platform, item_kind, caption, scheduled_at FROM social_posts WHERE pack_id = ? AND status IN ('scheduled', 'waiting', 'held') ORDER BY scheduled_at LIMIT 20").bind(packId).all<HeadsUpRow>();
   if (!results.length) return { ok: false, posts: 0, error: "no posts in this pack" };
   const mail = await headsUpEmail(env, results);
-  const r = await sendEmail(env, { kind: "heads_up", to: [to], subject: `[Test] ${mail.subject}`, html: mail.html, text: mail.text, refId: results[0].id });
+  const r = await sendEmail(env, { kind: "heads_up", to: [to], subject: `[Test] ${mail.subject}`, html: mail.html, text: mail.text, refId: results[0].id, requested: true });
   log.info("photos.heads_up_test", { posts: results.length, ok: r.ok });
   return { ok: r.ok, posts: results.length, error: r.ok ? undefined : "send failed" };
 }

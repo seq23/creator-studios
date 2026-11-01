@@ -14,6 +14,8 @@
     "FIRECRAWL_API_KEY",
     "HUNTER_API_KEY"
   ],
+  "weeklyCron": "0 11 * * 1",
+  "_weeklyCron": "Monday lane (recap, stats, brand finder), UTC: 05:00 Central Standard Time. Staggered 20 minutes apart across the live studios (schedule rebalance, 1 Nov 2026).",
   "audienceTimezone": "America/New_York",
   "d1": {
     "name": "creator-studios-hadiyah-db",

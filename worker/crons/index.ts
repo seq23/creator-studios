@@ -39,8 +39,19 @@ export function laneOkNote(at: Date, timeZone: string): string {
   return `OK · ${when}`;
 }
 
+/**
+ * Which lane a cron string is. The Monday lane's minute and hour differ per studio (studios/<slug>.json
+ * weeklyCron, scripts/studio.mjs cronsFor: staggered 1 Nov 2026), so any "<m> <h> * * 1" is weekly. Pure.
+ */
+export function laneFor(cron: string): "buffer-sync" | "daily" | "weekly" | "unknown" {
+  if (cron === "0 * * * *") return "buffer-sync";
+  if (cron === "30 13 * * *") return "daily";
+  if (/^([0-5]?\d) ([01]?\d|2[0-3]) \* \* 1$/.test(cron)) return "weekly";
+  return "unknown";
+}
+
 export async function runCron(env: Env, cron: string): Promise<void> {
-  const lane = cron === "0 * * * *" ? "buffer-sync" : cron === "30 13 * * *" ? "daily" : cron === "0 12 * * 1" ? "weekly" : "unknown";
+  const lane = laneFor(cron);
   log.info("cron.start", { lane });
   try {
     if (lane === "buffer-sync") {

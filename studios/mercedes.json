@@ -14,6 +14,8 @@
   ],
   "openrouterOrder": "host-first",
   "_openrouterOrder": "Owner's word 24 Oct 2026: AI writing runs on the host's OpenRouter key (1,000 free calls a day, the studios keep to 500) FIRST, with Mercedes's own pasted key (Setup) as the backup when the host's is refused, limited or gets no answer. Free models only on both.",
+  "weeklyCron": "20 11 * * 1",
+  "_weeklyCron": "Monday lane (recap, stats, brand finder), UTC: 05:20 Central Standard Time. Staggered 20 minutes apart across the live studios (schedule rebalance, 1 Nov 2026).",
   "audienceTimezone": "America/New_York",
   "d1": {
     "name": "mercedes-creator-dashboard-db",

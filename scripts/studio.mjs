@@ -46,7 +46,21 @@ export const OWNER_EMAIL_FILE = "OWNER_EMAIL";
  * override. Never in the public registry; the Worker secret DEVELOPER_EMAIL.
  */
 export const DEVELOPER_EMAIL_FILE = "DEVELOPER_EMAIL";
-const CRONS = ["0 * * * *", "30 13 * * *", "0 12 * * 1"];
+/**
+ * Cron lanes, UTC (Cloudflare crons have no time zone): hourly buffer-sync, the daily lane at 13:30
+ * UTC (07:30 CST / 08:30 CDT) and the Monday lane. The Monday lane's minute is per studio
+ * (studios/<slug>.json weeklyCron; schedule rebalance approved 1 Nov 2026): the four live studios are
+ * staggered 20 minutes apart at 05:00 / 05:20 / 05:40 / 06:00 Central Standard Time (an hour later,
+ * clock time, while daylight time is on), so their recaps are not built in the same minute.
+ * worker/crons/index.ts laneFor reads any Monday cron of this shape as the weekly lane.
+ */
+export const WEEKLY_CRON_DEFAULT = "0 12 * * 1";
+export const WEEKLY_CRON_SHAPE = /^([0-5]?\d) ([01]?\d|2[0-3]) \* \* 1$/;
+export function cronsFor(s) {
+  const weekly = s?.weeklyCron ?? WEEKLY_CRON_DEFAULT;
+  if (!WEEKLY_CRON_SHAPE.test(weekly)) throw new Error(`${s?.slug ?? "dev"}: weeklyCron "${weekly}" is not a Monday "<minute> <hour> * * 1" cron`);
+  return ["0 * * * *", "30 13 * * *", weekly];
+}
 // The Worker runs first for every path but the hashed build files, so a page request on a studio's
 // old workers.dev address can 301 to its hostname (worker/lib/canonical-host.ts); a path the Worker
 // has no route for goes on to the assets (worker/index.ts notFound). /privacy and /terms are among
@@ -106,7 +120,7 @@ export function envBlock(s, themes) {
     r2_buckets: [{ binding: "FILES", bucket_name: s.r2.bucket }],
     // Cloudflare Workers AI, spent only within this studio's aiBudget (worker/lib/freeAi.ts).
     ai: { binding: "AI" },
-    triggers: { crons: CRONS },
+    triggers: { crons: cronsFor(s) },
     vars: {
       APP_NAME: s.appName,
       OWNER_NAME: s.ownerName ?? "",
@@ -163,7 +177,7 @@ export function wranglerConfig({ studios, themes }) {
     assets: { directory: "./dist/client", binding: "ASSETS", not_found_handling: "single-page-application", run_worker_first: RUN_WORKER_FIRST },
     d1_databases: [{ binding: "DB", database_name: "creator-studios-dev-db", database_id: "00000000-0000-0000-0000-000000000000", migrations_dir: "migrations" }],
     r2_buckets: [{ binding: "FILES", bucket_name: "creator-studios-dev-files" }],
-    triggers: { crons: CRONS },
+    triggers: { crons: cronsFor(null) },
     vars: {
       APP_NAME: "Your Studio",
       OWNER_NAME: "Sample Creator",
