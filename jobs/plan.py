@@ -312,6 +312,19 @@ def dump_service(sheets: list[ShotSheet], override: str | None = None, services:
     return (best[0], True) if sure else (None, False)
 
 
+def clip_service(parts: list["Part"], sheets: dict[str, ShotSheet], fallback: str | None) -> str | None:
+    """The service THIS clip shows: the one its own sure shots carry most (by time on screen), else
+    the dump's. Owner, 1 Nov 2026: a dump showing two services had every clip labelled with the
+    dump's majority service, so the other service's clips were voiced as the wrong one."""
+    by: dict[str, float] = {}
+    for p in parts:
+        sh = sheets.get(p.asset_id)
+        s = sh.shot_at((p.start + p.end) / 2) if sh and sh.source != "none" else None
+        if s and s.sure and s.service != UNSURE:
+            by[s.service] = by.get(s.service, 0.0) + max(0.01, p.end - p.start)
+    return max(by.items(), key=lambda kv: kv[1])[0] if by else fallback
+
+
 def usable(s: Shot) -> bool:
     return not s.privacy and s.quality > 0.34 and s.length >= 1.0
 

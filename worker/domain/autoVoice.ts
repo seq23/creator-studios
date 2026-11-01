@@ -50,7 +50,9 @@ export function fitScript(text: string, seconds: number): string {
   if (words.length <= max) return words.join(" ");
   const cut = words.slice(0, max).join(" ");
   const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
-  return end > cut.length * 0.5 ? cut.slice(0, end + 1) : cutWords(cut, max);
+  // Whole sentences when one fits; a cut mid-sentence ("…into something that feels.") is refused by
+  // shared/sellLine.ts voiceScriptProblem, so the caller moves on to its next line.
+  return end > 0 ? cut.slice(0, end + 1) : cutWords(cut, max);
 }
 
 /**

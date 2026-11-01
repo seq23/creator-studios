@@ -35,6 +35,26 @@ const SHOT_LINE = /\d+(?:\.\d+)?\s*[–-]\s*\d+(?:\.\d+)?\s*(?:s\b)?\s*[·:]/;
 /** A description of the voice instead of the words ("A warm, upbeat friend speaking plainly…"). */
 const STAGE_DIRECTION = /\b(?:voice[- ]?over|voiceover|narrates|narrator|speaking plainly|describing the scene|plain sentences|upbeat voice|warm voice|spoken in her)\b/i;
 
+/** Words no spoken sentence ends on: a cut or a model that stopped mid-thought (Mercedes, 1 Nov 2026: "…into something that feels."). */
+const DANGLING = new Set(["a", "an", "the", "your", "our", "my", "their", "its", "of", "to", "with", "and", "or", "but", "for", "from", "at", "into", "onto", "about", "than", "as", "if", "because", "until", "very", "really", "such", "some", "every", "each", "whose", "which"]);
+const HANGING = [
+  /\b(?:that|which|who)\s+(?:feels?|looks?|seems?|makes?|turns?|gets?|becomes?|is|are|was|were)$/i, // "…something that feels."
+  /\b(?:feels?|felt|looks?|seems?|sounds?)\s+like$/i, // "…that feel like."
+  /,\s*[a-z]+ing$/i, // "…pours steamed milk slowly, shaping."
+];
+
+/** A sentence that stops before it is finished: no ending mark, a trailing little word, or a clause cut off. */
+export function unfinishedSentence(text: string): boolean {
+  const t = (text ?? "").trim().replace(/["”'’)\]]+$/, "");
+  if (!t) return false;
+  if (!/[.!?…]$/.test(t)) return true;
+  return t.split(/(?<=[.!?…])\s+/).some((sentence) => {
+    const body = sentence.replace(/[.!?…]+$/, "").trim();
+    const last = (body.split(/\s+/).pop() ?? "").toLowerCase().replace(/[^a-z']/g, "");
+    return DANGLING.has(last) || HANGING.some((r) => r.test(body));
+  });
+}
+
 export interface SellContext {
   /** The service this clip sells, or null on a studio that sells none (a creator). */
   service: string | null;
@@ -60,14 +80,16 @@ const norm = (s: string) => (s ?? "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ")
 /**
  * Why this script must not be spoken, or null when it is fine. The guard where every voice-over
  * script is built (draftScript) and swept (voiceRedo): "empty", "label" (a model verdict, a field,
- * a shot line, a stage direction or reasoning), "stub" (under four words), and on a business studio
+ * a shot line, a stage direction or reasoning), "stub" (under four words), "unfinished" (a sentence
+ * that stops mid-thought: no ending mark, a trailing little word, "…something that feels."), and on a business studio
  * "no_service" (never names the service or the business) and "no_cta" (does not end on the CTA).
  */
-export function voiceScriptProblem(script: string | null | undefined, sell?: SellContext | null): "empty" | "label" | "stub" | "no_service" | "no_cta" | null {
+export function voiceScriptProblem(script: string | null | undefined, sell?: SellContext | null): "empty" | "label" | "stub" | "unfinished" | "no_service" | "no_cta" | null {
   const t = (script ?? "").trim();
   if (!t) return "empty";
   if (isModelVerdict(t) || LABEL_ONLY.test(t) || SHOT_LINE.test(t) || STAGE_DIRECTION.test(t) || isReasoning(t)) return "label";
   if (t.split(/\s+/).filter(Boolean).length < 4) return "stub";
+  if (unfinishedSentence(t)) return "unfinished";
   if (sell?.service) {
     const said = new Set(words(t));
     const named = words(sell.service).some((w) => said.has(w)) || (sell.business && norm(t).includes(norm(sell.business)));
@@ -139,30 +161,58 @@ export function ctaSentence(cta: string): string {
   return end(upper1(cta.trim()));
 }
 
+/** A line's identity for "no two clips in a studio say the same line": lower case, letters and digits only. */
+export const lineKey = (t: string | null | undefined) => norm(t ?? "");
+
 /**
- * The selling line with no AI, within `max` words: one of a few warm shapes ("Let Porch and Party
- * do your holiday porches, here in Memphis.", "Porch and Party does grazing tables in Germantown.",
- * …), the longest that fits, picked by the clip so a dump's clips do not all say the same line;
- * then the call to action. Never empty.
+ * Every selling line with no AI that fits `max` words (call to action included), for this clip:
+ * warm shapes that name the service and, where the studio serves places, a town ("Holiday porches,
+ * here in Germantown. Book your date."). Ordered for this clip (its seed picks the shape and the town
+ * to start from, so a dump's clips differ); the longest that fits within each shape. Never empty.
  */
-export function sellStarter(sell: SellContext, place: string | null, max: number): string {
+export function sellStarters(sell: SellContext, places: readonly (string | null)[], max: number): string[] {
   const svc = lower1(sell.service ?? sell.business);
   const Svc = upper1(svc);
   const biz = sell.business;
   const cta = sell.cta ? ` ${ctaSentence(sell.cta)}` : "";
   const room = max - count(cta);
-  const at = place ? ` in ${place}` : "";
-  const P = place ?? "";
-  const shapes: string[][] = [
-    // longest first within each family; the clip picks a family, the room picks the shape
-    [biz ? `Let ${biz} do your ${svc}, right here${at}.` : "", biz ? `${biz} does ${svc}${at}.` : "", `${Svc}, done for you${at}.`, `${Svc}, done for you.`],
-    [biz ? `Make it special with ${svc} from ${biz}${at}.` : "", biz ? `${Svc} from ${biz}${at}.` : "", P ? `${P} ${svc}, done for you.` : "", P ? `${P} ${svc}.` : ""],
-    [biz ? `This is ${svc} by ${biz}${at}.` : "", biz ? `${Svc} by ${biz}.` : "", `${Svc}${at}.`],
-    [`Want this at your place? ${Svc}${at}.`, `${Svc}${at}, made easy.`, `${Svc}, made easy.`],
-  ];
-  const family = shapes[hash(sell.seed ?? svc) % shapes.length].filter(Boolean);
-  const body = family.find((o) => count(o) <= room) ?? `${Svc}.`;
-  return `${body}${cta}`.trim();
+  const h = hash(sell.seed ?? svc);
+  const towns = places.filter((p): p is string => !!p);
+  const order = towns.length ? towns.map((_, i) => towns[(i + h) % towns.length]) : [null];
+  const shapesAt = (P: string | null): string[][] => {
+    const at = P ? ` in ${P}` : "";
+    return [
+      // longest first within each shape; the room picks the one that fits
+      [biz ? `Let ${biz} do your ${svc}, right here${at}.` : "", biz ? `${biz} does ${svc}${at}.` : "", `${Svc}${at}.`],
+      [biz ? `Make it special with ${svc} from ${biz}${at}.` : "", biz ? `${Svc} from ${biz}${at}.` : "", P ? `${P} ${svc}, made easy.` : `${Svc}, made easy.`],
+      [biz ? `This is ${svc} by ${biz}${at}.` : "", P ? `${Svc}, here in ${P}.` : `${Svc}, done for you.`],
+      [`Want this at your place? ${Svc}${at}.`, P ? `${Svc}, anywhere in ${P}.` : `${Svc}, start to finish.`],
+      [P ? `${P} loves ${biz ? `${biz}'s` : "our"} ${svc}.` : "", P ? `${P} loves our ${svc}.` : "", P ? `${Svc} across ${P}.` : `${Svc}, made for you.`],
+      [P ? `${Svc} for your ${P} home, done for you.` : "", P ? `${Svc} for your ${P} home.` : `${Svc} for your home.`],
+    ];
+  };
+  const out: string[] = [];
+  // Every shape in every town once; neighbours differ in both, so clips drafted together do not sound alike.
+  for (let r = 0; r < order.length; r++) {
+    for (let k = 0; k < 6; k++) {
+      const family = shapesAt(order[(k + r) % order.length])[(k + h) % 6].filter(Boolean);
+      const body = family.find((o) => count(o) <= room);
+      if (body) out.push(`${body}${cta}`.trim());
+    }
+  }
+  const seen = new Set<string>();
+  const uniq = out.filter((l) => !seen.has(lineKey(l)) && !!seen.add(lineKey(l)));
+  return uniq.length ? uniq : [`${Svc}.${cta}`.trim()];
+}
+
+/** The selling line with no AI for this clip: the first of sellStarters, its place first. */
+export function sellStarter(sell: SellContext, place: string | null, max: number): string {
+  return sellStarters(sell, [place], max)[0];
+}
+
+/** The first line not already spoken on another clip of this studio, else the first. */
+export function firstUnused(lines: readonly string[], taken: ReadonlySet<string>): string | null {
+  return lines.find((l) => !!l && !taken.has(lineKey(l))) ?? null;
 }
 
 /**
@@ -176,13 +226,16 @@ export function withSale(body: string, sell: SellContext, place: string | null, 
   const kept: string[] = [];
   for (const s of sentences) {
     if ((sell.cta && norm(s).includes(norm(sell.cta))) || CTA_LIKE.test(s)) continue; // one CTA, the studio's, at the end
-    if (count([...kept, s].join(" ")) > room) break;
+    // A sentence too long for a short clip is skipped, not the rest: a later, shorter one may say the sale.
+    if (count([...kept, s].join(" ")) > room || unfinishedSentence(s)) continue;
     kept.push(s);
   }
   let out = kept.join(" ");
   if (voiceScriptProblem(`${out} ${cta}`.trim(), { ...sell, cta: null }) === "no_service" || !out) {
-    const line = sellStarter({ ...sell, cta: null }, place, room);
-    out = count(`${out} ${line}`) <= room && out ? `${out} ${line}` : line;
+    // The model's own words stay when a starter line still fits after them; else the starter line alone.
+    const left = room - count(out);
+    const tail = out ? sellStarters({ ...sell, cta: null }, [place], left).find((l) => count(l) <= left && (!place || l.includes(place))) ?? null : null;
+    out = tail ? `${out} ${tail}` : sellStarter({ ...sell, cta: null }, place, room);
   }
   return `${out} ${cta}`.trim();
 }
