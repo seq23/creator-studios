@@ -1,5 +1,5 @@
 {
-  "_why": "jobs/golden.py: the last accepted golden-set score; a drop of more than 0.15, or a passing check turning to a fail, fails the weekly job. Six businesses since 23 Oct 2026 (layer 9): landscaper and bakery join at full marks; anything less there is a defect, fixed at source.",
+  "_why": "jobs/golden.py: the last accepted golden-set score; a total drop of more than 0.15 fails the weekly job; a single lost check is a logged note (2 Nov 2026). Six businesses since 23 Oct 2026 (layer 9): landscaper and bakery join at full marks; anything less there is a defect, fixed at source.",
   "score": 1.0,
   "passing": {
     "event-decor": [

@@ -37,6 +37,14 @@ ROOT = HERE.parent
 BASELINE = HERE / "golden" / "baseline.json"
 ALLOWED_DROP = 0.15
 
+
+def golden_fails(total: float, expected: float) -> bool:
+    """The weekly golden set fails only when the TOTAL score drops more than ALLOWED_DROP below the
+    baseline. A single check that used to pass and now does not is a logged note (golden.lost), never a
+    red run on its own: owner ruling 2 Nov 2026, no petty validation (it fired 8 times in 30 days within
+    the allowed drop)."""
+    return total < round(expected, 3) - ALLOWED_DROP
+
 # Each scene: (file, seconds, background, what the frame shows in words, shapes). The words are part
 # of the drawing (a seed set; real CC0 footage joins it later), the shapes give the model a picture.
 SCENES: dict[str, dict[str, Any]] = {
@@ -242,15 +250,16 @@ def main() -> int:
             base["backup"] = entry
         else:
             base.update(entry)
-        base.setdefault("_why", "jobs/golden.py: the last accepted golden-set score per provider; a drop of more than 0.15, or a passing check turning to a fail, fails the weekly job.")
+        base.setdefault("_why", "jobs/golden.py: the last accepted golden-set score per provider; a total drop of more than 0.15 fails the weekly job; a single lost check is a logged note (2 Nov 2026).")
         BASELINE.write_text(json.dumps(base, indent=2) + "\n")
         return 0
     base = json.loads(BASELINE.read_text()) if BASELINE.exists() else {"score": 0, "passing": {}}
     lost = [f"{s}:{k}" for s, r in results.items() for k in baseline_for(base, r["provider"]).get("passing", {}).get(s, []) if not r["metrics"].get(k)]
     expected = sum(len(baseline_for(base, r["provider"]).get("passing", {}).get(s, [])) for s, r in results.items()) / max(1, len(flat))
-    if total < round(expected, 3) - ALLOWED_DROP or lost:
-        for item in lost:
-            log("golden.lost", check=item)
+    # A lost check is a note (owner ruling 2 Nov 2026); only the total drop fails the run.
+    for item in lost:
+        log("golden.lost", check=item, note="within the allowed drop unless golden.DROP follows")
+    if golden_fails(total, expected):
         log("golden.DROP", score=total, baseline=round(expected, 3), lost=len(lost))
         loud([f"score {total} against the baseline {round(expected, 3)} (providers: {', '.join(sorted({r['provider'] for r in results.values()}))})", *[f"lost: {x}" for x in lost]])
         return 1

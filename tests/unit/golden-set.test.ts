@@ -16,11 +16,13 @@ describe("golden set", () => {
     expect(wf).toContain("GOLDEN_OPENROUTER_API_KEY");
     expect(wf).not.toContain("--write-baseline");
   });
-  it("scores every fixture business and fails loudly on a drop", () => {
+  it("scores every fixture business and fails loudly on a total drop", () => {
     for (const slug of fixtures) expect(golden, slug).toContain(`"${slug}": {`);
     expect(Object.keys(baseline.passing).sort()).toEqual([...fixtures].sort());
     for (const k of ["job_type", "before_after", "caption_noise"]) expect(Object.values(baseline.passing).flat()).toContain(k);
-    expect(golden).toMatch(/if total < round\(expected, 3\) - ALLOWED_DROP or lost:[\s\S]{0,200}golden\.DROP[^\n]*\n\s*loud\([^\n]*\n\s*return 1/);
+    // Only the total drop fails, loudly; a lost check is a note (owner ruling 2 Nov 2026, jobs/tests/test_golden_verdict.py).
+    expect(golden).toMatch(/return total < round\(expected, 3\) - ALLOWED_DROP/);
+    expect(golden).toMatch(/if golden_fails\(total, expected\):[\s\S]{0,200}golden\.DROP[^\n]*\n\s*loud\([^\n]*\n\s*return 1/);
     // Each provider is held to its own baseline (the free model, or the $0 backup when the day's quota is used),
     // and both baselines cover every fixture business.
     expect(golden).toContain('baseline_for(base, r["provider"]).get("passing", {}).get(s, [])');
