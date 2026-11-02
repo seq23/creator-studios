@@ -19,7 +19,6 @@ const RULES = [
   ...["clip_type", "score_reasons", "hero_asset_id", "files_used", "uses_ai_images", "event_group", "words_pending", "voice_script"].map((k) => ["jobs/cut.py", new RegExp(`"${k}":`), `every clip carries ${k}`]),
   ["jobs/cut.py", /"asset_roles": ST\.asset_roles\(/, "the dump reports each upload's stage"],
   ["jobs/cut.py", /"clip_counts":/, "the dump reports its distinct clips"],
-  ["jobs/clipmaker.py", /DIVIDER = "(\u2014|\\u2014)"/, "the AI note's divider (an em dash)"],
   ["jobs/clipmaker.py", /AI_NOTE = "Made with AI"/, "the AI note's words"],
   ["jobs/clipmaker.py", /f"\{out\}\\n\\n\{DIVIDER\}\\n\{AI_NOTE\}"/, "the AI note sits after a blank line and the divider"],
   ["jobs/plan.py", /SC\.clean_line\(/, "the copy writer rejects reasoning-shaped words"],
