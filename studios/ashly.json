@@ -1,0 +1,61 @@
+{
+  "slug": "ashly",
+  "worker": "sample2studio",
+  "hostname": "ashly-studio.spryexecutiveos.com",
+  "_renamed": "Sample 2 became Ashly Studio on 2 Nov 2026 (owner approved: a free studio for her friend Ashly, set up like Hadiyah). The Worker, D1 and R2 keep their sample2 names so nothing is orphaned; the old sample2 hostname stays attached and 301s pages to the new one.",
+  "previousHostnames": [
+    "sample2-studio.spryexecutiveos.com"
+  ],
+  "appName": "Ashly Studio",
+  "ownerName": "Ashly",
+  "_ownerEmail": "Never in this file (public repo). Set at deploy time from the 0600 file <secrets dir>/ashly/OWNER_EMAIL by `npm run studio:secrets ashly` (README \"Owner email\").",
+  "theme": "ashly",
+  "kind": "host-accounts",
+  "_hostAccounts": "Owner decision 2 Nov 2026: Ashly Studio uses the host's keys like Hadiyah (AI writing, studio email, web research, brand contacts) plus the host's job runner; free models only. Validator host-keys-host-only pins the list.",
+  "hostKeys": [
+    "OPENROUTER_API_KEY",
+    "RESEND_API_KEY",
+    "STUDIO_EMAIL_FROM",
+    "FIRECRAWL_API_KEY",
+    "HUNTER_API_KEY"
+  ],
+  "openrouterOrder": "pasted-first",
+  "weeklyCron": "20 12 * * 1",
+  "_weeklyCron": "Monday lane (recap, stats, brand finder), UTC: 06:20 Central Standard Time, 20 minutes after Porch & Party (schedule rebalance, 1 Nov 2026).",
+  "audienceTimezone": "America/New_York",
+  "d1": {
+    "name": "creator-studios-sample2-db",
+    "id": "b451bb67-3360-4e39-b09c-e153432687c0"
+  },
+  "r2": {
+    "bucket": "creator-studios-sample2-files"
+  },
+  "githubRepo": "seq23/creator-studios",
+  "hostSecrets": {
+    "_why": "Owner decision 2 Nov 2026: set up like Hadiyah. AI writing, studio email, web research and brand contacts run on the host's personal accounts from the 0600 files <secrets dir>/ashly/<NAME>, used only when Ashly has not saved her own on Setup (worker/lib/hostKeys.ts). Everything else is her own, pasted on Setup.",
+    "GITHUB_DISPATCH_TOKEN": "gh-auth-token",
+    "OPENROUTER_API_KEY": "studio-file:OPENROUTER_API_KEY",
+    "RESEND_API_KEY": "studio-file:RESEND_API_KEY",
+    "STUDIO_EMAIL_FROM": "studio-file:STUDIO_EMAIL_FROM",
+    "FIRECRAWL_API_KEY": "studio-file:FIRECRAWL_API_KEY",
+    "HUNTER_API_KEY": "studio-file:HUNTER_API_KEY",
+    "HF_TOKEN": "studio-file?:HF_TOKEN",
+    "_optional": "file? = set when the 0600 secret file exists, otherwise that feature stays on the slow zoom (README Secrets)."
+  },
+  "jobSecretOnHostRepo": true,
+  "aiBudget": 1000,
+  "_aiBudget": "Neurons a day of the Cloudflare account's free 10,000. The shares sum to 8,500 (Porch & Party gave 1,000 to Ashly on 2 Nov 2026); past 10,000 the account is billed, so worker/lib/freeAi.ts refuses any call this share cannot cover.",
+  "studioRules": {
+    "_why": "Studio fix defaults, 23 Oct 2026 (shared/studioRules.ts): no call to action of its own yet (the neutral fallback stands in until she sets one in Settings > Your clips), Made with AI only on clips that use an AI picture, 8 to 15 distinct clips per dump, review bar 70, no prices.",
+    "cta_phrases": [],
+    "cta_link": "",
+    "ai_note": "ai_images",
+    "clip_target": {
+      "min": 8,
+      "max": 15
+    },
+    "bar": 70,
+    "place_words": [],
+    "prices": false
+  }
+}

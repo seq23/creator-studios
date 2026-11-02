@@ -69,6 +69,76 @@
     "AUTH_MODE": "code"
   },
   "env": {
+    "ashly": {
+      "name": "sample2studio",
+      "workers_dev": true,
+      "routes": [
+        {
+          "pattern": "ashly-studio.spryexecutiveos.com",
+          "custom_domain": true
+        },
+        {
+          "pattern": "sample2-studio.spryexecutiveos.com",
+          "custom_domain": true
+        }
+      ],
+      "assets": {
+        "directory": "./dist/client",
+        "binding": "ASSETS",
+        "not_found_handling": "single-page-application",
+        "run_worker_first": [
+          "/*",
+          "!/assets/*"
+        ]
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "creator-studios-sample2-db",
+          "database_id": "b451bb67-3360-4e39-b09c-e153432687c0",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "FILES",
+          "bucket_name": "creator-studios-sample2-files"
+        }
+      ],
+      "ai": {
+        "binding": "AI"
+      },
+      "triggers": {
+        "crons": [
+          "0 * * * *",
+          "30 13 * * *",
+          "20 12 * * 1"
+        ]
+      },
+      "vars": {
+        "APP_NAME": "Ashly Studio",
+        "OWNER_NAME": "Ashly",
+        "STUDIO_SLUG": "ashly",
+        "STUDIO_KIND": "host-accounts",
+        "HOST_KEYS": "OPENROUTER_API_KEY,RESEND_API_KEY,STUDIO_EMAIL_FROM,FIRECRAWL_API_KEY,HUNTER_API_KEY",
+        "OPENROUTER_ORDER": "pasted-first",
+        "STUDIO_THEME": "{\"fonts\":\"https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap\",\"chrome\":\"#1b1b1d\",\"light\":{\"--cream\":\"#f7f7f6\",\"--ivory\":\"#ffffff\",\"--paper\":\"#ffffff\",\"--parchment\":\"#eeeeec\",\"--champagne\":\"#e2e2df\",\"--gold\":\"#c8102e\",\"--gold-deep\":\"#a50d26\",\"--gold-ink\":\"#9c0c24\",\"--gold-soft\":\"rgba(200, 16, 46, 0.22)\",\"--gold-faint\":\"rgba(200, 16, 46, 0.07)\",\"--gold-line\":\"rgba(200, 16, 46, 0.35)\",\"--gold-glow\":\"rgba(200, 16, 46, 0.18)\",\"--espresso\":\"#1b1b1d\",\"--espresso-2\":\"#2a2a2d\",\"--ink\":\"#1c1c1e\",\"--ink-soft\":\"rgba(28, 28, 30, 0.8)\",\"--muted\":\"#5f5f63\",\"--line\":\"rgba(28, 28, 30, 0.11)\",\"--line-strong\":\"rgba(28, 28, 30, 0.26)\",\"--blush\":\"#f2c4cc\",\"--blush-faint\":\"rgba(200, 16, 46, 0.06)\",\"--rose\":\"#9c0c24\",\"--terracotta\":\"#7a3b10\",\"--teal\":\"#2b6a52\",\"--danger\":\"#7a3b10\",\"--danger-soft\":\"rgba(122, 59, 16, 0.12)\",\"--on-dark\":\"#f7f7f6\",\"--on-dark-soft\":\"rgba(247, 247, 246, 0.8)\",\"--on-dark-faint\":\"rgba(247, 247, 246, 0.1)\",\"--scrim\":\"rgba(27, 27, 29, 0.5)\",\"--glass\":\"rgba(255, 255, 255, 0.92)\",\"--accent-ink\":\"#ffffff\",\"--focus-color\":\"#9c0c24\",\"--brand-mark-bg\":\"linear-gradient(145deg, #ffffff, #eeeeec)\",\"--login-bg\":\"radial-gradient(circle at 12% 0%, rgba(200, 16, 46, 0.08), transparent 34%), linear-gradient(160deg, #ffffff, #f7f7f6)\",\"--shadow-btn\":\"0 8px 18px rgba(28, 28, 30, 0.14)\",\"--font-display\":\"\\\"Fraunces\\\", Georgia, \\\"Times New Roman\\\", serif\",\"--font-body\":\"\\\"Inter\\\", system-ui, -apple-system, \\\"Segoe UI\\\", sans-serif\",\"--font-script\":\"\\\"Fraunces\\\", Georgia, serif\",\"--wordmark-tracking\":\"-0.01em\",\"--heading-color\":\"#9c0c24\",\"--wordmark-color\":\"#e8213f\"},\"dark\":{\"--bg\":\"#141415\",\"--surface\":\"#1c1c1e\",\"--surface-2\":\"#242427\",\"--surface-sunk\":\"#0f0f10\",\"--text\":\"#f2f2f0\",\"--text-soft\":\"rgba(242, 242, 240, 0.82)\",\"--text-muted\":\"#a9a9ad\",\"--line\":\"rgba(242, 242, 240, 0.12)\",\"--line-strong\":\"rgba(242, 242, 240, 0.3)\",\"--primary\":\"#f2f2f0\",\"--primary-text\":\"#141415\",\"--gold\":\"#ff4d63\",\"--gold-ink\":\"#ff6b7e\",\"--gold-soft\":\"rgba(255, 77, 99, 0.28)\",\"--gold-faint\":\"rgba(255, 77, 99, 0.1)\",\"--danger\":\"#d9874a\",\"--danger-soft\":\"rgba(217, 135, 74, 0.24)\",\"--focus-color\":\"#ff6b7e\",\"--glass\":\"rgba(28, 28, 30, 0.92)\",\"--login-bg\":\"radial-gradient(circle at 12% 0%, rgba(255, 77, 99, 0.12), transparent 34%), linear-gradient(160deg, #1c1c1e, #141415)\",\"--heading-color\":\"#ff6b7e\",\"--wordmark-color\":\"#ff4d63\",\"--accent-ink\":\"#141415\"},\"wordmark\":{\"name\":\"ashly\",\"tag\":\"studio\",\"mark\":\"●\"}}",
+        "FAKE_SERVICES": "0",
+        "PUBLIC_BASE_URL": "https://ashly-studio.spryexecutiveos.com",
+        "PREVIOUS_HOSTNAMES": "sample2-studio.spryexecutiveos.com",
+        "GITHUB_REPO": "seq23/creator-studios",
+        "AUDIENCE_TIMEZONE": "America/New_York",
+        "PHOTO_POSTS": "",
+        "CONTENT_RULES": "",
+        "STUDIO_SOUND": "",
+        "STUDIO_RULES": "{\"cta_phrases\":[],\"cta_link\":\"\",\"ai_note\":\"ai_images\",\"clip_target\":{\"min\":8,\"max\":15},\"bar\":70,\"place_words\":[],\"prices\":false}",
+        "AUTO_REDO_FROM": "",
+        "STUDIO_AI_BUDGET": "1000",
+        "SPONSOR_KIND": "experience",
+        "ENV_NAME": "production",
+        "AUTH_MODE": "code"
+      }
+    },
     "hadiyah": {
       "name": "hadiyahstudio",
       "workers_dev": true,
@@ -265,74 +335,9 @@
         "STUDIO_SOUND": "{\"cameraSound\":\"off\",\"voice\":{\"source\":\"stock\",\"stock\":\"af_heart\"}}",
         "STUDIO_RULES": "{\"cta_phrases\":[\"Book your date\",\"Request a quote\",\"Get in touch with us\"],\"cta_link\":\"https://porchandparty901.com/request\",\"ai_note\":\"all\",\"clip_target\":{\"min\":15,\"max\":30},\"bar\":70,\"place_words\":[\"Memphis\",\"Germantown\",\"Collierville\",\"Bartlett\"],\"prices\":false}",
         "AUTO_REDO_FROM": "",
-        "STUDIO_AI_BUDGET": "3500",
+        "STUDIO_AI_BUDGET": "2500",
         "SPONSOR_KIND": "event",
         "WHATS_NEW": "{\"id\":\"2026-10-photo-posts\",\"title\":\"New in your studio\",\"lines\":[\"Add a photo and the studio makes a few posts from it.\",\"Posts go to Facebook, Instagram, TikTok and Pinterest on their own.\",\"You get an email the day before. Tap Skip to stop one.\",\"Faces and house numbers are blurred before anything posts.\"]}",
-        "ENV_NAME": "production",
-        "AUTH_MODE": "code"
-      }
-    },
-    "sample2": {
-      "name": "sample2studio",
-      "workers_dev": true,
-      "routes": [
-        {
-          "pattern": "sample2-studio.spryexecutiveos.com",
-          "custom_domain": true
-        }
-      ],
-      "assets": {
-        "directory": "./dist/client",
-        "binding": "ASSETS",
-        "not_found_handling": "single-page-application",
-        "run_worker_first": [
-          "/*",
-          "!/assets/*"
-        ]
-      },
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "creator-studios-sample2-db",
-          "database_id": "b451bb67-3360-4e39-b09c-e153432687c0",
-          "migrations_dir": "migrations"
-        }
-      ],
-      "r2_buckets": [
-        {
-          "binding": "FILES",
-          "bucket_name": "creator-studios-sample2-files"
-        }
-      ],
-      "ai": {
-        "binding": "AI"
-      },
-      "triggers": {
-        "crons": [
-          "0 * * * *",
-          "30 13 * * *",
-          "0 12 * * 1"
-        ]
-      },
-      "vars": {
-        "APP_NAME": "Sample 2 Studio",
-        "OWNER_NAME": "",
-        "STUDIO_SLUG": "sample2",
-        "STUDIO_KIND": "client",
-        "HOST_KEYS": "",
-        "OPENROUTER_ORDER": "pasted-first",
-        "STUDIO_THEME": "{\"fonts\":\"https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap\",\"chrome\":\"#1e2227\",\"light\":{\"--cream\":\"#f4f4f1\",\"--ivory\":\"#ffffff\",\"--paper\":\"#fbfbfa\",\"--parchment\":\"#ebebe6\",\"--champagne\":\"#d6dbe0\",\"--gold\":\"#3b6c8e\",\"--gold-deep\":\"#2c5470\",\"--gold-ink\":\"#2a5574\",\"--gold-soft\":\"rgba(59, 108, 142, 0.32)\",\"--gold-faint\":\"rgba(59, 108, 142, 0.1)\",\"--gold-line\":\"rgba(59, 108, 142, 0.32)\",\"--gold-glow\":\"rgba(59, 108, 142, 0.24)\",\"--espresso\":\"#1e2227\",\"--espresso-2\":\"#2e343b\",\"--ink\":\"#1b1d21\",\"--ink-soft\":\"rgba(27, 29, 33, 0.8)\",\"--muted\":\"#5b6068\",\"--line\":\"rgba(27, 29, 33, 0.12)\",\"--line-strong\":\"rgba(27, 29, 33, 0.28)\",\"--blush\":\"#a9bccb\",\"--blush-faint\":\"rgba(169, 188, 203, 0.18)\",\"--rose\":\"#9a4a2a\",\"--terracotta\":\"#9c4b22\",\"--teal\":\"#0d7c79\",\"--on-dark\":\"#f6f7f8\",\"--on-dark-soft\":\"rgba(246, 247, 248, 0.8)\",\"--on-dark-faint\":\"rgba(246, 247, 248, 0.1)\",\"--scrim\":\"rgba(27, 29, 33, 0.55)\",\"--glass\":\"rgba(255, 255, 255, 0.92)\",\"--accent-ink\":\"#ffffff\",\"--focus-color\":\"#2c5470\",\"--brand-mark-bg\":\"linear-gradient(145deg, #ffffff, #e6e9ec)\",\"--login-bg\":\"radial-gradient(circle at 85% 10%, rgba(59, 108, 142, 0.16), transparent 32%), linear-gradient(135deg, #ffffff, #f4f4f1)\",\"--shadow-btn\":\"0 8px 18px rgba(59, 108, 142, 0.2)\",\"--font-display\":\"\\\"Source Serif 4\\\", Georgia, \\\"Times New Roman\\\", serif\",\"--font-body\":\"\\\"Public Sans\\\", system-ui, -apple-system, \\\"Segoe UI\\\", sans-serif\",\"--font-script\":\"\\\"Source Serif 4\\\", Georgia, serif\",\"--wordmark-tracking\":\"0\"},\"dark\":{\"--bg\":\"#121417\",\"--surface\":\"#1a1d21\",\"--surface-2\":\"#22262b\",\"--surface-sunk\":\"#0f1114\",\"--text\":\"#eceef0\",\"--text-soft\":\"rgba(236, 238, 240, 0.82)\",\"--text-muted\":\"#a7adb5\",\"--line\":\"rgba(236, 238, 240, 0.12)\",\"--line-strong\":\"rgba(236, 238, 240, 0.3)\",\"--primary\":\"#8fb6d3\",\"--primary-text\":\"#121417\",\"--gold-ink\":\"#8fb6d3\",\"--gold-soft\":\"rgba(143, 182, 211, 0.3)\",\"--gold-faint\":\"rgba(143, 182, 211, 0.12)\",\"--focus-color\":\"#8fb6d3\",\"--glass\":\"rgba(26, 29, 33, 0.92)\",\"--login-bg\":\"radial-gradient(circle at 85% 10%, rgba(143, 182, 211, 0.14), transparent 32%), linear-gradient(135deg, #1a1d21, #121417)\"},\"wordmark\":{\"name\":\"Sample 2 Studio\",\"mark\":\"▪\"}}",
-        "FAKE_SERVICES": "0",
-        "PUBLIC_BASE_URL": "https://sample2-studio.spryexecutiveos.com",
-        "GITHUB_REPO": "",
-        "AUDIENCE_TIMEZONE": "America/New_York",
-        "PHOTO_POSTS": "",
-        "CONTENT_RULES": "",
-        "STUDIO_SOUND": "",
-        "STUDIO_RULES": "{\"cta_phrases\":[],\"cta_link\":\"\",\"ai_note\":\"ai_images\",\"clip_target\":{\"min\":8,\"max\":15},\"bar\":70,\"place_words\":[],\"prices\":false}",
-        "AUTO_REDO_FROM": "",
-        "STUDIO_AI_BUDGET": "0",
-        "SPONSOR_KIND": "experience",
         "ENV_NAME": "production",
         "AUTH_MODE": "code"
       }

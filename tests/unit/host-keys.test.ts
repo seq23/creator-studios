@@ -115,12 +115,12 @@ describe("host-accounts studio (Hadiyah): the host's four services stand in unti
     for (const s of ["openrouter", "firecrawl", "hunter"]) expect(conns.find((c) => c.service === s), s).toMatchObject({ status: "ok", meta: { host: true } });
   });
 
-  it("studio email goes out on the host's Resend from STUDIO_EMAIL_FROM, replies to the host developer", async () => {
+  it("studio email goes out on the host's Resend from STUDIO_EMAIL_FROM, replies to the studio's own owner, never the host developer (rulings 1 and 2 Nov 2026)", async () => {
     const env = await hydrate(studio("host-accounts"));
     const r = await sendEmail(env, { kind: "weekly_recap", to: ["owner@owner.example"], subject: "Weekly recap", html: "<p>x</p>", text: "x" });
     expect(r.ok).toBe(true);
     expect(sent).toHaveLength(1);
-    expect(sent[0].body).toMatchObject({ from: HOST.STUDIO_EMAIL_FROM, reply_to: HOST.DEVELOPER_EMAIL });
+    expect(sent[0].body).toMatchObject({ from: HOST.STUDIO_EMAIL_FROM, reply_to: "owner@owner.example" });
   });
 
   it("a key she saves on Setup wins over the host's, and her own Resend drops the host's From and reply-to", async () => {
@@ -322,8 +322,9 @@ describe("secret plan and validator host-keys-host-only", () => {
   const reg = loadRegistry(root);
   const cfg = () => parseJsonc(readFileSync(path.join(root, "wrangler.jsonc"), "utf8"));
 
-  it("the pinned list is exactly hadiyah (all five), sample1 (email + AI writing), sheila (email only), mercedes (email + AI writing host-first, her key the backup, 24 Oct 2026); sample2 and sample3 carry none", () => {
+  it("the pinned list is exactly hadiyah (all five), sample1 (email + AI writing), sheila (email only), mercedes (email + AI writing host-first, her key the backup, 24 Oct 2026), ashly (all five, 2 Nov 2026); sample3 carries none", () => {
     expect(ALLOWED).toEqual({
+      ashly: ["OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM", "FIRECRAWL_API_KEY", "HUNTER_API_KEY"],
       hadiyah: ["OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM", "FIRECRAWL_API_KEY", "HUNTER_API_KEY"],
       sample1: ["OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM"],
       sheila: ["RESEND_API_KEY", "STUDIO_EMAIL_FROM"],
@@ -333,8 +334,8 @@ describe("secret plan and validator host-keys-host-only", () => {
     const gen = parseJsonc(wranglerConfig(reg));
     for (const s of reg.studios) expect(gen.env[s.slug].vars.OPENROUTER_ORDER, s.slug).toBe(s.slug === "mercedes" ? "host-first" : "pasted-first");
     expect(gen.vars.OPENROUTER_ORDER).toBe("pasted-first");
-    expect(reg.studios.filter((s: { kind: string }) => s.kind === "host-accounts").map((s: { slug: string }) => s.slug).sort()).toEqual(["hadiyah", "mercedes", "sample1", "sheila"]);
-    for (const slug of ["sample2", "sample3"]) expect(reg.studios.find((s: { slug: string }) => s.slug === slug).kind, slug).toBe("client");
+    expect(reg.studios.filter((s: { kind: string }) => s.kind === "host-accounts").map((s: { slug: string }) => s.slug).sort()).toEqual(["ashly", "hadiyah", "mercedes", "sample1", "sheila"]);
+    for (const slug of ["sample3"]) expect(reg.studios.find((s: { slug: string }) => s.slug === slug).kind, slug).toBe("client");
   });
 
   it("each studio's secret plan and generated HOST_KEYS carry exactly its pinned host secrets, each from its own 0600 file", () => {
@@ -354,7 +355,7 @@ describe("secret plan and validator host-keys-host-only", () => {
   });
 
   it("secretPlan refuses a host key on a client studio, and one not in a host-accounts studio's hostKeys", () => {
-    const s2 = structuredClone(reg.studios.find((s: { slug: string }) => s.slug === "sample2"));
+    const s2 = structuredClone(reg.studios.find((s: { slug: string }) => s.slug === "sample3"));
     s2.hostSecrets = { HUNTER_API_KEY: "file:HUNTER_API_KEY" };
     expect(() => secretPlan(s2)).toThrow(/HUNTER_API_KEY is the host's own key, for host-accounts studios only/);
     const s1 = structuredClone(reg.studios.find((s: { slug: string }) => s.slug === "sample1"));
@@ -370,7 +371,7 @@ describe("secret plan and validator host-keys-host-only", () => {
 
   it("negative proof: a client carrying a host key, a wrong STUDIO_KIND, hadiyah missing one, a stray reader, a hydrate without hostBase, and lists that drift each fail", () => {
     const studios = structuredClone(reg.studios);
-    studios.find((s: { slug: string }) => s.slug === "sample2").hostSecrets = { OPENROUTER_API_KEY: "file:OPENROUTER_API_KEY" };
+    studios.find((s: { slug: string }) => s.slug === "sample3").hostSecrets = { OPENROUTER_API_KEY: "file:OPENROUTER_API_KEY" };
     delete studios.find((s: { slug: string }) => s.slug === "hadiyah").hostSecrets.FIRECRAWL_API_KEY;
     const c = cfg();
     c.env.sample3.vars.STUDIO_KIND = "host-accounts";
@@ -381,8 +382,8 @@ describe("secret plan and validator host-keys-host-only", () => {
     };
     const r = checkHostKeys({ studios, cfg: c, secretPlan, cliList: CLI_LIST, workerList: CLI_LIST.slice(1), sources });
     const text = r.problems.join("\n");
-    expect(text).toMatch(/env\.sample2: studios\/sample2\.json: OPENROUTER_API_KEY is the host's own key/);
-    expect(text).toMatch(/env\.sample2 \(client\) would carry the host's OPENROUTER_API_KEY/);
+    expect(text).toMatch(/env\.sample3: studios\/sample3\.json: OPENROUTER_API_KEY is the host's own key/);
+    expect(text).toMatch(/env\.sample3 \(client\) would carry the host's OPENROUTER_API_KEY/);
     expect(text).toMatch(/env\.hadiyah \(host-accounts\) is missing FIRECRAWL_API_KEY/);
     expect(text).toMatch(/wrangler env\.sample3: STUDIO_KIND is host-accounts, registry says client/);
     expect(text).toMatch(/worker\/routes\/stray\.ts: reads FIRECRAWL_API_KEY off the env/);
@@ -399,15 +400,16 @@ describe("secret plan and validator host-keys-host-only", () => {
     s1.hostSecrets = { ...s1.hostSecrets, FIRECRAWL_API_KEY: "studio-file:FIRECRAWL_API_KEY" };
     const s3 = studios.find((s: { slug: string }) => s.slug === "sample3");
     s3.hostKeys = ["RESEND_API_KEY"];
-    const s2 = studios.find((s: { slug: string }) => s.slug === "sample2");
-    s2.kind = "host-accounts";
+    const extra = { ...structuredClone(reg.studios.find((s: { slug: string }) => s.slug === "sample3")), slug: "extra", kind: "host-accounts" };
+    studios.push(extra);
     const c = cfg();
-    c.env.sample2.vars.STUDIO_KIND = "host-accounts";
+    c.env.extra = structuredClone(c.env.sample3);
+    c.env.extra.vars.STUDIO_KIND = "host-accounts";
     c.env.hadiyah.vars.HOST_KEYS = "OPENROUTER_API_KEY";
     const sources = { "worker/lib/practice.ts": "hydrate: const out = hostBase(env);", "worker/lib/hostKeys.ts": "allowedHostKeys(env)" };
     const r = checkHostKeys({ studios, cfg: c, secretPlan, cliList: CLI_LIST, workerList: CLI_LIST, sources });
     const text = r.problems.join("\n");
-    expect(text).toMatch(/host-accounts studios are \[hadiyah,mercedes,sample1,sample2,sheila\], the pinned list is \[hadiyah,mercedes,sample1,sheila\]/);
+    expect(text).toMatch(/host-accounts studios are \[ashly,extra,hadiyah,mercedes,sample1,sheila\], the pinned list is \[ashly,hadiyah,mercedes,sample1,sheila\]/);
     expect(text).toMatch(/env\.sample1 would carry the host's FIRECRAWL_API_KEY, which is not pinned for it/);
     expect(text).toMatch(/studios\/sample1\.json hostKeys .* differ from the pinned/);
     expect(text).toMatch(/studios\/sample3\.json: a client studio has hostKeys/);

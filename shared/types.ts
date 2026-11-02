@@ -17,6 +17,8 @@ export interface Me {
   ownerName: string;
   /** Setup services still in practice mode (no key yet): the app labels them on every screen. */
   practice: string[];
+  /** Today's free AI (OpenRouter free models + the studio's Workers AI share) is used up: the app shows how to connect her own OpenRouter. */
+  freeAiUsedUp?: boolean;
 }
 
 export interface Features {

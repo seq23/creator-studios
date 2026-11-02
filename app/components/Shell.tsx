@@ -11,6 +11,7 @@ import { Icon, type IconName } from "./Icon";
 import { Tour } from "./Tour";
 import { Wordmark } from "./Wordmark";
 import { PracticeBanner } from "./PracticeBanner";
+import { FreeAiNote } from "./FreeAiNote";
 import { studio } from "../lib/studio";
 import { get, post } from "../lib/api";
 import "../styles/photos.css";
@@ -144,6 +145,7 @@ export function Shell() {
       <main className="main" id="main">
         <BackLink />
         <PracticeBanner />
+        <FreeAiNote />
         <WhatsNewNote />
         <Outlet />
         <Tour />

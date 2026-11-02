@@ -46,6 +46,8 @@
   --text: var(--ink);
   --text-soft: var(--ink-soft);
   --text-muted: var(--muted);
+  --heading-color: inherit; /* a theme may colour page and section headings (ashly: her red) */
+  --wordmark-color: inherit; /* a theme may colour the wordmark name */
   --primary: var(--espresso);
   --primary-text: var(--ivory);
   --accent: var(--gold);

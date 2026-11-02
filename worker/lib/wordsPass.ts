@@ -16,6 +16,7 @@ import { readStudioRules } from "./studioRules";
 import { getConnectionSecret } from "./connections";
 import { getLlm } from "../services/openrouter";
 import { freeAi } from "./freeAi";
+import { DAILY_LIMIT_KEY } from "./freeAiState";
 import { lockedProfile } from "../routes/mediakit";
 import { contentRules } from "./photoPosts";
 import { textProblems } from "@shared/contentRules";
@@ -26,11 +27,11 @@ import { latestPlaybook } from "./niche";
 import { feelLine } from "@shared/videoFeel";
 
 /**
- * Clips per run (each is one free model call at most). 5 since 24 Oct 2026: three studios now carry the
- * host's OpenRouter key (Mercedes host-first), and 5 x 24 x 3 stays inside 80% of the studios' 500 a day
- * (validator free-quota-budgeted).
+ * Clips per run (each is one free model call at most). 3 since 2 Nov 2026: five studios now carry the
+ * host's OpenRouter key (Ashly Studio joined), and 3 x 24 x 5 = 360 stays inside 80% of the studios' 500
+ * a day (validator free-quota-budgeted). 72 clips a day per studio is still more than a dump makes.
  */
-export const WORDS_PER_RUN = 5;
+export const WORDS_PER_RUN = 3;
 /**
  * Only clips that can still be posted get words: New and approved. A rejected clip spent five of
  * the eight hourly tries on 24 Oct 2026 while the clips she would see waited; if she restores one,
@@ -186,8 +187,8 @@ export function nextUtcMidnight(now: Date): string {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)).toISOString();
 }
 
-/** The setting that holds "OpenRouter's free daily limit is reached until <iso>" (cleared on reset). */
-export const DAILY_LIMIT_KEY = "openrouter_daily_limit_until";
+/** The setting that holds "OpenRouter's free daily limit is reached until <iso>" (cleared on reset; read by freeAiState.ts). */
+export { DAILY_LIMIT_KEY };
 
 async function askModel(env: Env, system: string, user: string, state: { dailyUntil: string | null }, now: Date): Promise<{ text: string | null; miss: WordsMiss | null }> {
   let miss: WordsMiss | null = null;

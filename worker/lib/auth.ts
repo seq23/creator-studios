@@ -5,6 +5,7 @@ import { authMode } from "../env";
 import type { Features, Me } from "@shared/types";
 import { signSession, verifySessionCookie } from "./crypto";
 import { getSetting } from "./db";
+import { freeAiUsedUp } from "./freeAiState";
 import { newId, nowIso, addDays } from "./ids";
 import { DEFAULT_FEATURES } from "@shared/constants";
 
@@ -113,5 +114,5 @@ export async function requireOwner(c: C, next: Next) {
 /** The signed-in person as the app sees them (GET /api/me, and /api/auth/me in code mode). */
 export async function meFor(env: Env, user: SessionUser): Promise<Me> {
   const features = await getSetting<Features>(env.DB, "features", { ...DEFAULT_FEATURES });
-  return { id: user.id, email: user.email, role: user.role, appName: env.APP_NAME, ownerName: env.OWNER_NAME ?? "", features, authMode: authMode(env), practice: env.PRACTICE ?? [] };
+  return { id: user.id, email: user.email, role: user.role, appName: env.APP_NAME, ownerName: env.OWNER_NAME ?? "", features, authMode: authMode(env), practice: env.PRACTICE ?? [], freeAiUsedUp: await freeAiUsedUp(env) };
 }

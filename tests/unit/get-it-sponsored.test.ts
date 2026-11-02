@@ -227,7 +227,7 @@ describe("where it lives", () => {
     const cfg = JSON.parse(w.replace(/^\s*\/\/.*$/gm, "")) as { env: Record<string, { vars: Record<string, string> }> };
     const kinds = Object.fromEntries(Object.entries(cfg.env).map(([k, v]) => [k, v.vars.SPONSOR_KIND]));
     expect(kinds.sample1).toBe("event");
-    for (const slug of ["hadiyah", "mercedes", "sheila", "sample2", "sample3"]) expect(kinds[slug], slug).toBe("experience");
+    for (const slug of ["hadiyah", "mercedes", "sheila", "ashly", "sample3"]) expect(kinds[slug], slug).toBe("experience");
   });
   it("0036 rebuilds jobs keeping every row and adds 'sponsor'", () => {
     const db = new DatabaseSync(":memory:");

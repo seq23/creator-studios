@@ -20,4 +20,4 @@ schedule); see the notes below for what moved.
 
 ## Cloudflare crons (UTC)
 - See docs/OPERATIONS.md "Schedule (cron lanes)": the Monday lane is staggered per studio at 05:00 /
-  05:20 / 05:40 / 06:00 Central Standard Time (1 Nov 2026).
+  05:20 / 05:40 / 06:00 / 06:20 Central Standard Time (1 Nov 2026; Ashly 06:20 from 2 Nov 2026).

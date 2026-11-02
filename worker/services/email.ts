@@ -4,7 +4,7 @@
 //     This is the ONLY piece shared across studios (README "Platform sender").
 //   - every other email goes through the studio's OWN Resend (Setup → Email, stored encrypted;
 //     else, on a host-accounts studio only, the host's RESEND_API_KEY Worker secret from
-//     STUDIO_EMAIL_FROM with replies to the host: worker/lib/hostKeys.ts). Without one, Email is in practice mode: the message
+//     STUDIO_EMAIL_FROM with replies to the studio's owner: worker/lib/hostKeys.ts). Without one, Email is in practice mode: the message
 //     is recorded in emails_sent, never sent, and the health light says so.
 // With FAKE_SERVICES=1 nothing leaves the Worker; login codes come back to the caller so local
 // development and tests can log in without a mailbox.
@@ -14,6 +14,7 @@ import { newId } from "../lib/ids";
 import { setHealth } from "../lib/db";
 import { log } from "../lib/log";
 import { practice } from "../lib/practice";
+import { isBlockedHost } from "../lib/mailbox";
 
 export type EmailKind = "time_to_dump" | "clips_ready" | "posting_problem" | "connection_needs_you" | "weekly_recap" | "login_code" | "brief_ready" | "heads_up" | "niche_note";
 
@@ -46,10 +47,13 @@ export function senderFor(env: Pick<Env, "APP_NAME" | "RESEND_API_KEY" | "RESEND
 async function sendReal(env: Env, mail: OutgoingEmail): Promise<EmailResult> {
   const sender = senderFor(env, mail.kind);
   if (!sender.key) return { ok: false, providerId: null, error: sender.platform ? "The login email service is not set up on this studio." : "Resend is not connected." };
+  // Last line of defence (rulings 1 and 2 Nov 2026): a studio that may not mail the host developer
+  // never names her as the reply-to either, whatever set it.
+  const replyTo = sender.replyTo && !(mail.kind !== "login_code" && !mail.requested && isBlockedHost(env, sender.replyTo)) ? sender.replyTo : null;
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${sender.key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: sender.from, to: mail.to, subject: mail.subject, html: mail.html, text: mail.text, ...(sender.replyTo ? { reply_to: sender.replyTo } : {}) }),
+    body: JSON.stringify({ from: sender.from, to: mail.to, subject: mail.subject, html: mail.html, text: mail.text, ...(replyTo ? { reply_to: replyTo } : {}) }),
   });
   if (!res.ok) return { ok: false, providerId: null, error: resendRefusal(res.status, await res.text().catch(() => "")) };
   const data = (await res.json()) as { id?: string };
@@ -74,20 +78,19 @@ export function resendRefusal(status: number, body: string): string {
  * login code is re-addressed to NOTIFY_EMAIL alone; a login code still goes to the address typed on
  * the login page, so the owner can sign in.
  *
- * Then the host developer's own address (DEVELOPER_EMAIL) is taken off every notice, in every studio
- * (owner's ruling 1 Nov 2026: "I don't need creator studio emails at all, not even pnp studio"). That
- * ends the Porch & Party brief, clips-ready, weekly recap and posting-problem mail (its NOTIFY_EMAIL is
- * that address) and any copy to her from the client studios. Mail to the studio's own owner and
- * notify list is untouched. Kept: login codes, and a send she asked for by pressing a button
- * (`requested`, the [Test] heads-up). Pure.
+ * Then the host developer's own mailbox (DEVELOPER_EMAIL, in any spelling Gmail delivers: dots,
+ * +tag, capitals) is taken off every notice of every studio but Porch & Party. Owner's rulings:
+ * 1 Nov 2026 "I don't need creator studio emails at all, not even pnp studio", then 2 Nov 2026 "pnp
+ * is different since im running it u can keep that one" (worker/lib/mailbox.ts HOST_EMAIL_STUDIOS).
+ * Mail to the studio's own owner and notify list is untouched. Kept everywhere: login codes, and a
+ * send she asked for by pressing a button (`requested`, the [Test] heads-up). Pure.
  */
-export function routeRecipients(env: Pick<Env, "NOTIFY_EMAIL" | "DEVELOPER_EMAIL">, mail: Pick<OutgoingEmail, "kind" | "to" | "requested">): string[] {
+export function routeRecipients(env: Pick<Env, "NOTIFY_EMAIL" | "DEVELOPER_EMAIL" | "STUDIO_SLUG">, mail: Pick<OutgoingEmail, "kind" | "to" | "requested">): string[] {
   if (mail.kind === "login_code") return mail.to;
   const override = (env.NOTIFY_EMAIL ?? "").trim().toLowerCase();
   const to = override ? [override] : mail.to;
   if (mail.requested) return to;
-  const dev = (env.DEVELOPER_EMAIL ?? "").trim().toLowerCase();
-  return dev ? to.filter((a) => a.trim().toLowerCase() !== dev) : to;
+  return to.filter((a) => !isBlockedHost(env, a));
 }
 
 export async function sendEmail(env: Env, original: OutgoingEmail): Promise<EmailResult> {

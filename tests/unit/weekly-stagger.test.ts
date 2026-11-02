@@ -1,5 +1,5 @@
 // Schedule rebalance approved 1 Nov 2026: the live studios' Monday lanes are staggered 20 minutes
-// apart (05:00 / 05:20 / 05:40 / 06:00 Central Standard Time) instead of all firing at 12:00 UTC.
+// apart (05:00 / 05:20 / 05:40 / 06:00 Central Standard Time; Ashly Studio 06:20 from 2 Nov 2026) instead of all firing at 12:00 UTC.
 // Cloudflare crons are UTC; the registry carries each studio's weeklyCron, gen writes it into
 // wrangler.jsonc, and the Worker reads every such Monday cron as the weekly lane.
 import path from "node:path";
@@ -9,7 +9,7 @@ import { laneFor } from "@worker/crons/index";
 // @ts-expect-error plain .mjs module
 import { cronsFor, loadRegistry } from "../../scripts/studio.mjs";
 
-const WANT: Record<string, string> = { hadiyah: "0 11 * * 1", mercedes: "20 11 * * 1", sheila: "40 11 * * 1", sample1: "0 12 * * 1" };
+const WANT: Record<string, string> = { hadiyah: "0 11 * * 1", mercedes: "20 11 * * 1", sheila: "40 11 * * 1", sample1: "0 12 * * 1", ashly: "20 12 * * 1" };
 
 describe("Monday lanes, staggered", () => {
   const reg = loadRegistry(path.resolve(__dirname, "../.."));
