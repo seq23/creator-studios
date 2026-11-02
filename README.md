@@ -17,7 +17,7 @@ entry in the registry, `studios/<slug>.json`. `wrangler.jsonc` is generated from
 | --- | --- | --- | --- | --- |
 | Hadiyah Studio | `hadiyah` | https://hadiyah-studio.spryexecutiveos.com | host-accounts | deploy-time `OWNER_EMAIL` (see "Owner email") |
 | Porch & Party Studio (was Sample 1) | `sample1` | https://pnpstudio.spryexecutiveos.com (old sample1-studio address 301s here) | client | deploy-time `OWNER_EMAIL` (see "Owner email") |
-| Sample 2 Studio | `sample2` | https://sample2-studio.spryexecutiveos.com | client | claimed with its first-login link |
+| Ashly Studio (was Sample 2) | `ashly` | https://ashly-studio.spryexecutiveos.com (old sample2-studio address 301s here) | host-accounts (like Hadiyah, owner decision 2 Nov 2026) | deploy-time `OWNER_EMAIL` + a first-login link |
 | Sample 3 Studio | `sample3` | https://sample3-studio.spryexecutiveos.com | client | claimed with its first-login link |
 
 **Domains.** Each studio answers on its own `hostname` (a field in its registry entry), attached to
@@ -40,6 +40,10 @@ smoke proves the 301. Nothing else on the zone is touched (the apex site and the
   "slate" theme. **Sample 1 is Porch & Party Studio** (renamed in place 22 Oct 2026, owner's word):
   theme `porchandparty` matched to porchandparty901.com, its owner set from
   `<secrets dir>/sample1/OWNER_EMAIL`, practice mode until she connects her own accounts on Setup.
+
+**Ashly Studio** (slug `ashly`, 2 Nov 2026) took over Sample 2's Worker, D1 and R2 (their sample2 names
+kept, so nothing is orphaned) and runs exactly Hadiyah's split: the host's OpenRouter, Resend, Firecrawl,
+Hunter and job runner, everything else her own on Setup. Free: a favour, no revenue.
 
 ## Hadiyah: whose account runs what
 

@@ -10,7 +10,14 @@ list and setup are in `README.md`.
   footage dump has needed ~45. Batch calls and lean on the second free source rather than buying
   credits. (An account that once bought $10 of credit gets 1,000/day; a studio's own key may not.)
 - Each studio's Workers AI share is set in its registry entry; the shares must sum to **≤ 8,500 of
-  the account's free 10,000 daily neurons** (`tests/unit/free-ai.test.ts`).
+  the account's free 10,000 daily neurons** (`tests/unit/free-ai.test.ts`). Since 2 Nov 2026: Hadiyah
+  3,000, Porch & Party 2,500, Sheila 1,000, Mercedes 1,000, Ashly 1,000.
+- **When both free sources are spent for the day** every studio shows a calm note on every screen
+  (Setup included): "Today's free AI is used up. To keep going, connect your own OpenRouter account",
+  with the steps (`worker/lib/freeAiState.ts`, `app/components/FreeAiNote.tsx`; owner, 2 Nov 2026). A
+  studio's own pasted key is used first, at its own cost; the host's key never pays (free models only).
+- The hourly words pass takes `WORDS_PER_RUN` = 3 clips per studio (five studios carry the host's
+  OpenRouter key; validator `free-quota-budgeted`).
 
 ## Hostnames
 - A studio's old hostname stays attached via the registry's previous-hostnames list and **301s
@@ -26,24 +33,23 @@ list and setup are in `README.md`.
   08:30 CDT), and the **Monday lane** (recap email, stats, brand finder, brief adjust).
 - **The Monday lane is staggered per studio** (schedule rebalance, 1 Nov 2026), from each studio's
   `weeklyCron` in `studios/<slug>.json`: Hadiyah `0 11 * * 1` (05:00 CST), Mercedes `20 11 * * 1`
-  (05:20), Sheila `40 11 * * 1` (05:40), Porch & Party `0 12 * * 1` (06:00). Times are Central
+  (05:20), Sheila `40 11 * * 1` (05:40), Porch & Party `0 12 * * 1` (06:00), Ashly `20 12 * * 1` (06:20, from 2 Nov 2026). Times are Central
   Standard Time; while daylight time is on they run an hour later by the clock. Studios without a
   `weeklyCron` stay on `0 12 * * 1`. Pinned by `tests/unit/weekly-stagger.test.ts`.
 - GitHub Actions schedules (`e2e`, `parity`, `golden-set`) carry `timezone: America/Chicago`, so their
   times are Central all year: e2e 02:17, parity 09:17, golden-set Monday 01:23.
 
 ## Who gets studio email
-- **No studio notice goes to the host developer** (the `DEVELOPER_EMAIL` address), from any studio
-  (owner's ruling 1 Nov 2026: "I don't need creator studio emails at all, not even pnp studio").
-  `worker/services/email.ts routeRecipients` takes that address off every notice after the
-  Porch & Party `NOTIFY_EMAIL` re-addressing; Porch & Party's `NOTIFY_EMAIL` is that same address, so
-  P&P Studio's brief, clips-ready, weekly recap and posting-problem mail now goes to nobody (a logged
-  `email.suppressed`, never a red Email light).
+- **No studio notice goes to the host developer** (the `DEVELOPER_EMAIL` address, in any Gmail spelling),
+  from any studio but Porch & Party, and none names her as the reply-to (owner's rulings 1 Nov 2026: "I
+  don't need creator studio emails at all, not even pnp studio", and 2 Nov 2026: "pnp is different since
+  im running it u can keep that one"; `worker/lib/mailbox.ts`). A host-accounts studio's reply-to is its
+  own owner. **Porch & Party (sample1) mails her again** (its `NOTIFY_EMAIL`), replies to her.
+  `worker/services/email.ts routeRecipients` takes that mailbox off every notice of every other studio
+  (a studio left with nobody logs `email.suppressed`, never a red Email light).
 - **Kept:** login codes (she still signs in), a `[Test]` heads-up she presses for herself, and every
-  email to the studio's own owner and notify list (Mercedes, Sheila, Hadiyah get theirs as before).
-- Pinned by `tests/unit/notify-override.test.ts` ("the host developer gets no studio notices").
-- The Porch & Party Monday lane keeps its cron: it also refreshes stats, the brand finder and the
-  brief, so only its recap email stops, not the lane.
+  email to the studio's own owner and notify list (Mercedes, Sheila, Hadiyah, Ashly get theirs).
+- Pinned by `tests/unit/notify-override.test.ts` ("who mails the host developer").
 
 ## Schedule
 - Every scheduled job, in Central time, is listed in `docs/SCHEDULE.md` (rebalanced 1 Nov 2026).

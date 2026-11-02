@@ -33,24 +33,27 @@ const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 describe("the registry", () => {
   it("has Hadiyah (host accounts), Porch & Party (host accounts for email, AI writing and jobs since 22 Oct 2026; was Sample 1) and two sample studios (clients) at the agreed URLs", () => {
     const by = Object.fromEntries(reg.studios.map((s: { slug: string }) => [s.slug, s]));
-    expect(Object.keys(by).sort()).toEqual(["hadiyah", "mercedes", "sample1", "sample2", "sample3", "sheila"]);
+    expect(Object.keys(by).sort()).toEqual(["ashly", "hadiyah", "mercedes", "sample1", "sample3", "sheila"]);
     // Owner's word 23 Oct 2026 ("One codebase"): Sheila's and Mercedes' studios joined with their own Worker, D1, R2 and data; Sheila got a proper address (her workers.dev link 301s to it), Mercedes keeps her domain.
     expect(by.sheila).toMatchObject({ kind: "host-accounts", appName: "Sheila Studio", theme: "sheila", hostname: "sheila-studio.spryexecutiveos.com", worker: "sheilastudio", workersDevUrl: "https://sheilastudio.seq-taylor.workers.dev", d1: { name: "sheila-creator-dashboard-db", id: "f2ddb225-deb9-42e6-b77c-3a122621792f" }, r2: { bucket: "sheila-creator-dashboard-files" }, githubRepo: "seq23/creator-studios", jobSecretOnHostRepo: true, hostKeys: ["RESEND_API_KEY", "STUDIO_EMAIL_FROM"] });
     expect(by.mercedes).toMatchObject({ kind: "host-accounts", appName: "Mercedes Studio", theme: "mercedes", hostname: "dashboard.justbeingmercedes.com", worker: "mercedesstudio", d1: { name: "mercedes-creator-dashboard-db", id: "ab67b7cc-20fc-42da-a48f-f9d7c4b11e76" }, r2: { bucket: "mercedes-creator-dashboard-files" }, githubRepo: "seq23/creator-studios", jobSecretOnHostRepo: true, hostKeys: ["OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM"], openrouterOrder: "host-first" });
     expect(by.hadiyah).toMatchObject({ kind: "host-accounts", appName: "Hadiyah Studio", ownerName: "Hadiyah", theme: "hadiyah", hostname: "hadiyah-studio.spryexecutiveos.com", url: "https://hadiyah-studio.spryexecutiveos.com", workersDevUrl: "https://hadiyahstudio.seq-taylor.workers.dev" });
     expect(by.hadiyah).not.toHaveProperty("previousHostnames");
+    // Owner approved 2 Nov 2026: Sample 2 became Ashly Studio, set up like Hadiyah (the host's five keys and job runner).
+    // The Worker, D1 and R2 keep their sample2 names (the data stays); the old sample2 hostname 301s to the new one.
+    expect(by.ashly).toMatchObject({ kind: "host-accounts", appName: "Ashly Studio", ownerName: "Ashly", theme: "ashly", hostname: "ashly-studio.spryexecutiveos.com", url: "https://ashly-studio.spryexecutiveos.com", previousHostnames: ["sample2-studio.spryexecutiveos.com"], worker: "sample2studio", d1: { name: "creator-studios-sample2-db", id: "b451bb67-3360-4e39-b09c-e153432687c0" }, r2: { bucket: "creator-studios-sample2-files" }, githubRepo: "seq23/creator-studios", jobSecretOnHostRepo: true, hostKeys: ["OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM", "FIRECRAWL_API_KEY", "HUNTER_API_KEY"], openrouterOrder: "pasted-first" });
     // Sample 1 renamed in place (22 Oct 2026): new name, host and theme; the slug, Worker, D1 and R2 keep their names (the data stays).
     expect(by.sample1).toMatchObject({ kind: "host-accounts", appName: "Porch & Party Studio", theme: "porchandparty", hostname: "pnpstudio.spryexecutiveos.com", url: "https://pnpstudio.spryexecutiveos.com", previousHostnames: ["sample1-studio.spryexecutiveos.com"], previousUrls: ["https://sample1-studio.spryexecutiveos.com"], worker: "sample1studio", workersDevUrl: "https://sample1studio.seq-taylor.workers.dev", d1: { name: "creator-studios-sample1-db", id: "b7f94a59-1be8-436d-a022-fcfa92b5358a" }, r2: { bucket: "creator-studios-sample1-files" } });
     // Owner's word 22 Oct 2026 ("same as Hadiyah"): the host's job runner, Resend and OpenRouter, plus its
     // own Hugging Face token; none of the host's YouTube, Google, Firecrawl or Hunter.
     expect(by.sample1).toMatchObject({ githubRepo: "seq23/creator-studios", jobSecretOnHostRepo: true, hostKeys: ["OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM"] });
     expect(Object.keys(by.sample1.hostSecrets).filter((k) => !k.startsWith("_")).sort()).toEqual(["GITHUB_DISPATCH_TOKEN", "HF_TOKEN", "NOTIFY_EMAIL", "OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM"]);
-    for (const n of [2, 3]) {
+    for (const n of [3]) {
       expect(by[`sample${n}`], `sample${n}`).not.toHaveProperty("githubRepo");
       expect(by[`sample${n}`], `sample${n}`).not.toHaveProperty("hostSecrets");
       expect(by[`sample${n}`], `sample${n}`).not.toHaveProperty("hostKeys");
     }
-    for (const n of [2, 3]) expect(by[`sample${n}`]).toMatchObject({ kind: "client", appName: `Sample ${n} Studio`, theme: "slate", hostname: `sample${n}-studio.spryexecutiveos.com`, url: `https://sample${n}-studio.spryexecutiveos.com`, workersDevUrl: `https://sample${n}studio.seq-taylor.workers.dev` });
+    for (const n of [3]) expect(by[`sample${n}`]).toMatchObject({ kind: "client", appName: `Sample ${n} Studio`, theme: "slate", hostname: `sample${n}-studio.spryexecutiveos.com`, url: `https://sample${n}-studio.spryexecutiveos.com`, workersDevUrl: `https://sample${n}studio.seq-taylor.workers.dev` });
     for (const s of reg.studios) expect(s, s.slug).not.toHaveProperty("ownerEmail");
   });
 
@@ -70,7 +73,7 @@ describe("the registry", () => {
       else expect(e.vars).not.toHaveProperty("PREVIOUS_HOSTNAMES");
       expect(e.workers_dev).toBe(true);
       expect(e.vars).not.toHaveProperty("OWNER_EMAIL");
-      expect(JSON.parse(e.vars.STUDIO_THEME).wordmark.name).toBe(s.slug === "hadiyah" ? "hadiyah" : s.slug === "sample1" ? "Porch & Party" : s.appName);
+      expect(JSON.parse(e.vars.STUDIO_THEME).wordmark.name).toBe(s.slug === "hadiyah" ? "hadiyah" : s.slug === "ashly" ? "ashly" : s.slug === "sample1" ? "Porch & Party" : s.appName);
     }
     expect(themeFor(reg.studios.find((s: { slug: string }) => s.slug === "hadiyah"), reg.themes).light["--font-display"]).toMatch(/Young Serif/);
     // Porch & Party matches porchandparty901.com: Cormorant Garamond + Inter, the Great Vibes logo script, its terracotta.
@@ -79,8 +82,8 @@ describe("the registry", () => {
     expect(pnp.light).toMatchObject({ "--gold": "#aa5c40", "--cream": "#faf7f2", "--espresso": "#3b302a" });
     expect(pnp.light["--font-wordmark"]).toMatch(/Great Vibes/);
     expect(pnp.wordmark).toEqual({ name: "Porch & Party", tag: "studio" });
-    // Samples 2 and 3 stay on the neutral sample theme.
-    for (const n of [2, 3]) expect(reg.studios.find((s: { slug: string }) => s.slug === `sample${n}`).theme).toBe("slate");
+    // Sample 3 stays on the neutral sample theme (Sample 2 became Ashly Studio, 2 Nov 2026).
+    for (const n of [3]) expect(reg.studios.find((s: { slug: string }) => s.slug === `sample${n}`).theme).toBe("slate");
   });
 
   it("job dispatches name the studio, so the workflow picks JOB_SHARED_SECRET_<SLUG>", () => {
@@ -118,8 +121,7 @@ describe("guard (a): a client studio carries none of the host's identifiers", ()
     const bad = clone(reg);
     const s3a = bad.studios.find((s: { slug: string }) => s.slug === "sample3");
     s3a.ownerEmail = `sequoia@${["we", "st", "pe", "ek"].join("")}.ventures`;
-    const s2 = bad.studios.find((s: { slug: string }) => s.slug === "sample2");
-    s2.appName = "Sheila's other studio";
+    s3a.appName = "Sheila's other studio";
     const s3 = bad.studios.find((s: { slug: string }) => s.slug === "sample3");
     s3.hostSecrets = { YOUTUBE_API_KEY: "file:YOUTUBE_API_KEY" };
     s3.wordmark = { tag: "UC5vZFZc15DIM6IrFwFgAECg" };
@@ -127,7 +129,7 @@ describe("guard (a): a client studio carries none of the host's identifiers", ()
     const text = r.problems.join("\n");
     expect(text).toMatch(/studios\/sample3\.json: the host's former business name or address/);
     expect(text).toMatch(/studios\/sample3\.json: the host's email/);
-    expect(text).toMatch(/studios\/sample2\.json: another client's studio \(Sheila\)/);
+    expect(text).toMatch(/studios\/sample3\.json: another client's studio \(Sheila\)/);
     expect(text).toMatch(/env\.sample3 would bind the host's key YOUTUBE_API_KEY as a secret/);
     expect(text).toMatch(/a host channel or account id/);
   });
@@ -159,17 +161,17 @@ describe("guard (b): studio A's D1 and R2 are never studio B's", () => {
   it("negative proof: a shared D1, a shared bucket, a studio env pointing at another's storage, a shared Worker all fail", () => {
     const studios = clone(reg.studios);
     const at = (slug: string) => studios.find((s: { slug: string }) => s.slug === slug);
-    at("sample2").d1.name = at("sample1").d1.name;
+    at("ashly").d1.name = at("sample1").d1.name;
     at("sample3").r2.bucket = at("hadiyah").r2.bucket;
     const c = cfg();
     c.env.sample1.d1_databases[0].database_name = reg.studios.find((s: { slug: string }) => s.slug === "hadiyah").d1.name;
-    c.env.sample2.r2_buckets.push({ binding: "OTHER", bucket_name: "creator-studios-hadiyah-files" });
+    c.env.ashly.r2_buckets.push({ binding: "OTHER", bucket_name: "creator-studios-hadiyah-files" });
     const r = checkIsolation(studios, c);
     const text = r.problems.join("\n");
-    expect(text).toMatch(/D1 name creator-studios-sample1-db is shared by sample1 and sample2/);
+    expect(text).toMatch(/D1 name creator-studios-sample1-db is shared by ashly and sample1/);
     expect(text).toMatch(/R2 bucket creator-studios-hadiyah-files is shared by hadiyah and sample3/);
     expect(text).toMatch(/env\.sample1: DB must bind exactly its own D1/);
-    expect(text).toMatch(/env\.sample2: FILES must bind exactly its own R2/);
+    expect(text).toMatch(/env\.ashly: FILES must bind exactly its own R2/);
     const w = clone(reg.studios);
     w.find((s: { slug: string }) => s.slug === "sample1").worker = w.find((s: { slug: string }) => s.slug === "hadiyah").worker;
     expect(checkIsolation(w, cfg()).problems.join("\n")).toMatch(/Worker hadiyahstudio is shared by hadiyah and sample1/);
@@ -272,9 +274,9 @@ describe("the owner email and the platform sender are never committed config", (
     expect(checkEntries([{ ...s0, previousHostnames: [s0.hostname] }], reg.themes).join("\n")).toMatch(/is its current hostname/);
     expect(checkHostsUnique(reg.studios)).toEqual([]);
     const s1 = reg.studios.find((s: { slug: string }) => s.slug === "sample1");
-    const stolen = reg.studios.map((s: { slug: string }) => (s.slug === "sample2" ? { ...clone(s), previousHostnames: [s1.hostname] } : s));
+    const stolen = reg.studios.map((s: { slug: string }) => (s.slug === "ashly" ? { ...clone(s), previousHostnames: [s1.hostname] } : s));
     expect(checkHostsUnique(stolen).join("\n")).toMatch(/hostname pnpstudio\.spryexecutiveos\.com is used by more than one studio/);
-    const reused = reg.studios.map((s: { slug: string }) => (s.slug === "sample2" ? { ...clone(s), hostname: s1.previousHostnames[0] } : s));
+    const reused = reg.studios.map((s: { slug: string }) => (s.slug === "ashly" ? { ...clone(s), hostname: s1.previousHostnames[0] } : s));
     expect(checkHostsUnique(reused).join("\n")).toMatch(/sample1-studio\.spryexecutiveos\.com is used by more than one studio/);
   });
 });

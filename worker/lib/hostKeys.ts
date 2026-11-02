@@ -18,6 +18,7 @@
 // (worker/services/openrouter.ts, jobs/ai.py + jobs/common.py). Every other studio: her pasted key
 // wins, the host's stands in only when she has none.
 import type { Env } from "../env";
+import { studioReplyTo } from "./mailbox";
 
 /** Worker secrets only a host-accounts studio may carry (scripts/studio.mjs secretPlan refuses them for a client). */
 export const HOST_FALLBACK_SECRETS = ["OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM", "FIRECRAWL_API_KEY", "HUNTER_API_KEY"] as const;
@@ -40,8 +41,9 @@ export function allowedHostKeys(env: Pick<Env, "STUDIO_KIND" | "HOST_KEYS">): Se
 /**
  * The env a request starts from, before stored (Setup) keys are laid over it. Pure.
  *  - client studio: the host fallback secrets are removed, whatever the Worker holds.
- *  - host-accounts studio: the host's Resend sends from STUDIO_EMAIL_FROM, with replies going to
- *    the host developer (DEVELOPER_EMAIL), whose account the sender is.
+ *  - host-accounts studio: the host's Resend sends from STUDIO_EMAIL_FROM. Replies go to the studio's
+ *    own owner (OWNER_EMAIL), never the host developer, except Porch & Party, which she runs
+ *    (owner's rulings 1 and 2 Nov 2026, worker/lib/mailbox.ts studioReplyTo).
  */
 export function hostBase(env: Env): Env {
   const out: Env = { ...env };
@@ -53,7 +55,9 @@ export function hostBase(env: Env): Env {
   }
   if (out.RESEND_API_KEY) {
     if (out.STUDIO_EMAIL_FROM && !out.RESEND_FROM) out.RESEND_FROM = out.STUDIO_EMAIL_FROM;
-    if (out.DEVELOPER_EMAIL) out.RESEND_REPLY_TO = out.DEVELOPER_EMAIL;
+    const replyTo = studioReplyTo(out);
+    if (replyTo) out.RESEND_REPLY_TO = replyTo;
+    else delete out.RESEND_REPLY_TO;
   }
   return out;
 }

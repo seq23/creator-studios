@@ -4,6 +4,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "@worker/env";
 import { routeRecipients, sendEmail, type EmailKind } from "@worker/services/email";
+import { hostBase } from "@worker/lib/hostKeys";
 // @ts-expect-error plain .mjs module
 import { loadRegistry, secretPlan } from "../../scripts/studio.mjs";
 import path from "node:path";
@@ -61,45 +62,94 @@ describe("NOTIFY_EMAIL: every studio email to the host only", () => {
   });
 });
 
-// Owner's ruling 1 Nov 2026: "I don't need creator studio emails at all, not even pnp studio." The host
-// developer (DEVELOPER_EMAIL) gets no studio notice from any studio. Porch & Party's NOTIFY_EMAIL is that
-// same address, so P&P Studio sends no notice to her at all; the login code still reaches her.
-describe("the host developer gets no studio notices (1 Nov 2026)", () => {
-  const DEV = "dev@dev.example";
+// Owner's rulings: 1 Nov 2026 "I don't need creator studio emails at all, not even pnp studio", then
+// 2 Nov 2026 "pnp is different since im running it u can keep that one". Porch & Party Studio (sample1,
+// whose NOTIFY_EMAIL is her address) mails her again; every other studio never addresses the host
+// developer (DEVELOPER_EMAIL), not as a recipient and not as the reply-to, in any Gmail spelling.
+// worker/lib/mailbox.ts, worker/services/email.ts routeRecipients, worker/lib/hostKeys.ts hostBase.
+describe("who mails the host developer (1 and 2 Nov 2026)", () => {
+  const G = ["gmail", "com"].join(".");
+  const DEV = `dev.host@${G}`;
+  // Every spelling Gmail delivers to the same mailbox: capitals, dots moved, a +tag, googlemail.
+  const VARIANTS = [DEV, ` DEV.HOST@${G.toUpperCase()} `, `devhost@${G}`, `d.e.v.h.o.s.t@${G}`, `dev.host+studio@${G}`, `devhost@google${"mail"}.com`, `Dev Host <dev.host+x@${G}>`];
   const CLIENT = "client@client.example";
+  /** The test's own reading of "is this her mailbox" (not the code's), so the check is independent. */
+  const isDev = (a: string) => {
+    const m = /<([^>]+)>/.exec(a)?.[1] ?? a;
+    const [local, domain] = m.trim().toLowerCase().split("@");
+    return /^(gmail|googlemail)\.com$/.test(domain ?? "") && local.split("+")[0].replace(/\./g, "") === "devhost";
+  };
+  const reg = loadRegistry(path.resolve(__dirname, "../.."));
+  const others = reg.studios.map((s: { slug: string }) => s.slug).filter((slug: string) => slug !== "sample1");
 
-  it("sample1 (NOTIFY_EMAIL is the developer's address): no non-sign-in mail reaches her, of any kind", async () => {
-    const e = env({ NOTIFY_EMAIL: DEV, DEVELOPER_EMAIL: ` ${DEV.toUpperCase()} ` } as Partial<Env>);
-    for (const kind of KINDS) {
-      expect(routeRecipients(e, { kind, to: [DEV, OWNER] }), kind).toEqual([]);
-      const r = await sendEmail(e, { kind, to: [DEV], subject: "s", html: "<p>x</p>", text: "x" });
-      expect(r.ok, kind).toBe(true);
-    }
-    expect(rows()).toEqual([]);
-    await sendEmail(e, { kind: "login_code", to: [DEV], subject: "code", html: "<p>1</p>", text: "1" });
-    expect(rows()).toEqual([{ kind: "login_code", to_email: DEV }]);
+  async function realSends(over: Partial<Env>) {
+    const calls: { to: string[]; reply_to?: string }[] = [];
+    vi.stubGlobal("fetch", async (_u: string, init?: RequestInit) => {
+      calls.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({ id: "em_1" }), { status: 200 });
+    });
+    const e = env({ FAKE_SERVICES: "0", RESEND_API_KEY: "re_x", PRACTICE: [], DEVELOPER_EMAIL: DEV, ...over } as Partial<Env>);
+    for (const kind of KINDS) await sendEmail(e, { kind, to: [...VARIANTS, CLIENT], subject: "s", html: "<p>x</p>", text: "x" });
+    return calls;
+  }
+
+  it("the test's own mailbox check sees every variant, and nothing else", () => {
+    for (const v of VARIANTS) expect(isDev(v), v).toBe(true);
+    for (const v of [CLIENT, `devhost@other.example`, `devhosts@${G}`]) expect(isDev(v), v).toBe(false);
   });
 
-  it("no Resend call is made when routing leaves nobody, and the Email light is not turned red", async () => {
+  it("every studio but Porch & Party: no notice and no reply-to addresses her, whatever spelling or reply-to it was handed", async () => {
+    expect(others.length).toBeGreaterThanOrEqual(5);
+    expect(others).toContain("ashly");
+    for (const slug of others) {
+      for (const replyTo of [...VARIANTS, undefined]) {
+        const calls = await realSends({ STUDIO_SLUG: slug, RESEND_REPLY_TO: replyTo } as Partial<Env>);
+        expect(calls, slug).toHaveLength(KINDS.length);
+        for (const c of calls) {
+          expect(c.to.filter(isDev), `${slug} to`).toEqual([]);
+          expect(c.to, slug).toEqual([CLIENT]);
+          expect(c.reply_to && isDev(c.reply_to) ? c.reply_to : null, `${slug} reply-to`).toBeNull();
+        }
+      }
+    }
+  });
+
+  it("a host-accounts studio's reply-to is its own owner, or none when the owner address is hers; never her", () => {
+    for (const slug of others) {
+      const base = { STUDIO_SLUG: slug, STUDIO_KIND: "host-accounts", HOST_KEYS: "RESEND_API_KEY,STUDIO_EMAIL_FROM", RESEND_API_KEY: "re_x", STUDIO_EMAIL_FROM: "S <s@mail.example>", DEVELOPER_EMAIL: DEV } as unknown as Env;
+      expect(hostBase({ ...base, OWNER_EMAIL: OWNER }).RESEND_REPLY_TO, slug).toBe(OWNER);
+      for (const v of VARIANTS) expect(hostBase({ ...base, OWNER_EMAIL: v }).RESEND_REPLY_TO, `${slug} ${v}`).toBeUndefined();
+    }
+  });
+
+  it("negative proof, Porch & Party (sample1): the same sends DO reach her, as the 2 Nov ruling says, so the check above can see her", async () => {
+    const calls = await realSends({ STUDIO_SLUG: "sample1", NOTIFY_EMAIL: DEV, RESEND_REPLY_TO: DEV } as Partial<Env>);
+    expect(calls).toHaveLength(KINDS.length);
+    for (const c of calls) {
+      expect(c.to).toEqual([DEV]);
+      expect(c.reply_to).toBe(DEV);
+    }
+    const base = { STUDIO_SLUG: "sample1", STUDIO_KIND: "host-accounts", HOST_KEYS: "RESEND_API_KEY,STUDIO_EMAIL_FROM", RESEND_API_KEY: "re_x", STUDIO_EMAIL_FROM: "S <s@mail.example>", DEVELOPER_EMAIL: DEV, OWNER_EMAIL: OWNER } as unknown as Env;
+    expect(hostBase(base).RESEND_REPLY_TO).toBe(DEV);
+    for (const kind of KINDS) expect(routeRecipients({ STUDIO_SLUG: "sample1", NOTIFY_EMAIL: DEV, DEVELOPER_EMAIL: DEV }, { kind, to: [OWNER] }), kind).toEqual([DEV]);
+  });
+
+  it("on any other studio a NOTIFY_EMAIL that is hers leaves nobody: no Resend call, and the Email light is not turned red", async () => {
     const calls: unknown[] = [];
     vi.stubGlobal("fetch", async (_u: string, init?: RequestInit) => {
       calls.push(init?.body);
       return new Response(JSON.stringify({ id: "em_1" }), { status: 200 });
     });
-    const e = env({ FAKE_SERVICES: "0", RESEND_API_KEY: "re_x", NOTIFY_EMAIL: DEV, DEVELOPER_EMAIL: DEV, PRACTICE: [] } as Partial<Env>);
+    const e = env({ FAKE_SERVICES: "0", RESEND_API_KEY: "re_x", STUDIO_SLUG: "ashly", NOTIFY_EMAIL: `devhost+n@${G}`, DEVELOPER_EMAIL: DEV, PRACTICE: [] } as Partial<Env>);
     for (const kind of KINDS) await sendEmail(e, { kind, to: [DEV], subject: "s", html: "<p>x</p>", text: "x" });
     expect(calls).toEqual([]);
     const red = d.raw.prepare("SELECT COUNT(*) AS n FROM health WHERE light = 'red'").get() as { n: number } | undefined;
     expect(red?.n ?? 0).toBe(0);
   });
 
-  it("client studios: the client still gets every notice; only the developer's copy goes", () => {
-    for (const kind of KINDS) expect(routeRecipients({ DEVELOPER_EMAIL: DEV }, { kind, to: [CLIENT, DEV] }), kind).toEqual([CLIENT]);
-    expect(routeRecipients({ DEVELOPER_EMAIL: DEV }, { kind: "login_code", to: [DEV] })).toEqual([DEV]);
-  });
-
-  it("a send she asks for by pressing a button (the [Test] heads-up) still reaches her", () => {
-    expect(routeRecipients({ DEVELOPER_EMAIL: DEV }, { kind: "heads_up", to: [DEV], requested: true })).toEqual([DEV]);
-    expect(routeRecipients({ DEVELOPER_EMAIL: DEV }, { kind: "heads_up", to: [DEV] })).toEqual([]);
+  it("kept everywhere: her login code, and a send she asks for by pressing a button (the [Test] heads-up)", () => {
+    expect(routeRecipients({ STUDIO_SLUG: "ashly", DEVELOPER_EMAIL: DEV }, { kind: "login_code", to: [DEV] })).toEqual([DEV]);
+    expect(routeRecipients({ STUDIO_SLUG: "ashly", DEVELOPER_EMAIL: DEV }, { kind: "heads_up", to: [DEV], requested: true })).toEqual([DEV]);
+    expect(routeRecipients({ STUDIO_SLUG: "ashly", DEVELOPER_EMAIL: DEV }, { kind: "heads_up", to: [DEV] })).toEqual([]);
   });
 });

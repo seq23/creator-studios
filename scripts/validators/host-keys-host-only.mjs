@@ -1,6 +1,7 @@
 // The host's personal OpenRouter, Resend, Firecrawl and Hunter run Hadiyah's studio (owner decision 7 Oct 2026),
 // the host's Resend and OpenRouter run Porch & Party Studio (slug sample1; owner's word 22 Oct 2026, "same as
-// Hadiyah": studio email + AI writing + the host's job runner), and NO other studio: Sample 2/3 carry none.
+// Hadiyah": studio email + AI writing + the host's job runner), Ashly Studio (owner decision 2 Nov 2026, like Hadiyah),
+// and NO other studio: Sample 3 carries none.
 // The exact list per studio is PINNED below (ALLOWED): adding a studio or a key to it is a code change with
 // the owner's decision in its comment, never a registry edit alone. Checks:
 //   - the studios that are host-accounts are exactly the pinned slugs, and each one's hostKeys, secret plan
@@ -31,6 +32,8 @@ export const ALLOWED = Object.freeze({
   // Owner's word 24 Oct 2026: Mercedes's AI writing runs on the host's OpenRouter FIRST (ORDER below),
   // with her own pasted key as the backup.
   mercedes: ["OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM"],
+  // owner decision 2 Nov 2026: Ashly Studio uses the host's keys like Hadiyah
+  ashly: ["OPENROUTER_API_KEY", "RESEND_API_KEY", "STUDIO_EMAIL_FROM", "FIRECRAWL_API_KEY", "HUNTER_API_KEY"],
 });
 
 /** Pinned: the studios whose host OpenRouter key goes FIRST, her pasted key the backup. Every other studio: pasted wins. */

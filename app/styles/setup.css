@@ -15,6 +15,34 @@
   color: var(--text-soft);
   font-size: var(--text-sm);
 }
+.free-ai-note {
+  margin: 0 0 var(--space-md);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius);
+  background: var(--gold-faint);
+}
+.free-ai-line {
+  font-weight: 600;
+}
+.free-ai-sub {
+  margin-top: var(--space-2xs);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+.free-ai-steps {
+  margin: var(--space-xs) 0 0;
+  padding-left: 1.4em;
+}
+.free-ai-steps li + li {
+  margin-top: var(--space-2xs);
+}
+.free-ai-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs) var(--space-xs);
+  margin-top: var(--space-xs);
+}
 .setup-progress {
   margin: 0 0 var(--space-sm);
   color: var(--text-muted);
@@ -98,6 +126,7 @@
   line-height: var(--lh-tight);
 }
 .wordmark-name {
+  color: var(--wordmark-color);
   font-family: var(--font-wordmark);
   font-size: var(--text-wordmark);
   letter-spacing: var(--wordmark-tracking);

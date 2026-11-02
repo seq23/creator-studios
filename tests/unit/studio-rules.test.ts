@@ -27,7 +27,7 @@ describe("Porch & Party's rules, exactly as the owner ruled", () => {
     expect(r.prices).toBe(false);
   });
   it("every real studio has its own rules; the others have NO call to action at all (opt-in, owner 23 Oct 2026) and no link", () => {
-    for (const slug of ["hadiyah", "sheila", "mercedes", "sample2", "sample3"]) {
+    for (const slug of ["hadiyah", "sheila", "mercedes", "ashly", "sample3"]) {
       expect(reg(slug).studioRules, slug).toBeTruthy();
       const r = studioRules(varOf(slug), null);
       expect(r).toMatchObject({ cta_phrases: [], cta_link: "", ai_note: "ai_images", bar: 70, prices: false });
