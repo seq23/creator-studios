@@ -39,6 +39,30 @@ export interface RewriteResult {
   waiting: number;
   rerenders: number;
   rerender_failed: number;
+  /** Clips that could not be made again: an original upload they are cut from was cleared (named, never a 500). */
+  source_cleared: number;
+  /** The named state for source_cleared, in plain words; null when none. */
+  source_cleared_note: string | null;
+}
+
+/** The named state (owner's coordinator, 7 Nov 2026: 17 re-renders 500'd on purged originals). */
+export const SOURCE_CLEARED_NOTE = "The original upload was cleared, so this clip can't be made again. Re-upload the original to rebuild it.";
+
+/** Every upload a clip is cut from (its own and each part's) is still stored. */
+async function sourcesKept(env: Env, clipId: string): Promise<boolean> {
+  const c = await env.DB.prepare("SELECT c.part_assets, a.raw_deleted_at FROM clips c JOIN assets a ON a.id = c.asset_id WHERE c.id = ?").bind(clipId).first<{ part_assets: string | null; raw_deleted_at: string | null }>();
+  if (!c || c.raw_deleted_at) return false;
+  let parts: unknown = null;
+  try {
+    parts = JSON.parse(c.part_assets ?? "null");
+  } catch {
+    parts = null;
+  }
+  for (const id of Array.isArray(parts) ? [...new Set(parts.map(String))] : []) {
+    const a = await env.DB.prepare("SELECT raw_deleted_at FROM assets WHERE id = ?").bind(id).first<{ raw_deleted_at: string | null }>();
+    if (!a || a.raw_deleted_at) return false;
+  }
+  return true;
 }
 
 export async function rewriteDumpWords(env: Env, dumpId: string, numbers: number[] | null, rerenderAll = false, rerenderOnly = false): Promise<RewriteResult | null> {
@@ -65,7 +89,14 @@ export async function rewriteDumpWords(env: Env, dumpId: string, numbers: number
   }
   let rerenders = 0;
   let failed = 0;
+  let cleared = 0;
   for (const b of burned) {
+    // No original left to cut from: a job would only fail ("clip source cleared"). Say so instead.
+    if (!(await sourcesKept(env, b.id))) {
+      await env.DB.prepare("UPDATE clips SET rerender_error = ? WHERE id = ?").bind(SOURCE_CLEARED_NOTE, b.id).run();
+      cleared++;
+      continue;
+    }
     // Same look, same moment: only the words on the picture change (applyRerender swaps the file in).
     await env.DB.prepare("UPDATE clips SET pending_look = ?, pending_layout = layout, pending_music = NULL, rerender_error = NULL WHERE id = ? AND rerender_job_id IS NULL").bind(b.look, b.id).run();
     const job = await dispatchJob(env, "cut", `${dumpId}/${b.id}`);
@@ -83,5 +114,5 @@ export async function rewriteDumpWords(env: Env, dumpId: string, numbers: number
   const r = rerenderOnly ? null : await wordsPass(env, new Date(), { deadline: Date.now() + OPS_WORDS_BUDGET_MS });
   const written = r?.written ?? 0;
   const waiting = r?.waiting ?? 0;
-  return { cleared: rerenderOnly ? 0 : targets.length, written, waiting, rerenders, rerender_failed: failed };
+  return { cleared: rerenderOnly ? 0 : targets.length, written, waiting, rerenders, rerender_failed: failed, source_cleared: cleared, source_cleared_note: cleared ? SOURCE_CLEARED_NOTE : null };
 }

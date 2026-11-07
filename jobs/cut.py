@@ -194,6 +194,18 @@ def is_heif(path: Path) -> bool:
     return len(head) >= 12 and head[4:8] == b"ftyp" and any(b in head[8:32] for b in HEIF_BRANDS)
 
 
+def is_photo_file(path: Path) -> bool:
+    """A still picture by its content (a re-render knows only the storage key): HEIC/AVIF, or a file
+    ffprobe reads as one frame with no real duration (JPEG, PNG, WebP)."""
+    if is_heif(path):
+        return True
+    try:
+        info = probe(path)
+    except Exception:  # noqa: BLE001
+        return False
+    return bool(info.get("has_video")) and not info.get("has_audio") and float(info.get("duration") or 0) <= 0.1
+
+
 def heif_as_jpeg(src: Path) -> Path:
     """An iPhone HEIC as a full-size JPEG, turned the right way up, for ffmpeg builds with no HEIF
     reader (the job runner's: 15 of 15 iPhone photos in one dump were "unreadable", 23 Oct 2026).
@@ -2309,7 +2321,14 @@ def rerender_clip(spec: dict[str, Any], work: Path, download: Downloader, upload
         lo = max(0.0, min(s for s, _e in spans) - 0.5)
         hi = max(e for _s, e in spans) + 0.5
         norm = work / f"norm_{i}.mp4"
-        info = normalize(raw, norm, (lo, hi))
+        if is_photo_file(raw):
+            # A photo part (a moving-photo clip, a photo in a planned clip): made into the same slow-pan
+            # shot the cut made, from 0, long enough for every stretch (7 Nov 2026: 17 re-renders of
+            # photo clips failed with "no video stream").
+            lo = 0.0
+            info = photo_video(raw, norm, max(PHOTO_SECONDS, hi))
+        else:
+            info = normalize(raw, norm, (lo, hi))
         raw.unlink(missing_ok=True)
         wav = work / f"audio_{i}.wav"
         extract_wav(norm, wav)
