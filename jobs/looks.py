@@ -295,14 +295,17 @@ def build_ass(words: list[Word], hook: str, opts: dict[str, Any], b: Branding, d
     lines.append(f"Style: Cta,{f},{LINK_SIZE},{paper},{paper},{ink},{ink},-1,0,0,0,100,100,0,0,3,16,0,5,{SAFE['x0']},{OUT_W - SAFE['x1']},0,1")
     lines += ["", "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"]
     n = 0
-    if opts["hook"] == "top_bold" and hook:
+    # A clip with on-screen beats (no voice) always opens on its hook, whatever the Look (owner, 7 Nov
+    # 2026: the hook in the first 2 seconds; "clean" and "cinematic" have no hook of their own).
+    show_hook = bool(hook) and (opts["hook"] == "top_bold" or bool(beats))
+    if show_hook:
         lines.append(f"Dialogue: 2,{ass_time(0)},{ass_time(hook_end(beats, until))},Hook,,0,0,0,,{{\\pos(540,{HOOK_Y})}}{ass_text(hook)}")
         n += 1
     # Text beats (owner, 7 Nov 2026): a clip with no voice says it on screen. Each beat takes an equal
     # share of the time between the hook and the end card, in the hook's place and style.
     # A clip ending on her final photo keeps the photo clear: the beats end where the photo starts.
     bu = min(until, beats_until) if beats_until else until
-    for s0, e0, text in beat_cues(beats or [], hook_end(beats, bu) if (opts["hook"] == "top_bold" and hook) else 0.0, bu):
+    for s0, e0, text in beat_cues(beats or [], hook_end(beats, bu) if show_hook else 0.0, bu):
         lines.append(f"Dialogue: 2,{ass_time(s0)},{ass_time(e0)},Hook,,0,0,0,,{{\\pos(540,{HOOK_Y})}}{ass_text(text)}")
         n += 1
     if style != "none":

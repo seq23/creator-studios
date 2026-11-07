@@ -56,6 +56,18 @@ class TextBeats(unittest.TestCase):
         ends = [line.split(",")[2] for line in ass.splitlines() if line.startswith("Dialogue:") and ("Wait for it" in line or "one form" in line)]
         self.assertEqual(ends[-1], L.ass_time(10.5))
 
+    def test_a_look_without_a_hook_still_opens_on_it_when_the_clip_has_beats(self) -> None:
+        b = L.Branding()
+        clean = {"captions": "none", "caption_position": "bottom", "hook": "none"}
+        with_beats = L.build_ass([], "Christmas is 7 weeks out. Your porch?", clean, b, 5.0, True, ["No ladder"])
+        assert with_beats is not None
+        hook_line = next(line for line in with_beats.splitlines() if "Christmas is 7 weeks out" in line)
+        self.assertEqual(hook_line.split(",")[1], L.ass_time(0))
+        self.assertLessEqual(float(hook_line.split(",")[2].split(":")[-1]), L.HOOK_SECONDS)
+        # Without beats the Look's own choice stands: no hook.
+        plain = L.build_ass([], "Christmas is 7 weeks out. Your porch?", clean, b, 5.0, True) or ""
+        self.assertNotIn("Christmas is 7 weeks out", plain)
+
     def test_no_beats_means_nothing_extra(self) -> None:
         self.assertEqual(L.beat_cues([], 2.5, 8.0), [])
         self.assertEqual(L.beat_cues(["  "], 2.5, 8.0), [])
