@@ -66,7 +66,7 @@ describe("pure rules", () => {
 
 describe("through the real schema", () => {
   it("daily lane starts it, the result is stored, the cut carries it, the Brand page shows it, one note is sent", async () => {
-    const h = await harness({ NOTIFY_EMAIL: "host@example.com" } as never);
+    const h = await harness({ NOTIFY_EMAIL: "host@example.com" } as never, { brief: false }); // the playbook alone (a studio from before niche briefs)
     const first = await monthlyNicheRefresh(h.env, NOW);
     expect(first.dispatched).toBe(true);
     const job = h.one<{ id: string; type: string }>("SELECT id, type FROM jobs WHERE type = 'niche'");

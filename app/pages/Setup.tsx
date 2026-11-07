@@ -2,6 +2,7 @@
 // service keys. Every step says what it powers, what practice mode does until it is set, where to
 // get the key, and has Test key (one live read-only check, nothing saved) and Save (checked again,
 // then stored encrypted). Services the studio's host runs for her show "Provided".
+import { NicheBriefLine } from "../components/NicheBriefLine";
 import { useEffect, useState } from "react";
 import { powersFor, SETUP_STEPS, type SetupStatus, type SetupStep, type SetupView } from "@shared/setup";
 import { post, get } from "../lib/api";
@@ -34,6 +35,7 @@ export function Setup() {
       >
         <HelpButton guide="setup" />
       </PageHead>
+      <NicheBriefLine />
       {!data ? (
         <Skeleton lines={6} />
       ) : (

@@ -9,6 +9,8 @@
 //   - Photos: with face/address rules on, a pack the photo maker has not checked is held; a pack it
 //     could not make safe ('blocked') never posts in any studio.
 //   - A platform with no token waits ("Connect Facebook"), then is planned again once connected.
+import { writerGate } from "./nicheBrief";
+import { briefPrompt } from "@shared/nicheBrief";
 import { narratesPicture } from "@shared/clipWords";
 import type { Env } from "../env";
 import { fakeServices } from "../env";
@@ -68,6 +70,9 @@ export const PHOTO_V3 =
 
 /** Three short captions from the free AI (OpenRouter free models only), each checked against the rules. */
 export async function draftCaptions(env: Env, note: string): Promise<string[]> {
+  // The niche brief: researching or failed = a named stop, nothing written (never generic copy).
+  const gate = await writerGate(env);
+  if (!gate.ok) throw new Error("niche brief not ready");
   const rules = contentRules(env);
   const starters = starterCaptions(note, env.APP_NAME);
   const safeStarters = starters.map((s, i) => (textProblems(s, rules).length ? starterCaptions("", env.APP_NAME)[i] : s));
@@ -82,7 +87,7 @@ export async function draftCaptions(env: Env, note: string): Promise<string[]> {
   try {
     const llm = await getLlm(env);
     const r = await llm.complete({
-      system: `You write short social media captions for ${env.APP_NAME}, a local business. Warm, plain, no more than 150 characters each, at most two hashtags, no emojis at the start. ${PHOTO_V3} ${rulesLine} Reply with JSON only: {"captions": ["...", "...", "..."]} with exactly three different captions.`,
+      system: `You write short social media captions for ${env.APP_NAME}, a local business. Warm, plain, no more than 150 characters each, at most two hashtags, no emojis at the start. ${PHOTO_V3} ${gate.brief ? briefPrompt(gate.brief, "instagram") : ""} ${rulesLine} Reply with JSON only: {"captions": ["...", "...", "..."]} with exactly three different captions.`,
       user: `What the photo shows, in the owner's words: ${note.slice(0, 600) || "(no note: a recent job)"}`,
       json: true,
       maxTokens: 600,
@@ -146,6 +151,8 @@ export async function makePack(env: Env, packId: string, dispatch: (env: Env, pa
   const c = await env.DB.prepare("SELECT SUM(upload_status = 'uploaded') AS done, SUM(upload_status = 'uploading') AS pending FROM pack_photos WHERE pack_id = ?").bind(packId).first<{ done: number | null; pending: number | null }>();
   if (!c?.done) return { ok: false, error: "Add a photo first." };
   if (c.pending) return { ok: false, error: "A photo is still uploading. Keep this page open until it finishes." };
+  const gate = await writerGate(env);
+  if (!gate.ok) return { ok: false, error: gate.why };
   const captions = await draftCaptions(env, pack.note);
   await env.DB.prepare("UPDATE photo_packs SET status = 'making', error = NULL, captions = ? WHERE id = ?").bind(JSON.stringify(captions), packId).run();
   const r = await dispatch(env, packId);

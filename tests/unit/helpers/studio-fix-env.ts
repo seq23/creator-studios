@@ -1,5 +1,6 @@
 // One studio on the real schema (every migration), memory R2 and the real routes, signed in as the
 // owner: the studio-fix tests drive it the way the app does.
+import { readyBriefSql } from "./niche-brief";
 import { Hono } from "hono";
 import type { Env, Vars } from "@worker/env";
 import { fakeServices } from "@worker/env";
@@ -19,7 +20,7 @@ import { setSetting } from "@worker/lib/db";
 
 export const BASE_URL = "http://w.example";
 
-export async function harness(extra: Partial<Env> = {}) {
+export async function harness(extra: Partial<Env> = {}, opts: { brief?: boolean } = {}) {
   const db = sqliteD1();
   const r2 = memoryR2();
   const env = {
@@ -40,6 +41,8 @@ export async function harness(extra: Partial<Env> = {}) {
   await setSetting(env.DB, "features", { voice: false, deeper_research: false, weekly_recap: true, help_ask: false });
   db.raw.exec(`INSERT INTO brand_profile (sections, locked) VALUES ('{"voice":"warm","ctas":"Message us.","who":"We design gardens: Garden design, Patio planting"}', 1);
     INSERT INTO research_briefs (body, status) VALUES ('{}', 'approved');`);
+  // Past its first upload: a ready niche brief (tests/unit/niche-brief.test.ts passes { brief: false }).
+  if (opts.brief !== false) db.raw.exec(readyBriefSql);
   const app = new Hono<{ Bindings: Env; Variables: Vars }>();
   app.use("*", async (c, next) => {
     c.set("fake", fakeServices(c.env));

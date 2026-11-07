@@ -26,7 +26,7 @@ export default async function ({ root }) {
   }
   const checks = [
     ["worker/jobs/cut.ts", /studio_rules: rules,/, "the cut spec carries studio_rules"],
-    ["worker/jobs/cut.ts", /niche_playbook: await latestPlaybook\(env\),/, "the cut spec carries the niche playbook"],
+    ["worker/jobs/cut.ts", /niche_playbook: withBrief\(await latestPlaybook\(env\), await currentBrief\(env\)\),/, "the cut spec carries the niche playbook, with the niche brief folded in"],
     ["worker/jobs/cut.ts", /exif_camera: a\.mime_type\.startsWith\("image\/"\) \? a\.exif_camera === 1 : true,/, "each asset carries exif_camera"],
     ["worker/jobs/cut.ts", /target_clips: steerTarget\(dumpCtl, targetClips\(rules\)\)/, "the clip target comes from the studio's setting"],
     ["worker/jobs/cut.ts", /fixes,\n\s*avoid_windows:/, "one-tap fixes reach the again spec"],

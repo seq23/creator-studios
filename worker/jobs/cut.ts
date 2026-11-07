@@ -15,6 +15,8 @@
 // every clip comes back with its `look`, its `parts` and (grids) its `layout`.
 // A job whose ref is "<dumpId>/<clipId>" is a re-render of one clip in the Look she picked in
 // Review ("Change look"): the old file stays live until the new one is swapped in here.
+import { currentBrief } from "../lib/nicheBrief";
+import type { NicheBrief } from "@shared/nicheBrief";
 import { cleanShotList } from "@shared/voiceShots";
 import { getConnectionSecret } from "../lib/connections";
 import type { ApplyRun, JobHandler } from "./registry";
@@ -402,7 +404,7 @@ async function buildDumpSpec(env: Env, jobId: string, dumpId: string): Promise<C
     shot_sheets: sheets,
     plan_override: cleanOverride(parseJson(dump.plan_override, {}), services, rows.map((r) => r.id)),
     studio_rules: rules,
-    niche_playbook: await latestPlaybook(env),
+    niche_playbook: withBrief(await latestPlaybook(env), await currentBrief(env)),
   };
 }
 
@@ -621,6 +623,18 @@ async function buildRerenderSpec(env: Env, jobId: string, dumpId: string, clipId
 export function parseBeats(raw: string | null | undefined): string[] {
   const v = parseJson<unknown>(raw ?? null, null);
   return Array.isArray(v) ? v.map((x) => String(x ?? "").trim()).filter(Boolean).slice(0, 4) : [];
+}
+
+/** The niche brief folded into the playbook the cut's writers read (its openings lead the hooks). Pure. */
+export function withBrief(p: NichePlaybook | null, b: NicheBrief | null): NichePlaybook | null {
+  if (!b) return p;
+  const base: NichePlaybook = p ?? { updated_at: new Date().toISOString(), formats: [], hooks: [], caption_tips: [] };
+  return {
+    ...base,
+    hooks: [...b.hooks, ...base.hooks].slice(0, 8),
+    caption_tips: [...b.caption_patterns, ...b.cta_patterns, ...b.avoid.map((a) => `Never: ${a}`), ...base.caption_tips].slice(0, 10),
+    caption_style: base.caption_style ?? b.caption_patterns[0],
+  };
 }
 
 // ---------------------------------------------------------------- result

@@ -321,6 +321,19 @@ export const MOCKS: Record<string, Frame> = {
   "email-spam": apiPage("Your email", "Spam folder", ["Inbox", "Spam"], "Spam", "Spam", [
     { k: "row", v: "Your Studio · Your clips are ready", action: "Not spam", hl: true },
   ]),
+  // ---- Your studio: the niche brief (worker/lib/nicheBrief.ts); its states only show for a new user's first upload
+  "studio-niche-learning": apiPage("Your Studio", "Dump", ["Home", "Dump", "Review", "Setup"], "Dump", "Dump", [
+    { k: "p", v: "Learning your niche first, about a minute. Your dump goes by itself when it's done.", hl: true },
+    { k: "file", v: "first-party.mp4", meta: "Uploaded" },
+  ]),
+  "studio-niche-ready": apiPage("Your Studio", "Setup", ["Home", "Dump", "Review", "Setup"], "Setup", "Connect your own services", [
+    { k: "p", v: "Your niche brief is ready: 8 accounts in your niche studied (2026-11-07).", hl: true },
+    { k: "row", v: "Clip cutting", meta: "Provided by your studio host" },
+  ]),
+  "studio-niche-stop": apiPage("Your Studio", "Dump", ["Home", "Dump", "Review", "Setup"], "Dump", "Dump", [
+    { k: "p", v: "We couldn't research your niche with the free tools. Nothing is written for your studio until it works. Tap Try again." },
+    { k: "btn", v: "Try again", hl: true },
+  ]),
   "gmail-send": apiPage("Gmail", "mail.google.com · New message", ["Inbox", "Sent", "Drafts"], "Inbox", "New message", [
     { k: "field", label: "To", value: "partnerships@brand.example" },
     { k: "field", label: "Subject", value: "An idea for your brand: morning routine content" },

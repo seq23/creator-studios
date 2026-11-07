@@ -1,6 +1,7 @@
 // Dump (section 7): three doors (new videos, old posts, a full video for YouTube), drop files,
 // notes, the Dump button, progress, recent dumps.
 // Phone-first: "Choose from camera roll", many files at once, resumable chunked uploads.
+import { NicheBriefLine } from "../components/NicheBriefLine";
 import { LooksLikeLine } from "../components/LooksLikeLine";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -278,6 +279,7 @@ export function Dump() {
 
       <div className="split">
         <div className="section dump-main">
+          <NicheBriefLine />
           {dump?.waiting_for && editable ? <SetupChecklist files={dump.files} steps={dump.waiting_for} /> : null}
           {editable ? (
             <>

@@ -2,6 +2,7 @@
 // keys. Every step: where to get it, Test key (one live read-only probe, nothing saved), Save (the
 // same probe, then stored AES-GCM encrypted in D1 connections.secret_enc with SECRETS_KEY), Remove.
 // Until a step has a key its feature runs in practice mode (worker/lib/practice.ts).
+import { BRIEF_WAITING, briefState, retryBrief } from "../lib/nicheBrief";
 import { unusedServices } from "../lib/practice";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
@@ -96,6 +97,21 @@ export async function setupView(env: Env, isOwner: boolean): Promise<SetupView> 
 }
 
 setup.get("/", async (c) => c.json(await setupView(c.env, c.get("user").role === "owner")));
+
+/** The niche brief (worker/lib/nicheBrief.ts): where it stands, for the calm line on Dump and Setup. */
+setup.get("/brief", async (c) => {
+  const s = await briefState(c.env);
+  if (s.state === "ready") return c.json({ state: "ready", accounts: s.brief.competitors.length, researched_on: s.researched_on, message: null });
+  if (s.state === "researching") return c.json({ state: "researching", message: BRIEF_WAITING });
+  if (s.state === "failed") return c.json({ state: "failed", message: s.error });
+  return c.json({ state: "none", message: null });
+});
+
+/** Try again: the named stop's button. One new research run, only when the last one failed. */
+setup.post("/brief/retry", async (c) => {
+  const r = await retryBrief(c.env, c.get("user").email);
+  return c.json({ ok: r.ok, message: r.message }, r.ok ? 200 : 409);
+});
 
 function stepOr404(id: string | undefined): SetupServiceId | null {
   return id && setupStep(id) ? (id as SetupServiceId) : null;
