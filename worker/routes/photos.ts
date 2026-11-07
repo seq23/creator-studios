@@ -1,5 +1,6 @@
 // Photos (shared/photoPosts.ts): add photos, make a pack of posts from them, see what goes out and
 // when, Skip one, change a caption. Everything posts on its own; nothing here posts directly.
+import { firstUploadGate } from "../lib/nicheBrief";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { developerEmail, requireUser } from "../lib/auth";
@@ -44,6 +45,9 @@ photos.patch("/packs/:id", async (c) => {
 /** "Make my posts". */
 photos.post("/packs/:id/make", async (c) => {
   if (!photoConfig(c.env).on) return fail(c, 409, OFF, "photo-posts");
+  // A new user's first photo posts wait for her niche brief (researched once); a failed one is a named stop.
+  const niche = await firstUploadGate(c.env, c.get("user")?.email ?? null);
+  if (niche) return fail(c, 409, niche.message, niche.fix_guide ?? "niche-brief");
   const r = await makePack(c.env, c.req.param("id"), async (env, packId) => {
     const d = await dispatchJob(env, "photopack", packId);
     return { dispatched: d.dispatched, error: d.error };

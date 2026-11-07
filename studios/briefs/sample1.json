@@ -1,0 +1,64 @@
+{
+  "_why": "Porch & Party Studio's niche brief (owner, 7 Nov 2026): the competitor research behind P&P captions v3 (https://claude.ai/artifact/UoyfsfFv43NpwmwNQur5kT), stored as the brief every writer reads. P&P is an existing studio, so no research job runs for it; this file is seeded once into its D1 (worker/lib/nicheBrief.ts seedBrief). Public pages only, read 7 Nov 2026.",
+  "researched_on": "2026-11-07",
+  "brief": {
+    "buyer": "Someone in Memphis, Germantown, Collierville or Bartlett planning a surprise or a season for someone else: a partner's birthday or anniversary room (home or hotel), a shower or kids' party they are hosting, or a holiday porch they do not want to climb a ladder for. They buy the ease and the credit, not the decorations.",
+    "competitors": [
+      { "name": "Nini Luxury Decor", "handle": "@niniluxurydecor", "platform": "tiktok", "followers": "99.2K", "url": "https://www.tiktok.com/@niniluxurydecor" },
+      { "name": "K Dream Events", "handle": "@kdreamevents_", "platform": "tiktok", "followers": "76.3K", "url": "https://www.tiktok.com/@kdreamevents_" },
+      { "name": "Junior's Arrangements", "handle": "@jrs_arrangements", "platform": "tiktok", "followers": "54.5K", "url": "https://www.tiktok.com/@jrs_arrangements" },
+      { "name": "Porch Pumpkins", "handle": "@porchpumpkins", "platform": "instagram", "followers": "55.2K", "url": "https://www.instagram.com/porchpumpkins/" },
+      { "name": "High End Picnics NY", "handle": "@highendpicnicsny", "platform": "tiktok", "followers": "28.5K", "url": "https://www.tiktok.com/@highendpicnicsny" },
+      { "name": "Cha Dreams Decor", "handle": "@chadreamsdecor", "platform": "tiktok", "followers": "19K", "url": "https://www.tiktok.com/@chadreamsdecor" },
+      { "name": "Sweet & Savoury MCR", "handle": "@sweetandsavourymcr", "platform": "tiktok", "followers": "14.5K", "url": "https://www.tiktok.com/@sweetandsavourymcr" },
+      { "name": "Memphis by Meg", "handle": "@memphisbymeg", "platform": "tiktok", "followers": "13.8K", "url": "https://www.tiktok.com/@memphisbymeg" },
+      { "name": "Memphis Event Decorator", "handle": "@apaintedmoment", "platform": "tiktok", "followers": "4.3K", "url": "https://www.tiktok.com/@apaintedmoment" },
+      { "name": "Luxury Tents & Events", "handle": "@luxury_tents_and_events", "platform": "instagram", "followers": "1.7K", "url": "https://www.instagram.com/luxury_tents_and_events/" }
+    ],
+    "hooks": [
+      "POV from the buyer's side: \"POV: they think you did all this\"",
+      "The person it is for, in their words: \"He says he doesn't need anything\"",
+      "A universal feeling said to the viewer: \"We all deserve to walk into a decorated room one day\" (3.0M plays)",
+      "The problem it solves, as a question: \"Hosting the birthday and already tired?\"",
+      "Reveal-first curiosity: \"Wait for the bedroom…\"",
+      "A true countdown: \"Christmas is 7 weeks out. Your porch?\"",
+      "Watch it come together: \"Trust the process\", \"took 2.5 hours in 30 seconds\""
+    ],
+    "caption_patterns": [
+      "Never describe what the viewer can already see; add who it is for, the moment, the ease or a true reason to book now",
+      "The buyer is the hero: they get the credit, the business stays behind the scenes",
+      "Say the ease plainly: one form, set up while they're out, no ladder, takedown after",
+      "Name the real towns served for local proof"
+    ],
+    "cta_patterns": [
+      "One ask with one link: \"Check your date: porchandparty901.com/request\"",
+      "Competitors use \"DM to book\" and \"January bookings are available. Contact us today\"; P&P uses the request link only",
+      "Urgency only when true: a holiday countdown or \"booking December dates now\""
+    ],
+    "avoid": [
+      "Describing the decorations on screen (petals, candles, balloons, garland)",
+      "Inventing a customer, a review, a booking count or \"almost sold out\"",
+      "Inviting anyone to visit, stop by or tour: there is no shop",
+      "Prices in clips or captions (P&P ruling 23 Oct 2026), though Memphis rivals post $175",
+      "Customer names, faces or house numbers; \"insured\" or guarantees",
+      "Pinterest (too local, owner 7 Nov 2026) and any voice over (owner 7 Nov 2026)"
+    ],
+    "channels": {
+      "tiktok": { "hashtags": "3-4: the town and the occasion (#MemphisDecorator #MemphisBirthday #901)", "norms": "10-30 s; hook on screen in the first 2 s; 1-3 emoji in the room's colors" },
+      "instagram": { "hashtags": "3-4: the town and the occasion", "norms": "Reels 10-30 s; hook first; same caption rules" },
+      "facebook": { "hashtags": "0-2", "norms": "The same reel; the caption carries the town and the one link" }
+    }
+  },
+  "sources": [
+    "https://www.tiktok.com/@niniluxurydecor/video/7395737623374859566",
+    "https://www.tiktok.com/@kdreamevents/video/7191967906098335019",
+    "https://www.tiktok.com/@kdreamevents/video/7212343732341951787",
+    "https://www.tiktok.com/@jrs_arrangements/video/7326583833774525726",
+    "https://www.tiktok.com/@chadreamsdecor/video/7410397456535653678",
+    "https://www.tiktok.com/@highendpicnicsny/video/7516624319582145823",
+    "https://www.tiktok.com/@sweetandsavourymcr/video/7249666236768996634",
+    "https://www.instagram.com/porchpumpkins/",
+    "https://memphisbymeg.com/",
+    "https://www.instagram.com/luxury_tents_and_events/"
+  ]
+}

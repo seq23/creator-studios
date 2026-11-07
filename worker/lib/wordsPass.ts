@@ -8,6 +8,8 @@
 // and is never voiced until its words are in; once they are, the automatic voice over runs.
 // A clip still waiting after a day of tries turns the "Clip words" health light red (nothing silent).
 // Guards: tests/unit/studio-fix-ab.test.ts.
+import { writerGate } from "./nicheBrief";
+import { briefPrompt } from "@shared/nicheBrief";
 import type { Env } from "../env";
 import { fakeServices } from "../env";
 import { log } from "./log";
@@ -252,6 +254,13 @@ export async function wordsPass(env: Env, now = new Date(), opts: { deadline?: n
   const saved = await getSetting<string | null>(env.DB, DAILY_LIMIT_KEY, null);
   const state = { dailyUntil: saved && saved > now.toISOString() ? saved : null };
   if (saved && !state.dailyUntil) await setSetting(env.DB, DAILY_LIMIT_KEY, null); // it reset: try again
+  // The niche brief (owner, 7 Nov 2026): no writer writes for a studio whose brief is being researched
+  // or failed; never generic copy. The clips wait, named on the brief's light (worker/lib/nicheBrief.ts).
+  const gate = results.length ? await writerGate(env) : ({ ok: true, brief: null } as const);
+  if (!gate.ok) {
+    log.info("words.brief_stop");
+    return { written: 0, waiting: results.length, stuck: 0, daily_limit_until: null, misses: {} };
+  }
   if (results.length) {
     const rules = await readStudioRules(env);
     const profile = await lockedProfile(env);
@@ -266,6 +275,7 @@ export async function wordsPass(env: Env, now = new Date(), opts: { deadline?: n
       `{"hook": "at most 8 words, shown big on screen for the first 2 seconds", "beats": ["2 to 4 short on-screen lines, at most ${BEAT_MAX_WORDS} words each, shown one after another"], "caption": "two or three plain sentences", "hashtags": ["3 or 4 tags: the town and the occasion"]` +
       (voiced ? `, "voice": "a short spoken voice-over, plain sentences"}. ` : `}. There is no voice over: the words on screen carry it. `) +
       `Write in their voice: ${profile?.voice || "warm and direct"}.${feelLine(profile)} Never mention: ${profile?.off_limits || "nothing listed"}. ` +
+      (gate.brief ? `${briefPrompt(gate.brief, "tiktok")} ` : "") +
       `RULE ONE: never describe what is on screen. The viewer can see what is in the shot; never name the things in it. Every line adds what the video cannot show: who it is for and the moment ("POV: they think you did all this", "He says he doesn't need anything"), the problem it solves ("Hosting and already tired?"), the ease (one form, from your phone, we set up while they're out, no ladder), the outcome (they walk in, you take the credit), or a true reason to book now (how many weeks until the holiday). ` +
       `The hook is a written headline, never a line someone says in the video. Hook shapes that win: POV, the person it is for, the problem, reveal-first ("Wait for the bedroom…"), a true countdown. The buyer is the hero; the business stays behind the scenes. ` +
       `Never invent a customer, a review, a count of bookings or "almost sold out". Never invite anyone to visit, stop by, come by or tour: there is no shop. Only the services the business really offers. ` +

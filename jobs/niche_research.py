@@ -311,6 +311,92 @@ def research(spec: dict[str, Any], web: Any, ask: Any) -> dict[str, Any]:
     }
 
 
+# ---------------------------------------------------------------- the niche brief (once per new user)
+# Owner, 7 Nov 2026: "do it once each time a new user to each studio gets ready to dump / upload
+# photos". spec.mode == "brief": who the buyer is, 5-10 NAMED accounts in the niche found in the
+# search results (never invented: each must appear in a result's link or text), their hooks, caption
+# and call-to-action patterns, words to avoid, hashtags and norms per channel. No baseline here: a
+# brief the free routes cannot ground is a failure (a named stop in the studio), never generic copy.
+BRIEF_QUERIES = 6
+BRIEF_SYSTEM = (
+    "You research one small business's niche on social video, from the PUBLIC search results you are given only. "
+    "Name 5 to 10 real accounts that appear in the results (their handle as written there and the link), and learn from "
+    "their best posts: how they open, their caption and call-to-action patterns. Never invent an account, a follower count "
+    "or a quote. Plain words, no emojis, no prices. Reply with JSON only: "
+    '{"buyer": "one or two sentences: who buys and why", '
+    '"competitors": [{"name": "...", "handle": "@...", "platform": "tiktok|instagram|facebook|youtube", "url": "https://..."}], '
+    '"hooks": [3 to 7 opening patterns that work], "caption_patterns": [2 to 5], "cta_patterns": [2 to 4], '
+    '"avoid": [words, claims and habits to avoid], '
+    '"channels": {"tiktok": {"hashtags": "how many and which kind", "norms": "length, pacing"}, "instagram": {...}}}.'
+)
+
+
+def brief_queries(spec: dict[str, Any]) -> list[str]:
+    services = [s for s in (spec.get("services") or []) if isinstance(s, str) and s.strip()][:2] or niche_words(spec)[:2] or ["small business"]
+    place = first_or([p for p in (spec.get("place_words") or []) if isinstance(p, str)], "")
+    out: list[str] = []
+    for s in services:
+        out += [f"{s} tiktok account", f"{s} instagram business", f"best {s} accounts to follow"]
+        if place:
+            out.append(f"{s} {place} instagram")
+    return list(dict.fromkeys(out))[:BRIEF_QUERIES]
+
+
+def ground_competitors(v: Any, results: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Only accounts the search results actually show (by link or by handle in the text), 10 at most."""
+    hay = " ".join(f"{r.get('url', '')} {r.get('title', '')} {r.get('description', '')}" for r in results).lower()
+    out: list[dict[str, str]] = []
+    for c in v if isinstance(v, list) else []:
+        if not isinstance(c, dict):
+            continue
+        handle = clean_text(c.get("handle"), 60)
+        url = clean_text(c.get("url"), 300)
+        bare = handle.lstrip("@").lower()
+        if not bare or not (bare in hay or (url and url.lower().rstrip("/") in hay)):
+            continue
+        if any(o["handle"].lstrip("@").lower() == bare for o in out):
+            continue
+        out.append({"name": clean_text(c.get("name"), 80) or handle, "handle": "@" + bare, "platform": clean_text(c.get("platform"), 20).lower() or "web", "url": url})
+    return out[:10]
+
+
+def research_brief(spec: dict[str, Any], web: Any, ask: Any) -> dict[str, Any]:
+    results: list[dict[str, str]] = []
+    for q in brief_queries(spec):
+        try:
+            results.extend(web.search(q, PER_QUERY))
+        except Exception:  # noqa: BLE001
+            log("brief.search_failed")
+    log("brief.searched", results=len(results))
+    if not results:
+        return {"brief": None, "error": "The free web search found nothing for this niche."}
+    profile = spec.get("profile") or {}
+    snippets = "\n".join(f"- {r.get('url', '')[:200]} | {r.get('title', '')[:120]}: {r.get('description', '')[:300]}" for r in results[:30])
+    user = (
+        f"The business, in its own words:\nWho: {str(profile.get('who', ''))[:800]}\nAudience: {str(profile.get('audience', ''))[:600]}\n"
+        f"Services: {', '.join(spec.get('services') or [])}\nTowns: {', '.join(spec.get('place_words') or [])}\n\nSearch results:\n{snippets}"
+    )
+    text = ask({"messages": [{"role": "system", "content": BRIEF_SYSTEM}, {"role": "user", "content": user}], "max_tokens": 1600, "temperature": 0.2})
+    model = A.first_json(text) if text else None
+    if not isinstance(model, dict):
+        return {"brief": None, "error": "No free AI model answered, so the niche could not be written up."}
+    comps = ground_competitors(model.get("competitors"), results)
+    brief = {
+        "buyer": clean_text(model.get("buyer"), 400),
+        "competitors": comps,
+        "hooks": clean_list(model.get("hooks"), 7, 160),
+        "caption_patterns": clean_list(model.get("caption_patterns"), 5, 200),
+        "cta_patterns": clean_list(model.get("cta_patterns"), 4, 200),
+        "avoid": clean_list(model.get("avoid"), 8, 200),
+        "channels": {k: {"hashtags": clean_text((v or {}).get("hashtags"), 160), "norms": clean_text((v or {}).get("norms"), 200)} for k, v in (model.get("channels") or {}).items() if isinstance(v, dict) and k in ("tiktok", "instagram", "facebook", "youtube", "pinterest")},
+    }
+    if len(comps) < 5 or len(brief["hooks"]) < 3 or not brief["buyer"]:
+        log("brief.thin", competitors=len(comps), hooks=len(brief["hooks"]))
+        return {"brief": None, "error": f"The free research found {len(comps)} real accounts in this niche (5 are needed)."}
+    log("brief.done", competitors=len(comps), hooks=len(brief["hooks"]))
+    return {"brief": brief, "sources": [r.get("url", "") for r in results if r.get("url")][:20]}
+
+
 def main(job: Job, spec: dict[str, Any]) -> dict[str, Any]:
     A.reset()
     web = Web(firecrawl_key=None, jina_key=os.environ.get("JINA_API_KEY"))
@@ -320,7 +406,7 @@ def main(job: Job, spec: dict[str, Any]) -> dict[str, Any]:
         text, _m = A.ask_openrouter(key, lambda model: {**payload, "model": model}, [MODEL], "text")
         return text
 
-    out = research(spec, web, ask)
+    out = research_brief(spec, web, ask) if spec.get("mode") == "brief" else research(spec, web, ask)
     out["calls"] = A.report()
     log("niche.calls", **A.report())
     return out
@@ -358,6 +444,17 @@ def selftest() -> None:
     cj = research(cspec, FakeWeb(), lambda p: junk)["playbook"]
     assert cj["lengths"]["talk_to_camera"] == [10, 45] and cj["lengths"]["pov_walk_in"] == [10, 20] and cj["on_screen_words"] == ON_SCREEN_WORDS, cj
     assert not any(CTA_WORDS.search(t) for t in cj["caption_tips"]), cj
+    # The brief: only accounts the results show; too few real accounts is a failure, never filler.
+    class BriefWeb:
+        def search(self, q: str, n: int) -> list[dict[str, str]]:
+            return [{"url": f"https://www.tiktok.com/@garden{i}", "title": f"@garden{i} on TikTok", "description": "Garden design reveals"} for i in range(6)]
+
+    good = {"buyer": "Homeowners who want a garden done for them.", "competitors": [{"name": f"G{i}", "handle": f"@garden{i}", "platform": "tiktok", "url": f"https://www.tiktok.com/@garden{i}"} for i in range(6)] + [{"name": "Made up", "handle": "@notreal", "platform": "tiktok"}], "hooks": ["POV: …", "Wait for …", "From … to …"], "caption_patterns": ["Town first"], "cta_patterns": ["One link"], "avoid": ["Prices"], "channels": {"tiktok": {"hashtags": "3", "norms": "15 s"}}}
+    b = research_brief(spec, BriefWeb(), lambda p: json.dumps(good))
+    assert b["brief"] and len(b["brief"]["competitors"]) == 6 and all(c["handle"] != "@notreal" for c in b["brief"]["competitors"]), b
+    thin = research_brief(spec, BriefWeb(), lambda p: json.dumps({**good, "competitors": good["competitors"][:3]}))
+    assert thin["brief"] is None and "5 are needed" in thin["error"], thin
+    assert research_brief(spec, BriefWeb(), lambda p: None)["brief"] is None
     log("niche.selftest", ok=True)
 
 

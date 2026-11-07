@@ -216,6 +216,12 @@
       "screen": "research"
     },
     {
+      "slug": "niche-brief",
+      "title": "Your niche brief",
+      "group": "getting_started",
+      "screen": "dump"
+    },
+    {
       "slug": "settings-and-switches",
       "title": "Settings: your switches (all on to start)",
       "group": "getting_started",

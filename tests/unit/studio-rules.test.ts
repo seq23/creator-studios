@@ -77,7 +77,7 @@ describe("cleaning: anything odd keeps what was there", () => {
 
 describe("the cut spec carries the rules, the playbook and each file's camera", () => {
   it("studio_rules, clip target from the studio (not the calendar), bar, exif_camera per asset", async () => {
-    const h = await harness({ STUDIO_RULES: varOf("sample1") });
+    const h = await harness({ STUDIO_RULES: varOf("sample1") }, { brief: false }); // no brief: the playbook alone (null)
     await h.dumpWith("dmp_r1", [
       { id: "ast_v1", name: "IMG_0001.MOV", mime: "video/quicktime" },
       { id: "ast_p1", name: "after-final.jpg", mime: "image/jpeg", exif: 1 },
@@ -112,7 +112,7 @@ describe("the cut spec carries the rules, the playbook and each file's camera", 
     expect(((await cutJob.buildSpec(h.env, "job_r3", "dmp_r2")) as CutSpec).target_clips).toEqual({ min: 3, max: 3 });
   });
   it("the end-card logo: uploaded under brand/logo/, saved only once it is really there, readable by the cut job", async () => {
-    const h = await harness();
+    const h = await harness({}, { brief: false }); // the playbook alone (a studio from before niche briefs)
     const start = await h.call("POST", "/api/uploads/start", { kind: "logo", fileName: "logo.png", size: 2000, mimeType: "image/png" });
     expect(start.status).toBe(200);
     expect(start.json.key).toMatch(/^brand\/logo\/upl_/);

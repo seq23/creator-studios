@@ -5,6 +5,7 @@
 // her privacy → posted → "Finish in YouTube Studio" → the file removed 7 days later. Also: Buffer
 // refuses → "Upload it yourself" and the link she pastes; unapproved → warned, then removed.
 // Validator `full-video-uncut` reads the test named "a full-video dump never goes through the cutter".
+import { readyBriefSql } from "./helpers/niche-brief";
 import { beforeEach, describe, expect, it } from "vitest";
 import { Hono } from "hono";
 import type { Env, Vars } from "@worker/env";
@@ -212,6 +213,7 @@ beforeEach(async () => {
   } as unknown as Env;
   db.raw.exec(`INSERT INTO brand_profile (sections, locked, locked_at, source) VALUES ('{"who":"x","ctas":"Subscribe"}', 1, '2026-09-25T00:00:00Z', 'edited');
     INSERT INTO research_briefs (body, status, approved_at) VALUES ('{"hooks":[],"shot_list":[]}', 'approved', '2026-09-25T00:00:00Z');`);
+  db.raw.exec(readyBriefSql); // past its first upload (worker/lib/nicheBrief.ts)
 });
 
 describe("Dump → its own job → one Review item", () => {

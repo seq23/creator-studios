@@ -1,5 +1,6 @@
 // Dump: two doors, notes, the Dump button (section 7). A dump is created before the files
 // upload, files attach to it, and Dump flips it to queued and starts the cut job.
+import { briefState, firstUploadGate } from "../lib/nicheBrief";
 import { cleanVoiceNotes } from "@shared/voiceShots";
 import { Hono, type Context } from "hono";
 import type { Env, Vars } from "../env";
@@ -291,6 +292,14 @@ export async function sendDump(env: Env, id: string, email: string | null, markW
     return { ok: false, status: 409, error: setupHeadline(counts.done, steps), fix_guide: gate.fix_guide, setup: { files: counts.done, steps } };
   }
 
+  // The niche brief (owner, 7 Nov 2026): a new user's first dump waits while her niche is researched
+  // once; a failed research is a named stop. An existing studio goes straight on (firstUploadGate).
+  const niche = await firstUploadGate(env, email);
+  if (niche) {
+    if (markWaiting) await env.DB.prepare("UPDATE dumps SET waiting_setup_at = COALESCE(waiting_setup_at, ?) WHERE id = ? AND status = 'uploading'").bind(nowIso(), id).run();
+    return { ok: false, status: 409, error: niche.message, ...(niche.fix_guide ? { fix_guide: niche.fix_guide } : {}) };
+  }
+
   // The full-video door: one video, whole, through its own job; never the cutter (validator
   // full-video-uncut). Storage: at most one waiting full video per Calendar week, and it must fit.
   if (dump.kind === "full_video") return dumpFullVideo(env, id, counts.done, email);
@@ -330,6 +339,7 @@ export async function sendWaitingDumps(env: Env, email: string | null): Promise<
   const sent: string[] = [];
   try {
     if (await briefGate(env)) return sent;
+    if ((await briefState(env)).state !== "ready" && (await briefState(env)).state !== "none") return sent;
     const { results } = await env.DB.prepare("SELECT id FROM dumps WHERE waiting_setup_at IS NOT NULL AND status = 'uploading' AND archived_at IS NULL ORDER BY created_at").all<{ id: string }>();
     for (const d of results) {
       const r = await sendDump(env, d.id, email, false);
