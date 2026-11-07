@@ -29,7 +29,7 @@ export function NicheBriefLine() {
     );
   if (b.state === "researching")
     return (
-      <p className="notice" role="status" data-niche-brief="researching">
+      <p className="notice info" role="status" data-niche-brief="researching">
         {b.message}
       </p>
     );
@@ -46,7 +46,7 @@ export function NicheBriefLine() {
     }
   };
   return (
-    <div className="notice notice-bad" role="alert" data-niche-brief="failed">
+    <div className="notice warn niche-stop" role="alert" data-niche-brief="failed">
       <p>{b.message}</p>
       <button className="btn" onClick={retry} disabled={busy}>
         {busy ? "Trying again…" : "Try again"}

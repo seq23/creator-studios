@@ -1548,3 +1548,7 @@ a.list-row:hover .title {
   display: inline-flex;
   align-items: center;
 }
+
+/* The niche brief named stop (app/components/NicheBriefLine.tsx): the reason, then Try again under it. */
+.niche-stop { display: grid; gap: 10px; justify-items: start; }
+.niche-stop p { margin: 0; }
