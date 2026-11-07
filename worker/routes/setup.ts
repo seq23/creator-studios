@@ -2,6 +2,7 @@
 // keys. Every step: where to get it, Test key (one live read-only probe, nothing saved), Save (the
 // same probe, then stored AES-GCM encrypted in D1 connections.secret_enc with SECRETS_KEY), Remove.
 // Until a step has a key its feature runs in practice mode (worker/lib/practice.ts).
+import { unusedServices } from "../lib/practice";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { requireOwner, requireUser } from "../lib/auth";
@@ -75,7 +76,8 @@ export async function probe(env: Env, id: SetupServiceId, fields: Record<string,
 
 export async function setupView(env: Env, isOwner: boolean): Promise<SetupView> {
   const rows = new Map((await listConnections(env)).map((r) => [r.service as string, r]));
-  const steps: SetupStatus[] = SETUP_STEPS.map((s) => {
+  const unused = unusedServices(env);
+  const steps: SetupStatus[] = SETUP_STEPS.filter((s) => !unused.has(s.id)).map((s) => {
     const row = rows.get(s.id);
     const shown = Object.fromEntries(Object.entries((row?.meta ?? {}) as Record<string, unknown>).filter(([k, v]) => typeof v === "string" && s.fields.some((f) => f.plain && f.name === k)) as [string, string][]);
     // meta.host: no key of her own, the host's runs it (worker/lib/connections.ts listConnections) → "provided" below.

@@ -21,8 +21,8 @@ import { lockedProfile } from "../routes/mediakit";
 import { contentRules } from "./photoPosts";
 import { textProblems } from "@shared/contentRules";
 import { normalizeHashtags } from "../jobs/cut";
-import { autoVoiceDump } from "./autoVoice";
-import { clipTypeLabel, cleanLine, cleanScript, composeCaption, copiesPattern, crowdedHookParts, ctaLine, hookPatternFor, hookPoints, hookVarietyProblem, isReasoning, sendLine, stripCta, wantsAiNote, type WordsRules } from "@shared/clipWords";
+import { autoVoiceDump, autoVoiceOn } from "./autoVoice";
+import { clipTypeLabel, cleanLine, cleanScript, composeCaption, narratesPicture, copiesPattern, crowdedHookParts, ctaLine, hookPatternFor, hookPoints, hookVarietyProblem, isReasoning, sendLine, stripCta, wantsAiNote, type WordsRules } from "@shared/clipWords";
 import { latestPlaybook } from "./niche";
 import { feelLine } from "@shared/videoFeel";
 
@@ -118,13 +118,18 @@ export interface DraftWords {
   caption: string;
   hashtags: string[] | string;
   voice: string;
+  beats?: string[] | string;
 }
+
+/** On-screen beats (owner, 7 Nov 2026): 2 to 4 short lines after the hook, each at most this many words. */
+export const BEAT_MAX_WORDS = 6;
+export const BEATS_MAX = 4;
 
 /**
  * The model's answer made into the clip's words, or null when it must not ship: reasoning-shaped
  * or empty hook/caption, or words that break the studio's content rules. Pure.
  */
-export type FinishedWords = { hook_text: string; caption: string; hashtags: string; voice_script: string | null };
+export type FinishedWords = { hook_text: string; caption: string; hashtags: string; voice_script: string | null; text_beats: string[] };
 
 /**
  * The model's answer made into the clip's words, or the plain reason it must not ship (fed back to
@@ -134,7 +139,7 @@ export type FinishedWords = { hook_text: string; caption: string; hashtags: stri
 export function draftWords(
   draft: Partial<DraftWords> | null,
   rules: WordsRules,
-  clip: { number: number | null; uses_ai_images: boolean },
+  clip: { number: number | null; uses_ai_images: boolean; on_screen?: string | null; seconds?: number; voiced?: boolean },
   problems: (text: string) => string[],
 ): { words: FinishedWords; why: null } | { words: null; why: string } {
   const no = (why: string) => ({ words: null, why }) as const;
@@ -147,21 +152,34 @@ export function draftWords(
   if (!hook || !body) return no("The hook or the caption was empty.");
   // Short enough to read on screen (jobs/clipmaker.py _readable_hook: 8 words, 56 characters).
   if (hook.split(/\s+/).length > HOOK_MAX_WORDS || hook.length > HOOK_MAX_CHARS) return no(`The hook “${hook}” is too long: at most ${HOOK_MAX_WORDS} words and ${HOOK_MAX_CHARS} characters.`);
+  const beats = (Array.isArray(draft.beats) ? draft.beats : typeof draft.beats === "string" ? draft.beats.split(/\n|\|/) : [])
+    .map((b) => cleanLine(String(b ?? ""), 80).replace(/[.]+$/, ""))
+    .filter(Boolean)
+    .slice(0, BEATS_MAX);
+  const long = beats.find((b) => b.split(/\s+/).length > BEAT_MAX_WORDS);
+  if (long) return no(`The on-screen line “${long}” is too long: at most ${BEAT_MAX_WORDS} words each.`);
+  // Never narrate the picture (owner, 7 Nov 2026): the viewer can see it; every line adds what it can't.
+  for (const line of [hook, ...beats, body]) {
+    const said = narratesPicture(line, clip.on_screen, rules.place_words);
+    if (said.length) return no(`“${line}” describes what is already on screen (${said.join(", ")}). Say who it is for, the moment, how easy it is or why now instead.`);
+  }
   const k = Math.max(0, (clip.number ?? 1) - 1);
   body = sendLine(k, stripCta(body, rules) || body);
   const tags = normalizeHashtags(draft.hashtags).split(" ").filter(Boolean).slice(0, 5);
   const caption = composeCaption(body, ctaLine(rules, k), tags, wantsAiNote(rules, clip.uses_ai_images));
   const broken = [hook, caption].flatMap((t) => problems(t));
   if (broken.length) return no(broken[0]);
-  const voice = cleanScript(String(draft.voice ?? ""), caption, rules.cta_phrases);
-  return { words: { hook_text: hook, caption, hashtags: tags.join(" "), voice_script: voice || null }, why: null };
+  // Automatic voice overs off (Porch & Party, owner 7 Nov 2026): no script is kept, so nothing is spoken.
+  const maxVoice = clip.seconds ? Math.max(4, Math.floor(clip.seconds * 2.5)) : undefined;
+  const voice = clip.voiced === false ? "" : cleanScript(String(draft.voice ?? ""), caption, rules.cta_phrases, maxVoice);
+  return { words: { hook_text: hook, caption, hashtags: tags.join(" "), voice_script: voice || null, text_beats: beats }, why: null };
 }
 
 /** draftWords' words, or null when they must not ship. Pure. */
 export function finishWords(
   draft: Partial<DraftWords> | null,
   rules: WordsRules,
-  clip: { number: number | null; uses_ai_images: boolean },
+  clip: { number: number | null; uses_ai_images: boolean; on_screen?: string | null; seconds?: number; voiced?: boolean },
   problems: (text: string) => string[],
 ): FinishedWords | null {
   return draftWords(draft, rules, clip, problems).words;
@@ -173,7 +191,7 @@ export function parseDraft(text: string): Partial<DraftWords> | null {
   if (!m) return null;
   try {
     const v = JSON.parse(m[0]) as Record<string, unknown>;
-    return { hook: String(v.hook ?? ""), caption: String(v.caption ?? ""), hashtags: (v.hashtags as string[] | string) ?? [], voice: String(v.voice ?? "") };
+    return { hook: String(v.hook ?? ""), caption: String(v.caption ?? ""), hashtags: (v.hashtags as string[] | string) ?? [], voice: String(v.voice ?? ""), beats: Array.isArray(v.beats) ? v.beats.map(String) : typeof v.beats === "string" ? v.beats : [] };
   } catch {
     return null;
   }
@@ -216,7 +234,7 @@ async function askModel(env: Env, system: string, user: string, state: { dailyUn
 /** Practice mode: plain words that say what kind of clip it is (never a stock line from the engine). */
 export function practiceDraft(c: Pick<PendingClip, "number" | "clip_type">): DraftWords {
   const kind = clipTypeLabel(c.clip_type) ?? "This clip";
-  return { hook: `${kind}, start to finish`, caption: `${kind}: watch it come together, clip ${c.number ?? 1}.`, hashtags: ["#behindthescenes"], voice: `Here is how it came together.` };
+  return { hook: `${kind}, start to finish`, caption: `${kind}: watch it come together, clip ${c.number ?? 1}.`, hashtags: ["#behindthescenes"], voice: `Here is how it came together.`, beats: ["Practice words"] };
 }
 
 /** One hourly run. Returns how many clips got their words, how many still wait, and how many are past a day. */
@@ -240,16 +258,23 @@ export async function wordsPass(env: Env, now = new Date(), opts: { deadline?: n
     const cr = contentRules(env);
     const niche = await latestPlaybook(env).catch(() => null);
     const patterns = (niche?.hooks ?? []).slice(0, 6);
+    const voiced = await autoVoiceOn(env);
+    // The winners' way (owner, 7 Nov 2026, from the top room, picnic and party setup accounts):
+    // never describe the picture; say who it is for, the moment, the ease, a true reason to book now.
     const system =
-      `You write the words for one short vertical video clip for a small business. Reply with ONE JSON object only: ` +
-      `{"hook": "at most 8 words, shown big on screen", "caption": "one or two plain sentences", "hashtags": ["3 to 5 tags"], "voice": "a short spoken voice-over, plain sentences"}. ` +
+      `You write the words for one short vertical video clip for a small local business. Reply with ONE JSON object only: ` +
+      `{"hook": "at most 8 words, shown big on screen for the first 2 seconds", "beats": ["2 to 4 short on-screen lines, at most ${BEAT_MAX_WORDS} words each, shown one after another"], "caption": "two or three plain sentences", "hashtags": ["3 or 4 tags: the town and the occasion"]` +
+      (voiced ? `, "voice": "a short spoken voice-over, plain sentences"}. ` : `}. There is no voice over: the words on screen carry it. `) +
       `Write in their voice: ${profile?.voice || "warm and direct"}.${feelLine(profile)} Never mention: ${profile?.off_limits || "nothing listed"}. ` +
-      `The hook is a written headline that opens on the payoff (what the viewer gets), never a generic slogan, never a line someone says in the video, and different from every hook already used: no shared two-word phrase, never the opening two other hooks already use (not every hook a "POV:"), and never a word the list of crowded words names. Each clip gets its own hook pattern; follow it.` +
+      `RULE ONE: never describe what is on screen. The viewer can see what is in the shot; never name the things in it. Every line adds what the video cannot show: who it is for and the moment ("POV: they think you did all this", "He says he doesn't need anything"), the problem it solves ("Hosting and already tired?"), the ease (one form, from your phone, we set up while they're out, no ladder), the outcome (they walk in, you take the credit), or a true reason to book now (how many weeks until the holiday). ` +
+      `The hook is a written headline, never a line someone says in the video. Hook shapes that win: POV, the person it is for, the problem, reveal-first ("Wait for the bedroom…"), a true countdown. The buyer is the hero; the business stays behind the scenes. ` +
+      `Never invent a customer, a review, a count of bookings or "almost sold out". Never invite anyone to visit, stop by, come by or tour: there is no shop. Only the services the business really offers. ` +
+      `The hook is different from every hook already used: no shared two-word phrase, never the opening two other hooks already use, and never a word the list of crowded words names. Each clip gets its own hook pattern; follow it.` +
       (patterns.length ? ` Hooks that work in this niche, as patterns only (never word for word, and never their filler words): ${patterns.join(" | ")}.` : "") +
       (niche?.caption_style ? ` Captions in this niche read: ${niche.caption_style}.` : "") + ` ` +
       `No call to action in the caption (it is added after), no links, no prices${rules.prices ? " unless real" : ""}, no names or addresses, ` +
       `never mention automation, software or how the video was made. No lists, no markdown, no notes about the task.` +
-      (rules.place_words.length ? ` Use one of these local words naturally: ${rules.place_words.join(", ")}.` : "");
+      (rules.place_words.length ? ` Use one of these local towns naturally: ${rules.place_words.join(", ")}.` : "");
     for (const c of results) {
       // Out of time (an on-demand call): stop between clips; the rest are still waiting, never lost.
       if (opts.deadline !== undefined && Date.now() >= opts.deadline) break;
@@ -279,7 +304,7 @@ export async function wordsPass(env: Env, now = new Date(), opts: { deadline?: n
           miss = asked.miss; // no answer at all (a limit, a busy model): another ask now would not help
           break;
         }
-        const d = draftWords(parseDraft(asked.text), rules, { number: c.number, uses_ai_images: !!c.uses_ai_images }, (t) => textProblems(t, cr));
+        const d = draftWords(parseDraft(asked.text), rules, { number: c.number, uses_ai_images: !!c.uses_ai_images, on_screen: c.on_screen, seconds: c.end_s - c.start_s, voiced }, (t) => textProblems(t, cr));
         // Practice mode's labelled stand-in names the clip type, so it is exempt from the variety check.
         why = d.why ?? (fakeServices(env) ? null : hookVarietyProblem(d.words.hook_text, used, rules.place_words));
         const copied = !why && !fakeServices(env) ? copiesPattern(d.words!.hook_text, patterns) : null;
@@ -294,9 +319,9 @@ export async function wordsPass(env: Env, now = new Date(), opts: { deadline?: n
       }
       const scored = scoreWithWords(c.score, c.score_reasons, words.hook_text, c.score_no_words);
       await env.DB.prepare(
-        "UPDATE clips SET hook_text = ?, caption = ?, hashtags = ?, voice_script = ?, score = ?, score_reasons = ?, score_no_words = NULL, words_pending = 0, words_tries = words_tries + 1, words_tried_at = ? WHERE id = ? AND words_pending = 1",
+        "UPDATE clips SET hook_text = ?, caption = ?, hashtags = ?, voice_script = ?, text_beats = ?, score = ?, score_reasons = ?, score_no_words = NULL, words_pending = 0, words_tries = words_tries + 1, words_tried_at = ? WHERE id = ? AND words_pending = 1",
       )
-        .bind(words.hook_text, words.caption, words.hashtags, words.voice_script, scored.score, scored.score_reasons, now.toISOString(), c.id)
+        .bind(words.hook_text, words.caption, words.hashtags, words.voice_script, words.text_beats.length ? JSON.stringify(words.text_beats) : null, scored.score, scored.score_reasons, now.toISOString(), c.id)
         .run();
       written++;
       dumps.add(c.dump_id);

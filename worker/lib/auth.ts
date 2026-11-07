@@ -1,4 +1,6 @@
 import type { Context, Next } from "hono";
+import { unusedServices } from "./practice";
+import type { SetupServiceId } from "@shared/setup";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import type { Env, SessionUser, Vars } from "../env";
 import { authMode } from "../env";
@@ -114,5 +116,5 @@ export async function requireOwner(c: C, next: Next) {
 /** The signed-in person as the app sees them (GET /api/me, and /api/auth/me in code mode). */
 export async function meFor(env: Env, user: SessionUser): Promise<Me> {
   const features = await getSetting<Features>(env.DB, "features", { ...DEFAULT_FEATURES });
-  return { id: user.id, email: user.email, role: user.role, appName: env.APP_NAME, ownerName: env.OWNER_NAME ?? "", features, authMode: authMode(env), practice: env.PRACTICE ?? [], freeAiUsedUp: await freeAiUsedUp(env) };
+  return { id: user.id, email: user.email, role: user.role, appName: env.APP_NAME, ownerName: env.OWNER_NAME ?? "", features, authMode: authMode(env), practice: (env.PRACTICE ?? []).filter((s) => !unusedServices(env).has(s as SetupServiceId)), freeAiUsedUp: await freeAiUsedUp(env) };
 }

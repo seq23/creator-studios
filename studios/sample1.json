@@ -41,13 +41,12 @@
   },
   "jobSecretOnHostRepo": true,
   "photoPosts": {
-    "_why": "Photo posts (shared/photoPosts.ts): one photo becomes a pack of posts that go out on their own with a heads-up and a Skip. On by the host's word, 22 Oct 2026.",
+    "_why": "Photo posts (shared/photoPosts.ts): one photo becomes a pack of posts that go out on their own with a heads-up and a Skip. On by the host's word, 22 Oct 2026. Pinterest off for Porch & Party, owner 7 Nov 2026: \"that makes no sense its too local\".",
     "on": true,
     "platforms": [
       "facebook",
       "instagram",
-      "tiktok",
-      "pinterest"
+      "tiktok"
     ],
     "headsUpHours": 24,
     "postHour": 11
@@ -61,9 +60,14 @@
     }
   },
   "contentRules": {
-    "_why": "Porch & Party's rules, enforced in code (shared/contentRules.ts): never the word insured, no customer address or house number, prices only from this one list. Host's word, 22 Oct 2026. Faces: owner's ruling 24 Oct 2026, \"None of the porch and party videos [are] of customers so no face blur needed\": blockFaces false (no face is blurred and no clip is held for a face); house numbers are still blurred (blockAddresses, jobs/protect.py). Pinned by tests/unit/content-rules.test.ts.",
+    "_why": "Porch & Party's rules, enforced in code (shared/contentRules.ts): never the word insured, no customer address or house number, prices only from this one list. Host's word, 22 Oct 2026. Faces: owner's ruling 24 Oct 2026, \"None of the porch and party videos [are] of customers so no face blur needed\": blockFaces false (no face is blurred and no clip is held for a face); house numbers are still blurred (blockAddresses, jobs/protect.py). Pinned by tests/unit/content-rules.test.ts. 7 Nov 2026: there is no shop, so a clip never invites anyone to stop by, swing by, come by or tour (R-ADV-11; clips 61, 66, 68, 69 said so).",
     "banWords": [
-      "insured"
+      "insured",
+      "stop by",
+      "swing by",
+      "come by",
+      "our shop",
+      "private tour"
     ],
     "blockAddresses": true,
     "blockFaces": false,
@@ -80,9 +84,9 @@
     "title": "New in your studio",
     "lines": [
       "Add a photo and the studio makes a few posts from it.",
-      "Posts go to Facebook, Instagram, TikTok and Pinterest on their own.",
+      "Posts go to Facebook, Instagram and TikTok on their own.",
       "You get an email the day before. Tap Skip to stop one.",
-      "Faces and house numbers are blurred before anything posts."
+      "House numbers are blurred before anything posts."
     ]
   },
   "sponsorKind": "event",
@@ -90,11 +94,11 @@
   "aiBudget": 2500,
   "_aiBudget": "Neurons a day of the Cloudflare account's free 10,000 (owner, 23 Oct 2026: \"use the cloudflare free allowance too\"). The four shares sum to 8,500, leaving headroom; past 10,000 the account is billed, so worker/lib/freeAi.ts refuses any call this share cannot cover. Lowered from 3,500 to 2,500 on 2 Nov 2026 so Ashly Studio gets 1,000 within the 8,500 total.",
   "studioRules": {
-    "_why": "Owner's rulings 23 Oct 2026 (studio fix): the call to action rotates these phrases and points at the one universal request form, on the end card and in the caption; every clip says Made with AI; 15 to 30 distinct clips per dump; the review bar is 70; local words; no prices. Settings > Your clips changes them (shared/studioRules.ts).",
+    "_why": "Owner's rulings 23 Oct 2026 (studio fix): the call to action rotates these phrases and points at the one universal request form, on the end card and in the caption; every clip says Made with AI; 15 to 30 distinct clips per dump; the review bar is 70; local words; no prices. Settings > Your clips changes them (shared/studioRules.ts). CTA phrases changed 7 Nov 2026 (P&P captions v3, owner: mimic the winners; \"Check your date\" is the site's button).",
     "cta_phrases": [
-      "Book your date",
-      "Request a quote",
-      "Get in touch with us"
+      "Check your date",
+      "Tell us your date",
+      "Request a quote"
     ],
     "cta_link": "https://porchandparty901.com/request",
     "ai_note": "all",

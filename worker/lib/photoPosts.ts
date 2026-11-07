@@ -9,6 +9,7 @@
 //   - Photos: with face/address rules on, a pack the photo maker has not checked is held; a pack it
 //     could not make safe ('blocked') never posts in any studio.
 //   - A platform with no token waits ("Connect Facebook"), then is planned again once connected.
+import { narratesPicture } from "@shared/clipWords";
 import type { Env } from "../env";
 import { fakeServices } from "../env";
 import { parseJson, recordEvent, setHealth } from "./db";
@@ -58,6 +59,13 @@ async function timeZone(env: Env): Promise<string> {
 
 // ------------------------------------------------------------------ captions
 
+/**
+ * The winners' way, as for clips (owner, 7 Nov 2026, P&P captions v3): never describe what the photo
+ * already shows; say who it is for, the moment, the ease or a true reason to book now.
+ */
+export const PHOTO_V3 =
+  "Never describe what the photo shows: the viewer can see it. Each caption adds what the photo cannot: who it is for and the moment (POV, the person it is for, the problem it solves), how easy it is (one form, set up while they are out, you take the credit), or a true reason to book now. The buyer is the hero. Never invent a customer, a review or a count of bookings, and never invite anyone to visit or stop by.";
+
 /** Three short captions from the free AI (OpenRouter free models only), each checked against the rules. */
 export async function draftCaptions(env: Env, note: string): Promise<string[]> {
   const rules = contentRules(env);
@@ -74,7 +82,7 @@ export async function draftCaptions(env: Env, note: string): Promise<string[]> {
   try {
     const llm = await getLlm(env);
     const r = await llm.complete({
-      system: `You write short social media captions for ${env.APP_NAME}. Warm, plain, no more than 150 characters each, at most two hashtags, no emojis at the start. ${rulesLine} Reply with JSON only: {"captions": ["...", "...", "..."]} with exactly three different captions.`,
+      system: `You write short social media captions for ${env.APP_NAME}, a local business. Warm, plain, no more than 150 characters each, at most two hashtags, no emojis at the start. ${PHOTO_V3} ${rulesLine} Reply with JSON only: {"captions": ["...", "...", "..."]} with exactly three different captions.`,
       user: `What the photo shows, in the owner's words: ${note.slice(0, 600) || "(no note: a recent job)"}`,
       json: true,
       maxTokens: 600,
@@ -84,7 +92,7 @@ export async function draftCaptions(env: Env, note: string): Promise<string[]> {
     const list = m ? (JSON.parse(m[0]) as { captions?: unknown }).captions : null;
     const got = Array.isArray(list) ? list.map((c) => String(c ?? "").replace(/\s+/g, " ").trim().slice(0, 220)).filter(Boolean) : [];
     // A draft that breaks a rule is replaced by the starter: the rules win over the AI, always.
-    return [0, 1, 2].map((i) => (got[i] && !textProblems(got[i], rules).length ? got[i] : safeStarters[i]));
+    return [0, 1, 2].map((i) => (got[i] && !textProblems(got[i], rules).length && !narratesPicture(got[i], note).length ? got[i] : safeStarters[i]));
   } catch (e) {
     log.warn("photos.captions", { err: safeError(e) });
     return safeStarters;
@@ -526,6 +534,8 @@ export async function photosHome(env: Env): Promise<PhotosHome> {
 export async function photoStopLights(env: Env): Promise<void> {
   const cfg = photoConfig(env);
   if (!cfg.on) return;
+  // A platform this studio does not post to keeps no light (owner, 7 Nov 2026: P&P has no Pinterest).
+  for (const p of SOCIALS.filter((x) => !cfg.platforms.includes(x))) await env.DB.prepare("DELETE FROM health WHERE name = ?").bind(`Photo posts (${SOCIAL_LABEL[p]})`).run();
   for (const p of cfg.platforms) {
     const ready = await platformReady(env, p);
     await setHealth(env.DB, `Photo posts (${SOCIAL_LABEL[p]})`, ready ? "green" : "grey", ready ? "Connected" : `${connectLabel(p)}: ${CONNECT_WHY[p]}`, ready ? null : `connect-${SOCIAL_SETUP[p] === "buffer" ? "buffer" : p}`);

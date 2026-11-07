@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { ClipRow } from "@shared/types";
 import { PLATFORMS, PLATFORM_LABEL, RECIPES, REJECT_REASONS, type Platform, type Recipe } from "@shared/constants";
-import { del, get, patch, post } from "../lib/api";
+import { api, del, get, patch, post } from "../lib/api";
 import { fmtDate, fmtSeconds, plural } from "../lib/format";
 import { Empty, HelpButton, Modal, MoreRow, PageHead, SearchBox, Skeleton, Switch, useLoad, useToast } from "../components/ui";
 import { useApp } from "../state";
@@ -24,6 +24,10 @@ import "../styles/review.css";
 type Tab = "new" | "approved" | "rejected";
 
 export interface ReviewClip extends ClipRow {
+  /** A final photo she added: the clip ends on it (worker/routes/clips.ts final-photo). */
+  final_photo?: boolean;
+  /** The short lines shown after the hook, before the end card (no voice over). */
+  text_beats?: string[];
   reviewed_at: string | null;
   purge_at: string | null;
   look: string | null;
@@ -704,7 +708,7 @@ function ClipCard(props: {
           ) : null}
           {c.pending_look ? (
             <span className="pill warn look-pending" role="status">
-              Re-rendering as {c.pending_look_name ?? "a new look"}, about a minute
+              {c.final_photo && c.pending_look === c.look ? "Adding your final photo, about a minute" : `Re-rendering as ${c.pending_look_name ?? "a new look"}, about a minute`}
             </span>
           ) : null}
         </div>
@@ -728,6 +732,12 @@ function ClipCard(props: {
           </div>
         ) : null}
         <div className="clip-hook">{c.hook_text}</div>
+        {c.text_beats?.length ? (
+          <p className="clip-beats" data-clip-beats>
+            <span className="clip-beats-label">Then on screen:</span> {c.text_beats.join(" · ")}
+          </p>
+        ) : null}
+        {c.final_photo ? <p className="clip-beats">Ends on your final photo.</p> : null}
         {c.caption ? <p className="clip-caption">{c.caption}</p> : null}
         {c.hashtags ? <p className="clip-tags hint">{c.hashtags}</p> : null}
         <div className="clip-platforms" role="group" aria-label="Goes to">
@@ -809,6 +819,7 @@ function ClipCard(props: {
               Change music
             </button>
           ) : null}
+          {tab !== "rejected" ? <FinalPhotoButton clip={c} disabled={!!c.pending_look || !!c.editing_note || !c.source_available} onChanged={props.onFullChanged} /> : null}
           {tab !== "rejected" ? (
             <button className="link-btn" onClick={props.onHandoff} disabled={!!c.pending_look || !!c.editing_note}>
               Edit in CapCut
@@ -1196,3 +1207,53 @@ function VoiceOverModal({ clip, onClose, onQueued }: { clip: ReviewClip; onClose
     </Modal>
   );
 }
+
+/**
+ * Add a final photo (owner, 7 Nov 2026): the clip is made again ending on a photo of the finished
+ * setup, held with a gentle push-in under the end card. "Remove final photo" makes it again without.
+ */
+function FinalPhotoButton({ clip, disabled, onChanged }: { clip: ReviewClip; disabled: boolean; onChanged: (u: unknown) => void }) {
+  const toast = useToast();
+  const [sending, setSending] = useState(false);
+  const inputId = `final-photo-${clip.id}`;
+  const send = async (file: File | null) => {
+    if (!file) return;
+    setSending(true);
+    try {
+      const r = await api<{ clip: ReviewClip | null }>(`/api/clips/${clip.id}/final-photo`, { method: "POST", body: file, headers: { "Content-Type": file.type || "image/jpeg" } });
+      toast.ok("Making it again with your photo at the end. This one stays until the new one is ready.");
+      onChanged(r.clip);
+    } catch (e) {
+      toast.bad(e);
+    } finally {
+      setSending(false);
+    }
+  };
+  const remove = async () => {
+    setSending(true);
+    try {
+      const r = await del<{ clip: ReviewClip | null }>(`/api/clips/${clip.id}/final-photo`);
+      toast.ok("Making it again without the final photo.");
+      onChanged(r.clip);
+    } catch (e) {
+      toast.bad(e);
+    } finally {
+      setSending(false);
+    }
+  };
+  if (clip.final_photo)
+    return (
+      <button className="link-btn" onClick={remove} disabled={disabled || sending}>
+        Remove final photo
+      </button>
+    );
+  return (
+    <>
+      <label className={`link-btn${disabled || sending ? " is-disabled" : ""}`} htmlFor={inputId} aria-disabled={disabled || sending}>
+        {sending ? "Sending your photo…" : "Add a final photo"}
+      </label>
+      <input id={inputId} type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={disabled || sending} onChange={(e) => void send(e.target.files?.[0] ?? null)} />
+    </>
+  );
+}
+

@@ -71,7 +71,10 @@ describe("Porch & Party Studio (studios/sample1.json)", () => {
     const r = parseRules(JSON.stringify(j.contentRules));
     expect(r.blockFaces).toBe(false);
     expect(r.blockAddresses).toBe(true);
-    expect(r.banWords).toEqual(["insured"]);
+    expect(r.banWords).toEqual(["insured", "stop by", "swing by", "come by", "our shop", "private tour"]);
+    // 7 Nov 2026: there is no shop, so no clip invites anyone in (R-ADV-11; the old clips said so).
+    for (const t of ["Stop by our shop to see it.", "Swing by and let it welcome you in.", "Come by today.", "Schedule your private tour today."]) expect(textProblems(t, r).length, t).toBeGreaterThan(0);
+    expect(textProblems("You give us the date and the place; we set it up.", r)).toEqual([]);
     expect(j.contentRules.prices).toEqual([{ name: "Grand Holiday Porch", usd: 1050 }]);
     expect(textProblems("Done at 1234 Oak Hollow Cv", r)).toHaveLength(1);
   });

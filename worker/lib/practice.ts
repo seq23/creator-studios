@@ -7,6 +7,7 @@
 // onto the env names the rest of the Worker already reads (RESEND_API_KEY, YOUTUBE_API_KEY,
 // GOOGLE_CLIENT_*, META_APP_*, GITHUB_DISPATCH_TOKEN + GITHUB_REPO, OPENROUTER_ / FIRECRAWL_ / HUNTER_API_KEY) and lists the services still in
 // practice in env.PRACTICE. Nothing here logs a key.
+import { parsePhotoPosts } from "@shared/photoPosts";
 import type { Env } from "../env";
 import { fakeServices } from "../env";
 import { decryptSecret } from "./crypto";
@@ -117,6 +118,19 @@ export async function hydrate(env: Env): Promise<Env> {
     }
   }
   out.PRACTICE = practiceList(out, new Set(stored.keys()));
+  return out;
+}
+
+/**
+ * Setup services this studio never uses, so it never shows them (owner, 7 Nov 2026: Porch & Party gets
+ * no Pinterest, "its too local"): Pinterest when the studio's photo posts are on and do not go to Pinterest. Display
+ * only; the service still answers practice() so nothing ever calls it. Pure.
+ */
+export function unusedServices(env: Pick<Env, "PHOTO_POSTS">): Set<SetupServiceId> {
+  const out = new Set<SetupServiceId>();
+  const cfg = parsePhotoPosts(env.PHOTO_POSTS);
+  // Only a studio whose photo posts are on and leave Pinterest out; every other studio is unchanged.
+  if (cfg.on && !cfg.platforms.includes("pinterest")) out.add("pinterest");
   return out;
 }
 

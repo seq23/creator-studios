@@ -348,16 +348,16 @@
     "opening_max": 2,
     "word_max": 2,
     "shapes": [
-      "Count what is on screen (\"Three details that make …\"), only a number you can see",
-      "A question the clip answers (\"Ever wondered how …?\")",
-      "From … to … (the before and the after you can see)",
-      "The detail nobody notices first (\"Nobody sees the … until …\")",
-      "What the viewer gets, in second person (\"You'll want … after this\")",
-      "A contrast (\"Not just …, a …\")",
-      "Name the occasion it is for (\"For the one who …\")",
-      "The moment itself, plainly named (\"The second the … \")",
-      "One striking detail, up close (\"That … on the …\")",
-      "Why it works (\"Why … makes the whole room\")"
+      "POV, from the buyer's side (\"POV: they think you did all this\")",
+      "The person it is for, in their words (\"He says he doesn't need anything\")",
+      "The problem it solves, as a question (\"Hosting and already tired?\")",
+      "Reveal-first curiosity (\"Wait for the last room…\")",
+      "A true countdown to the occasion (\"Christmas is 7 weeks out. Ready?\")",
+      "What they said vs what happened (\"When they said 'don't make a fuss'\")",
+      "Talk straight to the one doing the work (\"Mom, put the glue gun down\")",
+      "The choice it replaces (\"Skip the restaurant this anniversary\")",
+      "The moment it is for, plainly named (\"Her birthday. She has no idea.\")",
+      "Booking now, only when true (\"Booking December dates now\")"
     ],
     "_strength": "The score's on-screen-words check grades the hook (owner, 24 Oct 2026: most clips scored 90): readable is 6 of 10, +1 when it is a word under the limit, +1 when it carries none of the vague hype words below, +2 when it has a pull (a number, it speaks to the viewer, or it opens on a curiosity shape). jobs/clipmaker.py hook_points and shared/clipWords.ts hookPoints read these lists.",
     "hype": [
@@ -401,6 +401,7 @@
       "the second",
       "the moment"
     ],
-    "_shapes": "Never a claim the clip cannot show (no invented times, prices or counts): 24 Oct 2026 a \"Ten minutes, one …\" shape had the model write \"Ten minutes, one simple glow\" for a setup that takes longer."
+    "_shapes": "Never a claim the clip cannot show (no invented times, prices or counts): 24 Oct 2026 a \"Ten minutes, one …\" shape had the model write \"Ten minutes, one simple glow\" for a setup that takes longer.",
+    "_shapes_why": "Owner, 7 Nov 2026: the old shapes described the picture (\"That … on the …\", \"Count what is on screen\"). These come from the accounts that win at room, picnic and party setups (P&P captions v3 page): never describe what the viewer can see; say who it is for, the problem, the ease or a true reason to book now."
   }
 }
