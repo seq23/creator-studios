@@ -35,6 +35,7 @@ import { tracksOf } from "../lib/steerStore";
 import { clipForScript, draftScript, voiceReady, redoVoiceOver, removeVoiceOver } from "../lib/autoVoice";
 import { maxWords } from "../domain/autoVoice";
 import { dispatchJob } from "../services/github";
+import { parseBeats } from "../jobs/cut";
 import { checkEdit, editorName, isHandoffApp, HANDOFF } from "../domain/editors";
 import { editingNote, pollEditorJobs, startHandback } from "../lib/editorJobs";
 import { probeR2 } from "../lib/mp4";
@@ -106,6 +107,8 @@ export function purgeAt(reviewedAt: string | null): string | null {
 export interface ReviewClip extends ClipRow {
   /** A final photo she added (Review: Add a final photo): the clip ends on it. */
   final_photo: boolean;
+  /** The short lines shown after the hook, before the end card (clips.text_beats). */
+  text_beats: string[];
   reviewed_at: string | null;
   purge_at: string | null;
   /** The Look it is rendered in, and its name; null for clips made before Looks. */
@@ -218,6 +221,7 @@ export const REVIEW_PAGE = 12;
 
 interface ClipDb {
   final_photo_key?: string | null;
+  text_beats?: string | null;
   id: string;
   asset_id: string;
   dump_id: string;
@@ -296,6 +300,7 @@ export function mediaVersion(r: { media_version: number; voice_mix: string | nul
 function toView(r: ClipDb): ReviewClip {
   return {
     final_photo: !!r.final_photo_key,
+    text_beats: parseBeats(r.text_beats ?? null),
     id: r.id,
     asset_id: r.asset_id,
     dump_id: r.dump_id,
@@ -400,7 +405,7 @@ function fullVideoView(r: ClipDb): FullVideoView {
 
 const CLIP_SELECT = `SELECT c.id, c.asset_id, c.dump_id, c.start_s, c.end_s, c.recipe, c.hook_text, c.hook_alt, c.caption, c.hashtags,
   c.platforms, c.score, c.status, c.reject_reason, c.paid_partnership, c.hidden, c.created_at, c.reviewed_at, c.media_token, c.cover_r2_key,
-  c.look, c.layout, c.pending_look, c.rerender_error, c.media_version, c.edited_with, c.music, c.pending_music, c.muted, c.final_photo_key, c.again_notes, c.shape, c.service, c.hidden_reason, a.raw_deleted_at,
+  c.look, c.layout, c.pending_look, c.rerender_error, c.media_version, c.edited_with, c.music, c.pending_music, c.muted, c.final_photo_key, c.text_beats, c.again_notes, c.shape, c.service, c.hidden_reason, a.raw_deleted_at,
   (SELECT e.editor FROM editor_jobs e WHERE e.clip_id = c.id AND e.status IN ('submitted', 'importing') ORDER BY e.created_at DESC LIMIT 1) AS busy_editor,
   (SELECT e.capability FROM editor_jobs e WHERE e.clip_id = c.id AND e.status IN ('submitted', 'importing') ORDER BY e.created_at DESC LIMIT 1) AS busy_capability,
   a.file_name AS source_file, a.source_owner, a.source_note,

@@ -26,6 +26,8 @@ type Tab = "new" | "approved" | "rejected";
 export interface ReviewClip extends ClipRow {
   /** A final photo she added: the clip ends on it (worker/routes/clips.ts final-photo). */
   final_photo?: boolean;
+  /** The short lines shown after the hook, before the end card (no voice over). */
+  text_beats?: string[];
   reviewed_at: string | null;
   purge_at: string | null;
   look: string | null;
@@ -706,7 +708,7 @@ function ClipCard(props: {
           ) : null}
           {c.pending_look ? (
             <span className="pill warn look-pending" role="status">
-              Re-rendering as {c.pending_look_name ?? "a new look"}, about a minute
+              {c.final_photo && c.pending_look === c.look ? "Adding your final photo, about a minute" : `Re-rendering as ${c.pending_look_name ?? "a new look"}, about a minute`}
             </span>
           ) : null}
         </div>
@@ -730,6 +732,12 @@ function ClipCard(props: {
           </div>
         ) : null}
         <div className="clip-hook">{c.hook_text}</div>
+        {c.text_beats?.length ? (
+          <p className="clip-beats" data-clip-beats>
+            <span className="clip-beats-label">Then on screen:</span> {c.text_beats.join(" · ")}
+          </p>
+        ) : null}
+        {c.final_photo ? <p className="clip-beats">Ends on your final photo.</p> : null}
         {c.caption ? <p className="clip-caption">{c.caption}</p> : null}
         {c.hashtags ? <p className="clip-tags hint">{c.hashtags}</p> : null}
         <div className="clip-platforms" role="group" aria-label="Goes to">

@@ -440,3 +440,10 @@
 /* Add a final photo: a label styled as a link button (it opens the file picker). */
 label.link-btn { cursor: pointer; }
 label.link-btn.is-disabled { opacity: 0.5; pointer-events: none; }
+
+/* The on-screen beats after the hook (no voice over): read-only, under the hook. */
+.clip-beats { margin: 4px 0 0; font-size: 0.875rem; color: var(--muted, inherit); }
+.clip-beats-label { font-weight: 600; }
+
+/* A long status pill wraps inside the card instead of running off its edge (seen at 390 px). */
+.look-pending { white-space: normal; max-width: 100%; }
