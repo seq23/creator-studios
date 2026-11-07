@@ -96,4 +96,20 @@ describe("signed Start over", () => {
     expect(db.raw.prepare("SELECT COUNT(*) AS n FROM emails_sent").get()).toEqual({ n: 0 });
     expect(db.raw.prepare("SELECT status FROM dumps WHERE id = 'dmp_o'").get()).toEqual({ status: "ready" });
   });
+  it("rewrite-words never dispatches a re-render whose original upload was cleared: a named state, not a 500", async () => {
+    db.raw.exec(`UPDATE clips SET hook_text = 'POV: they think you did all this', look = 'clean', number = 7 WHERE id = 'clp_new';
+      UPDATE assets SET raw_deleted_at = '2026-10-31T13:30:00.000Z' WHERE id = 'ast_o';`);
+    const only = JSON.stringify({ dump_id: "dmp_o", rerender_only: true });
+    const r = await app.request("http://w.example/api/ops/rewrite-words", { method: "POST", headers: { "content-type": "application/json", ...sign(only) }, body: only }, env);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ ok: true, rerenders: 0, source_cleared: 1, source_cleared_note: expect.stringMatching(/original upload was cleared.*Re-upload/) });
+    expect(db.raw.prepare("SELECT rerender_job_id, pending_look, rerender_error, hook_text FROM clips WHERE id = 'clp_new'").get()).toEqual({ rerender_job_id: null, pending_look: null, rerender_error: expect.stringMatching(/Re-upload the original/), hook_text: "POV: they think you did all this" });
+    // A part from another upload that was cleared stops it too; with every original kept it goes.
+    db.raw.exec(`UPDATE assets SET raw_deleted_at = NULL WHERE id = 'ast_o';
+      INSERT INTO assets (id, dump_id, file_name, mime_type, r2_key, upload_status, raw_deleted_at) VALUES ('ast_p', 'dmp_o', 'b.mp4', 'video/mp4', 'raw/dmp_o/b', 'uploaded', '2026-10-31T13:30:00.000Z');
+      UPDATE clips SET part_assets = '["ast_p","ast_o"]', rerender_error = NULL WHERE id = 'clp_new';`);
+    expect(await (await app.request("http://w.example/api/ops/rewrite-words", { method: "POST", headers: { "content-type": "application/json", ...sign(only) }, body: only }, env)).json()).toMatchObject({ rerenders: 0, source_cleared: 1 });
+    db.raw.exec("UPDATE assets SET raw_deleted_at = NULL WHERE id = 'ast_p'");
+    expect(await (await app.request("http://w.example/api/ops/rewrite-words", { method: "POST", headers: { "content-type": "application/json", ...sign(only) }, body: only }, env)).json()).toMatchObject({ rerenders: 1, source_cleared: 0, source_cleared_note: null });
+  });
 });

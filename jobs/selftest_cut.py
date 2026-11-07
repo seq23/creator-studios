@@ -127,6 +127,18 @@ def loudness(path: Path) -> float | None:
     return float(found[-1]) if found else None
 
 
+def rendered_length(c: dict, body: float) -> float:
+    """How long a clip should render in its Look, from its parts (a grid plays one cell's length)."""
+    opts = L.look_options(c["look"])
+    parts = [(float(a), float(b)) for a, b in (c.get("parts") or [])]
+    if opts["layout"] == "grid" or not parts:
+        return body
+    total = sum(e - s for s, e in parts)
+    if opts["crossfade"] and len(parts) > 1:
+        total -= L.FADE * (len(parts) - 1)
+    return total
+
+
 def spec_for(door: str, dump_id: str, assets: list[dict]) -> dict:
     return {
         "job_id": "job_selftest",
@@ -209,8 +221,13 @@ def check(result: dict, spec: dict, out: Path, problems: list[str]) -> None:
             problems.append(f"not 9:16 1080x1920: {info['width']}x{info['height']}")
         if not info["has_audio"]:
             problems.append("no audio")
-        if info["duration"] < body - 0.5:
-            problems.append("rendered shorter than the cut")
+        # The length the Look should render: its parts back to back, less the crossfades a crossfading
+        # Look overlaps (looks.output_duration). end_s - start_s is the span in the source, which a
+        # gapped or crossfaded cut never fills (7 Nov 2026: a 3-part "cinematic" clip, 0.7 s of fades,
+        # failed this check whenever the picker happened to give the third clip that Look).
+        expected = rendered_length(c, body)
+        if info["duration"] < expected - 0.5:
+            problems.append(f"rendered shorter than the cut ({c['look']}, {info['duration']:.1f}s < {expected:.1f}s)")
         if spec["door"] == "recycle" and info["duration"] < body + 1.5 and body > 5:
             problems.append("recycle clip has no new first 2 seconds")
         lufs = loudness(mp4)
