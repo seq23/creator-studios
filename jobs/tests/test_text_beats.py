@@ -49,6 +49,13 @@ class TextBeats(unittest.TestCase):
         # Without beats the hook keeps its full time.
         self.assertIn(L.ass_time(L.HOOK_SECONDS), without)
 
+    def test_beats_end_where_the_final_photo_starts(self) -> None:
+        b = L.Branding()
+        ass = L.build_ass([], "POV: they think you did all this", OPTS, b, 15.0, True, ["You filled out one form", "Wait for it…"], beats_until=10.5)
+        assert ass is not None
+        ends = [line.split(",")[2] for line in ass.splitlines() if line.startswith("Dialogue:") and ("Wait for it" in line or "one form" in line)]
+        self.assertEqual(ends[-1], L.ass_time(10.5))
+
     def test_no_beats_means_nothing_extra(self) -> None:
         self.assertEqual(L.beat_cues([], 2.5, 8.0), [])
         self.assertEqual(L.beat_cues(["  "], 2.5, 8.0), [])

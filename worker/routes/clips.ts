@@ -104,6 +104,8 @@ export function purgeAt(reviewedAt: string | null): string | null {
 // ---------------------------------------------------------------- list
 
 export interface ReviewClip extends ClipRow {
+  /** A final photo she added (Review: Add a final photo): the clip ends on it. */
+  final_photo: boolean;
   reviewed_at: string | null;
   purge_at: string | null;
   /** The Look it is rendered in, and its name; null for clips made before Looks. */
@@ -215,6 +217,7 @@ export interface ReviewList {
 export const REVIEW_PAGE = 12;
 
 interface ClipDb {
+  final_photo_key?: string | null;
   id: string;
   asset_id: string;
   dump_id: string;
@@ -292,6 +295,7 @@ export function mediaVersion(r: { media_version: number; voice_mix: string | nul
 
 function toView(r: ClipDb): ReviewClip {
   return {
+    final_photo: !!r.final_photo_key,
     id: r.id,
     asset_id: r.asset_id,
     dump_id: r.dump_id,
@@ -396,7 +400,7 @@ function fullVideoView(r: ClipDb): FullVideoView {
 
 const CLIP_SELECT = `SELECT c.id, c.asset_id, c.dump_id, c.start_s, c.end_s, c.recipe, c.hook_text, c.hook_alt, c.caption, c.hashtags,
   c.platforms, c.score, c.status, c.reject_reason, c.paid_partnership, c.hidden, c.created_at, c.reviewed_at, c.media_token, c.cover_r2_key,
-  c.look, c.layout, c.pending_look, c.rerender_error, c.media_version, c.edited_with, c.music, c.pending_music, c.muted, c.again_notes, c.shape, c.service, c.hidden_reason, a.raw_deleted_at,
+  c.look, c.layout, c.pending_look, c.rerender_error, c.media_version, c.edited_with, c.music, c.pending_music, c.muted, c.final_photo_key, c.again_notes, c.shape, c.service, c.hidden_reason, a.raw_deleted_at,
   (SELECT e.editor FROM editor_jobs e WHERE e.clip_id = c.id AND e.status IN ('submitted', 'importing') ORDER BY e.created_at DESC LIMIT 1) AS busy_editor,
   (SELECT e.capability FROM editor_jobs e WHERE e.clip_id = c.id AND e.status IN ('submitted', 'importing') ORDER BY e.created_at DESC LIMIT 1) AS busy_capability,
   a.file_name AS source_file, a.source_owner, a.source_note,
@@ -900,6 +904,42 @@ clips.post("/:id/music", async (c) => {
   const music = body?.music === "none" ? "none" : tracks.find((t) => t.id === body?.music)?.id;
   if (!music) return fail(c, 422, "Pick No music or one of your songs.", "looks-and-styles");
   return rerender(c, id, row?.look ?? "clean", undefined, { music, sameLookOk: true });
+});
+
+/** A final photo (owner, 7 Nov 2026): JPEG, PNG or WebP, up to this size. */
+export const FINAL_PHOTO_TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+export const FINAL_PHOTO_MAX_BYTES = 15 * 1024 * 1024;
+
+/**
+ * Add a final photo (owner, 7 Nov 2026: a clip that shows the room half done "must END on the finished
+ * product"). The photo is stored in the clip's folder and the clip is made again in its look, ending on
+ * the photo (held with a gentle push-in, under the end card). The current version stays until then.
+ */
+clips.post("/:id/final-photo", async (c) => {
+  const id = c.req.param("id");
+  const row = await rerenderRow(c.env, id);
+  if (!row || row.status === "deleted") return fail(c, 404, "That clip is gone.", "review-and-approve-clips");
+  if (row.edited_with) return fail(c, 409, "This clip is your own edit. Add the photo in your editing app and upload it again.", "looks-and-styles");
+  const type = (c.req.header("content-type") ?? "").split(";")[0].trim().toLowerCase();
+  const ext = FINAL_PHOTO_TYPES[type];
+  if (!ext) return fail(c, 422, "Pick a JPEG, PNG or WebP photo.", "review-and-approve-clips");
+  const bytes = new Uint8Array(await c.req.arrayBuffer());
+  if (!bytes.length) return fail(c, 422, "The photo was empty. Pick it again.", "review-and-approve-clips");
+  if (bytes.length > FINAL_PHOTO_MAX_BYTES) return fail(c, 413, "That photo is over 15 MB. Pick a smaller copy.", "review-and-approve-clips");
+  const key = `clips/${row.dump_id}/${id}-final-${Date.now().toString(36)}.${ext}`;
+  await c.env.FILES.put(key, bytes, { httpMetadata: { contentType: type } });
+  await c.env.DB.prepare("UPDATE clips SET final_photo_key = ? WHERE id = ?").bind(key, id).run();
+  await recordEvent(c.env.DB, "clip.final_photo", id, { bytes: bytes.length }, c.get("user").email);
+  return rerender(c, id, row.look ?? "clean", undefined, { sameLookOk: true });
+});
+
+/** Take the final photo off: the clip is made again without it. */
+clips.delete("/:id/final-photo", async (c) => {
+  const id = c.req.param("id");
+  const row = await rerenderRow(c.env, id);
+  if (!row || row.status === "deleted") return fail(c, 404, "That clip is gone.", "review-and-approve-clips");
+  await c.env.DB.prepare("UPDATE clips SET final_photo_key = NULL WHERE id = ?").bind(id).run();
+  return rerender(c, id, row.look ?? "clean", undefined, { sameLookOk: true });
 });
 
 /**

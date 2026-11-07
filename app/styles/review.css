@@ -436,3 +436,7 @@
   background: var(--ink);
   border-radius: var(--radius);
 }
+
+/* Add a final photo: a label styled as a link button (it opens the file picker). */
+label.link-btn { cursor: pointer; }
+label.link-btn.is-disabled { opacity: 0.5; pointer-events: none; }

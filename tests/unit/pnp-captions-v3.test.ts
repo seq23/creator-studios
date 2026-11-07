@@ -56,3 +56,41 @@ describe("the words pass writes beats and, with voice overs off, no voice", () =
     expect(parseBeats(null)).toEqual([]);
   });
 });
+
+describe("Review: Add a final photo (owner, 7 Nov 2026: it must END on the finished product)", () => {
+  it("stores the photo in the clip's folder, makes the clip again, and the re-render ends on it; Remove takes it off", async () => {
+    const { harness } = await import("./helpers/studio-fix-env");
+    const { cutJob } = await import("@worker/jobs/cut");
+    const h = await harness();
+    await h.dumpWith("dmp_fp", [{ id: "ast_fp", name: "a.mp4", mime: "video/mp4" }]);
+    await h.cut("dmp_fp", undefined, 2);
+    const clip = h.one<{ id: string }>("SELECT id FROM clips WHERE dump_id = 'dmp_fp' ORDER BY number LIMIT 1");
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
+    const res = await h.request("POST", `/api/clips/${clip.id}/final-photo`, jpeg, { "content-type": "image/jpeg" });
+    expect(res.status).toBe(200);
+    const row = h.one<{ final_photo_key: string; pending_look: string | null; rerender_job_id: string | null }>("SELECT final_photo_key, pending_look, rerender_job_id FROM clips WHERE id = ?", clip.id);
+    expect(row.final_photo_key).toMatch(new RegExp(`^clips/dmp_fp/${clip.id}-final-[a-z0-9]+\\.jpg$`));
+    expect(await h.r2.FILES.get(row.final_photo_key)).not.toBeNull();
+    expect(row.pending_look).toBeTruthy();
+    const spec = (await cutJob.buildSpec(h.env, "job_fp", `dmp_fp/${clip.id}`)) as { final_photo_key: string | null };
+    expect(spec.final_photo_key).toBe(row.final_photo_key);
+    // Shown on the card, so Review offers Remove instead of Add.
+    const list = await h.call("GET", "/api/clips?tab=new");
+    const card = list.json.groups.flatMap((g: { clips: { id: string; final_photo: boolean }[] }) => g.clips).find((x: { id: string }) => x.id === clip.id);
+    expect(card.final_photo).toBe(true);
+    h.db.raw.exec(`UPDATE clips SET rerender_job_id = NULL, pending_look = NULL WHERE id = '${clip.id}'`);
+    expect((await h.call("DELETE", `/api/clips/${clip.id}/final-photo`)).status).toBe(200);
+    expect(h.one<{ final_photo_key: string | null }>("SELECT final_photo_key FROM clips WHERE id = ?", clip.id).final_photo_key).toBeNull();
+  });
+  it("refuses what is not a photo, an empty file, or a clip that is gone", async () => {
+    const { harness } = await import("./helpers/studio-fix-env");
+    const h = await harness();
+    await h.dumpWith("dmp_fq", [{ id: "ast_fq", name: "a.mp4", mime: "video/mp4" }]);
+    await h.cut("dmp_fq", undefined, 1);
+    const clip = h.one<{ id: string }>("SELECT id FROM clips WHERE dump_id = 'dmp_fq' LIMIT 1");
+    expect((await h.request("POST", `/api/clips/${clip.id}/final-photo`, new Uint8Array([1, 2]), { "content-type": "application/pdf" })).status).toBe(422);
+    expect((await h.request("POST", `/api/clips/${clip.id}/final-photo`, new Uint8Array([]), { "content-type": "image/png" })).status).toBe(422);
+    expect((await h.request("POST", `/api/clips/clp_nothere1234/final-photo`, new Uint8Array([1]), { "content-type": "image/png" })).status).toBe(404);
+    expect(h.one<{ final_photo_key: string | null }>("SELECT final_photo_key FROM clips WHERE id = ?", clip.id).final_photo_key).toBeNull();
+  });
+});

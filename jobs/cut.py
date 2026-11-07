@@ -316,8 +316,6 @@ class Moment:
     parts: list[tuple[float, float]]
     hook: str = ""
     hook_alt: str = ""
-    # On-screen lines after the hook (owner, 7 Nov 2026: no voice on Porch & Party; clips.text_beats).
-    beats: list[str] = field(default_factory=list)
     caption: str = ""
     hashtags: list[str] = field(default_factory=list)
     hook_strength: float | None = None
@@ -345,6 +343,8 @@ class Moment:
     words_pending: bool = False
     # What was said in its video (the transcript): a hook may never be a line of it (clipmaker.echoes_speech).
     said: str = ""
+    # On-screen lines after the hook (owner, 7 Nov 2026: no voice on Porch & Party; clips.text_beats).
+    beats: list[str] = field(default_factory=list)
 
 
 def coverage(runs: list[tuple[float, float]], s: float, e: float) -> float:
@@ -961,7 +961,9 @@ def music_for(spec: dict[str, Any], k: int, work: Path, download: "Downloader", 
     return cache[key]
 
 
-def render_moment(m: "Moment", src: Source, opts: dict[str, Any], brand: L.Branding, work: Path, clip_id: str, mediapipe: bool, *, cells: list[L.Seg] | None = None, voice: int = 0, voice_src: Source | None = None, music: Path | None = None, srcs: dict[str, Source] | None = None, ending: L.Seg | None = None) -> L.Rendered:
+def render_moment(m: "Moment", src: Source, opts: dict[str, Any], brand: L.Branding, work: Path, clip_id: str, mediapipe: bool, *, cells: list[L.Seg] | None = None, voice: int = 0, voice_src: Source | None = None, music: Path | None = None, srcs: dict[str, Source] | None = None, ending: L.Seg | None = None, final: L.Seg | None = None) -> L.Rendered:
+    if cells and final is not None:
+        ending = final  # a grid ends on her final photo instead of its hero
     if cells and ending is not None:
         # A grid of the clip's own distinct shots, then its hero full frame (studio fix). Cell 0 is the
         # voice; its words are the captions (none when the camera sound is off).
@@ -974,7 +976,10 @@ def render_moment(m: "Moment", src: Source, opts: dict[str, Any], brand: L.Brand
         psrc = [srcs.get(a, src) for a in m.part_assets]
         parts = [ps.seg(s, e, mediapipe) for ps, (s, e) in zip(psrc, m.parts)]
         words = [] if opts.get("mute") or m.captions_off else L.timeline_words([ps.transcript.words_in(s, e) for ps, (s, e) in zip(psrc, m.parts)], parts, opts)
-        return L.render_look(opts, parts, words, m.hook, brand, work, clip_id, cells=None, voice=0, inset=None, music=music if opts.get("music") else None, beats=m.beats)
+        until = sum(p.dur for p in parts) if final is not None else None
+        if final is not None:
+            parts = parts + [final]
+        return L.render_look(opts, parts, words, m.hook, brand, work, clip_id, cells=None, voice=0, inset=None, music=music if opts.get("music") else None, beats=m.beats, beats_until=until)
     parts = [src.seg(s, e, mediapipe) for s, e in m.parts]
     if cells:
         vs = voice_src or src
@@ -985,7 +990,10 @@ def render_moment(m: "Moment", src: Source, opts: dict[str, Any], brand: L.Brand
     if opts.get("mute") or m.captions_off:
         words = []  # camera sound off: no word captions from what the camera heard
     inset = inset_for(src, m, mediapipe) if opts["layout"] == "pip" else None
-    return L.render_look(opts, parts, words, m.hook, brand, work, clip_id, cells=cells, voice=voice, inset=inset, music=music if opts.get("music") else None, beats=m.beats)
+    until = sum(p.dur for p in parts) if final is not None and not cells else None
+    if final is not None and not cells:
+        parts = parts + [final]
+    return L.render_look(opts, parts, words, m.hook, brand, work, clip_id, cells=cells, voice=voice, inset=inset, music=music if opts.get("music") else None, beats=m.beats, beats_until=until)
 
 
 
@@ -2236,6 +2244,45 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
 
 # ---------------------------------------------------------------- one clip, a new Look
 
+# A final photo (owner, 7 Nov 2026: "it must END on the finished product"): held this long in the clear,
+# then the end card (looks.CARD_SECONDS) sits over it; a gentle push-in up to FINAL_ZOOM.
+FINAL_HOLD_S = 2.5
+FINAL_ZOOM = 1.08
+
+
+def still_clip(photo: Path, out: Path, seconds: float) -> Path:
+    """A 9:16 video of one photo: the whole photo over a blurred fill of itself, pushing in gently,
+    with a silent stereo track (every part of a clip has sound). ffmpeg only."""
+    frames = max(1, int(round(seconds * FPS)))
+    step = (FINAL_ZOOM - 1.0) / frames
+    vf = (
+        f"[0:v]split=2[b][f];"
+        f"[b]scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=increase,crop={OUT_W}:{OUT_H},gblur=sigma=40,eq=brightness=-0.08[bg];"
+        f"[f]scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=decrease[fg];"
+        f"[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1,"
+        f"zoompan=z='min(1+{step:.6f}*on,{FINAL_ZOOM})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={OUT_W}x{OUT_H}:fps={FPS},format=yuv420p[v]"
+    )
+    subprocess.run(
+        ["ffmpeg", "-y", "-loglevel", "error", "-loop", "1", "-framerate", str(FPS), "-t", f"{seconds:.3f}", "-i", str(photo),
+         "-f", "lavfi", "-t", f"{seconds:.3f}", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
+         "-filter_complex", vf, "-map", "[v]", "-map", "1:a", "-frames:v", str(frames), "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "aac", "-shortest", str(out)],
+        check=True,
+    )
+    return out
+
+
+def final_still(spec: dict[str, Any], work: Path, download: "Downloader") -> L.Seg | None:
+    """Her final photo as the clip's last shot, or None when the clip has none."""
+    key = str(spec.get("final_photo_key") or "")
+    if not key:
+        return None
+    photo = download(key, work / ("final_photo" + Path(key).suffix))
+    seconds = FINAL_HOLD_S + L.CARD_SECONDS
+    clip = still_clip(photo, work / "final_photo.mp4", seconds)
+    log("cut.final_photo", seconds=seconds)
+    return L.Seg(clip, 0.0, round(seconds, 3), OUT_W, OUT_H)
+
+
 def rerender_clip(spec: dict[str, Any], work: Path, download: Downloader, upload: Uploader, progress: Progress, heavy: dict[str, bool]) -> dict[str, Any]:
     """Re-render one clip in the Look she picked in Review (and, for a grid, the cells she picked).
     The Worker sends every source stretch; each source video is normalized only around the
@@ -2294,7 +2341,8 @@ def rerender_clip(spec: dict[str, Any], work: Path, download: Downloader, upload
     song = music_key(spec, k, muted) if opts.get("music") else None
     # A grid made from the clip's own shots ends on its hero (layout.ending, studio fix).
     ending = seg(spec["ending"])[0] if cells and spec.get("ending") else None
-    r = render_moment(m, main_src, opts, brand, work, str(spec["clip_id"]), mediapipe, cells=cells, voice=voice if ending is None else 0, voice_src=voice_src, music=music_for(spec, k, work, download, {}, muted) if song else None, ending=ending)
+    final = final_still(spec, work, download)
+    r = render_moment(m, main_src, opts, brand, work, str(spec["clip_id"]), mediapipe, cells=cells, voice=voice if (ending is None and final is None) else 0, voice_src=voice_src, music=music_for(spec, k, work, download, {}, muted) if song else None, ending=ending, final=final)
     progress("Saving clips", 0, 1)
     upload(r.mp4, str(spec["output_key"]), "video/mp4")
     upload(r.cover, str(spec["output_cover_key"]), "image/jpeg")

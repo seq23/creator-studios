@@ -270,7 +270,7 @@ def beat_cues(beats: list[str], start: float, until: float) -> list[tuple[float,
     return [(round(start + i * d, 3), round(start + (i + 1) * d, 3), t) for i, t in enumerate(kept)]
 
 
-def build_ass(words: list[Word], hook: str, opts: dict[str, Any], b: Branding, dur: float, card: bool, beats: list[str] | None = None) -> str | None:
+def build_ass(words: list[Word], hook: str, opts: dict[str, Any], b: Branding, dur: float, card: bool, beats: list[str] | None = None, beats_until: float | None = None) -> str | None:
     """The burned text for one clip in one Look: word captions, the hook, the text beats, the end
     card's handle. None when there is nothing to burn."""
     style = opts["captions"]
@@ -300,7 +300,9 @@ def build_ass(words: list[Word], hook: str, opts: dict[str, Any], b: Branding, d
         n += 1
     # Text beats (owner, 7 Nov 2026): a clip with no voice says it on screen. Each beat takes an equal
     # share of the time between the hook and the end card, in the hook's place and style.
-    for s0, e0, text in beat_cues(beats or [], hook_end(beats, until) if (opts["hook"] == "top_bold" and hook) else 0.0, until):
+    # A clip ending on her final photo keeps the photo clear: the beats end where the photo starts.
+    bu = min(until, beats_until) if beats_until else until
+    for s0, e0, text in beat_cues(beats or [], hook_end(beats, bu) if (opts["hook"] == "top_bold" and hook) else 0.0, bu):
         lines.append(f"Dialogue: 2,{ass_time(s0)},{ass_time(e0)},Hook,,0,0,0,,{{\\pos(540,{HOOK_Y})}}{ass_text(text)}")
         n += 1
     if style != "none":
@@ -454,6 +456,7 @@ def render_look(
     music: Path | None = None,
     ending: Seg | None = None,
     beats: list[str] | None = None,
+    beats_until: float | None = None,
 ) -> Rendered:
     """One clip in one Look. `parts` are the moment's stretches in order (a hook-first clip has the
     best line, then the body). A grid Look uses `cells` (cell `voice` plays its sound and is
@@ -576,7 +579,7 @@ def render_look(
     # Burned text last, so captions, the hook and the handle sit on top of everything.
     subs = "none"
     sub_map: list[str] = []
-    ass = build_ass(words, hook, opts, brand, dur, card, beats)
+    ass = build_ass(words, hook, opts, brand, dur, card, beats, beats_until)
     if ass is not None and has_filter("subtitles"):
         (work / f"{name}.ass").write_text(ass, encoding="utf-8")
         fonts = f":fontsdir={brand.fontsdir.resolve()}" if brand.fontsdir else ""

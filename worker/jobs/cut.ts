@@ -213,6 +213,8 @@ export interface RerenderSpec {
   hook_text: string;
   /** On-screen lines after the hook, before the end card (clips.text_beats); [] when none. */
   text_beats: string[];
+  /** A still she added in Review, held last before the end card (clips.final_photo_key); null when none. */
+  final_photo_key: string | null;
   look_id: LookId;
   look: ResolvedLook;
   parts: RerenderStretch[];
@@ -488,6 +490,7 @@ interface ClipSourceDb {
   recipe: Recipe;
   hook_text: string;
   text_beats: string | null;
+  final_photo_key: string | null;
   caption: string;
   r2_key: string;
   parts: string | null;
@@ -503,7 +506,7 @@ interface ClipSourceDb {
   asset_duration: number | null;
 }
 
-const CLIP_SOURCE_SQL = `SELECT c.id, c.dump_id, c.asset_id, c.start_s, c.end_s, c.recipe, c.hook_text, c.text_beats, c.caption, c.r2_key, c.parts, c.part_assets, c.layout, c.pending_look, c.pending_layout, c.pending_music, c.music, c.muted,
+const CLIP_SOURCE_SQL = `SELECT c.id, c.dump_id, c.asset_id, c.start_s, c.end_s, c.recipe, c.hook_text, c.text_beats, c.final_photo_key, c.caption, c.r2_key, c.parts, c.part_assets, c.layout, c.pending_look, c.pending_layout, c.pending_music, c.music, c.muted,
   c.media_version, a.r2_key AS raw_key, a.raw_deleted_at, a.duration_s AS asset_duration FROM clips c JOIN assets a ON a.id = c.asset_id`;
 
 /** The file names a re-render writes: the clip's id and the next version, inside its dump's folder. */
@@ -597,6 +600,7 @@ async function buildRerenderSpec(env: Env, jobId: string, dumpId: string, clipId
     recipe: clip.recipe,
     hook_text: clip.hook_text,
     text_beats: parseBeats(clip.text_beats),
+    final_photo_key: clip.final_photo_key ?? null,
     look_id: clip.pending_look,
     look,
     parts: await partSources(env, clip, parts),
