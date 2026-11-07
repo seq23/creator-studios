@@ -94,3 +94,31 @@ describe("Review: Add a final photo (owner, 7 Nov 2026: it must END on the finis
     expect(h.one<{ final_photo_key: string | null }>("SELECT final_photo_key FROM clips WHERE id = ?", clip.id).final_photo_key).toBeNull();
   });
 });
+
+describe("no Pinterest for Porch & Party (owner, 7 Nov 2026: \"its too local\")", () => {
+  it("P&P's photo posts never plan a pin, and Setup and the practice banner leave Pinterest out; a studio that pins keeps it", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { parsePhotoPosts } = await import("@shared/photoPosts");
+    const { unusedServices } = await import("@worker/lib/practice");
+    const { planPack } = await import("@worker/domain/photoPosts");
+    const reg = JSON.parse(readFileSync(`${process.cwd()}/studios/sample1.json`, "utf8"));
+    const PHOTO_POSTS = JSON.stringify(reg.photoPosts);
+    const cfg = parsePhotoPosts(PHOTO_POSTS);
+    expect(cfg.on).toBe(true);
+    expect(cfg.platforms).not.toContain("pinterest");
+    expect(unusedServices({ PHOTO_POSTS }).has("pinterest")).toBe(true);
+    const plan = planPack(Date.parse("2026-11-07T12:00:00.000Z"), cfg, "America/Chicago", ["reel", "carousel", "before_after"], new Set());
+    expect(plan.length).toBeGreaterThan(0);
+    expect(plan.some((p) => p.platform === "pinterest")).toBe(false);
+    const pins = JSON.stringify({ ...reg.photoPosts, platforms: ["facebook", "pinterest"] });
+    expect(unusedServices({ PHOTO_POSTS: pins }).has("pinterest")).toBe(false);
+  });
+  it("Setup lists no Pinterest card for a studio that does not pin", async () => {
+    const { harness } = await import("./helpers/studio-fix-env");
+    const { setupView } = await import("@worker/routes/setup");
+    const off = await harness({ PHOTO_POSTS: JSON.stringify({ on: true, platforms: ["facebook", "instagram", "tiktok"] }) } as never);
+    expect((await setupView(off.env, true)).steps.map((s) => s.id)).not.toContain("pinterest");
+    const on = await harness({ PHOTO_POSTS: JSON.stringify({ on: true, platforms: ["facebook", "pinterest"] }) } as never);
+    expect((await setupView(on.env, true)).steps.map((s) => s.id)).toContain("pinterest");
+  });
+});

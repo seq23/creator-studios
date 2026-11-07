@@ -534,6 +534,8 @@ export async function photosHome(env: Env): Promise<PhotosHome> {
 export async function photoStopLights(env: Env): Promise<void> {
   const cfg = photoConfig(env);
   if (!cfg.on) return;
+  // A platform this studio does not post to keeps no light (owner, 7 Nov 2026: P&P has no Pinterest).
+  for (const p of SOCIALS.filter((x) => !cfg.platforms.includes(x))) await env.DB.prepare("DELETE FROM health WHERE name = ?").bind(`Photo posts (${SOCIAL_LABEL[p]})`).run();
   for (const p of cfg.platforms) {
     const ready = await platformReady(env, p);
     await setHealth(env.DB, `Photo posts (${SOCIAL_LABEL[p]})`, ready ? "green" : "grey", ready ? "Connected" : `${connectLabel(p)}: ${CONNECT_WHY[p]}`, ready ? null : `connect-${SOCIAL_SETUP[p] === "buffer" ? "buffer" : p}`);

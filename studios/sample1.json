@@ -41,13 +41,12 @@
   },
   "jobSecretOnHostRepo": true,
   "photoPosts": {
-    "_why": "Photo posts (shared/photoPosts.ts): one photo becomes a pack of posts that go out on their own with a heads-up and a Skip. On by the host's word, 22 Oct 2026.",
+    "_why": "Photo posts (shared/photoPosts.ts): one photo becomes a pack of posts that go out on their own with a heads-up and a Skip. On by the host's word, 22 Oct 2026. Pinterest off for Porch & Party, owner 7 Nov 2026: \"that makes no sense its too local\".",
     "on": true,
     "platforms": [
       "facebook",
       "instagram",
-      "tiktok",
-      "pinterest"
+      "tiktok"
     ],
     "headsUpHours": 24,
     "postHour": 11
@@ -85,9 +84,9 @@
     "title": "New in your studio",
     "lines": [
       "Add a photo and the studio makes a few posts from it.",
-      "Posts go to Facebook, Instagram, TikTok and Pinterest on their own.",
+      "Posts go to Facebook, Instagram and TikTok on their own.",
       "You get an email the day before. Tap Skip to stop one.",
-      "Faces and house numbers are blurred before anything posts."
+      "House numbers are blurred before anything posts."
     ]
   },
   "sponsorKind": "event",
