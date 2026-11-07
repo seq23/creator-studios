@@ -58,7 +58,7 @@ export async function rewriteDumpWords(env: Env, dumpId: string, numbers: number
     if (r.words_pending || rerenderOnly) continue; // rerenderOnly: the words stay, the picture is redone with them
     const s = scoreWithoutWords(r.score, r.score_reasons);
     await env.DB.prepare(
-      "UPDATE clips SET hook_text = '', hook_alt = NULL, caption = '', hashtags = '', voice_script = NULL, words_pending = 1, words_tries = 0, words_tried_at = NULL, score = ?, score_reasons = ?, score_no_words = ? WHERE id = ? AND status = 'draft'",
+      "UPDATE clips SET hook_text = '', hook_alt = NULL, caption = '', hashtags = '', voice_script = NULL, text_beats = NULL, words_pending = 1, words_tries = 0, words_tried_at = NULL, score = ?, score_reasons = ?, score_no_words = ? WHERE id = ? AND status = 'draft'",
     )
       .bind(s.score, s.score_reasons, s.base, r.id)
       .run();

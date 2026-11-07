@@ -18,7 +18,8 @@ const varOf = (slug: string) => (envBlock(reg(slug), JSON.parse(readFileSync(pat
 describe("Porch & Party's rules, exactly as the owner ruled", () => {
   it("phrases, the one request link, Made with AI on every clip, 15–30 clips, bar 70, four towns, no prices", () => {
     const r = studioRules(varOf("sample1"), null);
-    expect(r.cta_phrases).toEqual(["Book your date", "Request a quote", "Get in touch with us"]);
+    // Owner, 7 Nov 2026 (P&P captions v3): "Check your date" is the site's button.
+    expect(r.cta_phrases).toEqual(["Check your date", "Tell us your date", "Request a quote"]);
     expect(r.cta_link).toBe("https://porchandparty901.com/request");
     expect(r.ai_note).toBe("all");
     expect(r.clip_target).toEqual({ min: 15, max: 30 });

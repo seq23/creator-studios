@@ -316,6 +316,8 @@ class Moment:
     parts: list[tuple[float, float]]
     hook: str = ""
     hook_alt: str = ""
+    # On-screen lines after the hook (owner, 7 Nov 2026: no voice on Porch & Party; clips.text_beats).
+    beats: list[str] = field(default_factory=list)
     caption: str = ""
     hashtags: list[str] = field(default_factory=list)
     hook_strength: float | None = None
@@ -966,13 +968,13 @@ def render_moment(m: "Moment", src: Source, opts: dict[str, Any], brand: L.Brand
         vs = voice_src or src
         c0 = cells[0]
         words = [] if opts.get("mute") or m.captions_off or vs.path != c0.path else [Word(round(w.start - c0.start, 3), round(w.end - c0.start, 3), w.text) for w in vs.transcript.words_in(c0.start, c0.end)]
-        return L.render_look(opts, [c0], words, m.hook, brand, work, clip_id, cells=cells, voice=0, inset=None, music=music if opts.get("music") else None, ending=ending)
+        return L.render_look(opts, [c0], words, m.hook, brand, work, clip_id, cells=cells, voice=0, inset=None, music=music if opts.get("music") else None, ending=ending, beats=m.beats)
     if m.part_assets and srcs:
         # A planned clip joining shots of several videos (before -> after): each part from its own video.
         psrc = [srcs.get(a, src) for a in m.part_assets]
         parts = [ps.seg(s, e, mediapipe) for ps, (s, e) in zip(psrc, m.parts)]
         words = [] if opts.get("mute") or m.captions_off else L.timeline_words([ps.transcript.words_in(s, e) for ps, (s, e) in zip(psrc, m.parts)], parts, opts)
-        return L.render_look(opts, parts, words, m.hook, brand, work, clip_id, cells=None, voice=0, inset=None, music=music if opts.get("music") else None)
+        return L.render_look(opts, parts, words, m.hook, brand, work, clip_id, cells=None, voice=0, inset=None, music=music if opts.get("music") else None, beats=m.beats)
     parts = [src.seg(s, e, mediapipe) for s, e in m.parts]
     if cells:
         vs = voice_src or src
@@ -983,7 +985,7 @@ def render_moment(m: "Moment", src: Source, opts: dict[str, Any], brand: L.Brand
     if opts.get("mute") or m.captions_off:
         words = []  # camera sound off: no word captions from what the camera heard
     inset = inset_for(src, m, mediapipe) if opts["layout"] == "pip" else None
-    return L.render_look(opts, parts, words, m.hook, brand, work, clip_id, cells=cells, voice=voice, inset=inset, music=music if opts.get("music") else None)
+    return L.render_look(opts, parts, words, m.hook, brand, work, clip_id, cells=cells, voice=voice, inset=inset, music=music if opts.get("music") else None, beats=m.beats)
 
 
 
@@ -2275,7 +2277,7 @@ def rerender_clip(spec: dict[str, Any], work: Path, download: Downloader, upload
 
     main_src, lo = sources[str(spec["parts"][0]["src"])]
     parts = [(float(p["start"]) - lo, float(p["end"]) - lo) for p in spec["parts"]]
-    m = Moment(str(spec.get("asset_id") or ""), str(spec.get("recipe") or "talking_head"), parts[0][0], parts[-1][1], parts, hook=str(spec.get("hook_text") or ""))
+    m = Moment(str(spec.get("asset_id") or ""), str(spec.get("recipe") or "talking_head"), parts[0][0], parts[-1][1], parts, hook=str(spec.get("hook_text") or ""), beats=[str(b) for b in (spec.get("text_beats") or []) if str(b).strip()][:4])
     cells = None
     voice = int(spec.get("voice") or 0)
     voice_src = main_src

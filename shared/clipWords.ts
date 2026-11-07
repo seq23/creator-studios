@@ -351,3 +351,36 @@ export function copiesPattern(hook: string, patterns: string[]): string | null {
   }
   return null;
 }
+
+// ---------------------------------------------------------------- never narrate the picture
+
+/**
+ * Occasion and place words: naming the moment is the job (owner, 7 Nov 2026: say who it's for and the
+ * occasion), so these never count as describing the picture.
+ */
+const OCCASION = new Set(["birthday", "anniversary", "christmas", "halloween", "holiday", "holidays", "fall", "party", "shower", "baby", "wedding", "proposal", "valentine", "brunch", "door", "front", "porch", "room", "home", "house", "hotel", "decorated", "decor", "with", "full", "inside", "outside", "outdoor", "themed", "special", "celebration", "close", "large", "small", "shaped", "word", "spelling", "letters", "sign"]);
+
+const pictureWords = (t: string): Set<string> =>
+  new Set(
+    (t ?? "")
+      .toLowerCase()
+      .replace(/'s\b/g, "")
+      .split(/[^a-z]+/)
+      .filter((w) => w.length >= 3 && !HOOK_STOP.has(w) && !OCCASION.has(w))
+      .map((w) => hookStem(w)),
+  );
+
+/**
+ * The picture's own words a line repeats (owner, 7 Nov 2026: "Gold balloons float above rose petals and
+ * candlelight" — "people can see the rose petals and candles and dont need u to say it"). A line that
+ * names two or more things the shot list says are on screen is narrating the picture; the occasion,
+ * the place and who it's for never count. Returns the repeated words, [] when the line is fine. Pure.
+ */
+export function narratesPicture(line: string, onScreen: string | null | undefined, exempt: readonly string[] = []): string[] {
+  if (!onScreen) return [];
+  const seen = pictureWords(onScreen);
+  const ex = new Set(exempt.flatMap((e) => [...pictureWords(e)]));
+  const hit = [...pictureWords(line)].filter((w) => seen.has(w) && !ex.has(w));
+  return hit.length >= 2 ? hit : [];
+}
+
