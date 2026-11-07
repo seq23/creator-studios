@@ -198,9 +198,9 @@ describe("branding for the end card", () => {
   it("her TikTok handle from Buffer, else any channel, else her Brand Profile; colours and font from the profile", () => {
     const b = brandingFor({ who: "Sam @fromprofile", ctas: "- Follow for more real days\n- Link in bio", do_dont: "Brand colours #AA3355 and #112233, headings in Playfair Display" }, [
       { platform: "instagram", handle: "@ig.handle" },
-      { platform: "tiktok", handle: "@iamcindymercer" },
+      { platform: "tiktok", handle: "@examplecreator" },
     ]);
-    expect(b).toEqual({ colors: { primary: "#aa3355", ink: DEFAULT_BRAND.ink, paper: DEFAULT_BRAND.paper, accent: "#112233" }, font: "Playfair Display", handle: "@iamcindymercer", cta: "Follow for more real days" });
+    expect(b).toEqual({ colors: { primary: "#aa3355", ink: DEFAULT_BRAND.ink, paper: DEFAULT_BRAND.paper, accent: "#112233" }, font: "Playfair Display", handle: "@examplecreator", cta: "Follow for more real days" });
     expect(brandingFor({ who: "hi @fromprofile" }, []).handle).toBe("@fromprofile");
     expect(brandingFor(null, [{ platform: "youtube", handle: "Sample Studio" }]).handle).toBe("@SampleStudio");
   });

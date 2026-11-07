@@ -8,20 +8,20 @@ import { describe, expect, it } from "vitest";
 import { POSTABLE_CLIP_SQL, heldSentence, sameHandle, sourceVerdict } from "@worker/domain/sourceCheck";
 import { sourceUpdates } from "@worker/jobs/cut";
 
-const HERS = ["iamcindymercer", "dmo23", "Dana Example"];
+const HERS = ["examplecreator", "dmo23", "Dana Example"];
 
 describe("sourceVerdict", () => {
   it("another creator's TikTok watermark is held", () => {
     expect(sourceVerdict({ platform: "tiktok", handles: ["texasgardenfairyx"] }, HERS)).toEqual({ owner: "other", foreign: ["texasgardenfairyx"] });
   });
   it("her own recycled TikTok (her handle, even misread by one letter) is hers", () => {
-    expect(sourceVerdict({ platform: "tiktok", handles: ["@iamcindymercer"] }, HERS)).toEqual({ owner: "hers", foreign: [] });
-    expect(sourceVerdict({ platform: "tiktok", handles: ["iamcindymerccr"] }, HERS)).toEqual({ owner: "hers", foreign: [] });
-    expect(sameHandle("iam.cindy_mercer", "iamcindymercer")).toBe(true);
+    expect(sourceVerdict({ platform: "tiktok", handles: ["@examplecreator"] }, HERS)).toEqual({ owner: "hers", foreign: [] });
+    expect(sourceVerdict({ platform: "tiktok", handles: ["examplecreatcr"] }, HERS)).toEqual({ owner: "hers", foreign: [] });
+    expect(sameHandle("example.cre_ator", "examplecreator")).toBe(true);
   });
   it("a watermark whose handle cannot be read is held; so is one where she has no handles", () => {
     expect(sourceVerdict({ platform: "tiktok", handles: [] }, HERS)?.owner).toBe("other");
-    expect(sourceVerdict({ platform: "tiktok", handles: ["iamcindymercer"] }, [])?.owner).toBe("other");
+    expect(sourceVerdict({ platform: "tiktok", handles: ["examplecreator"] }, [])?.owner).toBe("other");
   });
   it("no watermark: nothing to say (a handle she tagged in her own video is not a sign)", () => {
     expect(sourceVerdict({ platform: null, handles: ["somevenue"] }, HERS)).toBeNull();
@@ -41,7 +41,7 @@ describe("sourceUpdates (cut result → assets)", () => {
   it("only this dump's assets, one verdict each, junk ignored", () => {
     const marks = [
       { asset_id: "a1", platform: "tiktok", handles: ["texasgardenfairyx"] },
-      { asset_id: "a1", platform: "tiktok", handles: ["iamcindymercer"] },
+      { asset_id: "a1", platform: "tiktok", handles: ["examplecreator"] },
       { asset_id: "not-mine", platform: "tiktok", handles: ["x"] },
       { asset_id: "a2", platform: "myspace", handles: ["x"] },
       null,
@@ -63,7 +63,7 @@ const parse = (texts: string[]) => JSON.parse(execFileSync("python3", ["-c", PY,
 describe("jobs/cut.py parse_marks (OCR text of sampled frames)", () => {
   it("reads the TikTok watermark and its handle, as tesseract prints them", () => {
     expect(parse(["but you are\nprogrammed.\n", "d TikTok\n@texasgardenfairyx\n"])).toEqual({ platform: "tiktok", handles: ["texasgardenfairyx"] });
-    expect(parse(["Tik Tok\n", "@iamcindymercer."])).toEqual({ platform: "tiktok", handles: ["iamcindymercer"] });
+    expect(parse(["Tik Tok\n", "@examplecreator."])).toEqual({ platform: "tiktok", handles: ["examplecreator"] });
   });
   it("Instagram only with a handle on the same line; a caption mentioning it is not a watermark", () => {
     expect(parse(["Instagram @dmo23"])).toEqual({ platform: "instagram", handles: ["dmo23"] });
