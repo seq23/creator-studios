@@ -255,3 +255,16 @@ export interface SetupView {
   /** The value the job repository's JOB_SHARED_SECRET must hold (owner only). */
   job_secret: string | null;
 }
+
+/**
+ * The Setup cards to draw: only steps the server sent a status for. A studio's unused services (e.g.
+ * Pinterest off for Porch & Party, 7 Nov 2026) are left out of the view, and drawing every SETUP_STEPS
+ * entry read `.state` of undefined and blanked the whole page in production.
+ */
+export function shownSteps(view: SetupView): { step: SetupStep; status: SetupStatus }[] {
+  const byId = new Map(view.steps.map((s) => [s.id, s]));
+  return SETUP_STEPS.flatMap((step) => {
+    const status = byId.get(step.id);
+    return status ? [{ step, status }] : [];
+  });
+}

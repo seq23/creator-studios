@@ -4,7 +4,7 @@
 // then stored encrypted). Services the studio's host runs for her show "Provided".
 import { NicheBriefLine } from "../components/NicheBriefLine";
 import { useEffect, useState } from "react";
-import { powersFor, SETUP_STEPS, type SetupStatus, type SetupStep, type SetupView } from "@shared/setup";
+import { powersFor, shownSteps, type SetupStatus, type SetupStep, type SetupView } from "@shared/setup";
 import { post, get } from "../lib/api";
 import { Card, HelpButton, Notice, PageHead, Skeleton, useLoad, useToast } from "../components/ui";
 import { useApp } from "../state";
@@ -42,17 +42,17 @@ export function Setup() {
         <>
           <p className="setup-progress" aria-live="polite">
             <strong>
-              {done} of {SETUP_STEPS.length}
+              {done} of {shownSteps(data).length}
             </strong>{" "}
             set up
           </p>
           <ol className="setup-steps">
-            {SETUP_STEPS.map((step, i) => (
+            {shownSteps(data).map(({ step, status }, i) => (
               <li key={step.id} id={`setup-${step.id}`}>
                 <StepCard
                   n={i + 1}
                   step={step}
-                  status={data.steps.find((s) => s.id === step.id)!}
+                  status={status}
                   view={data}
                   onChange={async () => {
                     await reload();
