@@ -36,8 +36,10 @@ list and setup are in `README.md`.
   (05:20), Sheila `40 11 * * 1` (05:40), Porch & Party `0 12 * * 1` (06:00), Ashly `20 12 * * 1` (06:20, from 2 Nov 2026). Times are Central
   Standard Time; while daylight time is on they run an hour later by the clock. Studios without a
   `weeklyCron` stay on `0 12 * * 1`. Pinned by `tests/unit/weekly-stagger.test.ts`.
-- GitHub Actions schedules (`e2e`, `parity`, `golden-set`) carry `timezone: America/Chicago`, so their
-  times are Central all year: e2e 02:17, parity 09:17, golden-set Monday 01:23.
+- GitHub Actions schedules (`parity`, `golden-set`) carry `timezone: America/Chicago`, so their
+  times are Central all year: parity 09:17, golden-set Monday 01:23. `e2e` has no schedule (owner,
+  8 Nov 2026): it runs on a push to main that changes app code (`app/`, `worker/`, `shared/`, build
+  inputs) and on dispatch.
 
 ## Who gets studio email
 - **No studio notice goes to the host developer** (the `DEVELOPER_EMAIL` address, in any Gmail spelling),

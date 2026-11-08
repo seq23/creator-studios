@@ -2,16 +2,27 @@
 # against a local Worker with fake services (email-code login, as every studio runs). A second job
 # re-takes every Help picture and proves each step still has its own picture (validator help-pictures).
 #
-# BUILD FIRST, TEST IN BATCHES: this is never a merge gate (check.yml is) and never per merge. It
-# runs nightly on main and on dispatch. A red run is fixed first (bisect between the last green
+# BUILD FIRST, TEST IN BATCHES: this is never a merge gate (check.yml is). Owner ruling 8 Nov 2026:
+# a supporting repo, no nightly run. It runs on a push to main ONLY when app code the specs exercise
+# changed (the paths below; never docs, tests-only, workflows or data), and on dispatch. A red run is fixed first (bisect between the last green
 # and the red sha); it does not hold the studios' deploy, which follows green main (deploy.yml).
 # timeout-minutes is a fault detector (~4x a normal run: e2e ~19 min, pictures ~9 min), never a budget.
 name: e2e
 
 on:
-  schedule:
-    - cron: "17 2 * * *"  # America/Chicago, all year
-      timezone: America/Chicago
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "worker/**"
+      - "shared/**"
+      - "migrations/**"
+      - "wrangler.jsonc"
+      - "index.html"
+      - "public/**"
+      - "vite.config.ts"
+      - "package.json"
+      - "package-lock.json"
   workflow_dispatch:
 
 concurrency:

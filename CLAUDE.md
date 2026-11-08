@@ -101,6 +101,7 @@ app.route lines · `worker/jobs/registry.ts` · `scripts/validate.mjs` REGISTER 
   `npm run deploy:all` (build once → each studio's D1 migrations → `wrangler deploy --env <slug>` →
   smoke). By hand: `npm run studio:deploy <slug>` or `npm run deploy:all`. **Never a bare
   `wrangler deploy`** (the top-level config is local dev with fakes and is never deployed).
-- `e2e.yml`: the full browser suite, nightly + on dispatch, post-merge, never a merge gate;
+- `e2e.yml`: the full browser suite, post-merge on a push to main that changes app code (paths
+  filter; no nightly, owner 8 Nov 2026) + on dispatch, never a merge gate;
   `timeout-minutes` ~4x a normal run (a fault detector, not a budget).
 - Adding a studio: one registry entry + `npm run studio:create <slug>` (README "Add a studio").
