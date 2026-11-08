@@ -1,0 +1,6 @@
+-- The e2e studio is past its first upload: a ready niche brief (worker/lib/nicheBrief.ts). Without it
+-- every fresh run is a NEW user, whose first dump waits on a niche research job that FAKE_SERVICES never
+-- runs (fake jobs run only on /run-fake), so every dumping spec failed with "Learning your niche first".
+-- Same shape as the unit fixture tests/unit/helpers/niche-brief.ts. The waiting/failed states are
+-- covered by tests/unit/niche-brief.test.ts. Applied by tests/e2e/serve.sh after the migrations.
+INSERT INTO niche_briefs (id, status, brief, sources, researched_on, origin, created_at, updated_at) VALUES ('nbr_e2e_ready', 'ready', '{"buyer":"Someone planning an event for someone else.","competitors":[{"name":"Account 1","handle":"@account_1","platform":"tiktok"},{"name":"Account 2","handle":"@account_2","platform":"tiktok"},{"name":"Account 3","handle":"@account_3","platform":"tiktok"},{"name":"Account 4","handle":"@account_4","platform":"tiktok"},{"name":"Account 5","handle":"@account_5","platform":"tiktok"}],"hooks":["POV: they think you did all this","Wait for it…","Hosting and already tired?"],"caption_patterns":["Who it is for and the ease"],"cta_patterns":["One ask, one link"],"avoid":["Describing what is on screen"],"channels":{}}', '[]', '2026-11-07', 'research', '2026-11-07T00:00:00.000Z', '2026-11-07T00:00:00.000Z');

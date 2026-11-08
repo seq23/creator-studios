@@ -19,6 +19,8 @@ fi
 grep -q '^OWNER_EMAIL=' .dev.vars || echo "OWNER_EMAIL=owner@studio.example" >> .dev.vars
 rm -rf .wrangler/state/v3/d1 .wrangler/state/v3/r2
 npx wrangler d1 migrations apply creator-studios-dev-db --local >/dev/null
+# The e2e studio is past its first upload (a ready niche brief), so dumps never wait on research no fake runs.
+npx wrangler d1 execute creator-studios-dev-db --local --file tests/e2e/seed-brief.sql >/dev/null
 PORT="${E2E_PORT:-8787}"
 # Several worktrees run this suite side by side: each gets its own port and inspector port.
 # --test-scheduled: a spec can run a cron lane (GET /cdn-cgi/handler/scheduled?cron=…), e.g. the day-358 daily lane.

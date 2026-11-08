@@ -178,7 +178,7 @@ The slug, Worker, D1 and R2 names never change (renaming them would orphan the d
 - Green `main`: `deploy.yml` deploys **every studio** with `npm run deploy:all`.
 - By hand: `npm run studio:deploy <slug>` or `npm run deploy:all` (build once → each studio's D1
   migrations → `wrangler deploy --env <slug>` → smoke). **Never a bare `wrangler deploy`.**
-- No staging. The full browser suite (`e2e.yml`) runs nightly and on dispatch, post-merge.
+- No staging. The full browser suite (`e2e.yml`) runs post-merge when app code changes, and on dispatch.
 
 ## Secrets
 

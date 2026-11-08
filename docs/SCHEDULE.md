@@ -7,9 +7,10 @@ schedule); see the notes below for what moved.
 
 | Job | Workflow | When | Cron |
 |---|---|---|---|
-| e2e | `e2e.yml` | every day 02:17 CT | `17 2 * * *` |
 | golden-set | `golden-set.yml` | Mon 01:23 CT | `23 1 * * 1` |
 | parity | `parity.yml` | every day 09:17 CT | `17 9 * * *` |
+
+`e2e.yml` is not scheduled (owner, 8 Nov 2026): it runs on a push to main that changes app code, and on dispatch.
 
 ## Weekly windows
 

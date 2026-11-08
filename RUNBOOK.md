@@ -188,8 +188,9 @@ failed run retries after 3 days; the clips use the last playbook meanwhile.
 ## Deploy pipeline
 
 `check.yml` on every PR and push (merge gate, under 5 min) → on a green `check` of a push to main,
-`deploy.yml` runs `npm run deploy:all`. `e2e.yml` (Playwright + help pictures) runs nightly at
-07:17 UTC and on dispatch: `gh workflow run e2e.yml --ref main`. A red e2e is fixed first.
+`deploy.yml` runs `npm run deploy:all`. `e2e.yml` (Playwright + help pictures) runs on a push to
+main that changes app code (`app/`, `worker/`, `shared/`, build inputs; no nightly, owner 8 Nov 2026)
+and on dispatch: `gh workflow run e2e.yml --ref main`. A red e2e is fixed first.
 
 ## When something is red
 
