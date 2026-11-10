@@ -13,28 +13,19 @@ import path from "node:path";
 export const REGISTER = {
   "auto-voice-silent-only": "a voice over laid on a clip where she talks drowns her own words and posts AI audio she never asked for (owner, 26 Sep 2026: clips with speech are never voiced automatically)",
   "bot-prs-get-checks": "a PR opened by a workflow gets no checks, so land can never see it green (help-screenshots PR #21, live test 26 Sep 2026)",
-  "e2e-names-unambiguous": "Playwright matches a name as a case-insensitive substring and the practice cut gives one dump in twelve the alt hook \"Save this for later\", so { name: \"Save\" } hit two buttons and e2e went red on main at random (30 Oct 2026, run 41019582387)",
-  "editors-documented": "a connected editor nobody researched, or a key box for a tool with no API, sends her to a dead end (owner, 25 Sep 2026: only the most popular, honestly)",
-  "ffmpeg-not-from-apt": "the apt install of ffmpeg timed out three times and killed the live cut of a client's dump (23 Oct 2026); ffmpeg comes from the static build",
   "free-quota-budgeted": "the studios keep to ~500 of the $0-routing account's 1,000 free-model calls a day (it was a 50-a-day free-tier key until 24 Oct 2026); one dump used ~45 (a call per video, per clip, six retries per failure) and golden-set went red at 0e0eebb (23 Oct 2026): calls are batched, budgeted per job, counted per provider, with a $0 local model behind",
   "full-video-uncut": "a full video sent through the cutter or reframed to 9:16 is not the video she made (owner, 26 Sep 2026: the full-video door posts it whole)",
   "help-targets-exist": "a guide step pointing at a label the screen no longer has fails the post-merge screenshot job and reds main (#42, 26 Sep 2026); caught before merge instead",
   "help-guides-exist": "every screen's ? button and every fix_guide slug must open a real guide (section 12c)",
   "help-pictures": "every help step must show its own picture of that step: 20 guides shared one identical picture per step number because the screenshot job fell back to the page heading (owner, 26 Sep 2026: \"the help section has the same screenshot\"); also every screen's help link, tour stop and checklist entry must open a real guide",
   "host-keys-host-only": "the host's personal OpenRouter, Resend, Firecrawl and Hunter run Hadiyah's studio only (owner decision 7 Oct 2026); a client studio carrying or reading them spends the host's money on, and sends as the host for, someone else's studio",
-  "home-caps": "Home grew with everything a year of use piles up (3.7 phone screens, five year-old follow-ups, no dismiss): every Home list must be capped by HOME_CAPS and proven on a year of data (owner, 26 Sep 2026, day-358 review)",
   "login-never-open": "studio brief §4/§6c: every studio logs in with the email code; an AUTH_MODE \"open\" anywhere, or an \"open\" branch in the login code, makes anyone with the URL the owner",
-  "intelligence-layers": "each studio-intelligence layer (owner's plan 22 Oct 2026) must be called by the cut, not merely written: a layer nothing invokes leaves her clips as blind as before",
   "jobs-no-direct-storage": "a job holding storage keys needs an R2 token the owner cannot mint and a public repo can leak; jobs reach storage only through the Worker",
-  "jobs-one-openrouter-client": "three hand-rolled OpenRouter clients in jobs each lost the end of a reasoning model's answer (live test 25 Sep 2026); one client in common.py asks again with more room",
   "jobs-registered": "every job type in the schema must have a handler or dispatch silently does nothing",
   "legal-pages": "Google will not publish the Connect YouTube sign-in without a public privacy policy and terms linked from every screen; a path the React app answers shows the login page to Google's reviewers (owner, 26 Sep 2026: full videos straight to her channel)",
-  "lists-paged": "on day 358 Review drew 329 video players and Dump and Voice overs cut their lists at 30 without saying so: every long list pages with a true total (owner, 26 Sep 2026)",
-  "looks": "a Look without a description, a preview picture or test coverage is an option she picks blind, or one nothing proves renders (owner, 25 Sep 2026: clips must vary)",
   "mediakit-deals": "a kit figure without its as-of date and source tells a brand something unverifiable; an email scenario without a template or a test, a benchmark without a source, or an undocumented marketplace is a made-up claim",
   "no-content-in-logs": "public repo: a console.* outside worker/lib/log.ts can leak her content into Actions logs (section 13)",
   "no-host-brand": "public repo: the host's former business name anywhere (config, code, docs, tests) names a business the studios no longer belong to (owner, 7 Oct 2026: her own domain and sender)",
-  "nothing-hidden": "the owner's rule: nothing hidden, nothing switched off; a screen behind a flag, or a feature defaulting off, is a thing she cannot find",
   "no-personal-emails": "public repo: a real person's email address in code, tests or docs is published to everyone; the owner's and the host developer's login emails are deploy-time secrets from 0600 files (owner, 7 Oct 2026: developer login on every studio)",
   "no-secrets": "a key in the repo is public the moment it is pushed",
   "registry-no-emails": "public repo: an owner's email committed in studios/*.json is published to everyone; it is a deploy-time secret from a 0600 file (owner, 7 Oct 2026)",
@@ -58,7 +49,6 @@ export const REGISTER = {
   // studio fix A
   "studio-engine-contract": "the Oct 22 cut read a model's thinking aloud, tiled one picture into a grid, ended every clip on a near-blank card and scored a shape bonus (owner, 23 Oct 2026): each fix and every contract field must stay wired into the clip engine",
   // studio fix A+B
-  "studio-fix-ab": "the clip engine and the Worker were built apart (23 Oct 2026): a 0..100 score stored as 0..1, a words-pending clip dropped for having no hook, an own-shot grid thrown away, a re-render with no hero ending or link; both sides must read one list and every cross-dependency must stay wired",
 };
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");

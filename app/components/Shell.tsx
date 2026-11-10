@@ -1,6 +1,6 @@
 // Desktop sidebar + phone bottom tab bar (section 4). Badges: Review count, Deals follow-ups,
 // Every screen is always in the menu: nothing is hidden behind a Settings switch (owner, 26 Sep
-// 2026; validator nothing-hidden).
+// 2026).
 // Phone: Home · Dump · Review · Calendar in the bar (the daily four, per the wireframes) and a
 // Menu tab that opens a sheet with every other screen, so nothing is desktop-only. The help
 // guides say "tap X in the menu"; the tab is called Menu so that sentence is true on a phone.

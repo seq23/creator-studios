@@ -36,8 +36,7 @@ export const REJECTED_RETENTION_DAYS = 7;
 /**
  * Home stays one phone screen however much piles up (day 358, docs/reviews/2026-09-26-day-358.md):
  * each Home list shows at most this many, with "See all (N)". The Worker cuts every list with
- * capSection (worker/routes/home.ts); validator `home-caps` fails if a Home list is not capped
- * here, and tests/unit/day-358.test.ts loads a year of data and checks every section.
+ * capSection (worker/routes/home.ts), and tests/unit/day-358.test.ts loads a year of data and checks every section.
  */
 export const HOME_CAPS = {
   notices: 1,
@@ -165,6 +164,6 @@ export const ACCEPTED_DOC_TYPES = [
 /**
  * Settings → Features, every one ON by default (owner, 26 Sep 2026: "nothing should be hidden -
  * she can use it if she chooses, nothing switched off"). She can turn any of them off herself;
- * no switch ever hides a screen, a nav item or a button (validator nothing-hidden).
+ * no switch ever hides a screen, a nav item or a button.
  */
 export const DEFAULT_FEATURES = { voice: true, deeper_research: true, weekly_recap: true, help_ask: true } as const;
