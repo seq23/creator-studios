@@ -43,7 +43,7 @@ const json = JSON.parse(readFileSync(path.join(__dirname, "../../jobs/looks.json
   looks: Record<string, unknown>[];
 };
 
-/** Every Look by name, with what makes it that Look (the validator `looks` requires each id here). */
+/** Every Look by name, with what makes it that Look. */
 const EXPECTED: Record<LookId, { layout: string; cells: number; captions: string; hook: string }> = {
   "clean": { layout: "fill", cells: 1, captions: "clean", hook: "none" },
   "bold_hook": { layout: "fill", cells: 1, captions: "karaoke", hook: "top_bold" },

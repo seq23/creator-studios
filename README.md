@@ -205,7 +205,6 @@ host-accounts studios the `hostSecrets` in the entry. GitHub: `CLOUDFLARE_API_TO
 | (b) studio A's D1/R2 are never studio B's | validator `studio-isolation` | `tests/unit/studios.test.ts` |
 | (c) login is never "open" | validator `login-never-open` | `tests/unit/login.test.ts` |
 | (d) every feature without a key shows practice mode | `tests/unit/practice.test.ts` (an empty real studio through the real Worker: no 5xx, no vendor call) | `tests/unit/practice.test.ts` |
-| nothing hidden, nothing switched off | validator `nothing-hidden` | (inherited) |
 | the host's personal OpenRouter / Resend / Firecrawl / Hunter reach host-accounts studios only | `worker/lib/hostKeys.ts` (hydrate strips them on a client), `secretPlan` refusal, validator `host-keys-host-only` | `tests/unit/host-keys.test.ts` |
 | no owner email committed in the registry | validator `registry-no-emails` | `tests/unit/studios.test.ts` |
 | the host's former business name nowhere in the repo (every tracked file) | validator `no-host-brand` | `tests/unit/studios.test.ts` |

@@ -16,7 +16,7 @@ where VISION_LOCAL=1 (the cut job and the weekly golden set). Never a silent gue
 the confidence floor is "unsure", and with neither model the sheet says "unsure" everywhere.
 
 Pure parsing and merging are unit-tested (jobs/tests/test_see_plan.py); the model is only reached
-through common.openrouter_content (validator jobs-one-openrouter-client).
+through common.openrouter_content.
 """
 from __future__ import annotations
 

@@ -93,7 +93,7 @@ export function cellCount(id: string | null | undefined): number {
   const l = lookById(id);
   return l?.layout === "grid" && l.grid ? GRIDS[l.grid].cells.length : 1;
 }
-/** The thumbnail every Look ships with (validator `looks` checks the file exists). */
+/** The thumbnail every Look ships with. */
 export function lookThumb(id: LookId): string {
   return `/looks/${id}.webp`;
 }
