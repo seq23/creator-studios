@@ -20,6 +20,7 @@ export const REGISTER = {
   "help-pictures": "every help step must show its own picture of that step: 20 guides shared one identical picture per step number because the screenshot job fell back to the page heading (owner, 26 Sep 2026: \"the help section has the same screenshot\"); also every screen's help link, tour stop and checklist entry must open a real guide",
   "host-keys-host-only": "the host's personal OpenRouter, Resend, Firecrawl and Hunter run Hadiyah's studio only (owner decision 7 Oct 2026); a client studio carrying or reading them spends the host's money on, and sends as the host for, someone else's studio",
   "login-never-open": "studio brief §4/§6c: every studio logs in with the email code; an AUTH_MODE \"open\" anywhere, or an \"open\" branch in the login code, makes anyone with the URL the owner",
+  "intelligence-layers": "protect layer only (hostile review, 10 Nov 2026): the cut must call PR.protect_video (faces and house numbers blurred), write_copy(..., guard=text_ok) (the never-list and prices guard the words) and the spec must carry content_rules; a layer nothing calls posts a client's face or a wrong price",
   "jobs-no-direct-storage": "a job holding storage keys needs an R2 token the owner cannot mint and a public repo can leak; jobs reach storage only through the Worker",
   "jobs-registered": "every job type in the schema must have a handler or dispatch silently does nothing",
   "legal-pages": "Google will not publish the Connect YouTube sign-in without a public privacy policy and terms linked from every screen; a path the React app answers shows the login page to Google's reviewers (owner, 26 Sep 2026: full videos straight to her channel)",
@@ -48,7 +49,8 @@ export const REGISTER = {
   "youtube-direct": "full videos go straight to her own YouTube channel (owner, 26 Sep 2026): a refresh token in a public repo's job, a deleted video, an upload past YouTube's daily allowance, a Calendar move YouTube never hears about, or a failure shape nobody tested is a video she loses or a light that lies",
   // studio fix A
   "studio-engine-contract": "the Oct 22 cut read a model's thinking aloud, tiled one picture into a grid, ended every clip on a near-blank card and scored a shape bonus (owner, 23 Oct 2026): each fix and every contract field must stay wired into the clip engine",
-  // studio fix A+B
+  // studio fix A+B, migrations only (hostile review, 10 Nov 2026)
+  "studio-fix-ab": "a migration that DROPs a table without first copying its rows into <t>_new deletes live records, and two migrations sharing a number make D1 skip one; migrations stay additive and numbered once",
 };
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
