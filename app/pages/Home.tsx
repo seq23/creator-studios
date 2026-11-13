@@ -5,6 +5,7 @@ import { fmtDate, plural } from "../lib/format";
 import { foldHealth } from "../lib/health";
 import { dismissWithUndo } from "../lib/archive";
 import { gbWords } from "@shared/bytes";
+import { plainDay } from "@shared/posts";
 import { Card, DismissButton, Dot, Empty, HelpButton, Notice, PageHead, Skeleton, Stat, useLoad, useToast } from "../components/ui";
 import { Icon } from "../components/Icon";
 import { useApp } from "../state";
@@ -101,9 +102,14 @@ export function Home() {
               <Stat
                 label="This week"
                 value={
-                  <>
-                    {data.thisWeek.posted} <small>/ {data.thisWeek.planned} posted</small>
-                  </>
+                  <span data-count="posted">
+                    {data.thisWeek.posted} <small>posted</small>
+                  </span>
+                }
+                sub={
+                  <Link to="/calendar" data-count="to-go">
+                    {data.thisWeek.toGo} still to go out{data.thisWeek.plannedThrough ? ` · planned through ${plainDay(data.thisWeek.plannedThrough, data.thisWeek.tz)}` : ""} ›
+                  </Link>
                 }
               >
                 <ul className="home-plats" aria-label="Posted this week per platform">

@@ -317,7 +317,12 @@ export function Review() {
         <SearchBox value={q} onChange={setQ} label="Clip number (like 5) or words" />
       </div>
 
-      {tab === "rejected" && visible.length > 0 ? <p className="hint">Rejected clips are removed for good 7 days after you reject them. Changed your mind? Approve or move one back.</p> : null}
+      {tab === "rejected" ? (
+        <p className="hint" data-bin-pointer>
+          {visible.length > 0 ? "Rejected clips are removed for good 7 days after you reject them. Changed your mind? Approve or move one back. " : ""}
+          Everything you said no to, photo posts too, is in the <Link to="/calendar/bin">Rejected bin ›</Link>
+        </p>
+      ) : null}
 
       {list.loading && !list.data ? <Skeleton blocks={3} columns={3} /> : null}
       {list.error ? <Empty title="Review didn’t load">Check your connection, then pull down or reload the page to try again.</Empty> : null}

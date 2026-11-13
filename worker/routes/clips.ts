@@ -553,7 +553,7 @@ async function lockedByBuffer(env: Env, id: string): Promise<boolean> {
 }
 
 /** A dump is "reviewed" once no visible draft clip is left; back to "ready" if one returns. */
-async function syncDumpStatus(env: Env, dumpIds: Iterable<string>) {
+export async function syncDumpStatus(env: Env, dumpIds: Iterable<string>) {
   for (const dumpId of new Set(dumpIds)) {
     const left = await env.DB.prepare("SELECT COUNT(*) AS n FROM clips WHERE dump_id = ? AND status = 'draft' AND hidden = 0 AND style_of IS NULL").bind(dumpId).first<{ n: number }>();
     if ((left?.n ?? 0) === 0) await env.DB.prepare("UPDATE dumps SET status = 'reviewed' WHERE id = ? AND status = 'ready'").bind(dumpId).run();
@@ -566,7 +566,7 @@ async function removeFiles(env: Env, keys: (string | null)[]) {
   if (list.length) await env.FILES.delete(list);
 }
 
-async function decide(env: Env, id: string, to: ClipStatus, actor: string, reason: string | null, touched: Set<string>): Promise<Decision> {
+export async function decide(env: Env, id: string, to: ClipStatus, actor: string, reason: string | null, touched: Set<string>): Promise<Decision> {
   const clip = await env.DB.prepare("SELECT id, dump_id, status, recipe, score, r2_key, cover_r2_key, hidden, words_pending FROM clips WHERE id = ?").bind(id).first<{
     words_pending: number;
     id: string;

@@ -7,7 +7,7 @@ import { developerEmail, requireUser } from "../lib/auth";
 import { fail, readJson } from "../lib/http";
 import { dispatchJob } from "../services/github";
 import { readSettings } from "./settings";
-import { contentRules, createPack, editCaption, makePack, packView, photoConfig, photosHome, schedulePack, sendTestHeadsUp, skipPost, unskipPost } from "../lib/photoPosts";
+import { contentRules, createPack, editCaption, makePack, movePost, packView, photoConfig, photosHome, schedulePack, sendTestHeadsUp, skipPost, unskipPost } from "../lib/photoPosts";
 import { textProblems } from "@shared/contentRules";
 
 export const photos = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -105,6 +105,14 @@ photos.patch("/posts/:id", async (c) => {
   const r = await editCaption(c.env, c.req.param("id"), String(body?.caption ?? ""));
   if (!r.ok) return c.json({ ok: false, problems: r.problems }, 422);
   return c.json({ ok: true, problems: [] });
+});
+
+/** Move it to another day (the Posts sheet): same time of day, a fresh heads-up first. */
+photos.patch("/posts/:id/move", async (c) => {
+  const body = await readJson<{ date?: string }>(c);
+  const r = await movePost(c.env, c.req.param("id"), String(body?.date ?? ""));
+  if (!r.ok) return fail(c, 409, r.error ?? "That did not work. Try again.", "photo-posts");
+  return c.json({ ok: true, scheduled_at: r.scheduled_at });
 });
 
 /** The live check the caption box uses before she saves. */

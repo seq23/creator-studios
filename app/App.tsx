@@ -24,6 +24,7 @@ import { HelpGuide } from "./pages/HelpGuide";
 import { Photos } from "./pages/Photos";
 import { DumpFiles } from "./pages/DumpFiles";
 import { Sponsored } from "./pages/Sponsored";
+import { RejectedBin } from "./components/RejectedBin";
 
 export function App() {
   const { me, ready, unreachable, refreshMe } = useApp();
@@ -44,6 +45,7 @@ export function App() {
           <Route path="/photos" element={<Photos />} />
           <Route path="/review" element={<Review />} />
           <Route path="/calendar" element={<Calendar />} />
+          <Route path="/calendar/bin" element={<RejectedBin />} />
           <Route path="/brain" element={<ClientBrain />} />
           <Route path="/research" element={<Research />} />
           <Route path="/stats" element={<Stats />} />

@@ -26,7 +26,8 @@ import { getPinterest, pinterestConnected } from "../services/pinterest";
 import { getBuffer } from "../services/buffer";
 import { bufferState } from "../crons/buffer-sync";
 import { readSettings } from "../routes/settings";
-import { weekBounds } from "../domain/slotting";
+import { weekBounds, zonedToUtc } from "../domain/slotting";
+import { moveToDate } from "../domain/sync";
 import { localDate, planPack, postLine, skipToken, starterCaptions, whenLine } from "../domain/photoPosts";
 import { hasRules, parseRules, priceList, textProblems, withAiLabel, type ContentRules } from "@shared/contentRules";
 import {
@@ -234,11 +235,53 @@ export async function skipPost(env: Env, postId: string, actor: string): Promise
 
 /** Undo a Skip while there is still time: it goes back on at its time, or the next free day. */
 export async function unskipPost(env: Env, postId: string, now = Date.now()): Promise<boolean> {
-  const p = await env.DB.prepare("SELECT scheduled_at FROM social_posts WHERE id = ? AND status = 'skipped'").bind(postId).first<{ scheduled_at: string }>();
+  const p = await env.DB.prepare("SELECT scheduled_at FROM social_posts WHERE id = ? AND status = 'skipped' AND deleted_at IS NULL").bind(postId).first<{ scheduled_at: string }>();
   if (!p) return false;
   const cfg = photoConfig(env);
   const at = Date.parse(p.scheduled_at) > now + 3_600_000 ? p.scheduled_at : new Date(now + cfg.headsUpHours * 3_600_000).toISOString();
   await env.DB.prepare("UPDATE social_posts SET status = 'scheduled', skipped_at = NULL, heads_up_at = NULL, scheduled_at = ? WHERE id = ?").bind(at, postId).run();
+  return true;
+}
+
+/**
+ * Move a photo post to another day, keeping its time of day (the Posts sheet, 13 Nov 2026). Only a
+ * post that has not gone out and was not skipped; never into the past; one post per platform a day
+ * (the same rule the planner keeps). A fresh heads-up goes out before the new time.
+ */
+export async function movePost(env: Env, postId: string, date: string, now = Date.now()): Promise<{ ok: boolean; error?: string; scheduled_at?: string }> {
+  const p = await env.DB.prepare("SELECT platform, scheduled_at FROM social_posts WHERE id = ? AND status IN ('scheduled', 'waiting', 'held') AND deleted_at IS NULL").bind(postId).first<{ platform: Social; scheduled_at: string }>();
+  if (!p) return { ok: false, error: "This post already went out or was skipped, so it cannot move." };
+  const tz = await timeZone(env);
+  const at = moveToDate(p.scheduled_at, date, tz, zonedToUtc);
+  if (!at) return { ok: false, error: "Pick a day to move it to." };
+  if (Date.parse(at) <= now) return { ok: false, error: "That time has already passed. Pick a later day." };
+  const { results: same } = await env.DB.prepare("SELECT scheduled_at FROM social_posts WHERE platform = ? AND id != ? AND status IN ('scheduled', 'waiting', 'sending', 'posted') AND deleted_at IS NULL").bind(p.platform, postId).all<{ scheduled_at: string }>();
+  if (same.some((r) => localDate(Date.parse(r.scheduled_at), tz) === date)) return { ok: false, error: `${SOCIAL_LABEL[p.platform]} already has a photo post that day. Pick another day.` };
+  await env.DB.prepare("UPDATE social_posts SET scheduled_at = ?, heads_up_at = NULL WHERE id = ? AND status IN ('scheduled', 'waiting', 'held')").bind(at, postId).run();
+  return { ok: true, scheduled_at: at };
+}
+
+/**
+ * "Delete for good" from the Rejected bin: only a post she skipped. The post is gone for good (it
+ * can never be brought back, planned or sent), and the piece the studio made for it leaves storage
+ * once no other post uses it. Her original photos (packs/<id>/in/) are never touched.
+ */
+export async function deletePostForGood(env: Env, postId: string, actor: string): Promise<boolean> {
+  const p = await env.DB.prepare("SELECT pack_id, item_kind FROM social_posts WHERE id = ? AND status = 'skipped' AND deleted_at IS NULL").bind(postId).first<{ pack_id: string; item_kind: ItemKind }>();
+  if (!p) return false;
+  const r = await env.DB.prepare("UPDATE social_posts SET deleted_at = ? WHERE id = ? AND status = 'skipped' AND deleted_at IS NULL").bind(nowIso(), postId).run();
+  if (!r.meta.changes) return false;
+  const left = await env.DB.prepare("SELECT COUNT(*) AS n FROM social_posts WHERE pack_id = ? AND item_kind = ? AND deleted_at IS NULL").bind(p.pack_id, p.item_kind).first<{ n: number }>();
+  if (!left?.n) {
+    const item = await env.DB.prepare("SELECT id, r2_key, cover_r2_key, images FROM pack_items WHERE pack_id = ? AND kind = ?").bind(p.pack_id, p.item_kind).first<{ id: string; r2_key: string | null; cover_r2_key: string | null; images: string }>();
+    if (item) {
+      const made = packOutPrefix(p.pack_id);
+      const keys = [item.r2_key, item.cover_r2_key, ...parseJson<string[]>(item.images, [])].filter((k): k is string => !!k && k.startsWith(made));
+      if (keys.length) await env.FILES.delete(keys);
+      await env.DB.prepare("DELETE FROM pack_items WHERE id = ?").bind(item.id).run();
+    }
+  }
+  await recordEvent(env.DB, "photos.deleted", postId, {}, actor);
   return true;
 }
 
@@ -484,7 +527,7 @@ export async function packView(env: Env, packId: string, tz: string): Promise<Pa
   if (!p) return null;
   const { results: photos } = await env.DB.prepare("SELECT id, role, mime_type FROM pack_photos WHERE pack_id = ? AND upload_status = 'uploaded' ORDER BY created_at").bind(packId).all<{ id: string; role: "main" | "before" | "after"; mime_type: string }>();
   const { results: items } = await env.DB.prepare("SELECT id, kind, r2_key, cover_r2_key, images, media_token, ai_made FROM pack_items WHERE pack_id = ?").bind(packId).all<ItemRow>();
-  const { results: posts } = await env.DB.prepare("SELECT id, pack_id, item_kind, platform, caption, scheduled_at, status, error, posted_at, url FROM social_posts WHERE pack_id = ? ORDER BY scheduled_at, platform").bind(packId).all<PostRow>();
+  const { results: posts } = await env.DB.prepare("SELECT id, pack_id, item_kind, platform, caption, scheduled_at, status, error, posted_at, url FROM social_posts WHERE pack_id = ? AND deleted_at IS NULL ORDER BY scheduled_at, platform").bind(packId).all<PostRow>();
   const coverOf = (kind: ItemKind) => {
     const it = items.find((i) => i.kind === kind);
     if (!it?.media_token) return null;
