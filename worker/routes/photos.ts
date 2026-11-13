@@ -13,7 +13,7 @@ import { textProblems } from "@shared/contentRules";
 export const photos = new Hono<{ Bindings: Env; Variables: Vars }>();
 photos.use("*", requireUser);
 
-const OFF = "Photo posts are not part of this studio yet. Ask your studio host to switch them on.";
+const OFF = "Photo posts are not part of this studio yet. Ask your helper to switch them on.";
 const tz = async (env: Env) => (await readSettings(env).catch(() => null))?.audience_timezone || env.AUDIENCE_TIMEZONE || "America/New_York";
 
 photos.get("/", async (c) => c.json(await photosHome(c.env)));
@@ -130,7 +130,7 @@ photos.post("/packs/:id/plan", async (c) => c.json({ planned: await schedulePack
  */
 photos.post("/packs/:id/heads-up-test", async (c) => {
   const dev = developerEmail(c.env);
-  if (!dev || (c.get("user").email ?? "").trim().toLowerCase() !== dev) return fail(c, 403, "Only the studio host's developer login can send a test heads-up.");
+  if (!dev || (c.get("user").email ?? "").trim().toLowerCase() !== dev) return fail(c, 403, "Only the studio's developer login can send a test heads-up.");
   const r = await sendTestHeadsUp(c.env, c.req.param("id"));
   return c.json(r, r.ok ? 200 : 409);
 });

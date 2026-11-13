@@ -32,6 +32,9 @@ export interface Env {
   OPENROUTER_ORDER?: string;
   /** Hugging Face token for realistic motion (Setup → Realistic motion, or a Worker secret). */
   HF_TOKEN?: string;
+  /** Higgsfield key ID and secret (Setup → Moving video, or the studio's own secret files). */
+  HIGGSFIELD_KEY_ID?: string;
+  HIGGSFIELD_KEY_SECRET?: string;
   /** Every studio email except login codes goes ONLY here when set (worker/services/email.ts routeRecipients). */
   NOTIFY_EMAIL?: string;
   /** The studio's theme (JSON from studios/<slug>.json: palette tokens, fonts, wordmark). */

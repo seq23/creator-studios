@@ -608,7 +608,7 @@ export async function photosHome(env: Env): Promise<PhotosHome> {
   const rules = contentRules(env);
   const tz = await timeZone(env);
   const ruleView = { banWords: rules.banWords, prices: priceList(rules), blockAddresses: rules.blockAddresses, blockFaces: rules.blockFaces };
-  if (!cfg.on) return { on: false, off_line: "Photo posts are not part of this studio yet. Ask your studio host to switch them on.", stops: [], maker_practice: false, upcoming: [], packs: [], rules: ruleView };
+  if (!cfg.on) return { on: false, off_line: "Photo posts are not part of this studio yet. Ask your helper to switch them on.", stops: [], maker_practice: false, upcoming: [], packs: [], rules: ruleView };
   const stops: PhotosHome["stops"] = [];
   for (const p of cfg.platforms) if (!(await platformReady(env, p))) stops.push({ platform: p, label: connectLabel(p), setup: SOCIAL_SETUP[p], why: CONNECT_WHY[p] });
   const { results: packIds } = await env.DB.prepare("SELECT id FROM photo_packs ORDER BY created_at DESC LIMIT 20").all<{ id: string }>();

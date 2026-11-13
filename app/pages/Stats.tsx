@@ -37,7 +37,7 @@ interface StatsData {
 
 /** What the YouTube card says about the public numbers, in plain words. */
 const YT_STATE: Record<string, string> = {
-  no_key: "Practice mode: YouTube numbers start once a YouTube key is added on Setup (YouTube numbers). Everything else on Stats works now.",
+  no_key: "YouTube numbers start once a YouTube key is added under More → Connections → Your services and keys (YouTube numbers). Everything else on Stats works now.",
   no_channel: "Type your YouTube channel below so we can read its numbers.",
   not_found: "We couldn’t find that YouTube channel. Check the @name below.",
   key_refused: "YouTube refused this dashboard’s key. Your helper has the same message; we’ll try again tomorrow.",

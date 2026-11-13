@@ -35,6 +35,9 @@
     "RESEND_API_KEY": "studio-file:RESEND_API_KEY",
     "STUDIO_EMAIL_FROM": "studio-file:STUDIO_EMAIL_FROM",
     "HF_TOKEN": "studio-file?:HF_TOKEN",
+    "HIGGSFIELD_KEY_ID": "studio-file?:HIGGSFIELD_KEY_ID",
+    "HIGGSFIELD_KEY_SECRET": "studio-file?:HIGGSFIELD_KEY_SECRET",
+    "_higgsfield": "Owner's ruling 13 Nov 2026: Porch & Party uses the owner's own Higgsfield account, from the 0600 files <secrets dir>/sample1/HIGGSFIELD_KEY_ID and HIGGSFIELD_KEY_SECRET once she makes a key; until then the card reads Not connected and moving photos use the free method. Every other studio connects its own on Connections.",
     "NOTIFY_EMAIL": "studio-file:NOTIFY_EMAIL",
     "_notify": "Owner's ruling 22 Oct 2026: every Porch & Party Studio email (heads-ups, alerts, reports, What's new) goes ONLY to the host, from the 0600 file <secrets dir>/sample1/NOTIFY_EMAIL; none to the owner. Login codes still go to whoever types their address (worker/services/email.ts routeRecipients).",
     "_optional": "file? = set when the 0600 secret file exists, otherwise a named stop: that service stays in practice mode (README Secrets)."

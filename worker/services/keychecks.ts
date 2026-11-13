@@ -114,6 +114,19 @@ export async function checkHuggingFace(env: Env, key: string): Promise<KeyCheck>
   return { ok: false, error: vendorStatusError("Hugging Face", res.status), meta: {} };
 }
 
+/**
+ * Higgsfield: a status lookup for a request id that cannot exist (docs.higgsfield.ai/docs/authentication:
+ * "Authorization: Key <id>:<secret>"; bad credentials answer 401). A lookup makes nothing and spends no
+ * credits: 401/403 = refused, a 404 for the made-up request = the key was accepted.
+ */
+export async function checkHiggsfield(env: Env, keyId: string, secret: string): Promise<KeyCheck> {
+  if (fakeServices(env)) return fakeCheck(`${keyId}:${secret}`, "Higgsfield");
+  const res = await fetch("https://api.higgsfield.ai/requests/00000000-0000-0000-0000-000000000000/status", { headers: { Authorization: `Key ${keyId}:${secret}` } });
+  if (res.status === 401 || res.status === 403) return { ok: false, error: "Higgsfield says this key ID and secret are not valid. Copy both again from console.higgsfield.ai.", meta: {} };
+  if (res.ok || res.status === 404 || res.status === 422) return { ok: true, error: null, meta: {} };
+  return { ok: false, error: vendorStatusError("Higgsfield", res.status), meta: {} };
+}
+
 /** YouTube Data API key: the video categories list (1 quota unit, public data, read-only). */
 export async function checkYouTubeKey(env: Env, key: string): Promise<KeyCheck> {
   if (fakeServices(env)) return fakeCheck(key, "Google");

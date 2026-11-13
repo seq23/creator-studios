@@ -52,6 +52,8 @@ export function overlayFor(service: SetupServiceId, raw: string): Partial<Env> {
       return f.token && f.board_id ? { PINTEREST_ACCESS_TOKEN: f.token, PINTEREST_BOARD_ID: f.board_id } : {};
     case "huggingface":
       return { HF_TOKEN: f.key };
+    case "higgsfield":
+      return f.key_id && f.secret ? { HIGGSFIELD_KEY_ID: f.key_id, HIGGSFIELD_KEY_SECRET: f.secret } : {};
     default:
       return {};
   }
@@ -82,6 +84,8 @@ export function hasEnvKey(env: Partial<Env>, service: SetupServiceId): boolean {
       return !!(env.PINTEREST_ACCESS_TOKEN && env.PINTEREST_BOARD_ID);
     case "huggingface":
       return !!env.HF_TOKEN;
+    case "higgsfield":
+      return !!(env.HIGGSFIELD_KEY_ID && env.HIGGSFIELD_KEY_SECRET);
     default:
       return false;
   }
