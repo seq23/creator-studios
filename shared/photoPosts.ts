@@ -55,7 +55,8 @@ export const AI_MADE: Record<ItemKind, boolean> = { reel: true, before_after: tr
 /** Which platform gets which piece, and on which day of the pack (1 = first). */
 export const PACK_PLAN: { kind: ItemKind; day: number; platforms: Social[] }[] = [
   { kind: "reel", day: 1, platforms: ["facebook", "instagram", "tiktok"] },
-  { kind: "carousel", day: 2, platforms: ["facebook", "pinterest"] },
+  // Photo sets on Instagram and TikTok too (owner, 13 Nov 2026), through Buffer like the reels.
+  { kind: "carousel", day: 2, platforms: ["facebook", "instagram", "tiktok", "pinterest"] },
   { kind: "before_after", day: 3, platforms: ["facebook", "instagram", "tiktok"] },
 ];
 

@@ -78,8 +78,13 @@ export const YOUTUBE_CATEGORY_ID = "26";
 // (introspected with the live key, 26 Sep 2026) has `isAiGenerated: Boolean` on
 // TikTokPostMetadataInput, InstagramPostMetadataInput and YoutubePostMetadataInput ("Whether the
 // post discloses AI-generated content"); each platform shows its own AI label from it.
-export function postMetadata(platform: Platform | "facebook", title: string, aiGenerated = false, privacy: "public" | "unlisted" | "private" = "public"): Record<string, unknown> | undefined {
+export function postMetadata(platform: Platform | "facebook", title: string, aiGenerated = false, privacy: "public" | "unlisted" | "private" = "public", photos = 0): Record<string, unknown> | undefined {
   const ai = aiGenerated ? { isAiGenerated: true } : {};
+  // Photo posts (owner, 13 Nov 2026: photo sets on Instagram and TikTok too). Buffer reference:
+  // InstagramPostMetadataInput.type is required (PostType: post | carousel | reel | story…), and
+  // TikTokPostMetadataInput.title is "the title of the TikTok post (for photo posts)".
+  if (photos > 0 && platform === "instagram") return { instagram: { type: photos > 1 ? "carousel" : "post", shouldShareToFeed: true, ...ai } };
+  if (photos > 0 && platform === "tiktok") return { tiktok: { title: title.replace(/\s+/g, " ").trim().slice(0, 90) || "New post" } };
   if (platform === "instagram") return { instagram: { type: "reel", shouldShareToFeed: true, ...ai } };
   // FacebookPostMetadataInput.type is required (PostTypeFacebook: post | reel | story). A photo set
   // or a video both go out as a Page post.
@@ -155,7 +160,7 @@ export class FakeBuffer implements BufferClient {
     if (input.mediaUrl.includes("reject")) return { ok: false, id: null, error: "Buffer rejected the video (too long for this channel)." };
     const fail = input.mediaUrl.includes("fail");
     const id = `fake_post_${fail ? "fail_" : ""}${Math.random().toString(36).slice(2, 10)}`;
-    FAKE_POSTS.set(id, { channelId: input.channelId, reads: 0, fail, deleted: false, metadata: postMetadata(input.platform, input.title, !!input.aiGenerated, input.privacy) });
+    FAKE_POSTS.set(id, { channelId: input.channelId, reads: 0, fail, deleted: false, metadata: postMetadata(input.platform, input.title, !!input.aiGenerated, input.privacy, input.imageUrls?.length ?? 0) });
     return { ok: true, id, error: null };
   }
   async getPost(id: string): Promise<BufferPostStatus> {
@@ -248,7 +253,7 @@ class RealBuffer implements BufferClient {
   }
   async createPost(input: CreatePostArgs) {
     try {
-      const metadata = postMetadata(input.platform, input.title, !!input.aiGenerated, input.privacy);
+      const metadata = postMetadata(input.platform, input.title, !!input.aiGenerated, input.privacy, input.imageUrls?.length ?? 0);
       const data = await this.gql<{ createPost: { post?: { id: string }; message?: string } }>(
         `mutation($input: CreatePostInput!) { createPost(input: $input) { ... on PostActionSuccess { post { id } } ... on MutationError { message } } }`,
         {

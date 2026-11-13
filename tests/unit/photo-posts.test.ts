@@ -95,9 +95,12 @@ describe("planning (pure)", () => {
   it("reel day 1, photo set day 2, before/after day 3, at the post hour, never inside the heads-up lead", () => {
     const plan = planPack(NOW, cfg, "America/Chicago", ["reel", "carousel", "before_after"], new Set());
     expect(plan.filter((p) => p.kind === "reel").map((p) => p.scheduled_at)).toEqual(Array(3).fill("2026-10-23T16:00:00.000Z"));
+    // Photo sets go to Instagram and TikTok too (owner, 13 Nov 2026).
     expect(plan.filter((p) => p.kind === "carousel").map((p) => [p.platform, p.scheduled_at])).toEqual([
       ["facebook", "2026-10-24T16:00:00.000Z"],
+      ["instagram", "2026-10-24T16:00:00.000Z"],
       ["pinterest", "2026-10-24T16:00:00.000Z"],
+      ["tiktok", "2026-10-24T16:00:00.000Z"],
     ]);
     expect(plan.filter((p) => p.kind === "before_after").every((p) => p.scheduled_at === "2026-10-25T16:00:00.000Z")).toBe(true);
     for (const p of plan) expect(Date.parse(p.scheduled_at) - NOW).toBeGreaterThanOrEqual(24 * 3_600_000);
@@ -122,13 +125,13 @@ describe("auto-post with a heads-up and Skip", () => {
   it("posts go out on their own at their time, after a heads-up email with a Skip link each", async () => {
     await readyPack();
     const planned = posts();
-    expect(planned.map((p) => p.platform).sort()).toEqual(["facebook", "facebook", "instagram", "pinterest", "tiktok"]);
+    expect(planned.map((p) => p.platform).sort()).toEqual(["facebook", "facebook", "instagram", "instagram", "pinterest", "tiktok", "tiktok"]);
     // Nothing before its time.
     expect((await tick(NOW + 3_600_000)).posted).toBe(0);
     // The heads-up went out a day ahead, listing each with its own signed Skip link.
     const sent = raw.prepare("SELECT kind, subject FROM emails_sent WHERE kind = 'heads_up'").all() as { subject: string }[];
     expect(sent.length).toBe(1);
-    expect(planned.filter((p) => p.status === "scheduled").length).toBe(5);
+    expect(planned.filter((p) => p.status === "scheduled").length).toBe(7);
     expect((raw.prepare("SELECT COUNT(*) AS n FROM social_posts WHERE heads_up_at IS NOT NULL").get() as { n: number }).n).toBeGreaterThanOrEqual(3);
     // Day 1: the reel goes to Facebook, Instagram and TikTok.
     const out = await tick(Date.parse("2026-10-23T16:05:00.000Z"));
@@ -296,12 +299,12 @@ describe("test heads-up: the host developer only, to the developer's own address
     raw.prepare("INSERT INTO settings (key, value) VALUES ('owner_email', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify("valerie@owner.example"));
     const r = await req("POST", `/api/photos/packs/${id}/heads-up-test`);
     expect(r.status).toBe(200);
-    expect(await r.json()).toMatchObject({ ok: true, posts: 5 });
+    expect(await r.json()).toMatchObject({ ok: true, posts: 7 });
     const sent = raw.prepare("SELECT to_email, subject FROM emails_sent WHERE kind = 'heads_up'").all() as { to_email: string; subject: string }[];
     expect(sent).toHaveLength(1);
     expect(sent[0].to_email).toContain("dev@host.example");
     expect(sent[0].to_email).not.toContain("valerie");
-    expect(sent[0].subject).toMatch(/^\[Test\] Going out soon: 5 posts/);
+    expect(sent[0].subject).toMatch(/^\[Test\] Going out soon: 7 posts/);
     expect((raw.prepare("SELECT COUNT(*) AS n FROM social_posts WHERE heads_up_at IS NOT NULL").get() as { n: number }).n).toBe(0);
   });
 
@@ -445,5 +448,44 @@ describe("Facebook through Buffer", () => {
     expect(created).toEqual([]);
     expect(posts().filter((p) => p.platform === "facebook").every((p) => p.status !== "posted")).toBe(true);
     expect(posts().some((p) => p.platform === "facebook" && p.status === "waiting")).toBe(true);
+  });
+});
+
+// Photo sets on Instagram and TikTok (owner, 13 Nov 2026): through Buffer as photos, never held as
+// "videos only". Buffer reference: Instagram type carousel (post for one), TikTok photo posts carry a title.
+describe("photo sets on Instagram and TikTok", () => {
+  it("each goes out as photos: Instagram a carousel, TikTok a photo post with a title", async () => {
+    env = makeEnv({ FAKE_SERVICES: "0", PHOTO_POSTS: JSON.stringify({ ...CFG, platforms: ["instagram", "tiktok"] }) } as Partial<Env>);
+    await saveConnection(env, "buffer", "live-buffer-key-0002", "ok", {});
+    const created: Record<string, unknown>[] = [];
+    vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+      if (!String(url).startsWith("https://api.buffer.com")) return new Response("{}", { status: 200 });
+      const body = JSON.parse(String(init?.body ?? "{}")) as { query: string; variables?: { input?: Record<string, unknown> } };
+      if (body.query.includes("account")) return Response.json({ data: { account: { id: "acc", organizations: [{ id: "org1", name: "PnP" }] } } });
+      if (body.query.includes("channels"))
+        return Response.json({
+          data: {
+            channels: [
+              { id: "igch", name: "pnp", service: "instagram", displayName: "@pnp", isDisconnected: false, isQueuePaused: false, serviceId: null, externalLink: null },
+              { id: "ttch", name: "pnp", service: "tiktok", displayName: "@pnp", isDisconnected: false, isQueuePaused: false, serviceId: null, externalLink: null },
+            ],
+          },
+        });
+      if (body.query.includes("createPost")) {
+        created.push(body.variables!.input!);
+        return Response.json({ data: { createPost: { post: { id: `bp${created.length}` } } } });
+      }
+      return Response.json({ data: { posts: { edges: [] } } });
+    });
+    await readyPack(["main", "main", "main"], "clean");
+    await tick(Date.parse("2026-10-24T16:05:00.000Z")); // day 2: the photo set
+    const photos = created.filter((c) => (c.assets as { image?: unknown }[]).every((a) => a.image));
+    const ig = photos.find((c) => c.channelId === "igch")!;
+    const tt = photos.find((c) => c.channelId === "ttch")!;
+    expect((ig.assets as unknown[]).length).toBeGreaterThanOrEqual(2);
+    expect(ig.metadata).toEqual({ instagram: { type: "carousel", shouldShareToFeed: true } });
+    expect((tt.metadata as { tiktok: { title: string } }).tiktok.title.length).toBeGreaterThan(0);
+    const sets = posts().filter((p) => p.item_kind === "carousel");
+    expect(sets.map((p) => [p.platform, p.status]).sort()).toEqual([["instagram", "posted"], ["tiktok", "posted"]]);
   });
 });
