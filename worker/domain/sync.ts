@@ -60,6 +60,13 @@ function isInt(v: unknown, min: number, max: number): boolean {
  *  - never a slot in the past
  *  - order by orderForWeek (best first, doors blended, no same source back to back)
  */
+/**
+ * Repeat after a rest (owner, 13 Nov 2026): a reel that went out on a platform can go out there again
+ * once this many weeks have passed, so a good batch is not used up in two weeks. Never ahead of a
+ * reel that has not been out there yet.
+ */
+export const REST_WEEKS = 6;
+
 export function fillWeek(input: {
   clips: SchedulableClip[];
   existing: ExistingPost[]; // every active post, any week
@@ -74,7 +81,11 @@ export function fillWeek(input: {
 }): PlannedPost[] {
   const { clips, weekStart, weekEnd, timeZone, caps, slots, now } = input;
   const full = new Set([...(input.fullClipIds ?? []), ...clips.filter((c) => c.full).map((c) => c.id)]);
-  const active = input.existing.filter((p) => p.status !== "unscheduled");
+  // A post that went out before the rest began no longer holds its reel back (REST_WEEKS).
+  const restedBefore = new Date(Date.parse(weekStart) - REST_WEEKS * 7 * 86_400_000).toISOString();
+  const rested = (p: ExistingPost) => p.status === "posted" && p.scheduled_at < restedBefore;
+  const everOn = new Set(input.existing.filter((p) => p.status === "posted").map((p) => `${p.clip_id}|${p.platform}`));
+  const active = input.existing.filter((p) => p.status !== "unscheduled" && !rested(p));
   const onPlatform = new Set(active.map((p) => `${p.clip_id}|${p.platform}`));
   const weekOf = new Map<string, Set<string>>(); // clip → weeks it has posts in (by start)
   for (const p of active) {
@@ -99,7 +110,9 @@ export function fillWeek(input: {
     const taken = new Set(inWeek.map((p) => p.scheduled_at));
     const free = slotMap[platform].filter((t) => t > now && !taken.has(t));
     let fullThisWeek = inWeek.filter((p) => full.has(p.clip_id)).length;
-    for (const c of ordered) {
+    // Reels that have never been out on this platform first; rested repeats only after them.
+    const fresh = ordered.filter((c) => !everOn.has(`${c.id}|${platform}`));
+    for (const c of [...fresh, ...ordered.filter((c) => everOn.has(`${c.id}|${platform}`))]) {
       if (room <= 0 || !free.length) break;
       if (!c.platforms.includes(platform) || onPlatform.has(`${c.id}|${platform}`)) continue;
       if (full.has(c.id)) {
