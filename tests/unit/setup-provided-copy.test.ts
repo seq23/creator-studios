@@ -12,11 +12,13 @@ describe("Setup cards the studio host's account runs", () => {
   it("covers Email, AI writing, Web research and Brand contacts (Rule 0)", () => {
     expect(HOST_RUN.sort()).toEqual(["firecrawl", "hunter", "openrouter", "resend"]);
   });
-  it.each(HOST_RUN)("%s: provided by the studio host while the host's key runs it", (id) => {
+  // 13 Nov 2026 (owner): nobody reads "studio host"; the card says it is already set up for her.
+  it.each(HOST_RUN)("%s: says it is already set up for her while the host's key runs it", (id) => {
     const step = SETUP_STEPS.find((s) => s.id === id)!;
     const shown = powersFor(step, "provided");
-    expect(shown).toMatch(/provided by your studio host\.$/);
-    expect(shown).not.toMatch(/your own/i);
+    expect(shown).not.toBe(step.powers);
+    expect(shown).toMatch(/already set up for you\.$/);
+    expect(shown).not.toMatch(/your own|studio host/i);
   });
   it("no card claims her own account while provided", () => {
     for (const s of SETUP_STEPS) expect(powersFor(s, "provided"), s.id).not.toMatch(/your own \w+ account/i);

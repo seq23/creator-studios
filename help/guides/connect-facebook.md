@@ -1,34 +1,37 @@
 ---
 title: "Connect your Facebook Page"
 group: getting_started
-screen: setup
-last_checked: 2026-10-22
+screen: connect
+last_checked: 2026-11-13
 fix: reconnect-facebook
-keywords: facebook, page, page token, connect facebook, post to facebook
+keywords: facebook, page, connect facebook, post to facebook, buffer
 ---
 
-Your photo posts go to your Facebook Page once it is connected. Until then they wait safely on Photo sets.
+Your photo posts go to your Facebook Page through Buffer, the same free app that posts to Instagram and TikTok. It is optional. Until your Page is added, Facebook posts wait safely and nothing else changes.
 
 ## Find Facebook Page under Connections
 
 ![Step 1](/help/screenshots/connect-facebook-1.png)
-<!-- target: #setup-facebook -->
+<!-- target: [data-facebook-page] -->
+<!-- shared -->
 
-Open **Connections** (under **More**), tap **Open your services and keys**, and find the **Facebook Page** card.
+Open **Connections** (under **More**). Under **Posting**, the **Facebook Page** row says whether your Page is added.
 
-## Get a Page token
+## Add your Page in Buffer
 
 ![Step 2](/help/screenshots/connect-facebook-2.png)
-<!-- target: #setup-facebook a.btn -->
+<!-- target: [data-facebook-steps] -->
+<!-- shared -->
 
-Tap **Open Graph API Explorer**, pick your Page, and add **pages_manage_posts**. Tap **Generate Access Token**, then make it long-lived in the Access Token Debugger.
+Tap **Open Buffer**. Then: tap **Add a channel**, choose **Facebook Page**, and pick your Page.
 
-## Paste it and save
+## Check it worked
 
 ![Step 3](/help/screenshots/connect-facebook-3.png)
-<!-- target: #setup-facebook button[type="submit"] -->
+<!-- target: [data-check-facebook] -->
+<!-- shared -->
 
-Paste your Page ID and the Page token, then tap **Save**. Posts that were waiting are planned again, with a heads-up first.
+Come back and tap **Check it worked**. The row turns green with your Page's name, and posts that were waiting go out, each with a heads-up first.
 
 ## Did this work?
 

@@ -10,6 +10,8 @@ export const SOCIAL_LABEL: Record<Social, string> = { facebook: "Facebook", inst
 
 /** The Setup card that connects each platform (Instagram and TikTok post through Buffer). */
 export const SOCIAL_SETUP: Record<Social, "facebook" | "pinterest" | "buffer"> = { facebook: "facebook", instagram: "buffer", tiktok: "buffer", pinterest: "pinterest" };
+/** Where "Connect …" opens: Facebook goes through Buffer on Connections (owner, 13 Nov 2026); the rest open their key card. Pure. */
+export const connectTo = (setup: string): string => (setup === "facebook" ? "/settings/connections" : `/setup#setup-${setup}`);
 
 export interface PhotoPostsConfig {
   on: boolean;

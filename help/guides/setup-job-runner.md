@@ -23,7 +23,7 @@ Open **Connections** (under **More**), tap **Open your services and keys**, and 
 <!-- route: /setup -->
 <!-- target: .setup-step:has(#setup-github) summary -->
 
-Tap **Where to get it**. Copy the studio job repository your host gives you into your free GitHub account, and add the secret **JOB_SHARED_SECRET** with the value shown on the card.
+Tap **Where to get it**. Copy the studio job repository your helper gives you into your free GitHub account, and add the secret **JOB_SHARED_SECRET** with the value shown on the card.
 
 ## Paste a token and the repository
 

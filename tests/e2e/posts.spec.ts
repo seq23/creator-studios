@@ -139,7 +139,7 @@ test("one list of every upcoming post, reels and photo posts; the same numbers o
     const group = page.locator('[data-blocked="connect:facebook"]');
     await expect(group).toContainText("Waiting on Facebook (1)");
     await expect(group).toContainText("Facebook is not connected yet. It goes out once it is.");
-    await expect(group.getByRole("link", { name: "Connect ›" })).toHaveAttribute("href", "/setup#setup-facebook");
+    await expect(group.getByRole("link", { name: "Connect ›" })).toHaveAttribute("href", "/settings/connections");
   }
   // Every tap target on the list is at least 44 px tall.
   for (const b of await list.getByRole("button").all()) expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);

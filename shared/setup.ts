@@ -7,7 +7,7 @@
 // (connections.secret_enc, SECRETS_KEY). At runtime the encrypted key is read FIRST, then the
 // Worker secret named in `secrets` (how a studio the host runs on the host's own accounts gets them).
 
-export type SetupServiceId = "resend" | "buffer" | "openrouter" | "firecrawl" | "hunter" | "youtube_api" | "google_app" | "meta_app" | "github" | "facebook" | "pinterest" | "elevenlabs" | "huggingface";
+export type SetupServiceId = "resend" | "buffer" | "openrouter" | "firecrawl" | "hunter" | "youtube_api" | "google_app" | "meta_app" | "github" | "facebook" | "pinterest" | "elevenlabs" | "huggingface" | "higgsfield";
 
 export interface SetupField {
   /** Key inside the stored value. A one-field step stores the bare key; a multi-field step stores JSON. */
@@ -55,7 +55,7 @@ export const SETUP_STEPS: SetupStep[] = [
     id: "resend",
     title: "Email",
     powers: "Your alerts, weekly recap and “clips are ready” emails, sent from your own Resend account.",
-    provided: "Your alerts, weekly recap and “clips are ready” emails, sent from an email account provided by your studio host.",
+    provided: "Your alerts, weekly recap and “clips are ready” emails, sent from an email account already set up for you.",
     practice: "Emails are written and listed on the health board, but not sent.",
     where: ["Make a free account at resend.com.", "Open API Keys and tap Create API key (Full access lets the check read your domains).", "Copy the key and paste it here. Add a From address on a domain you verified in Resend, or leave it empty to use Resend's test sender."],
     link: { label: "Open Resend API keys", url: "https://resend.com/api-keys" },
@@ -80,7 +80,7 @@ export const SETUP_STEPS: SetupStep[] = [
     id: "openrouter",
     title: "AI writing (OpenRouter)",
     powers: "Writes captions, the research brief, pitch drafts and voice-over scripts with free AI models.",
-    provided: "Writes captions, the research brief, pitch drafts and voice-over scripts with free AI models, on an AI account provided by your studio host.",
+    provided: "Writes captions, the research brief, pitch drafts and voice-over scripts with free AI models, on an AI account already set up for you.",
     practice: "Starter text is used instead of AI drafts, marked as a practice draft.",
     where: ["Make a free account at openrouter.ai.", "Open Keys and tap Create Key; leave the credit limit empty.", "Copy the key and paste it here."],
     link: { label: "Open OpenRouter keys", url: "https://openrouter.ai/settings/keys" },
@@ -94,7 +94,7 @@ export const SETUP_STEPS: SetupStep[] = [
     id: "firecrawl",
     title: "Web research (Firecrawl)",
     powers: "Reads brand and niche websites for the research brief and the brand finder.",
-    provided: "Reads brand and niche websites for the research brief and the brand finder, on a research account provided by your studio host.",
+    provided: "Reads brand and niche websites for the research brief and the brand finder, on a research account already set up for you.",
     practice: "Research uses the free keyless search instead.",
     where: ["Make a free account at firecrawl.dev.", "Open the dashboard and copy your API key.", "Paste it here."],
     link: { label: "Open Firecrawl", url: "https://www.firecrawl.dev/app/api-keys" },
@@ -108,7 +108,7 @@ export const SETUP_STEPS: SetupStep[] = [
     id: "hunter",
     title: "Brand contacts (Hunter)",
     powers: "Finds public partnership emails on a brand's website for Deals.",
-    provided: "Finds public partnership emails on a brand's website for Deals, on a contacts account provided by your studio host.",
+    provided: "Finds public partnership emails on a brand's website for Deals, on a contacts account already set up for you.",
     practice: "Deals shows where to look by hand; no contact search runs.",
     where: ["Make a free account at hunter.io.", "Open API and copy your key.", "Paste it here."],
     link: { label: "Open Hunter API", url: "https://hunter.io/api-keys" },
@@ -165,7 +165,7 @@ export const SETUP_STEPS: SetupStep[] = [
     title: "Clip cutting (job runner)",
     powers: "Cuts your footage into clips, makes full videos and voice overs on GitHub Actions (free for public repositories).",
     practice: "Clips are cut by the practice cutter: sample clips appear so you can try Review.",
-    where: ["Make a free account at github.com and copy the studio job repository your host gives you (Use this template).", "In that copy: Settings → Secrets and variables → Actions → New secret JOB_SHARED_SECRET with the value shown below.", "github.com → Settings → Developer settings → Fine-grained tokens: only that repository, Contents read and write.", "Paste the token and the repository (owner/name) here."],
+    where: ["Make a free account at github.com and copy the studio job repository your helper gives you (Use this template).", "In that copy: Settings → Secrets and variables → Actions → New secret JOB_SHARED_SECRET with the value shown below.", "github.com → Settings → Developer settings → Fine-grained tokens: only that repository, Contents read and write.", "Paste the token and the repository (owner/name) here."],
     link: { label: "Open GitHub tokens", url: "https://github.com/settings/personal-access-tokens/new" },
     fields: [
       { name: "token", label: "Token", placeholder: "github_pat_…" },
@@ -212,7 +212,7 @@ export const SETUP_STEPS: SetupStep[] = [
     id: "huggingface",
     title: "Connect Hugging Face (free) for realistic motion",
     powers: "Turns one photo into a short, realistic camera-move video for your photo posts, with a free open-source AI model. Labelled “Made with AI”.",
-    provided: "Turns one photo into a short, realistic camera-move video for your photo posts, on a free AI account provided by your studio host. Labelled “Made with AI”.",
+    provided: "Turns one photo into a short, realistic camera-move video for your photo posts, on a free AI account already set up for you. Labelled “Made with AI”.",
     practice: "Photo videos use the slow zoom. Everything else works as usual.",
     where: ["Make a free account at huggingface.co.", "Open Settings → Access Tokens → Create new token, type Read.", "Copy the token and paste it here."],
     link: { label: "Open Hugging Face tokens", url: "https://huggingface.co/settings/tokens" },
@@ -220,6 +220,26 @@ export const SETUP_STEPS: SetupStep[] = [
     secrets: ["HF_TOKEN"],
     guide: "connect-huggingface",
     free: true,
+  },
+  {
+    // Higgsfield (owner's rulings 5 and 10, 13 Nov 2026): a place to connect it, nothing bought, no
+    // key needed to build. Porch & Party reads the owner's own key from its 0600 secret file
+    // (studios/sample1.json); every other studio connects its own here. Checked read-only:
+    // worker/services/keychecks.ts checkHiggsfield.
+    id: "higgsfield",
+    title: "Moving video (Higgsfield)",
+    powers: "Connects your Higgsfield account, for moving videos made from your photos. Optional: until it is connected, moving photos use the free method.",
+    provided: "Connected to a Higgsfield account for you, for moving videos made from your photos.",
+    practice: "Moving photos use the free method. Everything else works as usual.",
+    where: ["Make an account at higgsfield.ai (its plans and credits are its own).", "Open console.higgsfield.ai and create an API key. It shows a key ID and a secret.", "Paste both here."],
+    link: { label: "Open Higgsfield keys", url: "https://console.higgsfield.ai" },
+    fields: [
+      { name: "key_id", label: "Key ID", placeholder: "Key ID", plain: true },
+      { name: "secret", label: "Secret", placeholder: "Secret" },
+    ],
+    secrets: ["HIGGSFIELD_KEY_ID", "HIGGSFIELD_KEY_SECRET"],
+    guide: "connect-higgsfield",
+    free: false,
   },
   {
     id: "elevenlabs",

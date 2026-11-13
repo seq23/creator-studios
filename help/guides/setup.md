@@ -30,7 +30,7 @@ Tap **More**, then **Connections**, then **Open your services and keys** at the 
 <!-- route: /setup -->
 <!-- target: .setup-step:has(#setup-buffer) -->
 
-Each card says what it powers, what practice mode does meanwhile, and where to get the key. Paste it, tap **Test key** to check it without saving, then **Save**.
+Each card says what it powers, what happens until it is connected, and where to get the key. Paste it, tap **Test key** to check it without saving, then **Save**.
 
 ## Did this work?
 

@@ -1,33 +1,36 @@
 ---
 title: "Facebook stopped posting: connect it again"
 group: fix_it
-screen: setup
-last_checked: 2026-10-22
-keywords: facebook stopped, token expired, page token, reconnect facebook
+screen: connect
+last_checked: 2026-11-13
+keywords: facebook stopped, reconnect facebook, facebook paused, buffer facebook
 ---
 
-Facebook said the Page token ran out or was changed. Your posts wait safely until it is connected again.
+Buffer lost its link to your Facebook Page, or the Page is paused inside Buffer. Your posts wait safely until it is connected again.
 
-## Make a new Page token
+## See what Facebook needs
 
 ![Step 1](/help/screenshots/reconnect-facebook-1.png)
-<!-- target: #setup-facebook .setup-where -->
+<!-- target: [data-facebook-page] -->
+<!-- shared -->
 
-On **Your services and keys** (More → Connections), open the **Facebook Page** card and follow the steps to make a new long-lived Page token.
+Open **Connections** (under **More**). The **Facebook Page** row says what is wrong: not added, or paused inside Buffer.
 
-## Paste the new token
+## Fix it in Buffer
 
 ![Step 2](/help/screenshots/reconnect-facebook-2.png)
-<!-- target: #setup-facebook .setup-form .field >> nth=1 -->
+<!-- target: [data-facebook-steps] -->
+<!-- shared -->
 
-Paste it into **Page token**.
+Tap **Open Buffer**. Reconnect your Facebook Page there, or press **Resume** if it is paused.
 
-## Test it, then save
+## Check it worked
 
 ![Step 3](/help/screenshots/reconnect-facebook-3.png)
-<!-- target: #setup-facebook .setup-actions -->
+<!-- target: [data-check-facebook] -->
+<!-- shared -->
 
-Tap **Test key**, then **Save**. Waiting posts are planned again, with a heads-up first.
+Come back and tap **Check it worked**. Waiting posts go out, each with a heads-up first.
 
 ## Did this work?
 

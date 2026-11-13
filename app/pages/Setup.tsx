@@ -13,7 +13,7 @@ import "../styles/setup.css";
 const STATE_LABEL: Record<SetupStatus["state"], { text: string; tone: "ok" | "warn" | "bad" | "" }> = {
   live: { text: "Live · your key", tone: "ok" },
   provided: { text: "Already set up for you", tone: "ok" },
-  practice: { text: "Practice mode", tone: "warn" },
+  practice: { text: "Not connected · optional", tone: "" },
   error: { text: "Needs a new key", tone: "bad" },
 };
 
@@ -26,7 +26,9 @@ export function Setup() {
   }, [data]);
   const { refreshMe } = useApp();
   // A service that is already set up for her is never shown (owner, 13 Nov 2026): nothing to do there.
-  const mine = data ? shownSteps(data).filter((x) => x.status.state !== "provided") : [];
+  // Facebook goes through Buffer now (Connections → Facebook Page, owner 13 Nov 2026: no developer tools,
+  // ever); the old Page-token card shows only on a studio that already uses one.
+  const mine = data ? shownSteps(data).filter((x) => x.status.state !== "provided" && !(x.step.id === "facebook" && x.status.state === "practice")) : [];
   return (
     <div className="page setup-page">
       <PageHead
@@ -93,7 +95,7 @@ function StepCard({ n, step, status, view, onChange }: { n: number; step: SetupS
     setBusy("remove");
     try {
       await post(`/api/setup/${step.id}/remove`);
-      toast.ok(`${step.title} removed. It runs in practice mode again.`);
+      toast.ok(`${step.title} removed. ${step.practice}`);
       await onChange();
     } catch (err) {
       toast.bad(err);
@@ -116,7 +118,7 @@ function StepCard({ n, step, status, view, onChange }: { n: number; step: SetupS
         </span>
       </div>
       <p>{powersFor(step, status.state)}</p>
-      {status.state === "practice" ? <Notice tone="info">Practice mode: {step.practice}</Notice> : null}
+      {status.state === "practice" ? <p className="hint">Until then: {step.practice}</p> : null}
       {status.state === "error" ? <Notice tone="bad">{status.last_error ?? "The stored key stopped working."} Paste a new one below.</Notice> : null}
       {Object.keys(status.shown).length ? (
         <p className="hint">

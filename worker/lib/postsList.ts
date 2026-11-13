@@ -13,7 +13,7 @@ import { postCounts, type CountRow } from "../domain/postCounts";
 import { HARD_CAP_PER_CHANNEL_PER_WEEK, PLATFORMS, type Platform } from "@shared/constants";
 import { isFinalCaption, postText } from "@shared/postText";
 import { withAiLabel } from "@shared/contentRules";
-import { SOCIAL_LABEL, SOCIAL_SETUP, type ItemKind, type Social, type SocialPostStatus } from "@shared/photoPosts";
+import { connectTo, SOCIAL_LABEL, SOCIAL_SETUP, type ItemKind, type Social, type SocialPostStatus } from "@shared/photoPosts";
 import { photoKind, POST_KIND_LABEL, splitCaption, type BinItem, type BinList, type BlockedGroup, type PostItem, type PostsList, type PostsSummary, type WeekLimit } from "@shared/posts";
 
 const CLIP_PLATFORM: Record<Platform, string> = { tiktok: "TikTok", instagram: "Instagram", youtube: "YouTube" };
@@ -198,7 +198,7 @@ function blockedGroups(items: PostItem[], raw: Map<string, PhotoPostDb>): Blocke
     else if (r?.status === "held") put("held", "Stopped by a studio rule", null, it);
     else if (r?.error?.startsWith("connect:")) {
       const p = r.error.slice(8) as Social;
-      put(`connect:${p}`, `Waiting on ${SOCIAL_LABEL[p] ?? "a connection"}`, { label: "Connect ›", to: `/setup#setup-${SOCIAL_SETUP[p] ?? p}` }, it);
+      put(`connect:${p}`, `Waiting on ${SOCIAL_LABEL[p] ?? "a connection"}`, { label: "Connect ›", to: connectTo(SOCIAL_SETUP[p] ?? p) }, it);
     } else put("photo-check", "Waiting on the photo check", { label: "Set it up ›", to: "/setup#setup-github" }, it);
   }
   return [...groups.values()];

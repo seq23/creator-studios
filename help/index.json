@@ -69,11 +69,17 @@
       "slug": "connect-facebook",
       "title": "Connect your Facebook Page",
       "group": "getting_started",
-      "screen": "setup"
+      "screen": "connect"
     },
     {
       "slug": "connect-huggingface",
       "title": "Connect Hugging Face for realistic motion (free)",
+      "group": "getting_started",
+      "screen": "setup"
+    },
+    {
+      "slug": "connect-higgsfield",
+      "title": "Connect Higgsfield for moving video (optional)",
       "group": "getting_started",
       "screen": "setup"
     },
@@ -495,7 +501,7 @@
       "slug": "reconnect-facebook",
       "title": "Facebook stopped posting: connect it again",
       "group": "fix_it",
-      "screen": "setup"
+      "screen": "connect"
     },
     {
       "slug": "reconnect-huggingface",
