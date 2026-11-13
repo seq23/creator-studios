@@ -107,8 +107,8 @@ export function Home() {
                   </span>
                 }
                 sub={
-                  <Link to="/calendar" data-count="to-go">
-                    {data.thisWeek.toGo} still to go out{data.thisWeek.plannedThrough ? ` · planned through ${plainDay(data.thisWeek.plannedThrough, data.thisWeek.tz)}` : ""} ›
+                  <Link to="/calendar" data-count="to-go" title={data.thisWeek.plannedThrough ? `Planned through ${plainDay(data.thisWeek.plannedThrough, data.thisWeek.tz)}` : undefined}>
+                    {data.thisWeek.toGo} still to go out ›
                   </Link>
                 }
               >

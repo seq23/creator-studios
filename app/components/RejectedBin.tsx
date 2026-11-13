@@ -3,7 +3,6 @@
 // page (never a browser pop-up), and sits apart from Bring back; "Empty the whole bin" sits apart
 // at the bottom and says how many. Her original photos and videos are never deleted from here.
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import type { BinItem, BinList } from "@shared/posts";
 import { del, get, post } from "../lib/api";
 import { plural } from "../lib/format";
@@ -47,9 +46,6 @@ export function RejectedBin() {
 
   return (
     <div className="page cal bin">
-      <Link className="bin-back" to="/calendar">
-        ← Back to Posts
-      </Link>
       <PageHead title={bin.data ? `Rejected bin · ${plural(items.length, "post")}` : "Rejected bin"} lede="Posts you said no to wait here. Nothing in the bin is ever posted." />
       {!bin.data ? <Skeleton blocks={2} /> : null}
       {bin.data && items.length === 0 ? <Empty title="The bin is empty">When you say no to a post it waits here, so you can bring it back if you change your mind.</Empty> : null}

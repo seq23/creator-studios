@@ -1,9 +1,11 @@
 // Calendar + Buffer sync, end to end against wrangler dev with the fake Buffer.
 // Approved clips are written straight into the local D1 (Review is another phase), then:
-// fill → 22 posts at launch caps, moves refused over the cap, take off, the hourly cron
+// fill → one of three true answers, 22 posts at launch caps, moves refused over the cap, take off, the hourly cron
 // (wrangler dev's /cdn-cgi/handler/scheduled) loading Buffer, posts going out, a failing post
 // retried twice then emailed, a channel disconnecting once → one email, and the screens.
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { mkdirSync } from "node:fs";
+import path from "node:path";
 import { sql } from "./helpers";
 
 const TZ = "America/New_York";
@@ -84,6 +86,52 @@ test.describe("calendar and the hourly Buffer sync", () => {
     const r = await page.request.post("/api/posts/plan", { data: {} });
     expect(r.status()).toBe(409);
     expect((await r.json()).fix_guide).toBe("review-and-approve-clips");
+  });
+
+  test("Fill the calendar says one of three true things: added, nothing left to add, or every week planned", async ({ page, isMobile }) => {
+    // PROOF_DIR=<folder> saves a phone picture of each answer.
+    const shot = async (name: string) => {
+      if (!process.env.PROOF_DIR || !isMobile) return;
+      mkdirSync(process.env.PROOF_DIR, { recursive: true });
+      await page.screenshot({ path: path.join(process.env.PROOF_DIR, `${name}.png`) });
+    };
+    // 13 Nov 2026: it said "already full for the next 4 weeks" with 4 posts left and nothing after
+    // Sunday. It was out of approved clips (a clip posts once per platform; the weekly numbers are
+    // limits, not targets). Now the page says which of the three it is, and through what date.
+    seedClips(1);
+    await page.goto("/calendar");
+    const fill = page.getByRole("button", { name: "Fill the calendar" });
+    const said = page.locator("[data-fill-state]");
+    const DAY = String.raw`(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)`;
+
+    // (a) posts were added: how many, and through when.
+    await fill.click();
+    await expect(said).toHaveAttribute("data-fill-state", "added");
+    await expect(said).toHaveText(new RegExp(`^Added [1-3] posts?\\. You are now planned through ${DAY}\\.\\s*$`));
+    await shot("01a-fill-added");
+    const planned = sql<{ n: number; last: string }>("SELECT COUNT(*) AS n, MAX(scheduled_at) AS last FROM posts WHERE status = 'planned'")[0];
+    expect(planned.n).toBeGreaterThan(0);
+
+    // (b) nothing left to add: the one clip is used, the weeks still have room. Never "full".
+    await fill.click();
+    await expect(said).toHaveAttribute("data-fill-state", "nothing_left");
+    await expect(said).toHaveText(new RegExp(`^Nothing left to add\\. You are planned through ${DAY}\\. Add photos and videos to fill the rest ›$`));
+    await expect(said.getByRole("link", { name: "Add photos and videos to fill the rest ›" })).toHaveAttribute("href", "/dump");
+    await expect(page.locator("body")).not.toContainText("already full");
+    expect(sql<{ n: number }>("SELECT COUNT(*) AS n FROM posts WHERE status = 'planned'")[0].n).toBe(planned.n);
+    // Line 1 names the same date: the last upcoming post.
+    await expect(page.locator("[data-posts-line]")).toContainText(new RegExp(`^${planned.n} posts? coming · planned through ${DAY}`));
+    await shot("01b-fill-nothing-left-to-add");
+
+    // (c) every week truly at its limits: one TikTok post a week, and a clip for each week.
+    expect((await page.request.patch("/api/settings", { data: { weekly_caps: { tiktok: 1, instagram: 0, youtube: 0 } } })).ok()).toBe(true);
+    sql(Array.from({ length: 5 }, (_, i) => `INSERT INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, hook_text, caption, hashtags, score, r2_key, media_token, status, platforms) VALUES ('e2e_w${i}', 'e2e_a0', 'e2e_dn', 0, 20, 'montage', 'E2E week ${i}', 'c', '', 0.5, 'clips/e2e/w${i}.mp4', '${token("okweek", i)}', 'approved', '["tiktok"]')`).join("; "));
+    await page.request.post("/api/posts/plan", { data: {} });
+    await fill.click();
+    await expect(said).toHaveAttribute("data-fill-state", "all_planned");
+    await expect(said).toHaveText(/^All 4 weeks are planned\. Nothing to do\.\s*$/);
+    await shot("01c-fill-all-weeks-planned");
+    await reset(page);
   });
 
   test("fill: a full week is 22 posts at launch caps (10 / 7 / 5), and filling again adds nothing", async ({ page }) => {
@@ -216,15 +264,28 @@ test.describe("calendar and the hourly Buffer sync", () => {
     expect(sql("SELECT light, fix_guide FROM health WHERE name = 'TikTok (via Buffer)'")[0]).toEqual({ light: "red", fix_guide: "a-post-failed" });
   });
 
-  test("the Calendar screen: failed post with a fix link, caps line, move with the picker, fill, month view", async ({ page, isMobile }) => {
+  test("the Calendar screen: the list first, a failed post with a fix link, limits in words, move from the sheet, drag, fill, month view", async ({ page, isMobile }) => {
     await page.goto("/calendar");
+    // The list is the default: what is coming, then what did not go out with its one button.
+    await expect(page.locator("[data-posts-line]")).toContainText(/^\d+ posts coming · planned through /);
+    await expect(page.locator("[data-posts-list] .post-row.coming").first()).toBeVisible();
+    const failed = page.locator('[data-blocked="failed"]');
+    await expect(failed).toContainText(/Did not go out \(\d+\)/);
+    await expect(failed.getByRole("link", { name: "How to fix ›" })).toHaveAttribute("href", "/help/a-post-failed");
+    // Plain words only: no posting-service name, no clip numbers, no ids on the list.
+    await expect(page.locator("[data-posts-list]")).not.toContainText(/Buffer|Clip \d|e2e_p_|runway/i);
+    // The limits are words under the posts, never a score.
+    await expect(page.locator(".cal-caps")).toContainText(/TikTok: \d+ of 10 this week's limit used/);
+    await expect(page.locator(".cal-caps")).toContainText(/Instagram: \d+ of 7 this week's limit used/);
+    await expect(page.locator(".cal-caps")).not.toContainText(/\d+ \/ \d+/);
+
+    // The week is a tap away, with every action it had.
+    await page.getByRole("group", { name: "View" }).getByRole("button", { name: "Week" }).click();
     await expect(page.getByText("Failed", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: "How to fix" }).first()).toHaveAttribute("href", "/help/a-post-failed");
-
     await page.getByRole("button", { name: "Next week" }).click();
     await page.getByRole("button", { name: "Next week" }).click();
-    await expect(page.locator(".cal-caps")).toContainText(/TikTok \d+ \/ 10/);
-    await expect(page.locator(".cal-caps")).toContainText(/Instagram \d+ \/ 7/);
+    await expect(page.locator(".cal-caps")).toContainText(/TikTok: \d+ of 10 that week's limit used/);
     const card = page.locator(".cal-post.planned").first();
     await expect(card).toBeVisible();
     // Readable at every width: the hook never wraps one letter per line (live test 26 Sep 2026:
@@ -240,14 +301,19 @@ test.describe("calendar and the hourly Buffer sync", () => {
     d.setUTCDate(d.getUTCDate() + (d.getUTCDay() === 0 ? -1 : 1));
     const target = d.toISOString().slice(0, 10);
     await card.locator(".cal-post-main").click();
-    await page.getByLabel("Move to…").selectOption(target);
-    await page.getByRole("button", { name: "Move", exact: true }).click();
+    const sheet = page.getByRole("dialog");
+    await expect(sheet.locator("[data-post-caption]")).toBeVisible(); // the whole caption, in the sheet
+    await sheet.getByLabel("Move to another day").selectOption(target);
+    await sheet.getByRole("button", { name: "Move", exact: true }).click();
     await expect(page.locator(".toast").first()).toContainText("Moved to");
+    await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
     await expect(page.locator(`section.cal-day[data-day="${target}"] .cal-post`).first()).toBeVisible();
 
     if (!isMobile) {
       // Desktop: drag a planned post onto another day of the same week.
       await page.goto("/calendar");
+      await page.getByRole("group", { name: "View" }).getByRole("button", { name: "Week" }).click();
       await page.getByRole("button", { name: "Next week" }).click();
       await page.getByRole("button", { name: "Next week" }).click();
       const drag = page.locator(".cal-post.planned").first();
@@ -269,10 +335,18 @@ test.describe("calendar and the hourly Buffer sync", () => {
     await expect(page.getByRole("button", { name: "Fill the calendar" })).toHaveAttribute("data-primary", "true");
     // a platform is shown by a dot and its name, never a side stripe
     await expect(page.locator(".cal-caps .cal-dot")).toHaveCount(3);
+    // Fill answers on the page with one of the three true states (each pinned word for word in the
+    // test above); here, whichever is true of this calendar, it is never the old "already full".
     await page.getByRole("button", { name: "Fill the calendar" }).click();
-    await expect(page.locator(".toast").last()).toContainText(/Added \d+ posts? to the calendar|already full/);
+    const said = page.locator("[data-fill-state]");
+    await expect(said).toBeVisible();
+    const state = await said.getAttribute("data-fill-state");
+    const words = { added: /^Added \d+ posts?\. You are now planned through /, nothing_left: /^Nothing left to add\. You are planned through .+\. Add photos and videos to fill the rest ›$/, all_planned: /^All 4 weeks are planned\. Nothing to do\./ } as const;
+    expect(Object.keys(words)).toContain(state);
+    await expect(said).toHaveText(words[state as keyof typeof words]);
+    await expect(page.locator("body")).not.toContainText("already full");
 
-    await page.getByRole("button", { name: "Month" }).click();
+    await page.getByRole("group", { name: "View" }).getByRole("button", { name: "Month" }).click();
     await expect(page.getByRole("grid")).toBeVisible();
     await expect(page.locator(".cal-mini").first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Help for this screen" })).toHaveAttribute("href", "/help/move-or-remove-a-post");

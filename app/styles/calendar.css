@@ -400,9 +400,15 @@
   font-size: var(--text-md);
   margin: 0;
 }
-.posts-line a {
+.posts-line strong {
+  display: block;
+}
+.posts-add {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch);
+  font-size: var(--text-sm);
   font-weight: 700;
-  white-space: nowrap;
 }
 .posts-list {
   display: flex;
@@ -571,12 +577,6 @@
 }
 
 /* The Rejected bin. */
-.bin-back {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--touch);
-  font-weight: 700;
-}
 .bin-list {
   display: flex;
   flex-direction: column;

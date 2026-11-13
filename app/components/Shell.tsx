@@ -5,7 +5,7 @@
 // Menu tab that opens a sheet with every other screen, so nothing is desktop-only. The help
 // guides say "tap X in the menu"; the tab is called Menu so that sentence is true on a phone.
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useApp } from "../state";
 import { Icon, type IconName } from "./Icon";
 import { Tour } from "./Tour";
@@ -215,6 +215,13 @@ function BackLink() {
   const loc = useLocation();
   const navigate = useNavigate();
   if (loc.pathname === "/") return null;
+  // The Rejected bin says where its way back goes: the Posts list it was opened from.
+  if (loc.pathname === "/calendar/bin")
+    return (
+      <Link className="back-link" to="/calendar">
+        ← Back to Posts
+      </Link>
+    );
   return (
     <a
       href="/"

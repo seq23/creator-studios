@@ -207,10 +207,9 @@ export function Calendar() {
         <p className="posts-line" data-posts-line>
           <strong>{comingLine(list.data.summary, tz)}</strong>
           {runsOutSoon(list.data.summary) ? (
-            <>
-              {" "}
-              <Link to="/dump">Add photos and videos ›</Link>
-            </>
+            <Link className="posts-add" to="/dump">
+              Add photos and videos ›
+            </Link>
           ) : null}
         </p>
       ) : (
@@ -281,7 +280,8 @@ export function Calendar() {
             ) : null}
 
             {(list.data?.blocked ?? []).map((g) => {
-              const shown = shownGroups[g.key] ?? !g.action;
+              // A few posts show at once; a long group folds behind its count. A post that did not go out always shows.
+              const shown = shownGroups[g.key] ?? (g.key === "failed" || g.posts.length <= 3);
               return (
                 <section key={g.key} className="posts-group" data-blocked={g.key} aria-label={g.label}>
                   <div className="posts-group-head">
@@ -295,7 +295,7 @@ export function Calendar() {
                     ) : null}
                   </div>
                   <p className="hint">{g.posts[0].reason}</p>
-                  {g.action ? (
+                  {g.key !== "failed" && g.posts.length > 3 ? (
                     <button type="button" className="link-btn" aria-expanded={shown} onClick={() => setShownGroups((m) => ({ ...m, [g.key]: !shown }))}>
                       {shown ? "Hide them ▴" : "Show them ▾"}
                     </button>

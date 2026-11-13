@@ -11,31 +11,31 @@ keywords: move, reschedule, remove, delete post, swap, calendar, change day
 ![Step 1](/help/screenshots/move-or-remove-a-post-1.png)
 <!-- target: [data-post="demo_post_h4"] -->
 
-Open **Calendar** and tap the post you want to change.
+Open **Calendar**. Every post that is coming is listed, soonest first. Tap **Open ›** on the one you want to change.
 
 ## Move it to another day
 
 ![Step 2](/help/screenshots/move-or-remove-a-post-2.png)
-<!-- click: [data-post="demo_post_h4"] .cal-post-main -->
+<!-- click: [data-post="demo_post_h4"] .post-open -->
 <!-- target: #move-day -->
 
-Pick a new day under **Move to…** and tap **Move**. It keeps the same time. On a computer you can also drag it.
+Pick a new day under **Move to another day** and tap **Move**. It keeps the same time. On a computer you can also tap **Week** and drag it.
 
 ## Or swap two posts
 
 ![Step 3](/help/screenshots/move-or-remove-a-post-3.png)
-<!-- click: [data-post="demo_post_h4"] .cal-post-main -->
+<!-- click: [data-post="demo_post_h4"] .post-open -->
 <!-- target: #swap-with -->
 
-Pick another post under **Swap with…** and tap **Swap**.
+Pick another post under **Swap for a different post** and tap **Swap**. The two trade days and times.
 
 ## Or take it off
 
 ![Step 4](/help/screenshots/move-or-remove-a-post-4.png)
-<!-- click: [data-post="demo_post_h4"] .cal-post-main -->
-<!-- target: role=button[name="Take off the calendar"] -->
+<!-- click: [data-post="demo_post_h4"] .post-open -->
+<!-- target: role=button[name="Take it off the calendar"] -->
 
-Tap **Take off the calendar**. The clip goes back to your approved pool.
+Tap **Take it off the calendar**. The clip goes back to your approved pool. A photo post says **Skip this post** instead: a skipped post never goes out and waits in the **Rejected bin**.
 
 ## Approved, not scheduled
 
@@ -49,7 +49,7 @@ Clips waiting for a spot are listed here. Tap **Add** to place one yourself.
 ![Step 6](/help/screenshots/move-or-remove-a-post-6.png)
 <!-- target: .cal-caps -->
 
-Each app has a weekly limit (at most 10). A full week says so; move a post out first.
+Each app has a weekly limit (at most 10), written out under your posts. It is the most that goes out in a week, never a target. A full week says so; move a post out first.
 
 ## Did this work?
 

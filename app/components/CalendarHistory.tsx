@@ -71,7 +71,8 @@ export function CalendarHistory({ onChanged }: { onChanged: () => void }) {
         <h2>History</h2>
         {data ? (
           <span className="hint nums">
-            {data.counts.posted} posted · {data.counts.failed} didn’t go out · {data.counts.unscheduled} taken off
+            {/* All time, and said so: "posted this week" is the fold's number (the one set of counts). */}
+            All time: {data.counts.posted} posted · {data.counts.failed} didn’t go out · {data.counts.unscheduled} taken off
           </span>
         ) : null}
       </div>
@@ -99,7 +100,7 @@ export function CalendarHistory({ onChanged }: { onChanged: () => void }) {
       {data && data.items.length ? (
         <div className="list card flat">
           {data.items.map((p) => (
-            <div key={p.id} className="list-row" data-history-row={p.status}>
+            <div key={p.id} className="list-row" data-history-row={p.status} data-post={p.id}>
               {p.cover_url ? <img className="cal-history-cover" src={p.cover_url} alt="" loading="lazy" /> : null}
               <div className="grow">
                 <div className="title">{p.hook_text || "Untitled clip"}</div>
