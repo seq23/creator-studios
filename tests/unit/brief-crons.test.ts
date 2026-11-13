@@ -6,7 +6,7 @@ import {
   adjustBrief,
   allClaims,
   briefNoticeRef,
-  draftNoticeDue,
+  inUseNoticeDue,
   MONTHLY_REFRESH_LAST_DAY,
   monthlyRefreshDecision,
   summarizeWeek,
@@ -16,8 +16,9 @@ import {
   type MonthlyRefreshInput,
 } from "@worker/domain/brief";
 import { buildFakeBrief } from "@worker/jobs/research_fake";
-import { briefDraftNotice, monthlyBriefRefresh, MONTHLY_HEALTH, weeklyBriefAdjust, WEEKLY_HEALTH } from "@worker/crons/brief";
+import { briefInUseNotice, monthlyBriefRefresh, MONTHLY_HEALTH, weeklyBriefAdjust, WEEKLY_HEALTH } from "@worker/crons/brief";
 import type { Env } from "@worker/env";
+import { selfSetup } from "@worker/lib/setupWait";
 import { sqliteD1 } from "./helpers/sqlite-d1";
 
 const NOW = new Date("2026-10-01T13:30:00Z");
@@ -28,7 +29,6 @@ describe("monthlyRefreshDecision", () => {
     const d = monthlyRefreshDecision(base());
     expect(d.run).toBe(true);
     expect(d.light).toBe("green");
-    expect(d.note).toContain("approved brief stays live");
   });
 
   it("retries on the 2nd and 3rd, then waits for next month", () => {
@@ -47,7 +47,6 @@ describe("monthlyRefreshDecision", () => {
   it("a missing AI key is a named stop: yellow light with the OpenRouter guide, the approved brief stays live", () => {
     const d = monthlyRefreshDecision(base({ aiReady: false }));
     expect(d).toMatchObject({ run: false, light: "yellow", fix_guide: "connect-openrouter" });
-    expect(d.note).toContain("approved brief stays live");
     expect(monthlyRefreshDecision(base({ profileLocked: false }))).toMatchObject({ run: false, light: "yellow", fix_guide: "upload-brand-docs" });
   });
 
@@ -55,17 +54,16 @@ describe("monthlyRefreshDecision", () => {
     const d = monthlyRefreshDecision(base({ hasApproved: false }));
     expect(d.run).toBe(false);
     expect(d.light).toBe("green");
-    expect(d.note).toMatch(/first one is made on Research/);
+    expect(d.fix_guide).toBeNull();
   });
 });
 
-describe("draftNoticeDue", () => {
-  it("emails once for a draft newer than the approved brief, never twice, never for the first brief", () => {
-    expect(draftNoticeDue({ draftVersion: 5, approvedVersion: 4, notifiedRefs: [] })).toBe("brief_v5");
-    expect(draftNoticeDue({ draftVersion: 5, approvedVersion: 4, notifiedRefs: [briefNoticeRef(5)] })).toBeNull();
-    expect(draftNoticeDue({ draftVersion: 3, approvedVersion: 4, notifiedRefs: [] })).toBeNull();
-    expect(draftNoticeDue({ draftVersion: 1, approvedVersion: null, notifiedRefs: [] })).toBeNull();
-    expect(draftNoticeDue({ draftVersion: null, approvedVersion: 4, notifiedRefs: [] })).toBeNull();
+describe("inUseNoticeDue", () => {
+  it("tells her once when the brief in use replaced an earlier one, never twice, never for the first brief", () => {
+    expect(inUseNoticeDue({ inUseVersion: 5, replacedEarlier: true, notifiedRefs: [] })).toBe("brief_v5");
+    expect(inUseNoticeDue({ inUseVersion: 5, replacedEarlier: true, notifiedRefs: [briefNoticeRef(5)] })).toBeNull();
+    expect(inUseNoticeDue({ inUseVersion: 1, replacedEarlier: false, notifiedRefs: [] })).toBeNull();
+    expect(inUseNoticeDue({ inUseVersion: null, replacedEarlier: true, notifiedRefs: [] })).toBeNull();
   });
 });
 
@@ -185,17 +183,22 @@ describe("monthly lane", () => {
     expect(q<{ n: number }>("SELECT COUNT(*) AS n FROM jobs")[0].n).toBe(0);
   });
 
-  it("the new draft gets one 'New brief draft ready' email; approving stays hers", async () => {
+  it("a new brief is used at once and she is told once, with a link; nothing asks her to approve", async () => {
     seedApproved();
+    // The first brief alone: nothing changed, nothing to tell.
+    expect(await briefInUseNotice(env)).toBeNull();
     raw.prepare("INSERT INTO research_briefs (body, sources, status) VALUES ('{}', '[]', 'draft')").run();
-    expect(await briefDraftNotice(env)).toBe("brief_v2");
-    expect(await briefDraftNotice(env)).toBeNull();
-    expect(q<{ kind: string; subject: string; to_email: string; ref_id: string }>("SELECT kind, subject, to_email, ref_id FROM emails_sent")).toEqual([
-      { kind: "brief_ready", subject: "New brief draft ready", to_email: "owner@example.com", ref_id: "brief_v2" },
-    ]);
+    // Still a draft: it is not in use yet, so she is not told about it.
+    expect(await briefInUseNotice(env)).toBeNull();
+    expect((await selfSetup(env, { lockProfile: false })).brief).toBe(2);
+    expect(await briefInUseNotice(env)).toBe("brief_v2");
+    expect(await briefInUseNotice(env)).toBeNull();
+    const sent = q<{ kind: string; subject: string; to_email: string; ref_id: string; body: string }>("SELECT * FROM emails_sent");
+    expect(sent.map((e) => [e.kind, e.to_email, e.ref_id])).toEqual([["brief_ready", "owner@example.com", "brief_v2"]]);
+    expect(JSON.stringify(sent[0])).not.toMatch(/approv/i);
     expect(q<{ version: number; status: string }>("SELECT version, status FROM research_briefs ORDER BY version")).toEqual([
-      { version: 1, status: "approved" },
-      { version: 2, status: "draft" },
+      { version: 1, status: "superseded" },
+      { version: 2, status: "approved" },
     ]);
   });
 });
@@ -220,6 +223,8 @@ describe("weekly lane", () => {
 
   it("with no approved brief it says so on the health board and writes nothing", async () => {
     expect(await weeklyBriefAdjust(env)).toEqual({ changed: false, version: null });
-    expect(q<{ note: string }>(`SELECT note FROM health WHERE name = '${WEEKLY_HEALTH}'`)[0].note).toMatch(/No approved brief yet/);
+    const row = q<{ note: string; light: string }>(`SELECT note, light FROM health WHERE name = '${WEEKLY_HEALTH}'`)[0];
+    expect(row.light).toBe("green");
+    expect(row.note.length).toBeGreaterThan(10);
   });
 });

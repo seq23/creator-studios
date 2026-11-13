@@ -111,14 +111,14 @@ export function ClientBrain() {
     reload();
   }
 
-  /** Lock: the research starts by itself, and dumps waiting for setup go once the brief is approved. */
+  /** Lock: the research starts by itself; nothing waits for an approval (the studio puts the brief to use). */
   async function lockProfile() {
     const r = await post<{ researchStarted?: boolean; sent?: number }>("/api/brain/profile/lock");
     toast.ok(
       r.sent
         ? `Locked. Your waiting ${r.sent === 1 ? "dump is" : "dumps are"} being cut now.`
         : r.researchStarted
-          ? "Locked. Your Research Brief is being written now (usually 5 to 10 minutes). Approve it on Research and your clips start by themselves."
+          ? "Locked. Your Research Brief is being written now (usually 5 to 10 minutes) and is used as soon as it is ready."
           : "Locked. Research, clips and captions now use this profile.",
     );
   }

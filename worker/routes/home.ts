@@ -20,6 +20,7 @@ import { premiumState } from "../lib/premiumVoice";
 import { fullVideoCards } from "../lib/fullVideo";
 import { clipFileAction } from "../domain/tidy";
 import { log } from "../lib/log";
+import { readyEstimate } from "@shared/making";
 import { PROFILE_IN_USE } from "../lib/profileInUse";
 import { readSummary } from "../lib/postsList";
 
@@ -57,20 +58,34 @@ export async function clearingSoon(env: Env, now = new Date()): Promise<Clearing
 }
 
 /**
- * First-run "Get set up" (owner, 23 Oct 2026): the four steps a new studio needs, ✓ when done, each
- * linking to its screen and its help guide. null once all four are done (the card goes away).
+ * First-run "Get set up" (owner, 23 Oct 2026; three steps since 13 Nov 2026): the steps a new studio needs, ✓ when done, each
+ * linking to its screen and its help guide. null once all are done (the card goes away).
  */
 export async function getSetUp(env: Env, profileInUse: boolean): Promise<GetSetUpStep[] | null> {
   const buffer = !!(await env.DB.prepare("SELECT 1 AS x FROM connections WHERE service = 'buffer' AND status = 'ok' LIMIT 1").first());
-  const brief = !!(await env.DB.prepare("SELECT 1 AS x FROM research_briefs WHERE status = 'approved' LIMIT 1").first());
+  // Nothing waits for an approval (owner, 13 Nov 2026): the studio puts her profile and brief to use
+  // by itself, so the brief is no step of hers and the profile step is done once it has her words.
+  const profile = profileInUse || !!(await env.DB.prepare("SELECT 1 AS x FROM brand_profile LIMIT 1").first());
   const videos = !!(await env.DB.prepare("SELECT 1 AS x FROM assets WHERE upload_status = 'uploaded' LIMIT 1").first());
   const steps: GetSetUpStep[] = [
     { key: "connect", label: "Connect Instagram & TikTok", line: "Through Buffer (free): make a Buffer account, add Instagram and TikTok inside Buffer, then paste your Buffer key here.", done: buffer, to: "/settings/connections", guide: "connect-buffer" },
-    { key: "profile", label: "Lock your Brand Profile", line: "Upload a few docs about you, read the draft, then press Lock profile.", done: profileInUse, to: "/brain", guide: "upload-brand-docs" },
-    { key: "brief", label: "Approve your Research Brief", line: "It is written for you once your profile is locked. Read it, then press Approve.", done: brief, to: "/research", guide: "approve-research-brief" },
-    { key: "videos", label: "Upload your first videos", line: "Choose your videos on Dump. Your clips start by themselves once the steps above are done.", done: videos, to: "/dump", guide: "dump-new-footage" },
+    { key: "profile", label: "Tell the studio about you", line: "Upload a few docs about you. The studio writes your profile and uses it; you can change it any time.", done: profile, to: "/brain", guide: "upload-brand-docs" },
+    { key: "videos", label: "Upload your first videos", line: "Choose your videos on Dump. Your posts start by themselves.", done: videos, to: "/dump", guide: "dump-new-footage" },
   ];
   return steps.every((s) => s.done) ? null : steps;
+}
+
+/**
+ * "Making your posts, ready about 3 PM" (owner, 13 Nov 2026): when posts are being made, an honest
+ * guess at when they will be ready, from how long this studio's last runs took. No history, or the
+ * guess has already passed: `readyAt` is null and Home says "ready soon".
+ */
+export async function makingNow(db: D1Database, now = Date.now()): Promise<{ readyAt: string | null } | null> {
+  const first = await db.prepare("SELECT MIN(dumped_at) AS at FROM dumps WHERE status IN ('queued','cutting') AND dumped_at IS NOT NULL").first<{ at: string | null }>();
+  const busy = await db.prepare("SELECT 1 AS x FROM dumps WHERE status IN ('queued','cutting') LIMIT 1").first();
+  if (!busy) return null;
+  const { results } = await db.prepare("SELECT dumped_at, ready_at FROM dumps WHERE ready_at IS NOT NULL AND dumped_at IS NOT NULL ORDER BY ready_at DESC LIMIT 5").all<{ dumped_at: string; ready_at: string }>();
+  return { readyAt: readyEstimate(first?.at ?? null, results.map((r) => Date.parse(r.ready_at) - Date.parse(r.dumped_at)), now) };
 }
 
 home.get("/", async (c) => {
@@ -92,7 +107,11 @@ home.get("/", async (c) => {
   const weekAgo = new Date(Date.now() - 7 * 86400_000).toISOString();
   const waitingNew = (await db.prepare("SELECT COUNT(*) AS n FROM clips WHERE status = 'draft' AND hidden = 0 AND created_at >= ?").bind(weekAgo).first<{ n: number }>())?.n ?? 0;
   const cutting = (await db.prepare("SELECT COUNT(*) AS n FROM dumps WHERE status IN ('queued','cutting')").first<{ n: number }>())?.n ?? 0;
-  const briefDraft = await db.prepare("SELECT version FROM research_briefs WHERE status = 'draft' AND archived_at IS NULL ORDER BY version DESC LIMIT 1").first<{ version: number }>();
+  // A brief that replaced an earlier one in the last two weeks: she is told once, in one line.
+  const briefNew = await db
+    .prepare("SELECT version FROM research_briefs b WHERE status = 'approved' AND approved_at >= ? AND EXISTS (SELECT 1 FROM research_briefs o WHERE o.version < b.version AND o.approved_at IS NOT NULL) ORDER BY version DESC LIMIT 1")
+    .bind(new Date(Date.now() - 14 * 86400_000).toISOString())
+    .first<{ version: number }>();
   const profileLocked = await db.prepare(`SELECT version FROM brand_profile ${PROFILE_IN_USE}`).first();
 
   // "Needs you": the most urgent first, one on Home at a time; each dismissable (a new brief, a
@@ -102,12 +121,13 @@ home.get("/", async (c) => {
   const soon = await clearingSoon(c.env);
   const cards = (await fullVideoCards(c.env)).map((y) => ({ ...y, key: `yt:${y.kind}:${y.clip_id}` }));
   const notices: HomeNotice[] = [];
-  if (!profileLocked) notices.push({ key: "notice:profile", kind: "profile" });
+  // Only while the studio knows nothing about her: a profile she drafted is put to use by itself.
+  if (!profileLocked && !(await db.prepare("SELECT 1 AS x FROM brand_profile LIMIT 1").first())) notices.push({ key: "notice:profile", kind: "profile" });
   if (storage?.light === "red") notices.push({ key: "notice:storage:red", kind: "storage", light: "red", line: storage.note });
   for (const y of cards.filter((x) => x.kind === "removal_soon")) notices.push({ key: y.key, kind: "youtube", card: y });
   if (soon) notices.push({ kind: "clearing", ...soon });
   for (const y of cards.filter((x) => x.kind !== "removal_soon")) notices.push({ key: y.key, kind: "youtube", card: y });
-  if (profileLocked && briefDraft) notices.push({ key: `notice:brief:${briefDraft.version}`, kind: "brief" });
+  if (briefNew) notices.push({ key: `notice:brief:${briefNew.version}`, kind: "brief" });
   if (storage?.light === "yellow") notices.push({ key: "notice:storage:yellow", kind: "storage", light: "yellow", line: storage.note });
 
   // Deal emails due in the next two days (follow-ups, replies, reports, invoices, rebooks): the
@@ -137,7 +157,7 @@ home.get("/", async (c) => {
     today: new Date().toISOString(),
     runway: { weeks: runwayWeeks(approved, need), approvedClips: approved, thresholdWeeks: s.runway_threshold_weeks, weeklyNeed: need },
     thisWeek: { posted: counts.postedThisWeek, toGo: counts.toGo, plannedThrough: counts.plannedThrough, tz: s.audience_timezone, perPlatform },
-    waiting: { clips: waitingClips, clipsThisWeek: waitingNew, dumpsCutting: cutting, briefNeedsApproval: !!briefDraft, profileUnlocked: !profileLocked },
+    waiting: { clips: waitingClips, clipsThisWeek: waitingNew, dumpsCutting: cutting, making: await makingNow(db) },
     health: capSection(foldHealth(health), HOME_CAPS.health),
     notices: capSection(shown(notices), HOME_CAPS.notices),
     followups: capSection(shown(due), HOME_CAPS.followups),

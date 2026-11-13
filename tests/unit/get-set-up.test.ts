@@ -1,4 +1,5 @@
-// First-run "Get set up" on Home (owner, 23 Oct 2026; worker/routes/home.ts getSetUp): four steps, a
+// First-run "Get set up" on Home (owner, 23 Oct 2026; worker/routes/home.ts getSetUp): three steps
+// (the brief is the studio's own job since 13 Nov 2026: nothing waits for her to approve it), a
 // tick on each one done, each linking to its screen and its help guide; gone once all are done.
 // Connect Instagram & TikTok sits in the main menu, and the Buffer card says why Buffer, plainly.
 import { existsSync, readFileSync } from "node:fs";
@@ -8,22 +9,23 @@ import { harness } from "./helpers/studio-fix-env";
 import { WHY_BUFFER } from "@shared/whyBuffer";
 
 describe("Get set up", () => {
-  it("ticks what is done, links each step to its screen and guide, and goes away when all four are done", async () => {
+  it("ticks what is done, links each step to its screen and guide, and goes away when all are done", async () => {
     const h = await harness();
-    h.db.raw.exec("DELETE FROM research_briefs; UPDATE brand_profile SET locked = 0, locked_at = NULL");
+    h.db.raw.exec("DELETE FROM research_briefs; DELETE FROM brand_profile");
     const first = await getSetUp(h.env, false);
     expect(first?.map((s) => [s.key, s.done, s.to])).toEqual([
       ["connect", false, "/settings/connections"],
       ["profile", false, "/brain"],
-      ["brief", false, "/research"],
       ["videos", false, "/dump"],
     ]);
-    expect(first?.map((s) => s.label)).toEqual(["Connect Instagram & TikTok", "Lock your Brand Profile", "Approve your Research Brief", "Upload your first videos"]);
+    // No step asks her to lock or approve anything: the studio does both by itself.
+    expect(first?.map((s) => `${s.label} ${s.line}`).join(" ")).not.toMatch(/\b(lock|approve)/i);
     for (const s of first ?? []) expect(existsSync(`help/guides/${s.guide}.md`), s.guide).toBe(true);
     expect(first?.[0].line).toMatch(/Buffer \(free\).*add Instagram and TikTok inside Buffer.*paste your Buffer key/);
 
-    h.db.raw.exec("INSERT INTO connections (service, status) VALUES ('buffer', 'ok'); INSERT INTO research_briefs (body, status) VALUES ('{}', 'approved');");
-    expect((await getSetUp(h.env, true))?.map((s) => s.done)).toEqual([true, true, true, false]);
+    // Her words are there (a draft, not locked by her): that step is done. No brief exists and none is asked for.
+    h.db.raw.exec("INSERT INTO connections (service, status) VALUES ('buffer', 'ok'); INSERT INTO brand_profile (sections, locked) VALUES ('{}', 0);");
+    expect((await getSetUp(h.env, false))?.map((s) => s.done)).toEqual([true, true, false]);
     await h.dumpWith("dmp_g", [{ id: "ast_g", name: "a.mp4", mime: "video/mp4" }]);
     expect(await getSetUp(h.env, true)).toBeNull();
     // A Buffer key that stopped working is not "done".

@@ -1,8 +1,8 @@
 // Section 6 brief crons: "After that it refreshes monthly and adjusts weekly from her results."
 // Hosted by the existing lanes (no new cron expression, see crons/index.ts):
 //   daily   → monthlyBriefRefresh: on the 1st (retrying the 2nd and 3rd) starts the research job
-//             for a fresh draft. It does not stop for approval: the approved brief stays live.
-//   hourly  → briefDraftNotice: once that draft lands, emails "New brief draft ready" (once).
+//             for a fresh brief. The new one is used as soon as it is written (lib/setupWait.ts).
+//   hourly  → briefInUseNotice: tells her once, in one line, that the brief was updated.
 //   weekly  → weeklyBriefAdjust: rewrites the live brief's own her-data claims from the last 7
 //             days of results and stamps adjusted_at; never approval, never web claims.
 // Every step writes a health row, so a skipped refresh is a light with a reason, never silence.
@@ -16,10 +16,12 @@ import { readSettings } from "../routes/settings";
 import { emailFrame, sendEmail } from "../services/email";
 import { dispatchJob } from "../services/github";
 import { loadObservations } from "../jobs/metrics";
-import { adjustBrief, draftNoticeDue, monthlyRefreshDecision, summarizeWeek, type LiveBrief } from "../domain/brief";
+import { adjustBrief, inUseNoticeDue, monthlyRefreshDecision, summarizeWeek, type LiveBrief } from "../domain/brief";
 import type { BriefBody, BriefSource } from "@shared/types";
 import { PROFILE_IN_USE } from "../lib/profileInUse";
 
+export const BRIEF_UPDATED_SUBJECT = "Your Research Brief was updated";
+export const BRIEF_UPDATED_LINE = "Your studio wrote a new Research Brief from your latest results. It is already in use, and nothing is needed from you. You can read it or change anything in it any time.";
 export const MONTHLY_HEALTH = "Monthly brief refresh";
 export const WEEKLY_HEALTH = "Weekly brief adjustment";
 
@@ -37,7 +39,7 @@ export async function monthlyBriefRefresh(env: Env, now = new Date()): Promise<{
   }
   const r = await dispatchJob(env, "research", null);
   if (!r.dispatched) {
-    const note = `The monthly refresh could not start (${r.error ?? "unknown"}). It tries again tomorrow; your approved brief stays live.`;
+    const note = `The monthly refresh could not start (${r.error ?? "unknown"}). It tries again tomorrow; your current brief stays in use.`;
     await setHealth(env.DB, MONTHLY_HEALTH, "yellow", note, "approve-research-brief");
     log.warn("brief.monthly.dispatch_failed");
     return { dispatched: false, note };
@@ -48,26 +50,22 @@ export async function monthlyBriefRefresh(env: Env, now = new Date()): Promise<{
   return { dispatched: true, note: d.note };
 }
 
-export async function briefDraftNotice(env: Env): Promise<string | null> {
-  const draft = await env.DB.prepare("SELECT version FROM research_briefs WHERE status = 'draft' ORDER BY version DESC LIMIT 1").first<{ version: number }>();
-  const approved = await env.DB.prepare("SELECT version FROM research_briefs WHERE status = 'approved' ORDER BY version DESC LIMIT 1").first<{ version: number }>();
-  if (!draft || !approved) return null;
+/**
+ * A new brief version is used at once (lib/setupWait.ts selfSetup); this tells her, once per
+ * version, in one line with a link to read or change it. Never for the first brief.
+ */
+export async function briefInUseNotice(env: Env): Promise<string | null> {
+  const inUse = await env.DB.prepare("SELECT version FROM research_briefs WHERE status = 'approved' ORDER BY version DESC LIMIT 1").first<{ version: number }>();
+  if (!inUse) return null;
+  const earlier = await env.DB.prepare("SELECT 1 AS x FROM research_briefs WHERE version < ? AND approved_at IS NOT NULL LIMIT 1").bind(inUse.version).first();
   const { results } = await env.DB.prepare("SELECT DISTINCT ref_id FROM emails_sent WHERE kind = 'brief_ready' AND ref_id IS NOT NULL").all<{ ref_id: string }>();
-  const ref = draftNoticeDue({ draftVersion: draft.version, approvedVersion: approved.version, notifiedRefs: results.map((r) => r.ref_id) });
+  const ref = inUseNoticeDue({ inUseVersion: inUse.version, replacedEarlier: !!earlier, notifiedRefs: results.map((r) => r.ref_id) });
   if (!ref) return null;
   const s = await readSettings(env);
-  const { html, text } = emailFrame(
-    "New brief draft ready",
-    [
-      "This month's Research Brief has a new draft, built from your latest results and fresh research.",
-      "Your approved brief stays live and keeps guiding the cutter until you approve the new one. Nothing is paused.",
-      "Read it, change anything you like, and press Approve when it looks right.",
-    ],
-    { label: "Open the brief", url: `${env.PUBLIC_BASE_URL}/research` },
-  );
-  await sendEmail(env, { kind: "brief_ready", to: s.notify_emails, subject: "New brief draft ready", html, text, refId: ref });
-  await recordEvent(env.DB, "brief.draft_notice", ref, {});
-  log.info("brief.draft_notice");
+  const { html, text } = emailFrame(BRIEF_UPDATED_SUBJECT, [BRIEF_UPDATED_LINE], { label: "Read or change it", url: `${env.PUBLIC_BASE_URL}/research` });
+  await sendEmail(env, { kind: "brief_ready", to: s.notify_emails, subject: BRIEF_UPDATED_SUBJECT, html, text, refId: ref });
+  await recordEvent(env.DB, "brief.in_use_notice", ref, {});
+  log.info("brief.in_use_notice");
   return ref;
 }
 
@@ -83,7 +81,7 @@ interface BriefRow {
 export async function weeklyBriefAdjust(env: Env, now = new Date()): Promise<{ changed: boolean; version: number | null }> {
   const row = await env.DB.prepare("SELECT version, status, approved_at, adjusted_at, body, sources FROM research_briefs WHERE status = 'approved' ORDER BY version DESC LIMIT 1").first<BriefRow>();
   if (!row) {
-    await setHealth(env.DB, WEEKLY_HEALTH, "green", "No approved brief yet: weekly adjustments start after the first one.", null);
+    await setHealth(env.DB, WEEKLY_HEALTH, "green", "No brief yet: weekly adjustments start after the first one.", null);
     return { changed: false, version: null };
   }
   const live: LiveBrief = {

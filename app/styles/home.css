@@ -362,3 +362,11 @@
   padding: calc((var(--touch) - 1em) / 2) var(--space-3xs);
   margin: calc((var(--touch) - 1em) / -2) calc(var(--space-3xs) * -1) calc((var(--touch) - 1em) / -2) 0;
 }
+
+/* "Making your posts, ready about 3 PM": one quiet line under the head. */
+.home-making {
+  /* sits right under the greeting, as part of the head, so Home still fits one phone screen */
+  margin: calc(var(--space-2xs, 4px) - var(--space-md)) 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}

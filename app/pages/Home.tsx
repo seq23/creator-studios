@@ -6,6 +6,7 @@ import { foldHealth } from "../lib/health";
 import { dismissWithUndo } from "../lib/archive";
 import { gbWords } from "@shared/bytes";
 import { plainDay } from "@shared/posts";
+import { makingLine } from "@shared/making";
 import { Card, DismissButton, Dot, Empty, HelpButton, Notice, PageHead, Skeleton, Stat, useLoad, useToast } from "../components/ui";
 import { Icon } from "../components/Icon";
 import { useApp } from "../state";
@@ -56,6 +57,13 @@ export function Home() {
         </Link>
       </PageHead>
 
+      {/* Posts are being made: when they should be ready, in one line (nothing to keep open). */}
+      {data?.waiting.making ? (
+        <p className="home-making" data-making>
+          {makingLine(data.waiting.making.readyAt)}
+        </p>
+      ) : null}
+
       {data?.getSetUp ? <GetSetUp steps={data.getSetUp} /> : null}
 
       {loading && !data ? (
@@ -83,7 +91,7 @@ export function Home() {
                       {data.waiting.clipsThisWeek ? `${data.waiting.clipsThisWeek} new in 7 days` : "Review now"} <Icon name="arrow" size="sm" />
                     </strong>
                   ) : data.waiting.dumpsCutting ? (
-                    `${plural(data.waiting.dumpsCutting, "dump")} cutting`
+                    "Your posts are being made"
                   ) : (
                     "Nothing to review"
                   )
@@ -245,11 +253,11 @@ function HomeNoticeCard({ n, more, onDismiss, onKeep }: { n: HomeNotice; more: n
             <YoutubeCardBody y={n.card} />
           ) : n.kind === "profile" ? (
             <>
-              <strong>First things first:</strong> lock your Brand Profile so every clip sounds like you. <Link to="/brain">Open Client Brain</Link>
+              <strong>First things first:</strong> tell the studio about you, so every post sounds like you. <Link to="/brain">Open Client Brain</Link>
             </>
           ) : n.kind === "brief" ? (
             <>
-              <strong>Your new Research Brief is ready.</strong> <Link to="/research">Read and approve it</Link>
+              <strong>Your Research Brief was updated and is already in use.</strong> <Link to="/research">Read or change it</Link>
             </>
           ) : n.kind === "storage" ? (
             <>

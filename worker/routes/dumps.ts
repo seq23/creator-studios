@@ -14,8 +14,8 @@ import { editorDef } from "../domain/editors";
 import { cleanControls } from "../domain/steer";
 import { confirmUnderstood, readUnderstood, sayBack, tracksOf, understand } from "../lib/steerStore";
 import type { NotFollowed } from "@shared/steer";
-import type { ApiError, AssetRow, DumpList, DumpSummary, SetupStep, SetupWait } from "@shared/types";
-import { ensureFirstResearch, setupHeadline, setupSteps } from "../lib/setupWait";
+import type { ApiError, AssetRow, DumpList, DumpSummary } from "@shared/types";
+import { selfSetup } from "../lib/setupWait";
 
 /** Dumps per page on the Dump screen. */
 export const DUMP_PAGE = 20;
@@ -73,19 +73,17 @@ const SELECT = `SELECT d.id, d.door, d.kind, d.notes, d.voice_notes, d.status, d
   (SELECT e.status FROM editor_jobs e WHERE e.dump_id = d.id AND e.capability = 'cut_from_source' AND e.status IN ('submitted', 'importing') LIMIT 1) AS editor_status
   FROM dumps d`;
 
-function view(r: DumpDb, steps: SetupStep[] | null = null): DumpSummary {
+function view(r: DumpDb): DumpSummary {
   const { editor, editor_status, steer, steer_notes, not_followed, kind, looks_like, plan_override, waiting_setup_at, ...rest } = r;
-  const waiting_for = waiting_setup_at && r.status === "uploading" && steps ? steps : null;
+  const waiting_line = waiting_setup_at && r.status === "uploading" ? WAITING_LINE : null;
   // A connected editor is cutting it (Who edits > Cutting): say who, in her words.
   const name = editorDef(editor)?.name;
   const progress = name && r.status === "cutting" ? { step: editor_status === "importing" ? `Bringing your clips back from ${name}` : `${name} is cutting your videos`, done: 0, total: 1 } : parseJson(r.progress, null);
-  return { ...rest, voice_notes: r.voice_notes ?? "", door: kind === "full_video" ? "youtube" : r.door, progress, steer: parseJson(steer, {}), understood: readUnderstood(steer_notes), not_followed: parseJson<NotFollowed[]>(not_followed, []), looks_like: cleanLooksLike(parseJson(looks_like, null)), plan_override: parseJson<PlanOverride>(plan_override, {}), waiting_for };
+  return { ...rest, voice_notes: r.voice_notes ?? "", door: kind === "full_video" ? "youtube" : r.door, progress, steer: parseJson(steer, {}), understood: readUnderstood(steer_notes), not_followed: parseJson<NotFollowed[]>(not_followed, []), looks_like: cleanLooksLike(parseJson(looks_like, null)), plan_override: parseJson<PlanOverride>(plan_override, {}), waiting_line };
 }
 
-/** The setup steps, read once, only when a dump on screen is waiting for them. */
-async function stepsFor(env: Env, rows: DumpDb[]): Promise<SetupStep[] | null> {
-  return rows.some((r) => r.waiting_setup_at && r.status === "uploading") ? setupSteps(env) : null;
-}
+/** An upload that is saved and waiting says so, and that it needs nothing from her. */
+export const WAITING_LINE = "Your videos are saved. Your posts start by themselves in a moment. Nothing is needed from you.";
 
 /** While Dump is open it asks the connected editors how they are doing (throttled per job). */
 async function pollWhileOpen(c: { env: Env; executionCtx: { waitUntil(p: Promise<unknown>): void } }) {
@@ -123,8 +121,7 @@ dumps.get("/", async (c) => {
   const { results } = await c.env.DB.prepare(`${SELECT} WHERE ${w} ORDER BY d.created_at DESC LIMIT ? OFFSET ?`).bind(...binds, limit, offset).all<DumpDb>();
   const total = (await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM dumps d WHERE ${w}`).bind(...binds).first<{ n: number }>())?.n ?? 0;
   const archivedCount = (await c.env.DB.prepare("SELECT COUNT(*) AS n FROM dumps WHERE archived_at IS NOT NULL").first<{ n: number }>())?.n ?? 0;
-  const steps = await stepsFor(c.env, results);
-  const out: DumpList = { items: results.map((r) => view(r, steps)), total, archived: archivedCount, limit, offset };
+  const out: DumpList = { items: results.map((r) => view(r)), total, archived: archivedCount, limit, offset };
   return c.json(out);
 });
 
@@ -161,7 +158,7 @@ dumps.get("/:id", async (c) => {
   )
     .bind(row.id)
     .all<Omit<AssetRow, "understood"> & { steer_notes: string | null }>();
-  return c.json({ dump: view(row, await stepsFor(c.env, [row])), assets: assets.map(({ steer_notes, ...a }) => ({ ...a, understood: readUnderstood(steer_notes) })) });
+  return c.json({ dump: view(row), assets: assets.map(({ steer_notes, ...a }) => ({ ...a, understood: readUnderstood(steer_notes) })) });
 });
 
 /** "This is my video": she confirms a held video is her own; its clips may go on the calendar. */
@@ -254,13 +251,13 @@ dumps.delete("/:id/assets/:assetId", async (c) => {
   return c.json({ ok: true });
 });
 
-type Sent = { ok: true; jobId: string | null; editor: string } | { ok: false; status: 404 | 409 | 422 | 502; error: string; fix_guide?: string; setup?: SetupWait };
+type Sent = { ok: true; jobId: string | null; editor: string } | { ok: false; status: 404 | 409 | 422 | 502; error: string; fix_guide?: string };
 
 /** The Dump button. Requires at least one uploaded file; queues the cut job. */
 dumps.post("/:id/dump", async (c) => {
   const r = await sendDump(c.env, c.req.param("id"), c.get("user").email, true);
   if (!r.ok) {
-    const body: ApiError = { error: r.error, ...(r.fix_guide ? { fix_guide: r.fix_guide } : {}), ...(r.setup ? { setup: r.setup } : {}) };
+    const body: ApiError = { error: r.error, ...(r.fix_guide ? { fix_guide: r.fix_guide } : {}) };
     return c.json(body, r.status);
   }
   return c.json({ ok: true, jobId: r.jobId, editor: r.editor });
@@ -283,15 +280,10 @@ export async function sendDump(env: Env, id: string, email: string | null, markW
   if (!counts?.done) return { ok: false, status: 422, error: "Add at least one video first." };
   if (counts.pending) return { ok: false, status: 409, error: "Some videos are still uploading. Keep the page open until they finish." };
 
-  const gate = await briefGate(env);
-  if (gate) {
-    // Her files are saved: the dump waits for setup and goes by itself once it is done.
-    if (markWaiting) await env.DB.prepare("UPDATE dumps SET waiting_setup_at = COALESCE(waiting_setup_at, ?) WHERE id = ? AND status = 'uploading'").bind(nowIso(), id).run();
-    // A profile locked but no brief on the way: start it now (once a day at most).
-    await ensureFirstResearch(env, email);
-    const steps = await setupSteps(env);
-    return { ok: false, status: 409, error: setupHeadline(counts.done, steps), fix_guide: gate.fix_guide, setup: { files: counts.done, steps } };
-  }
+  // Nothing is held for an approval (owner, 13 Nov 2026): the studio locks its own first profile and
+  // puts its own brief to use, then the upload goes. With neither yet, it still goes (the research
+  // starts by itself and is used from the next upload on).
+  await selfSetup(env, { lockProfile: true });
 
   // The niche brief (owner, 7 Nov 2026): a new user's first dump waits while her niche is researched
   // once; a failed research is a named stop. An existing studio goes straight on (firstUploadGate).
@@ -339,7 +331,9 @@ async function claim(env: Env, id: string): Promise<boolean> {
 export async function sendWaitingDumps(env: Env, email: string | null): Promise<string[]> {
   const sent: string[] = [];
   try {
-    if (await briefGate(env)) return sent;
+    // Uploads held before 13 Nov 2026 for an unlocked profile or an unapproved brief go now, with no hand edit.
+    const { results: held } = await env.DB.prepare("SELECT 1 AS x FROM dumps WHERE waiting_setup_at IS NOT NULL AND status = 'uploading' AND archived_at IS NULL LIMIT 1").all();
+    await selfSetup(env, { lockProfile: held.length > 0 });
     if ((await briefState(env)).state !== "ready" && (await briefState(env)).state !== "none") return sent;
     const { results } = await env.DB.prepare("SELECT id FROM dumps WHERE waiting_setup_at IS NOT NULL AND status = 'uploading' AND archived_at IS NULL ORDER BY created_at").all<{ id: string }>();
     for (const d of results) {
@@ -372,18 +366,6 @@ async function dumpFullVideo(env: Env, id: string, files: number, email: string 
   await recordEvent(env.DB, "dump.sent", id, { door: "youtube", files }, email ?? undefined);
   log.info("dump.sent", { files, full_video: true });
   return { ok: true, jobId: r.jobId, editor: "built-in" };
-}
-
-/**
- * Section 6 gate: no clips are cut until a Research Brief exists and is approved, and the
- * Brand Profile is locked. Returns null when the gate is open.
- */
-export async function briefGate(env: Env): Promise<{ message: string; fix_guide: string } | null> {
-  const profile = await env.DB.prepare(`SELECT version FROM brand_profile ${PROFILE_IN_USE}`).first();
-  if (!profile) return { message: "Lock your Brand Profile first, so the clips sound like you.", fix_guide: "upload-brand-docs" };
-  const brief = await env.DB.prepare("SELECT version FROM research_briefs WHERE status = 'approved' ORDER BY version DESC LIMIT 1").first();
-  if (!brief) return { message: "Approve your Research Brief first. It tells the cutter what to look for.", fix_guide: "approve-research-brief" };
-  return null;
 }
 
 /**
@@ -485,8 +467,7 @@ export async function startOver(c: Context<{ Bindings: Env; Variables: Vars }>, 
   const sources = (await c.env.DB.prepare("SELECT COUNT(*) AS n FROM assets WHERE dump_id = ? AND upload_status = 'uploaded' AND raw_deleted_at IS NULL").bind(id).first<{ n: number }>())?.n ?? 0;
   const plan = startOverPlan(dump, clipsNow, sources);
   if (plan.refusal) return fail(c, plan.refusal.status, plan.refusal.error, "review-and-approve-clips");
-  const gate = await briefGate(c.env);
-  if (gate) return fail(c, 409, gate.message, gate.fix_guide);
+  await selfSetup(c.env, { lockProfile: true });
   for (const clipId of plan.remove) {
     const r = rows.find((x) => x.id === clipId)!;
     await removeVoiceOver(c.env, clipId);

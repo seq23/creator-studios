@@ -10,7 +10,6 @@ import { fmtDate, plural } from "../lib/format";
 import { archiveWithUndo, restoreArchived } from "../lib/archive";
 import { Card, DismissButton, Empty, MoreRow, SearchBox, Skeleton, useToast } from "./ui";
 import { HeldNotice } from "./HeldNotice";
-import { waitingLine } from "./SetupChecklist";
 
 const FILTERS = [
   ["", "All"],
@@ -25,7 +24,7 @@ function statusWords(d: DumpSummary): { text: string; tone: string } {
   if (d.status === "ready") return { text: "Ready for review", tone: "ok" };
   if (d.status === "reviewed") return { text: "Reviewed", tone: "ok" };
   if (d.status === "failed") return { text: "Needs a look", tone: "bad" };
-  if (d.status === "uploading" && d.waiting_for) return { text: waitingLine(d.waiting_for), tone: "" };
+  if (d.status === "uploading" && d.waiting_line) return { text: "Saved. Starts by itself", tone: "" };
   if (d.status === "uploading") return { text: "Not sent", tone: "warn" };
   return { text: "Cutting", tone: "" };
 }

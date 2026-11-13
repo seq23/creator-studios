@@ -12,7 +12,7 @@ import { log, safeError } from "../lib/log";
 import { bufferSync } from "./buffer-sync";
 import { dailyMaintenance } from "./daily";
 import { weekly } from "./weekly";
-import { briefDraftNotice, monthlyBriefRefresh, weeklyBriefAdjust } from "./brief";
+import { briefInUseNotice, monthlyBriefRefresh, weeklyBriefAdjust } from "./brief";
 import { monthlyNicheRefresh } from "../lib/niche";
 import { pollEditorJobs } from "../lib/editorJobs";
 import { dailyBrandRefresh } from "./deals";
@@ -64,11 +64,12 @@ export async function runCron(env: Env, cron: string): Promise<void> {
       // Photo posts (per studio, studios/<slug>.json photoPosts): heads-ups, Skip honoured, due posts out.
       await photoPostsTick(env);
       await photoStopLights(env);
-      await briefDraftNotice(env);
-      // Setup runs by itself: a locked profile with no brief on the way gets one, and dumps waiting
-      // for setup go once it is done (worker/lib/setupWait.ts; each dump is sent at most once).
+      // Setup runs by itself and holds nothing (worker/lib/setupWait.ts): a profile with no brief on
+      // the way gets one, a brief just written is put to use, and any upload still waiting goes
+      // (each at most once). A brief that replaced an earlier one is told to her once.
       await ensureFirstResearch(env);
       await sendWaitingDumps(env, null);
+      await briefInUseNotice(env).catch(() => log.warn("cron.brief_notice_failed"));
       // Studio fix: clips that came back with no words of their own get them (worker/lib/wordsPass.ts).
       await wordsPass(env).catch(() => log.warn("cron.words_failed"));
       // Uploads waiting because no AI model could look at the videos are tried again (named stop, worker/jobs/cut.ts).

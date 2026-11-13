@@ -52,7 +52,7 @@ export interface HomeSummary {
   runway: { weeks: number; approvedClips: number; thresholdWeeks: number; weeklyNeed: number };
   /** posted / toGo / plannedThrough are THE counts (shared/posts.ts PostsSummary): every kind of post, the same on every screen. */
   thisWeek: { posted: number; toGo: number; plannedThrough: string | null; tz: string; perPlatform: Record<Platform, { posted: number; cap: number }> };
-  waiting: { clips: number; clipsThisWeek: number; dumpsCutting: number; briefNeedsApproval: boolean; profileUnlocked: boolean };
+  waiting: { clips: number; clipsThisWeek: number; dumpsCutting: number; /** Posts are being made now: when they should be ready (null = "ready soon"); null when nothing is being made. */ making: { readyAt: string | null } | null };
   /** every light, worst first, capped (`total` = all of them; Settings lists the rest) */
   health: HomeSection<HealthItem>;
   /** Deal emails due soon (worker/routes/deals.ts dueDealItems): `what` is the next action, e.g. "Send follow-up 2". */
@@ -119,8 +119,8 @@ export interface DumpSummary {
   tried: string | null;
   /** Archived (by her or by the tidy rules): out of the list unless "Show archived". */
   archived_at?: string | null;
-  /** Saved and waiting for setup (Brand Profile lock, Research Brief approval); sent by itself once both are done. */
-  waiting_for?: SetupStep[] | null;
+  /** Saved and waiting for the one-time look at her niche (a brand-new studio); it goes by itself. The plain line to show. */
+  waiting_line?: string | null;
   /** What the studio thinks the footage shows (the plain line, shared/looksLike.ts); null before a cut. */
   looks_like?: LooksLike | null;
   /** What she picked on "Change" (the next cut follows it). */
@@ -374,21 +374,4 @@ export interface JobRow {
 export interface ApiError {
   error: string;
   fix_guide?: string;
-  /** Dump refused by the setup gate: her files are saved and the dump waits; the steps left. */
-  setup?: SetupWait;
-}
-
-/** One setup step a dump waits for before its clips start by themselves (worker/lib/setupWait.ts). */
-export interface SetupStep {
-  key: "profile" | "brief";
-  label: string;
-  done: boolean;
-  href: string;
-  /** A plain extra line, e.g. "Being written now". */
-  note?: string;
-}
-
-export interface SetupWait {
-  files: number;
-  steps: SetupStep[];
 }

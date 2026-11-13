@@ -51,9 +51,26 @@ async function homeBottom(page: Page): Promise<number> {
 test("Home fits one phone screen, whatever is on top; every card dismisses with Undo", async ({ page }) => {
   test.setTimeout(120_000);
   await dailyLane(page);
-  // the clearing-soon notice and the storage light are on Home too
+  // A brief that replaced an earlier one: Home tells her once, in one line ("updated and already in
+  // use", 13 Nov 2026). The clearing-soon notice and the storage light are on Home too.
+  sql(
+    `INSERT INTO research_briefs (body, status, approved_at) VALUES ('{"seed":"day358-home"}', 'superseded', '2026-10-01T00:00:00Z'); ` +
+      `INSERT INTO research_briefs (body, status, approved_at) VALUES ('{"seed":"day358-home"}', 'approved', '${new Date().toISOString()}'); ` +
+      // Posts being made right now: Home's "Making your posts…" line is on screen for every measurement below.
+      `INSERT INTO dumps (id, door, status, notes, dumped_at) VALUES ('dmp_day358_making', 'new', 'cutting', 'day358-home', '${new Date().toISOString()}')`,
+  );
+  try {
+    await homeNotices(page);
+  } finally {
+    sql(`DELETE FROM research_briefs WHERE body LIKE '%day358-home%'; DELETE FROM dumps WHERE id = 'dmp_day358_making'`);
+  }
+});
+
+async function homeNotices(page: Page) {
   await page.goto("/");
   await expect(page.locator("[data-notice]")).toHaveCount(1);
+  await expect(page.locator("[data-making]")).toBeVisible();
+  await expect(page.locator("[data-making]")).toHaveText(/^Making your posts, ready (soon|about \d{1,2}(:\d{2})? (AM|PM)( tomorrow| on \w+)?)$/);
   const phone = test.info().project.name === "phone";
   // walk every notice (dismiss shows the next one): the page never grows past one phone screen
   const seen = new Set<string>();
@@ -63,6 +80,11 @@ test("Home fits one phone screen, whatever is on top; every card dismisses with 
     const kind = (await n.getAttribute("data-notice")) ?? "";
     const key = (await n.getAttribute("data-notice-key")) ?? "";
     seen.add(kind);
+    if (kind === "brief") {
+      await expect(n).toContainText("already in use");
+      await expect(n.getByRole("link", { name: "Read or change it" })).toHaveAttribute("href", "/research");
+      await expect(n).not.toContainText(/approve/i);
+    }
     if (phone) expect(await homeBottom(page), `Home with a "${kind}" notice`).toBeLessThanOrEqual(HOME_MAX);
     await page.getByRole("button", { name: "Hide this notice" }).click();
     await expect(page.getByRole("button", { name: "Undo" }).last()).toBeVisible();
@@ -70,6 +92,7 @@ test("Home fits one phone screen, whatever is on top; every card dismisses with 
     await expect(page.locator(`[data-notice-key="${key}"]`)).toHaveCount(0);
   }
   expect(seen.size).toBeGreaterThanOrEqual(3);
+  expect(seen.has("brief")).toBe(true);
   // Undo brings the last one back
   await page.getByRole("button", { name: "Undo" }).last().click();
   await expect(page.locator("[data-notice]")).toHaveCount(1);
@@ -84,7 +107,7 @@ test("Home fits one phone screen, whatever is on top; every card dismisses with 
   await page.getByRole("button", { name: "Undo" }).last().click();
   await expect(row).toHaveCount(1);
   if (phone) expect(await homeBottom(page)).toBeLessThanOrEqual(HOME_MAX);
-});
+}
 
 test("Dump: 20 at a time of 50, search, archive with Undo, Show archived and Restore", async ({ page }) => {
   // the year's 50 plus whatever the other specs dumped today: the count on screen is the true one
