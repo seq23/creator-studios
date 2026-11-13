@@ -10,7 +10,7 @@ import { sqliteD1 } from "./helpers/sqlite-d1";
 import { memoryR2 } from "./helpers/r2-memory";
 import { ownerCookie } from "./helpers/owner-session";
 import { planPack, readSkipToken, skipToken } from "@worker/domain/photoPosts";
-import { finishPack, photoPostsTick, photosHome } from "@worker/lib/photoPosts";
+import { finishPack, packFromDump, photoPostsTick, photosHome } from "@worker/lib/photoPosts";
 import { photoPackJob } from "@worker/jobs/photopack";
 import { FakeFacebook } from "@worker/services/facebook";
 import { FakePinterest } from "@worker/services/pinterest";
@@ -353,3 +353,48 @@ describe("a photo set's card picture is one the browser can show (22 Oct 2026: a
   });
 });
 
+
+// One Add screen (owner, 13 Nov 2026): photos added with videos become a photo set by themselves.
+describe("photos added on the Add screen", () => {
+  const seed = async (files: [string, string][]) => {
+    raw.exec("INSERT INTO dumps (id, door, notes, status) VALUES ('dmp_a', 'new', 'Fall porch for the Lees', 'cutting')");
+    for (const [name, mime] of files) {
+      const key = `raw/dmp_a/${name}`;
+      await env.FILES.put(key, new Uint8Array([1, 2, 3]));
+      raw.prepare("INSERT INTO assets (id, dump_id, file_name, mime_type, size_bytes, r2_key, upload_status) VALUES (?, 'dmp_a', ?, ?, 3, ?, 'uploaded')").run(`ast_${name}`, name, mime, key);
+    }
+  };
+  const packPhotos = () => raw.prepare("SELECT role, file_name, r2_key FROM pack_photos ORDER BY file_name").all() as { role: string; file_name: string; r2_key: string }[];
+
+  it("the photos (never the videos) are copied into one photo set and sent to be made", async () => {
+    await seed([["a.jpg", "image/jpeg"], ["b.png", "image/png"], ["clip.mp4", "video/mp4"]]);
+    const sent: string[] = [];
+    const n = await packFromDump(env, "dmp_a", async (_e, packId) => (sent.push(packId), { dispatched: true, error: null }));
+    expect(n).toBe(2);
+    const rows = packPhotos();
+    expect(rows.map((r) => r.file_name)).toEqual(["a.jpg", "b.png"]);
+    expect(rows.every((r) => r.role === "main")).toBe(true);
+    // copies: the set owns its own files, the upload keeps the originals
+    for (const r of rows) expect(await env.FILES.get(r.r2_key)).not.toBeNull();
+    expect(await env.FILES.get("raw/dmp_a/a.jpg")).not.toBeNull();
+    expect(sent).toHaveLength(1);
+    expect((raw.prepare("SELECT note FROM photo_packs WHERE id = ?").get(sent[0]) as { note: string }).note).toBe("Fall porch for the Lees");
+  });
+
+  it("one file named before and one named after make a before/after pair", async () => {
+    await seed([["porch-before.jpg", "image/jpeg"], ["porch-AFTER.jpg", "image/jpeg"], ["wide.jpg", "image/jpeg"]]);
+    await packFromDump(env, "dmp_a", async () => ({ dispatched: true, error: null }));
+    expect(Object.fromEntries(packPhotos().map((r) => [r.file_name, r.role]))).toEqual({ "porch-before.jpg": "before", "porch-AFTER.jpg": "after", "wide.jpg": "main" });
+  });
+
+  it("videos only, or a studio with photo posts off: no photo set, nothing sent", async () => {
+    await seed([["clip.mp4", "video/mp4"]]);
+    const dispatch = vi.fn(async () => ({ dispatched: true, error: null }));
+    expect(await packFromDump(env, "dmp_a", dispatch)).toBe(0);
+    raw.exec("DELETE FROM assets; DELETE FROM dumps");
+    await seed([["a.jpg", "image/jpeg"]]);
+    expect(await packFromDump({ ...env, PHOTO_POSTS: JSON.stringify({ ...CFG, on: false }) } as Env, "dmp_a", dispatch)).toBe(0);
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(packPhotos()).toHaveLength(0);
+  });
+});

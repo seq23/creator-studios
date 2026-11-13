@@ -55,7 +55,7 @@ Each brand says why it fits, links the public page that proves it works with cre
 <!-- click: role=tab[name=/Videos/] -->
 <!-- target: role=button[name="Add to my Calendar"] >> nth=0 -->
 
-On **Videos**, each idea has its hook and shots. Tap **Add to my Calendar** and pick the day you'll film it. It shows on Calendar under **To film**; nothing posts.
+On **Videos**, each idea has its hook and shots. Tap **Add to my Calendar** and pick the day you'll film it. It shows on Posts under **To film**; nothing posts.
 
 ## Tick off your to-do list
 

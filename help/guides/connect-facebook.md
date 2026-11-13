@@ -7,7 +7,7 @@ fix: reconnect-facebook
 keywords: facebook, page, page token, connect facebook, post to facebook
 ---
 
-Your photo posts go to your Facebook Page once it is connected. Until then they wait safely on Photos.
+Your photo posts go to your Facebook Page once it is connected. Until then they wait safely on Photo sets.
 
 ## Find Facebook Page on Setup
 

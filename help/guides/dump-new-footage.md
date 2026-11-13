@@ -1,57 +1,54 @@
 ---
-title: "Dump new footage"
+title: "Add photos and videos"
 group: everyday
 screen: dump
-last_checked: 2026-09-26
-keywords: upload, add videos, footage, dump, film, camera roll
+last_checked: 2026-11-13
+keywords: upload, add videos, add photos, footage, dump, film, camera roll, make my posts
 fix: clips-look-wrong
 ---
 
-## Three kinds of dump
+## Open Add
 
 ![Step 1](/help/screenshots/dump-new-footage-1.png)
-<!-- target: .door-pick -->
+<!-- target: .dropzone -->
 
-Open **Dump**. Three cards: **New videos I just filmed** (cut into clips), **Old posts to reuse** (new clips from videos you posted before), and **A full video for YouTube** (posted whole, never cut). Tap the **?** on a card to read more.
+Tap **Add** at the bottom of the screen. Photos and videos go in the same place, together.
 
-## Tap New videos I just filmed
+## Choose from my phone
 
 ![Step 2](/help/screenshots/dump-new-footage-2.png)
-<!-- click: [data-door="new"] -->
-<!-- target: [data-door="new"] -->
+<!-- target: [data-add-choose] -->
 
-Tap **New videos I just filmed**: videos you have never posted. Nothing is picked until you tap one.
+Tap **Choose from my phone** and pick as many photos and videos as you like. Any size is fine; keep the page open while they upload. If the upload stops, choose the same files again and it carries on.
 
-## Choose your videos
+## Add a note (you can leave it empty)
 
 ![Step 3](/help/screenshots/dump-new-footage-3.png)
-<!-- click: [data-door="new"] -->
-<!-- target: .dump-choose >> nth=0 -->
-
-Tap **Choose videos** and pick as many as you like. Any size is fine; keep the page open while they upload.
-
-## Add a note
-
-![Step 4](/help/screenshots/dump-new-footage-4.png)
-<!-- click: [data-door="new"] -->
 <!-- target: #notes -->
 
-Add a note, like "lean funny" or "all 2x4 grids, keep them short". See **Tell the cutter what you want**.
+Say anything the studio should know, like "just one reel of the balloon arch, not too long". Leave it empty and the studio decides.
 
-## Tap Dump new videos
+## Tap Make my posts
 
-![Step 5](/help/screenshots/dump-new-footage-5.png)
-<!-- click: [data-door="new"] -->
+![Step 4](/help/screenshots/dump-new-footage-4.png)
 <!-- target: [data-dump-button] -->
 
-Tap **Dump new videos**. The dashboard cuts your videos into clips and emails you when they're ready, usually 10 to 30 minutes later.
+Tap **Make my posts**. The studio makes your posts and emails you when they are ready to look at, usually 10 to 30 minutes later.
 
-## Watch it in Your dumps
+## More options (you never have to open this)
+
+![Step 5](/help/screenshots/dump-new-footage-5.png)
+<!-- click: [data-more-options] > summary -->
+<!-- target: .door-pick -->
+
+**More options** is for the rare cases: **Old posts to reuse** (new posts from videos you posted before), **A full video for YouTube** (posted whole, never cut), notes for the voice over, and how to cut. Everything there is already set to "the studio decides".
+
+## Watch it in the list
 
 ![Step 6](/help/screenshots/dump-new-footage-6.png)
 <!-- target: main a.list-row >> nth=0 -->
 
-Each dump shows here with how its clips are coming along, newest first, 20 at a time. Search your notes, or tap **Needs a look** to see the ones that did not finish. The × moves a dump you are done with to **Show archived** (Undo brings it right back).
+Everything you added shows here with how its posts are coming along, newest first, 20 at a time. Search your notes, or tap **Needs a look** to see the ones that did not finish. The × moves one you are done with to **Show archived** (Undo brings it right back).
 
 ## Did this work?
 

@@ -134,7 +134,7 @@ export function Stats() {
 
       {data && !hasAny ? (
         <Empty title="No results yet" secondary={{ to: "/help/upload-your-tiktok-export", label: "How to get the TikTok export" }}>
-          Tap Update numbers: YouTube is read on its own, no sign-in. Add your Instagram numbers below and upload your TikTok export from TikTok Studio. After about 4 weeks of posting, the Calendar switches from the big studies’ times to your own best times.
+          Tap Update numbers: YouTube is read on its own, no sign-in. Add your Instagram numbers below and upload your TikTok export from TikTok Studio. After about 4 weeks of posting, Posts switches from the big studies’ times to your own best times.
         </Empty>
       ) : null}
 

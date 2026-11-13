@@ -14,7 +14,7 @@ YouTube lets apps post only Shorts (vertical, 3 minutes or less). A landscape or
 <!-- route: /review?tab=approved -->
 <!-- target: [data-clip-id="demo_full_3"] [data-handoff] a:has-text("Download for YouTube") -->
 
-In **Review → Approved**, tap **Download for YouTube** on the video. Home shows the same button when it is time.
+In **New posts to look at → Approved**, tap **Download for YouTube** on the video. Home shows the same button when it is time.
 
 ## Upload it on YouTube
 

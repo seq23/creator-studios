@@ -16,6 +16,7 @@ import { confirmUnderstood, readUnderstood, sayBack, tracksOf, understand } from
 import type { NotFollowed } from "@shared/steer";
 import type { ApiError, AssetRow, DumpList, DumpSummary } from "@shared/types";
 import { selfSetup } from "../lib/setupWait";
+import { packFromDump } from "../lib/photoPosts";
 
 /** Dumps per page on the Dump screen. */
 export const DUMP_PAGE = 20;
@@ -312,8 +313,10 @@ export async function sendDump(env: Env, id: string, email: string | null, markW
     return { ok: false, status: 502, error: r.error ?? "The cutting job could not start.", fix_guide: "clips-look-wrong" };
   }
   await env.DB.prepare("UPDATE dumps SET status = 'cutting' WHERE id = ?").bind(id).run();
-  await recordEvent(env.DB, "dump.sent", id, { door: dump.door, files: counts.done, editor: r.editor }, email ?? undefined);
-  log.info("dump.sent", { files: counts.done, editor: r.editor });
+  // One Add (owner, 13 Nov 2026): the photos in a new upload also become photo posts, made now.
+  const photosUsed = dump.door === "new" ? await packFromDump(env, id, async (e, packId) => dispatchJob(e, "photopack", packId).then((d) => ({ dispatched: d.dispatched, error: d.error }))) : 0;
+  await recordEvent(env.DB, "dump.sent", id, { door: dump.door, files: counts.done, editor: r.editor, photo_posts_from: photosUsed }, email ?? undefined);
+  log.info("dump.sent", { files: counts.done, editor: r.editor, photos: photosUsed });
   return { ok: true, jobId: r.jobId, editor: r.editor };
 }
 

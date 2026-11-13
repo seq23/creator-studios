@@ -28,15 +28,15 @@ The **Storage** meter lists each kind of file, biggest first. Usually it is clip
 <!-- route: /review -->
 <!-- target: [data-clip-id="demo_new_3"] >> text=Delete this clip -->
 
-In **Review**, tap **Delete this clip** on clips you'll never post, then **Measure now** in Settings.
+In **New posts to look at**, tap **Delete this clip** on clips you'll never post, then **Measure now** in Settings.
 
 ## Hold off on very long videos
 
 ![Step 4](/help/screenshots/storage-almost-full-4.png)
 <!-- route: /dump -->
-<!-- target: [data-door="new"] -->
+<!-- target: [data-free-space] -->
 
-Until it's green again, dump shorter videos. The Dump screen shows the free space before you upload.
+Until it's green again, add shorter videos. The Add screen shows the free space before you upload.
 
 ## Did this work?
 

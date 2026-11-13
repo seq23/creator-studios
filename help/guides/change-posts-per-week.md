@@ -26,7 +26,7 @@ Each app goes up to 10 posts a week, never more. Raise one only if you have enou
 <!-- route: /calendar -->
 <!-- target: .cal-bar -->
 
-Open **Calendar** and tap **Fill the calendar** to use the new numbers right away.
+Open **Posts** and tap **Fill the calendar** to use the new numbers right away.
 
 ## Did this work?
 

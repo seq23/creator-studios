@@ -123,8 +123,8 @@ test("Settings > Your clips: the call to action and its link, Made with AI, clip
 
 test("Dump: new footage takes videos and photos together, full quality", async ({ page }) => {
   await page.goto("/dump");
-  await page.getByRole("radio", { name: /New videos/ }).click();
-  await expect(page.locator("[data-primary]")).toHaveText("Choose videos and photos");
+  // new photos and videos is picked for her: nothing to choose first
+  await expect(page.locator("[data-primary]")).toHaveText("Choose from my phone");
   await expect(page.getByText("full quality, never shrunk")).toBeVisible();
   await page.locator('input[type="file"]').setInputFiles([
     { name: "clip.mp4", mimeType: "video/mp4", buffer: rand(200_000) },

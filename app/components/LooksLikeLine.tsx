@@ -1,4 +1,4 @@
-// The plain line (studio intelligence layer 7, owner's plan 22 Oct 2026), on Dump and in Review:
+// The plain line (studio intelligence layer 7, owner's plan 22 Oct 2026), on Dump and in New posts to look at:
 // "Looks like: <service> · <before and after / walk-through / …> · camera sound <off/on>", or
 // "Not sure what this shows", with one-tap "Change". Tapping a choice re-plans the dump at once
 // (POST /api/dumps/:id/looks-like); the services come from her Brand Profile, never from code.

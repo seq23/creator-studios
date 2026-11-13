@@ -13,7 +13,7 @@ fix: looks-and-styles
 <!-- route: /dump -->
 <!-- target: main a.list-row >> nth=0 -->
 
-Open **Dump**. A dump that went wrong says what to do under it.
+Open **Add**. A dump that went wrong says what to do under it.
 
 ## Reject with a reason
 
@@ -21,7 +21,7 @@ Open **Dump**. A dump that went wrong says what to do under it.
 <!-- click: [data-clip-id="demo_new_1"] >> role=button[name="Reject"] -->
 <!-- target: .reason-list -->
 
-In **Review**, reject bad clips with a reason like **Bad cut**. It feeds the next cut.
+In **New posts to look at**, reject bad clips with a reason like **Bad cut**. It feeds the next cut.
 
 ## Captions off-brand?
 

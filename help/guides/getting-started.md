@@ -16,29 +16,29 @@ Your dashboard turns the videos you film into posts, finds brands that pay creat
 
 **Home** shows the clips waiting for you, how many weeks of posts you have, this week's posts and the health lights.
 
-## Dump: add your footage
+## Add: your photos and videos
 
 ![Step 2](/help/screenshots/getting-started-2.png)
 <!-- route: /dump -->
-<!-- target: [data-door="new"] -->
+<!-- target: .dropzone -->
 
-**Dump** is where your videos go. Tap which videos they are, choose them, add a note if you like, and tap **Dump**. The dashboard cuts them into short clips.
+**Add** is where your photos and videos go, together. Tap **Choose from my phone**, add a note if you like, and tap **Make my posts**. The studio makes your posts.
 
-## Review: say yes or no
+## New posts to look at: say yes or no
 
 ![Step 3](/help/screenshots/getting-started-3.png)
 <!-- route: /review -->
 <!-- target: [data-clip-id="demo_new_1"] -->
 
-New clips wait in **Review**. Nothing posts until you tap **Approve**.
+New clips wait in **New posts to look at**. Nothing posts until you tap **Approve**.
 
-## Calendar: your week of posts
+## Posts: your week
 
 ![Step 4](/help/screenshots/getting-started-4.png)
 <!-- route: /calendar -->
 <!-- target: .posts-list -->
 
-Approved clips fill your **Calendar** at good times, never more than 10 a week per app. Buffer posts them for you.
+Approved clips fill your **Posts** at good times, never more than 10 a week per app. Buffer posts them for you.
 
 ## Deals: brands that pay
 

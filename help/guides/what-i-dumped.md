@@ -15,7 +15,7 @@ Every dump keeps a list of the photos and videos you sent, what the studio saw i
 <!-- route: /review -->
 <!-- target: [data-files-link] >> nth=0 -->
 
-In **Review**, under each dump's date, tap **See what you dumped**. The dump's own page has the same link once its clips are ready.
+In **New posts to look at**, under each dump's date, tap **See what you dumped**. The dump's own page has the same link once its clips are ready.
 
 ## See every file
 
@@ -31,7 +31,7 @@ The top line counts your videos and photos, says how many are not in a clip yet,
 <!-- route: /dump/demo_dump_2/files -->
 <!-- target: [data-file-id] >> nth=1 -->
 
-Each file shows what the studio saw in it and **Used in** with the clip numbers, like **Clip 2 (ends on it)**. Tap a number to open that clip in Review, or tap the picture to look at the file.
+Each file shows what the studio saw in it and **Used in** with the clip numbers, like **Clip 2 (ends on it)**. Tap a number to open that clip in New posts to look at, or tap the picture to look at the file.
 
 ## Did this work?
 

@@ -13,7 +13,7 @@ When a video shows a TikTok or Instagram name that isn't one of your accounts, i
 ![Step 1](/help/screenshots/someone-elses-video-1.png)
 <!-- target: [data-held-note] -->
 
-On **Dump** (or in **Review**), the note says which name was seen.
+On **Add** (or in **New posts to look at**), the note says which name was seen.
 
 ## It is yours? Tap This is my video
 
@@ -28,7 +28,7 @@ An old post of yours or an account you run: tap **This is my video**. Its clips 
 <!-- route: /review -->
 <!-- target: [data-clip-id="demo_held_1"] >> role=button[name="Reject"] -->
 
-Posting another creator's video can get your account flagged. Reject its clips in **Review**.
+Posting another creator's video can get your account flagged. Reject its clips in **New posts to look at**.
 
 ## Did this work?
 

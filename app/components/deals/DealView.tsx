@@ -709,7 +709,7 @@ function DeliveryPanel({ d, onChanged }: { d: DealDetail; onChanged: () => void 
       <h3>Delivery</h3>
       <Notice tone="info">
         <span>
-          Sponsored clips are flagged <strong>Paid partnership</strong> in Review: the caption gets #ad. Turn on the platform's paid-partnership label when it posts. <Link to="/help/mark-a-paid-partnership">How</Link>
+          Sponsored clips are flagged <strong>Paid partnership</strong> in New posts to look at: the caption gets #ad. Turn on the platform's paid-partnership label when it posts. <Link to="/help/mark-a-paid-partnership">How</Link>
         </span>
       </Notice>
       <ul className="steps">

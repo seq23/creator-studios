@@ -153,12 +153,12 @@ function DirectLine({ v }: { v: FullVideo }) {
   ) : null;
   let line: React.ReactNode;
   if (v.direct.mode === "broken" && !u?.video_id) line = <>YouTube needs you to reconnect (Settings → Connections → Reconnect YouTube). Meanwhile you can upload it yourself below.</>;
-  else if (!u) line = v.post ? <>On the Calendar for {when}. It uploads to your channel up to a week before, with this thumbnail, title, description, chapters and tags.</> : <>Approve it and put it on the Calendar: it uploads straight to your YouTube channel.</>;
+  else if (!u) line = v.post ? <>On Posts for {when}. It uploads to your channel up to a week before, with this thumbnail, title, description, chapters and tags.</> : <>Approve it and put it on the Calendar: it uploads straight to your YouTube channel.</>;
   else if (u.status === "queued") line = <>{u.note ?? "Waiting to upload to your channel."}</>;
   else if (u.status === "uploading") line = <>Uploading to your YouTube channel now.</>;
   else if (u.status === "scheduled") line = <>On your channel as private; it goes public {u.publish_at ? fmtDate(u.publish_at) : when}. {watch}</>;
   else if (u.status === "live") line = <>On your channel ({u.privacy === "public" ? "Public" : u.privacy === "unlisted" ? "Unlisted" : "Private"}). {watch}</>;
-  else if (u.status === "removed") line = <>Taken off the Calendar: private on your channel and kept. Put it back on the Calendar to schedule it again. {watch}</>;
+  else if (u.status === "removed") line = <>Taken off Posts: private on your channel and kept. Put it back on Posts to schedule it again. {watch}</>;
   else line = <>{u.note} {watch}</>;
   return (
     <div className="fv-direct" data-direct={u?.status ?? v.direct.mode}>
@@ -178,7 +178,7 @@ function DirectLine({ v }: { v: FullVideo }) {
 function PostLine({ clip, v }: { clip: Clip; v: FullVideo }) {
   const toast = useToast();
   const p = v.post!;
-  if (p.status !== "posted") return <p className="hint">{p.status === "in_buffer" ? `In Buffer, posts ${fmtDate(p.scheduled_at)}.` : p.status === "planned" ? `On the Calendar for ${fmtDate(p.scheduled_at)}.` : p.status === "failed" ? "Buffer couldn't post it." : ""}</p>;
+  if (p.status !== "posted") return <p className="hint">{p.status === "in_buffer" ? `In Buffer, posts ${fmtDate(p.scheduled_at)}.` : p.status === "planned" ? `On Posts for ${fmtDate(p.scheduled_at)}.` : p.status === "failed" ? "Buffer couldn't post it." : ""}</p>;
   return (
     <div className="fv-studio" data-finish-studio>
       <p>

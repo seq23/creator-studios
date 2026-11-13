@@ -53,7 +53,7 @@ export function Home() {
       <PageHead eyebrow={fmtDate(new Date().toISOString(), { weekday: "long", month: "short", day: "numeric" })} title={firstName ? `Hi ${firstName}` : "Hi there"} lede="What needs you today, and how the week is going.">
         {/* One next step per screen: while setting up, it is the first unfinished setup step. */}
         <Link to="/dump" className="btn big" data-primary={data?.getSetUp ? undefined : true}>
-          + Dump videos
+          + Add photos and videos
         </Link>
       </PageHead>
 
@@ -177,7 +177,7 @@ export function Home() {
                 </Link>
               </div>
               {data.recentDumps.items.length === 0 ? (
-                <Empty title="No dumps yet" cta={{ to: "/dump", label: "Dump your first videos" }}>
+                <Empty title="Nothing added yet" cta={{ to: "/dump", label: "Add your first photos and videos" }}>
                   Drop in phone footage or old videos. The cutter turns them into short clips for you to approve.
                 </Empty>
               ) : (

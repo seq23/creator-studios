@@ -32,6 +32,7 @@ import { localDate, planPack, postLine, skipToken, starterCaptions, whenLine } f
 import { hasRules, parseRules, priceList, textProblems, withAiLabel, type ContentRules } from "@shared/contentRules";
 import {
   AI_MADE,
+  PACK_MAX_PHOTOS,
   ITEM_LABEL,
   parsePhotoPosts,
   SOCIAL_LABEL,
@@ -163,6 +164,50 @@ export async function makePack(env: Env, packId: string, dispatch: (env: Env, pa
   }
   await recordEvent(env.DB, "photos.make", packId, { photos: c.done });
   return { ok: true, error: null };
+}
+
+/**
+ * ONE ADD (owner, 13 Nov 2026: "Photos and Dump become one"). The photos in an upload also become
+ * photo posts: each is COPIED into a new set, so the upload and the set never share a file (deleting
+ * one never breaks the other), and the set is made at once. A file named "before…" and one named
+ * "after…" become the before and after pair. Returns how many photos went into the set: 0 when
+ * photo posts are not part of this studio, the upload has no photos, or the copy failed (the reels
+ * are still made). Never throws.
+ */
+export async function packFromDump(env: Env, dumpId: string, dispatch: (env: Env, packId: string) => Promise<{ dispatched: boolean; error: string | null }>): Promise<number> {
+  try {
+    if (!photoConfig(env).on) return 0;
+    const { results } = await env.DB.prepare("SELECT file_name, mime_type, size_bytes, r2_key FROM assets WHERE dump_id = ? AND upload_status = 'uploaded' AND mime_type LIKE 'image/%' ORDER BY created_at LIMIT ?")
+      .bind(dumpId, PACK_MAX_PHOTOS)
+      .all<{ file_name: string; mime_type: string; size_bytes: number; r2_key: string }>();
+    if (!results.length) return 0;
+    const dump = await env.DB.prepare("SELECT notes FROM dumps WHERE id = ?").bind(dumpId).first<{ notes: string }>();
+    const note = dump?.notes && !textProblems(dump.notes, contentRules(env)).length ? dump.notes : "";
+    const packId = await createPack(env, note);
+    const befores = results.filter((a) => /before/i.test(a.file_name));
+    const afters = results.filter((a) => /after/i.test(a.file_name));
+    const pair = befores.length === 1 && afters.length === 1;
+    let copied = 0;
+    for (const a of results) {
+      const src = await env.FILES.get(a.r2_key);
+      if (!src) continue;
+      const id = newId("pph");
+      const key = packPhotoKey(packId, id);
+      await env.FILES.put(key, src.body, { httpMetadata: { contentType: a.mime_type } });
+      const role = pair && a === befores[0] ? "before" : pair && a === afters[0] ? "after" : "main";
+      await env.DB.prepare("INSERT INTO pack_photos (id, pack_id, role, file_name, mime_type, size_bytes, r2_key, upload_status) VALUES (?, ?, ?, ?, ?, ?, ?, 'uploaded')")
+        .bind(id, packId, role, a.file_name, a.mime_type, a.size_bytes, key)
+        .run();
+      copied++;
+    }
+    if (!copied) return 0;
+    const made = await makePack(env, packId, dispatch);
+    if (!made.ok) log.warn("photos.from_upload_not_made", { photos: copied });
+    return copied;
+  } catch (e) {
+    log.warn("photos.from_upload", { err: safeError(e) });
+    return 0;
+  }
 }
 
 export interface MadeItem {

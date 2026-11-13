@@ -1,4 +1,4 @@
-// Dump → Your dumps (day 358, docs/reviews/2026-09-26-day-358.md): a year is 50+ dumps. A page at
+// Dump → What you added (day 358, docs/reviews/2026-09-26-day-358.md): a year is 50+ dumps. A page at
 // a time with its true count, search, a filter, one-tap archive with Undo, Show archived + Restore.
 // Held notices ("someone else's video") sit on top only for the last 30 days; older ones are the
 // Held pill on their row, so they stop pushing the form down.
@@ -81,9 +81,9 @@ export function DumpHistory({ refreshKey }: { refreshKey: unknown }) {
   const recentHeld = archived ? [] : (data?.items ?? []).filter((d) => d.held_note && Date.parse(d.created_at) > Date.now() - HELD_NOTICE_DAYS * 86400_000);
 
   return (
-    <aside className="section dump-history" aria-label="Your dumps">
+    <aside className="section dump-history" aria-label="What you added">
       <div className="section-head">
-        <h2>{archived ? "Archived dumps" : "Your dumps"}</h2>
+        <h2>{archived ? "Archived" : "What you added"}</h2>
         <button type="button" className="link-btn" onClick={() => setArchived((v) => !v)} aria-pressed={archived} data-show-archived>
           {archived ? "Back to your dumps" : `Show archived${data?.archived ? ` (${data.archived})` : ""}`}
         </button>
@@ -108,7 +108,7 @@ export function DumpHistory({ refreshKey }: { refreshKey: unknown }) {
         ) : query || status ? (
           <p className="soft">No dumps match that.</p>
         ) : (
-          <Empty title="Nothing dumped yet">Choose videos, add a note and press Dump. Each dump shows up here with how its clips are coming along.</Empty>
+          <Empty title="Nothing added yet">Choose photos and videos and tap Make my posts. Everything you add shows up here with how its posts are coming along.</Empty>
         )
       ) : null}
       {data && data.items.length > 0 ? (

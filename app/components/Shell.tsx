@@ -1,9 +1,10 @@
 // Desktop sidebar + phone bottom tab bar (section 4). Badges: Review count, Deals follow-ups,
 // Every screen is always in the menu: nothing is hidden behind a Settings switch (owner, 26 Sep
 // 2026).
-// Phone: Home · Dump · Review · Calendar in the bar (the daily four, per the wireframes) and a
-// Menu tab that opens a sheet with every other screen, so nothing is desktop-only. The help
-// guides say "tap X in the menu"; the tab is called Menu so that sentence is true on a phone.
+// Four tabs (owner, 13 Nov 2026): Home · Add · Posts in the bar and a More tab that opens a sheet
+// with every other screen, so nothing is desktop-only. "Add" takes photos and videos together (the
+// old Dump and Photos); "Posts" is everything planned, posted and waiting (the old Calendar);
+// looking at new posts (the old Review) is one row on Home, on Posts and under More.
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useApp } from "../state";
@@ -27,10 +28,10 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: "/", label: "Home", icon: "home", group: "daily" },
-  { to: "/dump", label: "Dump", icon: "dump", group: "daily" },
-  { to: "/photos", label: "Photos", icon: "photo", group: "daily" },
-  { to: "/review", label: "Review", icon: "review", badge: (s) => s.reviewCount || undefined, group: "daily" },
-  { to: "/calendar", label: "Calendar", icon: "calendar", group: "daily" },
+  { to: "/dump", label: "Add", icon: "dump", group: "daily" },
+  { to: "/calendar", label: "Posts", icon: "calendar", group: "daily" },
+  { to: "/review", label: "New posts to look at", icon: "review", badge: (s) => s.reviewCount || undefined, group: "daily" },
+  { to: "/photos", label: "Photo sets", icon: "photo", group: "business" },
   { to: "/deals", label: "Deals", icon: "deals", badge: (s) => s.followups || undefined, group: "business" },
   { to: "/brain", label: "Client Brain", icon: "brain", group: "business" },
   { to: "/research", label: "Research", icon: "research", group: "business" },
@@ -43,7 +44,7 @@ const NAV: NavItem[] = [
   { to: "/help", label: "Help", icon: "help", group: "setup" },
 ];
 
-const TABS = ["/", "/photos", "/dump", "/review", "/calendar"];
+const TABS = ["/", "/dump", "/calendar"];
 
 export interface ShellCounts {
   reviewCount: number;
@@ -160,7 +161,7 @@ export function Shell() {
         {items.filter((n) => TABS.includes(n.to)).map(link)}
         <button type="button" data-menu className={inMenu ? "active" : ""} aria-expanded={menuOpen} aria-controls="more-sheet" onClick={() => setMenuOpen((v) => !v)}>
           <Icon name={menuOpen ? "close" : "more"} />
-          Menu
+          More
           {menuBadge ? (
             <span className="badge" aria-label={`${menuBadge} waiting`}>
               {menuBadge}

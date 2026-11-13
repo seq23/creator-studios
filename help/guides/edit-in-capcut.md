@@ -13,7 +13,7 @@ CapCut and InShot can't connect to other apps, so you send the clip there and up
 ![Step 1](/help/screenshots/edit-in-capcut-1.png)
 <!-- target: [data-clip-id="demo_new_2"] >> text=Edit in CapCut -->
 
-In **Review**, under the clip, tap **Edit in CapCut**.
+In **New posts to look at**, under the clip, tap **Edit in CapCut**.
 
 ## Pick your app
 

@@ -21,12 +21,12 @@ On **Voice overs**, **Automatic voice overs** is on unless you switched it off. 
 
 ![Step 2](/help/screenshots/automatic-voice-overs-2.png)
 <!-- route: /dump -->
-<!-- click: [data-door="new"] -->
+<!-- click: [data-more-options] > summary -->
 <!-- target: [role="group"][aria-label="Voice over"] -->
 
-On **Dump**, the **Voice over** choice decides for this dump only: on quiet clips, none, or let me pick in Review. A note like "no voice over" works too.
+On **Add**, under **More options**, the **Voice over** choice decides for this dump only: on quiet clips, none, or let me pick in New posts to look at. A note like "no voice over" works too.
 
-## See it in Review
+## See it in New posts to look at
 
 ![Step 3](/help/screenshots/automatic-voice-overs-3.png)
 <!-- route: /review?tab=approved -->

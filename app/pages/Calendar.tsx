@@ -8,6 +8,7 @@
 // words, not a score. Times are the audience's local time.
 import { useMemo, useState, type DragEvent } from "react";
 import { Link } from "react-router-dom";
+import { useApp } from "../state";
 import type { ClipRow, PostRow, SettingsShape } from "@shared/types";
 import { get, patch, post } from "../lib/api";
 import { plural } from "../lib/format";
@@ -59,6 +60,7 @@ const POOL_SHOWN = 8;
 export function Calendar() {
   const [poolAll, setPoolAll] = useState(false);
   const toast = useToast();
+  const { counts } = useApp();
   const settings = useLoad(() => get<SettingsShape>("/api/settings"));
   const tz = settings.data?.audience_timezone ?? "America/New_York";
   const today = ymdIn(new Date(), tz);
@@ -150,11 +152,20 @@ export function Calendar() {
   }
 
   const head = (
-    <PageHead title="Calendar" lede="Every post that is coming, soonest first. Open one to watch it, read it, move it or take it off.">
-      <button className="btn" data-primary onClick={fill} disabled={busy}>
-        {busy ? "Filling…" : "Fill the calendar"}
-      </button>
-    </PageHead>
+    <>
+      <PageHead title="Posts" lede="Every post that is coming, soonest first. Open one to watch it, read it, move it or take it off.">
+        <button className="btn" data-primary onClick={fill} disabled={busy}>
+          {busy ? "Filling…" : "Fill the calendar"}
+        </button>
+      </PageHead>
+      {/* New posts wait for her yes here too (the old Review tab): one row, only when there are some. */}
+      {counts.reviewCount > 0 ? (
+        <Link to="/review" className="posts-waiting" data-waiting-ok>
+          <strong>Waiting for your OK ({counts.reviewCount})</strong>
+          <span>Look at them and say yes or no ›</span>
+        </Link>
+      ) : null}
+    </>
   );
 
   // The page head shows at once; the week holds its shape until the settings arrive.
@@ -255,8 +266,8 @@ export function Calendar() {
       <ToFilm from={days[0]} to={days[days.length - 1]} />
 
       {noClips ? (
-        <Empty title="No approved clips yet" cta={{ to: "/review", label: "Go to Review" }}>
-          Approve some clips in Review and they fill the calendar at the best times, at most 10 per channel a week.
+        <Empty title="No approved clips yet" cta={{ to: "/review", label: "Look at new posts" }}>
+          Approve some clips in New posts to look at and they fill your week at the best times, at most 10 per channel a week.
         </Empty>
       ) : null}
 

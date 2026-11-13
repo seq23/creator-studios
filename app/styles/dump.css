@@ -136,3 +136,28 @@
 .setup-note {
   display: block;
 }
+
+/* More options (owner, 13 Nov 2026): every old choice is still here, closed until she wants it. */
+.more-options {
+  margin-top: var(--space-4, 16px);
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3, 12px);
+}
+.more-options > summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  list-style: none;
+}
+.more-options > summary::-webkit-details-marker {
+  display: none;
+}
+.more-options[open] > summary {
+  margin-bottom: var(--space-2, 8px);
+}
+.more-h {
+  margin: var(--space-3, 12px) 0 var(--space-2, 8px);
+  font-size: 1rem;
+}

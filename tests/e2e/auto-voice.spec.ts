@@ -138,19 +138,20 @@ test("on, voice saved: clips with no talking come back voiced; Review offers Rem
 test("Dump: the Voice over chip (not all or none) and Review: Add voice over on any clip", async ({ page }) => {
   d1("UPDATE voice SET sample_r2_key = 'voice/sample/e2e-auto', consent_at = '2026-09-26T00:00:00Z' WHERE id = 1");
   await page.goto("/dump");
+  await page.locator("[data-more-options] > summary").click(); // the cutting choices sit under More options
   const group = page.getByRole("group", { name: "Voice over" });
   await expect(group.getByRole("button", { name: "On quiet clips (your setting)" })).toHaveAttribute("aria-pressed", "true");
-  await expect(group.getByRole("button", { name: "None for this dump" })).toHaveAttribute("aria-pressed", "false");
+  await expect(group.getByRole("button", { name: "None this time" })).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator("[data-voice-hint]")).toContainText("clips where you talk never do");
-  await group.getByRole("button", { name: "Let me pick in Review" }).click();
-  await expect(group.getByRole("button", { name: "Let me pick in Review" })).toHaveAttribute("aria-pressed", "true");
+  await group.getByRole("button", { name: "Let me pick later" }).click();
+  await expect(group.getByRole("button", { name: "Let me pick later" })).toHaveAttribute("aria-pressed", "true");
   await expect(group.getByRole("button", { name: /On quiet clips/ })).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator("[data-voice-hint]")).toContainText("tap Add voice over on any clip in Review");
+  await expect(page.locator("[data-voice-hint]")).toContainText("tap Add voice over on any clip in New posts to look at");
   // a tap alone is never called a clash
   await expect(page.locator("[data-clash]")).toHaveCount(0);
-  // a note says it too, and is read back in the one line before Dump. "Let me pick in Review" and
+  // a note says it too, and is read back in the one line before Dump. "Let me pick later" and
   // "no voice over" make the same thing (none now), so she is NOT told she tapped one thing and wrote another.
-  await page.getByLabel("Notes for this dump").fill("no voice over on this one");
+  await page.getByLabel("Anything I should know? (optional)").fill("no voice over on this one");
   await expect(page.locator("[data-understood] [data-plan]")).toHaveText("I'll make a mix of posts: no voice over.");
   await expect(page.locator("[data-clash]")).toHaveCount(0);
   await expect(page.locator("[data-leftover]")).toHaveCount(0);
@@ -159,7 +160,7 @@ test("Dump: the Voice over chip (not all or none) and Review: Add voice over on 
   await expect(page.locator("[data-clash]")).toHaveText("You tapped one thing for the voice over and wrote another. I'll go with what you wrote.");
   await expect(page.locator("[data-understood] [data-plan]")).toHaveText("I'll make a mix of posts: no voice over.");
 
-  // "Let me pick in Review": the dump makes none; Add voice over on one clip makes just that one
+  // "Let me pick later": the dump makes none; Add voice over on one clip makes just that one
   const since = new Date().toISOString();
   const { id: dumpId } = await (await page.request.post("/api/dumps", { data: { door: "new", notes: "" } })).json();
   const s = await page.request.post("/api/uploads/start", { data: { kind: "video", parentId: dumpId, fileName: "pick.mp4", size: 90_000, mimeType: "video/mp4", contentHash: `pick-${Date.now()}-${Math.random()}` } });

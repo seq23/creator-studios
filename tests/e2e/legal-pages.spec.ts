@@ -1,6 +1,6 @@
 // /privacy and /terms are public (Google's Branding page needs both before the Connect YouTube
 // sign-in can be published) and linked in the footer of every screen: the login card (no
-// session), the desktop sidebar and the phone Menu sheet (signed in).
+// session), the desktop sidebar and the phone More sheet (signed in).
 import { expect, test } from "@playwright/test";
 import { TOUR_OFF } from "./demo";
 
@@ -21,10 +21,10 @@ test.describe("privacy and terms", () => {
     await ctx.close();
   });
 
-  test("signed in: the footer links open the pages (sidebar on desktop, Menu on a phone)", async ({ page, isMobile }) => {
+  test("signed in: the footer links open the pages (sidebar on desktop, More on a phone)", async ({ page, isMobile }) => {
     await page.addInitScript(TOUR_OFF);
     await page.goto("/");
-    if (isMobile) await page.getByRole("button", { name: "Menu" }).click();
+    if (isMobile) await page.getByRole("button", { name: "More" }).click();
     const scope = isMobile ? page.locator("#more-sheet") : page.locator(".sidebar-foot");
     await expect(scope.getByRole("link", { name: "Terms" })).toBeVisible();
     await scope.getByRole("link", { name: "Privacy" }).click();

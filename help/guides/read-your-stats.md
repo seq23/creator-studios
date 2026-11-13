@@ -25,7 +25,7 @@ Your best videos by views. Tap one to open it.
 ![Step 3](/help/screenshots/read-your-stats-3.png)
 <!-- target: section:has(#times-h) -->
 
-The days and hours your videos did best. The Calendar uses them.
+The days and hours your videos did best. Posts uses them.
 
 ## Your posting times
 

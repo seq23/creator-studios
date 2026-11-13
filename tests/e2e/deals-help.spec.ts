@@ -110,7 +110,7 @@ test.describe("voice", () => {
     await expect(page.locator(`[data-narration="${id}"]`)).toContainText("Adding to your clip…");
     expect((await page.request.post(`/api/jobs/${attached.jobId}/run-fake`, { data: {} })).ok()).toBe(true);
     await page.reload();
-    await expect(page.locator(`[data-narration="${id}"]`)).toContainText("In your clip · plays in Review");
+    await expect(page.locator(`[data-narration="${id}"]`)).toContainText("In your clip · plays in New posts to look at");
     await page.goto("/review");
     await page.getByRole("tab", { name: /Approved/ }).click();
     const voiced = page.locator('[data-clip-id="demo_clip_1"]');
@@ -183,7 +183,7 @@ test.describe("first-login tour", () => {
     await page.goto("/");
     const tour = page.getByRole("dialog", { name: "Quick tour" });
     await expect(tour).toBeVisible();
-    const stops = ["Dump", "Review", "Calendar", "Stats", "Voice overs", "Deals", "Media kit", "Help"];
+    const stops = ["Add", "New posts to look at", "Posts", "Stats", "Voice overs", "Deals", "Media kit", "Help"];
     for (const [i, s] of stops.entries()) {
       await expect(tour.getByRole("heading", { name: s, exact: true })).toBeVisible();
       await expect(tour).toContainText(`${i + 1} of ${stops.length}`);

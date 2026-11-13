@@ -27,4 +27,4 @@ The free tools did not find enough real accounts this time. Nothing is written f
 ![Step 3](/help/screenshots/niche-brief-3.png)
 <!-- mock: studio-niche-ready -->
 
-Once it's in, **Setup** and **Dump** say how many accounts in your niche were studied and when. Nothing more to do: every clip and post is written from it.
+Once it's in, **Setup** and **Add** say how many accounts in your niche were studied and when. Nothing more to do: every clip and post is written from it.

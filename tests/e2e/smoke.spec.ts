@@ -48,7 +48,7 @@ test.describe("home and dump", () => {
     await expect(voice.locator(".badge, [data-primary], .dot.red")).toHaveCount(0);
     await expect(page.getByText("This week")).toBeVisible();
     await expect(page.getByText("Waiting for you")).toBeVisible();
-    await expect(page.getByRole("link", { name: "+ Dump videos" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "+ Add photos and videos" })).toBeVisible();
     // one next step per screen: while she is setting up, it is the first unfinished "Get set up"
     // step (a fresh studio: Connect Instagram & TikTok); once set up, the Dump link.
     const setUp = page.locator("[data-get-set-up]");
@@ -66,9 +66,9 @@ test.describe("home and dump", () => {
       for (const step of await setUp.locator("[data-step]:not([data-done])").all()) await expect(step.locator("a[href^='/']").first()).toBeVisible();
       if ((await next.getAttribute("data-step")) === "connect") await expect(next.locator("[data-why-buffer] summary")).toHaveText("Why Buffer? ▾");
     } else {
-      await expect(page.locator("[data-primary]")).toHaveText("+ Dump videos");
+      await expect(page.locator("[data-primary]")).toHaveText("+ Add photos and videos");
     }
-    // Connect Instagram & TikTok is in the main menu (phone: under Menu).
+    // Connect Instagram & TikTok is in the main menu (phone: under More).
     if (test.info().project.name === "phone") await page.locator("[data-menu]").click();
     const menuLink = page.locator("nav").getByRole("link", { name: "Connect Instagram & TikTok", exact: true });
     await expect(menuLink).toBeVisible();
@@ -82,10 +82,22 @@ test.describe("home and dump", () => {
     }
   });
 
-  test("dump: pick a door, upload a small file in chunks, and it goes at once (nothing held)", async ({ page }) => {
+  test("add: four tabs; the kind is picked for her; old posts sit under More options; a small file uploads in chunks and goes at once (nothing held)", async ({ page }) => {
     await page.goto("/dump");
-    // nothing is picked for her: the Dump button waits until she says which videos these are
+    // Four tabs on a phone: Home, Add, Posts and More. No Dump, Photos, Review or Calendar tab.
+    if (test.info().project.name === "phone") {
+      await expect(page.locator(".tabbar a")).toHaveText([/Home/, /Add/, /Posts/]);
+      await expect(page.locator(".tabbar [data-menu]")).toContainText("More");
+    }
+    await expect(page.getByRole("heading", { name: "Add photos and videos" })).toBeVisible();
+    // The kind is chosen for her (new photos and videos); the one next step is choosing from her phone.
+    await expect(page.locator("[data-primary]")).toHaveCount(1);
+    await expect(page.locator("[data-primary]")).toHaveText("Choose from my phone");
     await expect(page.locator("[data-dump-button]")).toBeDisabled();
+    // Old posts to reuse is still here, under More options (closed until she opens it).
+    await expect(page.getByRole("radio", { name: /Old posts to reuse/ })).toBeHidden();
+    await page.locator("[data-more-options] > summary").click();
+    await expect(page.getByRole("radio", { name: /New videos I just filmed/ })).toHaveAttribute("aria-checked", "true");
     await page.getByRole("radio", { name: /Old posts to reuse/ }).click();
     await expect(page.locator("[data-door-picked]")).toHaveText(/You picked: Old posts to reuse/);
     // before anything is uploaded the one next step is choosing videos
@@ -96,14 +108,14 @@ test.describe("home and dump", () => {
     for (let i = 0; i < bytes.length; i += 4) bytes.writeUInt32LE((Math.random() * 0xffffffff) >>> 0, i);
     await page.locator('input[type="file"]').setInputFiles({ name: "sample.mp4", mimeType: "video/mp4", buffer: bytes });
     await expect(page.getByText("Uploaded")).toBeVisible({ timeout: 20_000 });
-    await page.getByLabel("Notes for this dump").fill("Test dump from Playwright");
-    // once a video is in, the primary moves to the Dump button
+    await page.getByLabel("Anything I should know? (optional)").fill("Test upload from Playwright");
+    // once a video is in, the primary moves to the send button
     await expect(page.locator("[data-primary]")).toHaveCount(1);
-    await expect(page.getByRole("button", { name: "Dump 1 old post", exact: true })).toHaveAttribute("data-primary", "true");
-    await page.getByRole("button", { name: "Dump 1 old post", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Reuse 1 old post", exact: true })).toHaveAttribute("data-primary", "true");
+    await page.getByRole("button", { name: "Reuse 1 old post", exact: true }).click();
     // Nothing is held (13 Nov 2026): with no Brand Profile locked and no Research Brief approved the
     // upload still goes at once. No checklist, no red error, nothing asking her to lock or approve.
-    await expect(page.locator(".toast").filter({ hasText: "Dumped." })).toBeVisible();
+    await expect(page.locator(".toast").filter({ hasText: "Got it." })).toBeVisible();
     await expect(page.locator(".toast.bad")).toHaveCount(0);
     await expect(page.locator("[data-setup-checklist]")).toHaveCount(0);
     const row = page.locator("[data-dump-row]").first();
@@ -207,7 +219,7 @@ test.describe("guard rails", () => {
     for (let i = 0; i < bytes.length; i += 4) bytes.writeUInt32LE((Math.random() * 0xffffffff) >>> 0, i);
     const upload = async () => {
       await page.goto("/dump");
-      await page.getByRole("radio", { name: /New videos I just filmed/ }).click();
+      await page.locator("[data-more-options] > summary").click(); // new is picked for her; this opens the cutting choices
       await page.locator('input[type="file"]').setInputFiles({ name: "same.mp4", mimeType: "video/mp4", buffer: bytes });
       await expect(page.getByText(/Uploaded|Failed/)).toBeVisible({ timeout: 20_000 });
       return page.getByText("Uploaded").isVisible();

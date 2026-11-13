@@ -1,5 +1,5 @@
 // "Looks like someone else's video" on a dump (worker/domain/sourceCheck.ts): the sentence, the
-// one-tap "This is my video", and the guide. Shown on Dump and on the dump's group in Review.
+// one-tap "This is my video", and the guide. Shown on Dump and on the dump's group in New posts to look at.
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { post } from "../lib/api";

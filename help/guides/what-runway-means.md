@@ -11,7 +11,7 @@ keywords: home, runway, weeks, how many clips left, dashboard
 ![Step 1](/help/screenshots/what-runway-means-1.png)
 <!-- target: a.card.accent[href="/review"] -->
 
-Home shows how many new clips wait in **Review**. Tap it to review.
+Home shows how many new clips wait in **New posts to look at**. Tap it to review.
 
 ## Runway
 

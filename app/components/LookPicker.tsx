@@ -1,4 +1,4 @@
-// "Change look" on a clip in Review: every Look with its one-line description and a tiny preview
+// "Change look" on a clip in New posts to look at: every Look with its one-line description and a tiny preview
 // (public/looks/<id>.webp, made from the selftest footage). Picking one queues a re-render of just
 // that clip; the current version keeps playing until the new one is ready (about a minute).
 // A grid Look opens the cell picker first: a live mosaic of the cells, tap a cell to choose what
@@ -73,7 +73,7 @@ export function LookModal({ clip, onClose, onQueued }: { clip: ReviewClip; onClo
     <Modal title="Change look" onClose={onClose}>
       <p className="hint">Pick a look and just this clip is made again in it, in about a minute. The current version stays until the new one is ready.</p>
       {!clip.source_available ? (
-        <Notice tone="warn">The original video for this clip was cleared after 7 days, so its look can’t change. Dump that video again to get new looks.</Notice>
+        <Notice tone="warn">The original video for this clip was cleared after 7 days, so its look can’t change. Add that video again to get new looks.</Notice>
       ) : null}
       {data.loading && !data.data ? <Skeleton lines={4} /> : null}
       <ul className="look-list" aria-label="Looks">
@@ -192,7 +192,7 @@ function CellPicker({ clip, look, busy, onBack, onClose, onConfirm }: { clip: Re
               ))}
             </div>
             <CellList title="From this dump" items={options.data?.dump ?? []} activeId={current.cells[active]?.kind === "clip" ? (current.cells[active] as { clip_id: string }).clip_id : null} onPick={(id) => set({ kind: "clip", clip_id: id })} empty="No other clips in this dump." />
-            <CellList title="From your approved clips" items={options.data?.library ?? []} activeId={current.cells[active]?.kind === "clip" ? (current.cells[active] as { clip_id: string }).clip_id : null} onPick={(id) => set({ kind: "clip", clip_id: id })} empty="Approve clips in Review and they can be picked here." />
+            <CellList title="From your approved clips" items={options.data?.library ?? []} activeId={current.cells[active]?.kind === "clip" ? (current.cells[active] as { clip_id: string }).clip_id : null} onPick={(id) => set({ kind: "clip", clip_id: id })} empty="Approve clips in New posts to look at and they can be picked here." />
             <button type="button" className="btn small" disabled={current.voice === active} onClick={() => setLayout({ ...current, voice: active })}>
               {current.voice === active ? "This cell plays its sound" : "Play sound from this cell"}
             </button>

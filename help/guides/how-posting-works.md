@@ -6,7 +6,7 @@ last_checked: 2026-09-26
 keywords: post, posting, how do i post, publish, schedule, go live, upload to tiktok, instagram, youtube
 ---
 
-You never post by hand. You approve clips, the Calendar fills your week, and Buffer publishes each one at its time.
+You never post by hand. You approve clips, Posts fills your week, and Buffer publishes each one at its time.
 
 ## Approve the clips you like
 
@@ -14,9 +14,9 @@ You never post by hand. You approve clips, the Calendar fills your week, and Buf
 <!-- route: /review -->
 <!-- target: [data-clip-id="demo_new_3"] >> role=button[name="Approve"] -->
 
-In **Review**, tap **Approve**. Only approved clips can post.
+In **New posts to look at**, tap **Approve**. Only approved clips can post.
 
-## The Calendar fills itself
+## Posts fills itself
 
 ![Step 2](/help/screenshots/how-posting-works-2.png)
 <!-- route: /calendar -->

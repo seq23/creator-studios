@@ -9,25 +9,28 @@ keywords: recycle, repost, old videos, already posted
 ## Tap Old posts to reuse
 
 ![Step 1](/help/screenshots/recycle-old-videos-1.png)
+<!-- click: [data-more-options] > summary -->
 <!-- target: [data-door="recycle"] -->
 
-Open **Dump** and tap **Old posts to reuse**: videos you already posted.
+Open **Add**, open **More options** and tap **Old posts to reuse**: videos you already posted.
 
 ## Choose the videos
 
 ![Step 2](/help/screenshots/recycle-old-videos-2.png)
+<!-- click: [data-more-options] > summary -->
 <!-- click: [data-door="recycle"] -->
 <!-- target: [data-door-picked] -->
 
 Tap **Choose videos**. For each one, say where and roughly when it was posted, and the views if you know them. Best performers come back first.
 
-## Tap Dump
+## Tap Reuse old posts
 
 ![Step 3](/help/screenshots/recycle-old-videos-3.png)
+<!-- click: [data-more-options] > summary -->
 <!-- click: [data-door="recycle"] -->
 <!-- target: [data-dump-button] -->
 
-Tap the **Dump** button. Each video gets a new opening, a new caption and a new look, so it doesn't look reposted. It waits 90 days before going back to the same app.
+Tap the **Reuse old posts** button. Each video gets a new opening, a new caption and a new look, so it doesn't look reposted. It waits 90 days before going back to the same app.
 
 ## Review them like any clip
 
@@ -35,7 +38,7 @@ Tap the **Dump** button. Each video gets a new opening, a new caption and a new 
 <!-- route: /review -->
 <!-- target: [data-clip-id="demo_held_1"] -->
 
-Recycled clips show up in **Review** under **Old posts**. Approve the ones you want back.
+Recycled clips show up in **New posts to look at** under **Old posts**. Approve the ones you want back.
 
 ## Did this work?
 

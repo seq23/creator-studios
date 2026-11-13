@@ -22,7 +22,7 @@ Tap the **×** on a Home card you have dealt with. The next one takes its place,
 <!-- route: /dump -->
 <!-- target: [data-dump-row] .dismiss-btn >> nth=0 -->
 
-On **Dump**, tap the **×** on a dump. It moves to Archived; its clips stay exactly where they are.
+On **Add**, tap the **×** on a dump. It moves to Archived; its clips stay exactly where they are.
 
 ## Find it again
 

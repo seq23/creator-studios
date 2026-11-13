@@ -94,7 +94,7 @@ export function EditingCard({ owner }: { owner: boolean }) {
       <Card>
         <div className="set-text">
           <div className="set-label">Looks in the mix</div>
-          <div className="hint">Each dump’s clips take turns through the looks switched on, so they never all look the same. Change any clip’s look in Review.</div>
+          <div className="hint">Each dump’s clips take turns through the looks switched on, so they never all look the same. Change any clip’s look in New posts to look at.</div>
         </div>
         <ul className="editing-looks">
           {v.looks.map((l) => (
