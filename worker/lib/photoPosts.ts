@@ -444,8 +444,9 @@ export async function sendPost(env: Env, row: PostRow): Promise<SocialPostStatus
       const state = await bufferState(env, buffer, false);
       const channel = state.channels[row.platform];
       if (!channel) return wait(`connect:${row.platform}`);
-      if (!video) return hold("Instagram and TikTok take the videos only.");
-      const r = await buffer.createPost({ channelId: channel.id, platform: row.platform, text, title: env.APP_NAME, mediaUrl: mediaUrl(env, item.media_token, "video"), scheduledAt: new Date().toISOString(), aiGenerated: aiMade });
+      // A photo set goes as photos (Instagram carousel, TikTok photo post): at most 10, in order.
+      const photoUrls = video ? undefined : images.slice(0, 10).map((_, i) => mediaUrl(env, item.media_token!, i));
+      const r = await buffer.createPost({ channelId: channel.id, platform: row.platform, text, title: video ? env.APP_NAME : row.caption.split("\n")[0].slice(0, 90), mediaUrl: mediaUrl(env, item.media_token, video ? "video" : 0), imageUrls: photoUrls, scheduledAt: new Date().toISOString(), aiGenerated: aiMade });
       result = { ok: r.ok, id: r.id, url: null, error: r.error };
     }
   } catch (e) {
