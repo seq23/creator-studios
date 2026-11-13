@@ -24,13 +24,13 @@ In **Settings**, **Job runner (GitHub)** says **Not working**.
 
 Send this page to your helper. They renew the job token in GitHub.
 
-## Press Dump again
+## Send it again
 
 ![Step 3](/help/screenshots/reconnect-github-3.png)
 <!-- route: /dump -->
 <!-- target: main a.list-row >> nth=0 -->
 
-When it's green, open **Dump** and press **Dump** again on any dump that failed.
+When it's green, open **Add** and send again anything that failed.
 
 ## Did this work?
 

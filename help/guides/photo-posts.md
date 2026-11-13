@@ -13,7 +13,7 @@ One photo becomes a few posts: a slow-zoom video, a photo set and three short ca
 ![Step 1](/help/screenshots/photo-posts-1.png)
 <!-- target: role=button[name="Add photos from my phone"] -->
 
-Open **Photos** and tap **Add photos from my phone**. JPG, PNG and iPhone photos all work.
+Open **Photo sets** (under **More**) and tap **Add photos from my phone**. JPG, PNG and iPhone photos all work.
 
 ## Have a before and after? Add them too
 

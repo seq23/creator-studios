@@ -11,7 +11,7 @@ keywords: ad, sponsored, paid partnership, disclosure, #ad
 ![Step 1](/help/screenshots/mark-a-paid-partnership-1.png)
 <!-- target: [data-clip-id="demo_look_1"] >> text=Edit caption & hook -->
 
-In **Review**, tap **Edit caption & hook** on the sponsored clip.
+In **New posts to look at**, tap **Edit caption & hook** on the sponsored clip.
 
 ## Switch on Paid partnership
 

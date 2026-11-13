@@ -13,9 +13,10 @@ A full video goes up whole: never cut into clips, never cropped to vertical. You
 
 ![Step 1](/help/screenshots/post-a-full-video-1.png)
 <!-- route: /dump -->
+<!-- click: [data-more-options] > summary -->
 <!-- target: [data-door="youtube"] -->
 
-On **Dump**, tap **A full video for YouTube** and choose one video. The screen shows its size and the free space before you tap Dump.
+On **Add**, open **More options**, tap **A full video for YouTube** and choose one video. The screen shows its size and the free space before you tap **Send 1 full video**.
 
 ## Pick the thumbnail
 
@@ -23,7 +24,7 @@ On **Dump**, tap **A full video for YouTube** and choose one video. The screen s
 <!-- route: /review -->
 <!-- target: [data-clip-id="demo_full_1"] .fv-thumb-row -->
 
-In **Review**, pick one of three frames. We draft the title, description, chapters and tags from what you say in it.
+In **New posts to look at**, pick one of three frames. We draft the title, description, chapters and tags from what you say in it.
 
 ## Choose who can see it
 
@@ -39,7 +40,7 @@ In **Review**, pick one of three frames. We draft the title, description, chapte
 <!-- route: /settings/connections -->
 <!-- target: [data-youtube-direct] .grow -->
 
-With **YouTube (full videos)** connected, an approved video on the Calendar uploads to your channel by itself with its thumbnail, words and tags. **Public** waits as private until its Calendar time; **Unlisted** or **Private** is set at once. Move it and YouTube's time moves; take it off and it stays private (never deleted).
+With **YouTube (full videos)** connected, an approved video on Posts uploads to your channel by itself with its thumbnail, words and tags. **Public** waits as private until its time on Posts; **Unlisted** or **Private** is set at once. Move it and YouTube's time moves; take it off and it stays private (never deleted).
 
 ## Not connected: vertical and short posts through Buffer
 

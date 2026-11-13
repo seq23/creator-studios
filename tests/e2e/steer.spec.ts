@@ -48,14 +48,17 @@ async function clipsOf(request: APIRequestContext, dumpId: string) {
   return body.groups.find((g) => g.dump.id === dumpId)?.clips ?? [];
 }
 
-test("which videos: two cards, nothing picked, a hint bubble on each, the Dump button says which", async ({ page }) => {
+test("which videos: new is picked for her; the other kinds sit under More options with a hint bubble on each; the button says which", async ({ page }) => {
   await page.goto("/dump");
   const fresh = page.getByRole("radio", { name: /New videos I just filmed/ });
   const old = page.getByRole("radio", { name: /Old posts to reuse/ });
-  await expect(fresh).toHaveAttribute("aria-checked", "false");
-  await expect(old).toHaveAttribute("aria-checked", "false");
-  await expect(page.locator("[data-door-picked]")).toHaveText("First, tap which videos these are.");
+  // Nothing to choose first: the cards are closed away, and the button only waits for a file.
+  await expect(fresh).toBeHidden();
   await expect(page.locator("[data-dump-button]")).toBeDisabled();
+  await expect(page.locator("[data-dump-button]")).toHaveText("Make my posts");
+  await page.locator("[data-more-options] > summary").click();
+  await expect(fresh).toHaveAttribute("aria-checked", "true");
+  await expect(old).toHaveAttribute("aria-checked", "false");
   await expect(page.getByText(/door [AB]/i)).toHaveCount(0);
 
   // the hint bubble: tap to open, "Got it" to close; keyboard works the same (it is a button)
@@ -75,10 +78,10 @@ test("which videos: two cards, nothing picked, a hint bubble on each, the Dump b
   await expect(old).toHaveAttribute("aria-checked", "true");
   await expect(page.locator("[data-door-picked]")).toHaveText(/You picked: Old posts to reuse/);
   await upload(page);
-  await expect(page.locator("[data-dump-button]")).toHaveText("Dump 1 old post");
+  await expect(page.locator("[data-dump-button]")).toHaveText("Reuse 1 old post");
   await expect(page.locator("[data-door-picked]")).toBeVisible();
   await fresh.click();
-  await expect(page.locator("[data-dump-button]")).toHaveText("Dump 1 new video");
+  await expect(page.locator("[data-dump-button]")).toHaveText("Make my posts");
   await expect(page.locator("[data-dump-button]")).toBeEnabled();
 });
 
@@ -87,7 +90,7 @@ test("one line is always said back before Dump; what can't be used or done is sa
   const plan = page.locator("[data-understood] [data-plan]");
   // with no note at all
   await expect(plan).toHaveText("I'll make a mix of posts.");
-  await page.getByLabel("Notes for this dump").fill("2x4 grid, no music, fast. Also a 3x3 grid please. make a carousel");
+  await page.getByLabel("Anything I should know? (optional)").fill("2x4 grid, no music, fast. Also a 3x3 grid please. make a carousel");
   await expect(plan).toContainText("Grid of eight");
   await expect(plan).toContainText("no music");
   await expect(plan).toContainText("quick cuts");
@@ -106,7 +109,7 @@ test("one line is always said back before Dump; what can't be used or done is sa
   await fixes.getByRole("button", { name: "No words on screen" }).click();
   await expect(plan).toContainText("no words on screen");
   // what she types wins over the earlier tap
-  await page.getByLabel("Notes for this dump").fill("3 posts, no music");
+  await page.getByLabel("Anything I should know? (optional)").fill("3 posts, no music");
   await expect(plan).toHaveText("I'll make 3 posts: no music, no words on screen, Instagram only.");
   // every fix is a 44 px target on a phone
   for (const b of await fixes.getByRole("button").all()) expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);
@@ -114,7 +117,7 @@ test("one line is always said back before Dump; what can't be used or done is sa
 
 test("steered by chips and a note: the clips follow, the dump says what it could not do", async ({ page }) => {
   await page.goto("/dump");
-  await page.getByRole("radio", { name: /New videos I just filmed/ }).click();
+  await page.locator("[data-more-options] > summary").click(); // new is picked for her; this opens the cutting choices
   await upload(page);
   const look = page.getByRole("group", { name: "Look", exact: true });
   await look.getByRole("button", { name: "Grid of four" }).click();
@@ -123,7 +126,7 @@ test("steered by chips and a note: the clips follow, the dump says what it could
   await page.getByRole("group", { name: "Clip length" }).getByRole("button", { name: /Short/ }).click();
   await page.getByRole("group", { name: "Platforms" }).getByRole("button", { name: "TikTok" }).click();
   await page.getByRole("group", { name: "Pace" }).getByRole("button", { name: "Fast" }).click();
-  await page.getByLabel("Notes for this dump").fill("keep it calm. 3x3 grid");
+  await page.getByLabel("Anything I should know? (optional)").fill("keep it calm. 3x3 grid");
   await expect(page.locator("[data-plan]")).toHaveText("I'll make 5 posts: short (under 20 seconds), calm, Grid of four, TikTok only.");
   // her note and her tap disagree: said before the cut, and her note wins
   await expect(page.locator("[data-clash]")).toHaveText("You tapped one thing for the pace and wrote another. I'll go with what you wrote.");
@@ -146,11 +149,11 @@ test("steered by chips and a note: the clips follow, the dump says what it could
 
 test("Surprise me: varied looks and one plain line on what was made", async ({ page }) => {
   await page.goto("/dump");
-  await page.getByRole("radio", { name: /New videos I just filmed/ }).click();
+  await page.locator("[data-more-options] > summary").click(); // new is picked for her; this opens the cutting choices
   await upload(page);
   await expect(page.getByRole("button", { name: "Surprise me", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.locator("[data-dump-button]").click();
-  await expect(page.locator(".toast").first()).toContainText("Dumped");
+  await expect(page.locator(".toast").first()).toContainText("Got it");
   const dumpId = new URL(page.url()).pathname.split("/").pop()!;
   await runCut(page.request, dumpId);
   const clips = await clipsOf(page.request, dumpId);

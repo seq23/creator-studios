@@ -14,7 +14,7 @@ The app said no to a post. It was tried again, then you got an email. The clip i
 ![Step 1](/help/screenshots/a-post-failed-1.png)
 <!-- target: [data-post="demo_post_h2"] -->
 
-Open **Calendar**. A post that didn't go out is listed under **Did not go out**, outlined in red.
+Open **Posts**. A post that didn't go out is listed under **Did not go out**, outlined in red.
 
 ## Read why
 

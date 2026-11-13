@@ -22,7 +22,7 @@ Open **Settings** and find **Features**. Each switch says what off and on mean.
 <!-- route: /settings -->
 <!-- target: label.switch:has-text("Automatic voice overs") -->
 
-On: clips with no talking get a voice over in your voice automatically, and you can remove it in Review. Off: only the voice overs you add yourself.
+On: clips with no talking get a voice over in your voice automatically, and you can remove it in New posts to look at. Off: only the voice overs you add yourself.
 
 ## Deeper web research
 

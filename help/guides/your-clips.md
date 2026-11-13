@@ -35,7 +35,7 @@ Pick **Every clip**, or **Only clips with an AI picture** (a photo with no camer
 ![Step 4](/help/screenshots/your-clips-4.png)
 <!-- target: [aria-label="Review bar"] -->
 
-Use **−** and **+** for how many clips a dump gives and for the review bar. A clip under the bar is made again once; if it is still under, it waits under **Show hidden** in Review with the reason.
+Use **−** and **+** for how many clips a dump gives and for the review bar. A clip under the bar is made again once; if it is still under, it waits under **Show hidden** in New posts to look at with the reason.
 
 ## Did this work?
 

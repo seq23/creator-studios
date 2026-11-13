@@ -7,7 +7,7 @@ fix: reconnect-pinterest
 keywords: pinterest, pin, pins, board, connect pinterest
 ---
 
-Your photo sets are pinned to your Pinterest board once it is connected. Until then they wait safely on Photos.
+Your photo sets are pinned to your Pinterest board once it is connected. Until then they wait safely on Photo sets.
 
 ## Find Pinterest on Setup
 

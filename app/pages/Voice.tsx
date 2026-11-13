@@ -707,7 +707,7 @@ function Narrations({ v, onChange }: { v: VoiceState; onChange: () => void }) {
                       {ENGINE_COPY[n.engine].tag}
                     </span>
                     <span>
-                      {fmtDate(n.created_at)} · {n.status === "ready" ? (n.clip_id ? (n.mix_status === "ready" ? "In your clip · plays in Review" : n.mix_status === "failed" ? "Not added to the clip · attach it again" : "Adding to your clip…") : "Ready") : n.status === "failed" ? "Did not finish" : "Generating…"}
+                      {fmtDate(n.created_at)} · {n.status === "ready" ? (n.clip_id ? (n.mix_status === "ready" ? "In your clip · plays in New posts to look at" : n.mix_status === "failed" ? "Not added to the clip · attach it again" : "Adding to your clip…") : "Ready") : n.status === "failed" ? "Did not finish" : "Generating…"}
                       {n.duration_s ? ` · ${mmss(n.duration_s)}` : ""}
                     </span>
                   </div>
@@ -764,7 +764,7 @@ function AttachModal({ narrationId, onClose, onDone }: { narrationId: string; on
   async function pick(clipId: string) {
     try {
       await patch(`/api/voice/narrations/${narrationId}`, { clip_id: clipId });
-      toast.ok("Adding it to the clip. In a minute or two the clip plays with your voice over in Review.");
+      toast.ok("Adding it to the clip. In a minute or two the clip plays with your voice over in New posts to look at.");
       onClose();
       onDone();
     } catch (e) {
@@ -777,7 +777,7 @@ function AttachModal({ narrationId, onClose, onDone }: { narrationId: string; on
         <Skeleton />
       ) : data.clips.length === 0 ? (
         <Empty title="No approved clips yet" cta={{ to: "/review", label: "Open Review" }}>
-          Approve a clip in Review, then attach this voice over to it.
+          Approve a clip in New posts to look at, then attach this voice over to it.
         </Empty>
       ) : (
         <div className="list">

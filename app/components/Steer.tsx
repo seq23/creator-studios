@@ -1,4 +1,4 @@
-// How she steers a dump, on the Dump screen (worker/domain/steer.ts has the rules):
+// How she steers a dump, on the Add screen (worker/domain/steer.ts has the rules):
 //   - Surprise me (the default): we pick, varied across the batch, and say what was made
 //   - or tap chips: Look, Music, Pace, Clip length, How many, Captions, Platforms, Voice over, Camera sound. An untapped
 //     group stays "Surprise me" for that one thing. Every group is always shown (nothing hidden).
@@ -156,11 +156,11 @@ export function SteerPanel({ steer, onChange, looks, tracks, disabled, voice, ca
         <span className="hint" data-voice-hint>
           {(steer.voice ?? voice.choice) === "quiet"
             ? voice.hasVoice
-              ? "Clips with no talking get a voice over in the voice you picked (Settings → Sound); clips where you talk never do. You can remove any of them in Review."
+              ? "Clips with no talking get a voice over in the voice you picked (Settings → Sound); clips where you talk never do. You can remove any of them in New posts to look at."
               : "Pick a voice first (Settings → Sound) or record your own (Voice overs); until then no voice overs are made."
             : (steer.voice ?? voice.choice) === "pick"
-              ? "No voice overs now; tap Add voice over on any clip in Review."
-              : "No voice overs on this dump. You can still add one to any clip in Review."}
+              ? "No voice overs now; tap Add voice over on any clip in New posts to look at."
+              : "No voice overs on this batch. You can still add one to any clip in New posts to look at."}
         </span>
       </div>
       {/* Camera sound: no "Surprise me"; untapped, Settings → Sound decides, and the chip it picks is marked. */}

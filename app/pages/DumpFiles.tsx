@@ -60,7 +60,7 @@ export function DumpFiles() {
         lede="Every photo and video, what the studio saw in it, and which clips used it."
       >
         <Link to="/review" className="btn quiet">
-          Go to Review
+          Look at new posts
         </Link>
       </PageHead>
 

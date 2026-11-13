@@ -45,6 +45,7 @@ async function runJob(request: APIRequestContext, ref: string) {
 
 test("Dump: the third card, one video, size and free space, then Review: thumbnails, privacy, edit, approve", async ({ page }) => {
   await page.goto("/dump");
+  await page.locator("[data-more-options] > summary").click();
   const card = page.getByRole("radio", { name: /A full video for YouTube/ });
   await expect(card).toHaveAttribute("aria-checked", "false");
   await page.getByRole("button", { name: 'What does "A full video for YouTube" mean?' }).click();
@@ -60,7 +61,7 @@ test("Dump: the third card, one video, size and free space, then Review: thumbna
   await expect(page.getByText("Uploaded")).toBeVisible({ timeout: 20_000 });
   await expect(page.locator("[data-space-line]")).toHaveText(/^This video: 1 MB · free space left: [\d.]+ (GB|MB) of 10 GB$/);
   const button = page.locator("[data-dump-button]");
-  await expect(button).toHaveText("Dump 1 full video");
+  await expect(button).toHaveText("Send 1 full video");
   const res = page.waitForResponse((r) => /\/api\/dumps\/[^/]+\/dump$/.test(r.url()));
   await button.click();
   expect((await res).ok()).toBe(true);

@@ -11,7 +11,7 @@ keywords: caption, hook, hashtags, text, words
 ![Step 1](/help/screenshots/edit-a-caption-1.png)
 <!-- target: [data-clip-id="demo_new_3"] >> text=Edit caption & hook -->
 
-In **Review**, under the clip, tap **Edit caption & hook**.
+In **New posts to look at**, under the clip, tap **Edit caption & hook**.
 
 ## Change the hook
 

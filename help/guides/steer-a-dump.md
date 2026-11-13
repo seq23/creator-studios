@@ -12,15 +12,15 @@ Leave everything on **Surprise me** and the cutter picks a mix and tells you wha
 ## How should we cut this?
 
 ![Step 1](/help/screenshots/steer-a-dump-1.png)
-<!-- click: [data-door="new"] -->
+<!-- click: [data-more-options] > summary -->
 <!-- target: .steer-modes -->
 
-After you pick your videos, **How should we cut this?** starts on **Surprise me**.
+On **Add**, open **More options**. **How should we cut this?** starts on **Surprise me**. You never have to change it.
 
 ## Tap a choice to steer
 
 ![Step 2](/help/screenshots/steer-a-dump-2.png)
-<!-- click: [data-door="new"] -->
+<!-- click: [data-more-options] > summary -->
 <!-- target: .steer-group >> nth=0 -->
 
 Tap a look, music, pace or length. If your note says something different, your note wins, and the screen tells you so before anything is made.
@@ -29,7 +29,6 @@ Tap a look, music, pace or length. If your note says something different, your n
 
 ![Step 3](/help/screenshots/steer-a-dump-3.png)
 <!-- fill: #notes => All 2x4 grids, no music, keep them short -->
-<!-- click: [data-door="new"] -->
 <!-- target: #notes -->
 
 Type it in the note, like "all 2x4 grids, no music, keep them short".
@@ -38,7 +37,6 @@ Type it in the note, like "all 2x4 grids, no music, keep them short".
 
 ![Step 4](/help/screenshots/steer-a-dump-4.png)
 <!-- fill: #notes => All 2x4 grids, no music, keep them short -->
-<!-- click: [data-door="new"] -->
 <!-- target: [data-understood] -->
 
 Above the button there is always one line, like **I'll make about 4 posts: short, no music.** If it couldn't use part of your note, it says which part, in your words. Not right? Tap **Fewer**, **More**, **Just one**, **No words on screen** or **Instagram only**, or change your note.
@@ -46,10 +44,10 @@ Above the button there is always one line, like **I'll make about 4 posts: short
 ## Voice over for this dump
 
 ![Step 5](/help/screenshots/steer-a-dump-5.png)
-<!-- click: [data-door="new"] -->
+<!-- click: [data-more-options] > summary -->
 <!-- target: [data-voice-hint] -->
 
-**Voice over** decides for this dump: on quiet clips (your setting, marked), none, or let me pick in Review. The line under it says what will happen.
+Under **More options**, **Voice over** decides for this batch: on quiet clips (your setting, marked), none, or let me pick in New posts to look at. The line under it says what will happen.
 
 ## See what was tried
 

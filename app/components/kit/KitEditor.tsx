@@ -336,7 +336,7 @@ export function KitEditor() {
           Recent work: pick 3 to 6 clips
         </h2>
         {view.clips.length === 0 ? (
-          <p className="soft">Approve some clips in Review first; your best ones show up here to pick from.</p>
+          <p className="soft">Approve some clips in New posts to look at first; your best ones show up here to pick from.</p>
         ) : (
           <div className="kit-pick" role="group" aria-label="Pick 3 to 6 clips">
             {view.clips.map((c) => {

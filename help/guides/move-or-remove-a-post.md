@@ -11,7 +11,7 @@ keywords: move, reschedule, remove, delete post, swap, calendar, change day
 ![Step 1](/help/screenshots/move-or-remove-a-post-1.png)
 <!-- target: [data-post="demo_post_h4"] -->
 
-Open **Calendar**. Every post that is coming is listed, soonest first. Tap **Open ›** on the one you want to change.
+Open **Posts**. Every post that is coming is listed, soonest first. Tap **Open ›** on the one you want to change.
 
 ## Move it to another day
 

@@ -1,4 +1,4 @@
-// "Edit in CapCut" on a clip in Review (docs/EDITORS.md): how the owner uses CapCut (or InShot, or
+// "Edit in CapCut" on a clip in New posts to look at (docs/EDITORS.md): how the owner uses CapCut (or InShot, or
 // any editing app) instead of the built-in editor. CapCut has no API and no published app link, so:
 //   1. Save the clip: on the phone the share sheet (pick CapCut there), else a download
 //   2. Edit it in the app, export 9:16

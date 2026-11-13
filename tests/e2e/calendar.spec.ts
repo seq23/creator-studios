@@ -82,7 +82,7 @@ test.describe("calendar and the hourly Buffer sync", () => {
     await reset(page);
     await page.goto("/calendar");
     await expect(page.getByRole("heading", { name: "No approved clips yet" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Go to Review" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Look at new posts" })).toBeVisible();
     const r = await page.request.post("/api/posts/plan", { data: {} });
     expect(r.status()).toBe(409);
     expect((await r.json()).fix_guide).toBe("review-and-approve-clips");

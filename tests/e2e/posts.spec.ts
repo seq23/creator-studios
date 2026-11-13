@@ -267,7 +267,7 @@ test("the Rejected bin: reject, bring back, delete for good (asked on the page),
 
   // Bring back: the reel waits for her OK again.
   await reelRow.getByRole("button", { name: "Bring back ›" }).click();
-  await expect(page.locator(".toast").filter({ hasText: "Brought back. It is waiting for your OK in Review." }).first()).toBeVisible();
+  await expect(page.locator(".toast").filter({ hasText: "Brought back. It is waiting for your OK in New posts to look at." }).first()).toBeVisible();
   await expect(reelRow).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Rejected bin · 1 post");
   expect(clipIds("draft")).toContain(first);

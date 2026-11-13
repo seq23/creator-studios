@@ -13,7 +13,7 @@ Every clip is made in a **look**: its captions, its layout and a little movement
 ![Step 1](/help/screenshots/looks-and-styles-1.png)
 <!-- target: [data-clip-id="demo_new_1"] .look-chip -->
 
-In **Review**, each clip says **Look:** and its name.
+In **New posts to look at**, each clip says **Look:** and its name.
 
 ## Tap Change look
 

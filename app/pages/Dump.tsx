@@ -1,5 +1,7 @@
-// Dump (section 7): three doors (new videos, old posts, a full video for YouTube), drop files,
-// notes, the Dump button, progress, recent dumps.
+// Add photos and videos (owner, 13 Nov 2026: "Photos and Dump become one"). One button takes photos
+// and videos together and the studio picks the kind for her (new footage); one optional note; the
+// line said back; "Make my posts". Old posts to reuse, a full video for YouTube, the voice notes and
+// every cutting choice are all still here, under "More options".
 // Phone-first: "Choose from camera roll", many files at once, resumable chunked uploads.
 import { NicheBriefLine } from "../components/NicheBriefLine";
 import { LooksLikeLine } from "../components/LooksLikeLine";
@@ -41,7 +43,7 @@ const DOORS: Record<Door, { title: string; line: string; hint: string; picked: s
   youtube: {
     title: "A full video for YouTube",
     line: "We post it whole, not cut up.",
-    hint: "Pick this for one long video that goes on YouTube as it is: no cutting, no vertical crop. We write the title, description, chapters and tags from what you say, and give you three thumbnails to pick from. You approve it in Review. Vertical and 3 minutes or less: it posts through Buffer. Longer or landscape: you upload it yourself in two taps, because YouTube only lets apps post Shorts.",
+    hint: "Pick this for one long video that goes on YouTube as it is: no cutting, no vertical crop. We write the title, description, chapters and tags from what you say, and give you three thumbnails to pick from. You approve it in New posts to look at. Vertical and 3 minutes or less: it posts through Buffer. Longer or landscape: you upload it yourself in two taps, because YouTube only lets apps post Shorts.",
     picked: "A full video for YouTube",
     noun: ["full video", "full videos"],
   },
@@ -61,7 +63,8 @@ export function Dump() {
   const { id: routeId } = useParams();
   const nav = useNavigate();
   const toast = useToast();
-  const [door, setDoor] = useState<Door | null>(null);
+  const [door, setDoor] = useState<Door | null>("new");
+  const [moreOpen, setMoreOpen] = useState(false);
   const [hintOpen, setHintOpen] = useState<Door | null>(null);
   const [steer, setSteer] = useState<SteerControls>({});
   // What the studio says back before she sends (always one line), with her one-tap fixes.
@@ -84,7 +87,7 @@ export function Dump() {
   const [over, setOver] = useState(false);
   const [sending, setSending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  // Your dumps (paged, searchable, archivable: app/components/DumpHistory.tsx) reloads when this changes.
+  // What you added (paged, searchable, archivable: app/components/DumpHistory.tsx) reloads when this changes.
   const [historyKey, setHistoryKey] = useState(0);
   // Free space before every upload (day 358): every file counted, the free 10 GB.
   const storage = useLoad(() => get<{ free: number; line: string; light: "green" | "yellow" | "red" }>("/api/uploads/storage"), [dumpId]);
@@ -129,12 +132,12 @@ export function Dump() {
   async function sendPhotos(photos: File[]) {
     try {
       const pack = await post<{ id: string }>("/api/photos/packs", { note: "" });
-      setPhotoNote(`Uploading ${plural(photos.length, "photo")} to Photos…`);
+      setPhotoNote(`Uploading ${plural(photos.length, "photo")}…`);
       for (const f of photos.slice(0, PACK_MAX_PHOTOS)) await uploadFile(f, "photo", pack.id, () => undefined);
-      setPhotoNote(`${plural(photos.length, "photo")} saved in Photos. Open Photos and tap “Make my posts from these photos”.`);
+      setPhotoNote(`${plural(photos.length, "photo")} saved as a photo set. Open it and tap “Make my posts from these photos”.`);
     } catch (e) {
       setPhotoNote(null);
-      toast.bad(e, "The photos did not upload. Try again on Photos.");
+      toast.bad(e, "The photos did not upload. Try again.");
     }
   }
 
@@ -239,7 +242,7 @@ export function Dump() {
     try {
       await patch(`/api/dumps/${dumpId}`, { notes, steer, understood, voice_notes: voiceNotes });
       await post(`/api/dumps/${dumpId}/dump`);
-      toast.ok("Dumped. We’ll email you when the clips are ready to review.");
+      toast.ok("Got it. We’ll email you when your posts are ready to look at.");
       setLocal([]);
       reloadCurrent();
       setHistoryKey((n) => n + 1);
@@ -258,7 +261,8 @@ export function Dump() {
     setDumpId(null);
     setLocal([]);
     setNotes("");
-    setDoor(null);
+    setDoor("new");
+    setMoreOpen(false);
     setSteer({});
     setUnderstood(null);
     nav("/dump", { replace: true });
@@ -281,20 +285,20 @@ export function Dump() {
 
   return (
     <div className="page">
-      <PageHead title="Dump videos" lede="Drop in your footage. We cut it into short clips and email you when they’re ready to approve.">
+      <PageHead title="Add photos and videos" lede="Pick them from your phone, photos and videos together. The studio makes your posts and emails you when they’re ready to look at.">
         {dump && !editable ? (
           dump.status === "ready" ? (
             <>
               <button className="btn quiet" onClick={startNew}>
-                Start a new dump
+                Add more
               </button>
               <Link to="/review" className="btn" data-primary>
-                Review the clips
+                Look at your new posts
               </Link>
             </>
           ) : (
             <button className="btn" data-primary onClick={startNew}>
-              Start a new dump
+              Add more
             </button>
           )
         ) : null}
@@ -310,42 +314,6 @@ export function Dump() {
           ) : null}
           {editable ? (
             <>
-              <div className="door-pick" role="radiogroup" aria-label="Which videos are these?">
-                {(["new", "recycle", "youtube"] as Door[]).map((d) => (
-                  <div key={d} className="door-wrap">
-                    <button type="button" role="radio" aria-checked={door === d} className={`door-card${door === d ? " on" : ""}`} data-door={d} onClick={() => pickDoor(d)}>
-                      <span className="door-icon" aria-hidden="true">
-                        <Icon name={door === d ? "check" : DOOR_ICON[d]} />
-                      </span>
-                      <span className="door-text">
-                        <span className="door-title">{DOORS[d].title}</span>
-                        <span className="hint">{DOORS[d].line}</span>
-                      </span>
-                    </button>
-                    <button type="button" className="door-hint-btn" aria-label={`What does "${DOORS[d].title}" mean?`} aria-expanded={hintOpen === d} aria-controls={`door-hint-${d}`} onClick={() => setHintOpen((h) => (h === d ? null : d))}>
-                      ?
-                    </button>
-                    {hintOpen === d ? (
-                      <div id={`door-hint-${d}`} className="door-hint" role="note">
-                        {DOORS[d].hint}{" "}
-                        <button type="button" className="link-btn" onClick={() => setHintOpen(null)}>
-                          Got it
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-              <p className="door-picked" aria-live="polite" data-door-picked>
-                {door ? (
-                  <>
-                    <Icon name="check" size="sm" /> You picked: {DOORS[door].picked}
-                  </>
-                ) : (
-                  <>First, tap which videos these are.</>
-                )}
-              </p>
-
               <div
                 className={`dropzone ${over ? "over" : ""}`}
                 aria-disabled={!door}
@@ -357,31 +325,30 @@ export function Dump() {
                 onDrop={(e) => {
                   e.preventDefault();
                   setOver(false);
-                  if (door) addFiles(e.dataTransfer.files);
-                  else toast.bad(new Error("First tap which videos these are, above."));
+                  addFiles(e.dataTransfer.files);
                 }}
-                onClick={() => (door ? inputRef.current?.click() : toast.bad(new Error("First tap which videos these are, above.")))}
+                onClick={() => inputRef.current?.click()}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => (e.key === "Enter" && door ? inputRef.current?.click() : undefined)}
               >
-                <div className="dropzone-title">{door === "youtube" ? "Drop your video here" : door === "new" ? "Drop videos and photos here" : "Drop videos here"}</div>
+                <div className="dropzone-title">{door === "youtube" ? "Your full video" : door === "new" ? "Photos and videos together" : "Videos you already posted"}</div>
                 <div className="hint">
-                  {door === "youtube" ? "one video, landscape or any shape · it goes up whole" : door === "new" ? "from your phone or computer · full quality, never shrunk · any size · many at once" : "or choose from your camera roll · any size · many at once"}
+                  {door === "youtube" ? "one video, landscape or any shape · it goes up whole" : door === "new" ? "any amount · full quality, never shrunk" : "any size · many at once"}
                 </div>
                 {door === "new" ? <div className="hint">If the upload stops, choose the same files again: it carries on where it stopped.</div> : null}
                 {hasVideos ? (
                   <span className="btn quiet dump-choose">
-                    <Icon name="plus" size="sm" /> {door === "new" ? "Choose more videos and photos" : "Choose videos"}
+                    <Icon name="plus" size="sm" /> {door === "new" ? "Choose more from my phone" : "Choose more videos"}
                   </span>
                 ) : (
-                  <span className="btn dump-choose" data-primary>
-                    {door === "new" ? "Choose videos and photos" : "Choose videos"}
+                  <span className="btn big dump-choose" data-primary data-add-choose>
+                    {door === "new" ? "Choose from my phone" : "Choose videos"}
                   </span>
                 )}
                 {photoNote && (
                   <Notice tone="ok">
-                    {photoNote} <Link to="/photos">Open Photos →</Link>
+                    {photoNote} <Link to="/photos">See your photo sets ›</Link>
                   </Notice>
                 )}
                 <input ref={inputRef} type="file" accept="video/*,image/jpeg,image/png,image/heic,image/heif,.heic,.heif" multiple={door !== "youtube"} hidden onChange={(e) => e.target.files && addFiles(e.target.files)} />
@@ -395,21 +362,21 @@ export function Dump() {
                   <span data-waiting-line>{dump.error_summary}</span>
                 ) : dump.status === "queued" || dump.status === "cutting" ? (
                   <>
-                    <strong>Cutting…</strong> {dump.progress ? `${dump.progress.step} (${dump.progress.done}/${dump.progress.total})` : "usually 10 to 30 minutes"}. We’ll email you when the clips are ready. You can leave this page.
+                    <strong>Making your posts…</strong> {dump.progress ? `${dump.progress.step} (${dump.progress.done}/${dump.progress.total})` : "usually 10 to 30 minutes"}. We’ll email you when they’re ready. You can leave this page.
                   </>
                 ) : dump.status === "ready" ? (
                   <>
-                    <strong>{plural(dump.clips_made, "clip")} ready.</strong> <Link to="/review">Review them now</Link> · <Link to={`/dump/${dump.id}/files`} data-files-link>See what you dumped</Link>
+                    <strong>{plural(dump.clips_made, "post")} ready.</strong> <Link to="/review">Look at them now</Link> · <Link to={`/dump/${dump.id}/files`} data-files-link>See what you added</Link>
                     {dump.tried ? <span className="tried" data-tried> {dump.tried}</span> : null}
                     {dump.door !== "youtube" ? <LooksLikeLine dumpId={dump.id} looksLike={dump.looks_like} canChange onChanged={() => current.reload()} /> : null}
                   </>
                 ) : dump.status === "reviewed" ? (
                   <>
-                    This dump has been reviewed. <Link to={`/dump/${dump.id}/files`} data-files-link>See what you dumped</Link>
+                    You have looked at these posts. <Link to={`/dump/${dump.id}/files`} data-files-link>See what you added</Link>
                   </>
                 ) : (
                   <>
-                    <strong>Something went wrong cutting this dump.</strong> {dump.error_summary ?? ""} <Link to="/help/clips-look-wrong">What to do</Link>
+                    <strong>Something went wrong making these posts.</strong> {dump.error_summary ?? ""} <Link to="/help/clips-look-wrong">What to do</Link>
                   </>
                 )}
               </span>
@@ -458,26 +425,81 @@ export function Dump() {
           {editable && door === "youtube" ? (
             <div className="row wrap">
               <button className="btn big" data-primary={hasVideos ? true : undefined} disabled={sending || uploading || uploadedCount !== 1 || space.data?.fits === false} onClick={send} data-dump-button>
-                {sending ? "Sending…" : "Dump 1 full video"}
+                {sending ? "Sending…" : "Send 1 full video"}
               </button>
-              <span className="hint">{uploadedCount > 1 ? "A full video is one video. Remove the others, or dump them as new videos." : "No cutting, no vertical crop: we draft the title, description, chapters, tags and three thumbnails. We'll email you when it's ready to approve."}</span>
+              <span className="hint">{uploadedCount > 1 ? "A full video is one video. Remove the others, or add them as new videos." : "No cutting, no vertical crop: we draft the title, description, chapters, tags and three thumbnails. We'll email you when it's ready to approve."}</span>
             </div>
           ) : null}
 
           {editable && door !== "youtube" ? (
             <>
               <div className="field">
-                <label htmlFor="notes">Notes for this dump</label>
+                <label htmlFor="notes">Anything I should know? (optional)</label>
                 <textarea
                   id="notes"
                   className="textarea"
                   rows={3}
                   value={notes}
                   onChange={(e) => saveNotes(e.target.value)}
-                  placeholder="e.g. Trip weekend, lean funny. All 2x4 grids, no music, keep them short. Don't use the part where I cough."
+                  placeholder="e.g. Just one reel of the balloon arch going up, not too long."
                 />
-                <div className="hint">You can ask for looks (like a 2x4 grid), music, pace, length, how many clips, captions, platforms, and moments to keep in or leave out.</div>
+                <div className="hint">Say it in your own words: how many, how long, what to show, what to leave out. Leave it empty and the studio decides.</div>
               </div>
+              <UnderstoodNote understood={understood} onFix={tapFix} fixed={understood?.fixed} />
+              <div className="row wrap">
+                <button className="btn big" data-primary={hasVideos && door ? true : undefined} disabled={!door || sending || uploading || uploadedCount === 0} onClick={send} data-dump-button>
+                  {sending ? "Sending…" : door === "recycle" ? `Reuse ${uploadedCount || ""} ${uploadedCount === 1 ? DOORS.recycle.noun[0] : DOORS.recycle.noun[1]}`.replace("  ", " ") : "Make my posts"}
+                </button>
+                <span className="hint">We’ll email you when your posts are ready to look at.</span>
+                {storage.data ? (
+                  <span className={`hint dump-space${storage.data.light !== "green" ? " warn" : ""}`} data-free-space>
+                    Storage: {storage.data.line}.{storage.data.light !== "green" ? <> <Link to="/settings#storage">What takes the space</Link></> : null}
+                  </span>
+                ) : null}
+              </div>
+            </>
+          ) : null}
+
+          {editable ? (
+            <details className="more-options" data-more-options open={moreOpen || door !== "new"} onToggle={(e) => setMoreOpen((e.target as HTMLDetailsElement).open)}>
+              <summary>More options ▾</summary>
+              <p className="hint">You never have to open this. Everything here is already set to “the studio decides”.</p>
+              <h3 className="more-h">What are these?</h3>
+              <div className="door-pick" role="radiogroup" aria-label="What are these?">
+                {(["new", "recycle", "youtube"] as Door[]).map((d) => (
+                  <div key={d} className="door-wrap">
+                    <button type="button" role="radio" aria-checked={door === d} className={`door-card${door === d ? " on" : ""}`} data-door={d} onClick={() => pickDoor(d)}>
+                      <span className="door-icon" aria-hidden="true">
+                        <Icon name={door === d ? "check" : DOOR_ICON[d]} />
+                      </span>
+                      <span className="door-text">
+                        <span className="door-title">{DOORS[d].title}</span>
+                        <span className="hint">{DOORS[d].line}</span>
+                      </span>
+                    </button>
+                    <button type="button" className="door-hint-btn" aria-label={`What does "${DOORS[d].title}" mean?`} aria-expanded={hintOpen === d} aria-controls={`door-hint-${d}`} onClick={() => setHintOpen((h) => (h === d ? null : d))}>
+                      ?
+                    </button>
+                    {hintOpen === d ? (
+                      <div id={`door-hint-${d}`} className="door-hint" role="note">
+                        {DOORS[d].hint}{" "}
+                        <button type="button" className="link-btn" onClick={() => setHintOpen(null)}>
+                          Got it
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+              <p className="door-picked" aria-live="polite" data-door-picked>
+                {door ? (
+                  <>
+                    <Icon name="check" size="sm" /> You picked: {DOORS[door].picked}
+                  </>
+                ) : null}
+              </p>
+              {door !== "youtube" ? (
+                <>
               <div className="field" data-voice-notes>
                 <label htmlFor="voice-notes">Notes for the voice (you can leave this empty)</label>
                 <textarea
@@ -499,19 +521,12 @@ export function Dump() {
                 voice={{ choice: voiceState.data?.auto === "off" ? "none" : "quiet", hasVoice: !!(voiceState.data?.ready ?? voiceState.data?.hasSample) }}
                 camera={settingsState.data?.sound.camera ?? "keep"}
               />
-              <UnderstoodNote understood={understood} onFix={tapFix} fixed={understood?.fixed} />
-              <div className="row wrap">
-                <button className="btn big" data-primary={hasVideos && door ? true : undefined} disabled={!door || sending || uploading || uploadedCount === 0} onClick={send} data-dump-button>
-                  {sending ? "Sending…" : door ? `Dump ${uploadedCount || ""} ${uploadedCount === 1 ? DOORS[door].noun[0] : DOORS[door].noun[1]}`.replace("  ", " ") : "Dump"}
-                </button>
-                <span className="hint">We’ll email you when the clips are ready to review.</span>
-                {storage.data ? (
-                  <span className={`hint dump-space${storage.data.light !== "green" ? " warn" : ""}`} data-free-space>
-                    Storage: {storage.data.line}.{storage.data.light !== "green" ? <> <Link to="/settings#storage">What takes the space</Link></> : null}
-                  </span>
-                ) : null}
-              </div>
-            </>
+                </>
+              ) : null}
+              <p className="hint">
+                Have a before and after photo, or want to see your photo sets? <Link to="/photos">Open photo sets ›</Link>
+              </p>
+            </details>
           ) : null}
         </div>
 

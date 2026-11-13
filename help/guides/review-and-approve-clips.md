@@ -6,12 +6,12 @@ last_checked: 2026-09-26
 keywords: approve, review, clips, reject, yes, no
 ---
 
-## Open Review
+## Open New posts to look at
 
 ![Step 1](/help/screenshots/review-and-approve-clips-1.png)
 <!-- target: .review-tab.on -->
 
-Open **Review**. The number beside **New** is how many clips are waiting.
+Open **New posts to look at**. The number beside **New** is how many clips are waiting.
 
 ## Watch a clip
 
@@ -55,7 +55,7 @@ Happy with everything? Tap **Approve all** at the top, or tick a few clips and u
 ![Step 7](/help/screenshots/review-and-approve-clips-7.png)
 <!-- target: .review-tab >> nth=2 -->
 
-Open **Rejected** to bring a clip back. Rejected clips stay until you delete them. Everything you said no to, photo posts too, waits in the **Rejected bin** on the Calendar, where you can bring one back or delete it for good.
+Open **Rejected** to bring a clip back. Rejected clips stay until you delete them. Everything you said no to, photo posts too, waits in the **Rejected bin** on Posts, where you can bring one back or delete it for good.
 
 ## See the lower-scoring clips
 

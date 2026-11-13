@@ -30,7 +30,7 @@ Each kind of file says how long it is kept. Posted clips: 30 days after posting 
 <!-- route: /settings -->
 <!-- target: [data-storage-kind="clips_drafts"] -->
 
-A clip you never approved is cleared 60 days after it was made. A week before, Home says so with **Keep them** (60 more days) and each clip in Review shows its date.
+A clip you never approved is cleared 60 days after it was made. A week before, Home says so with **Keep them** (60 more days) and each clip in New posts to look at shows its date.
 
 ## Measure it now
 
@@ -46,7 +46,7 @@ The dashboard measures every day on its own. **Measure now** checks this minute,
 <!-- route: /dump -->
 <!-- target: [data-free-space] -->
 
-The Dump screen shows how much space is free before you upload.
+The Add screen shows how much space is free before you upload.
 
 ## Did this work?
 

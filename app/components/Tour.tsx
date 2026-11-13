@@ -1,5 +1,5 @@
 // First-login tour (section 12c): short pop-ups pointing at each part of the menu as it is now
-// (Dump, Review with its Looks, Calendar, Stats, Voice overs, Deals, the Media kit, Help), each
+// (Add, New posts to look at, Posts, Stats, Voice overs, Deals, the Media kit, Help), each
 // with a "Show me how" link to its picture guide. The stops are checked by the validator
 // help-pictures: every `to` is a menu item and every `guide` is a real guide. Shown once on Home (localStorage flag "ss-tour-done"); "Replay the tour" in Help
 // clears the flag and opens Home. It never blocks the page: no backdrop, the rest of the screen
@@ -10,9 +10,9 @@ import { LAST_SCREEN_KEY, TOUR_KEY } from "../lib/guides";
 import "../styles/tour.css";
 
 export const TOUR_STEPS: { to: string; title: string; text: string; guide: string }[] = [
-  { to: "/dump", title: "Dump", text: "Your footage goes here. Pick your videos, add a note, and press Dump. We cut them into short clips.", guide: "dump-new-footage" },
-  { to: "/review", title: "Review", text: "New clips wait here. Approve the ones you like; nothing posts without your yes. Change look gives any clip a different style.", guide: "review-and-approve-clips" },
-  { to: "/calendar", title: "Calendar", text: "Approved clips fill your week on their own and Buffer posts them. Tap a post to move it.", guide: "how-posting-works" },
+  { to: "/dump", title: "Add", text: "Your photos and videos go here, together. Pick them from your phone and tap Make my posts. The studio does the rest.", guide: "dump-new-footage" },
+  { to: "/review", title: "New posts to look at", text: "New posts wait here. Say yes to the ones you like; nothing posts without your yes. Change look gives any post a different style.", guide: "review-and-approve-clips" },
+  { to: "/calendar", title: "Posts", text: "Every post that is coming, with its picture, words, day and place. They fill your week on their own. Tap a post to move it.", guide: "how-posting-works" },
   { to: "/stats", title: "Stats", text: "Your followers, best videos and best times. No sign-in needed.", guide: "read-your-stats" },
   { to: "/voice", title: "Voice overs", text: "Optional: record your voice once and add narration to clips in your own voice.", guide: "record-your-voice" },
   { to: "/deals", title: "Deals", text: "Brands with money for creators like you, the next email for every deal written and ready. You send it from Gmail.", guide: "find-brands" },
@@ -31,13 +31,15 @@ function tourDone(): boolean {
 function visibleLink(to: string): HTMLElement | null {
   const links = Array.from(document.querySelectorAll<HTMLElement>(`.nav a[href="${to}"], .tabbar a[href="${to}"]`));
   const shown = (a: HTMLElement) => a.getClientRects().length > 0 && getComputedStyle(a).visibility !== "hidden";
-  // On a phone, screens outside the four daily tabs live behind the Menu tab: point at that.
+  // On a phone, screens outside the four daily tabs live behind the More tab: point at that.
   const menu = document.querySelector<HTMLElement>(".tabbar [data-menu]");
   return links.find(shown) ?? (menu && shown(menu) ? menu : null);
 }
 
 interface Place {
   top: number;
+  /** "above" cards hang from their bottom edge, so a long text never grows down over the tab bar. */
+  bottom?: number;
   left: number;
   side: "right" | "above" | "center";
   ring: DOMRect | null;
@@ -84,7 +86,7 @@ export function Tour() {
     } else {
       // phone tab bar: above it, arrow pointing down at the tab
       const left = Math.min(window.innerWidth - card.w - 16, Math.max(16, r.left + r.width / 2 - card.w / 2));
-      setPlace({ top: Math.max(16, r.top - card.h - 18), left, side: "above", ring: r });
+      setPlace({ top: 0, bottom: window.innerHeight - r.top + 18, left, side: "above", ring: r });
     }
   }, [step]);
 
@@ -115,7 +117,7 @@ export function Tour() {
           style={{ top: place.ring.top - 4, left: place.ring.left - 4, width: place.ring.width + 8, height: place.ring.height + 8 }}
         />
       ) : null}
-      <div className={`tour-card ${place.side}`} role="dialog" aria-modal="false" aria-label="Quick tour" style={{ top: place.top, left: place.left }}>
+      <div className={`tour-card ${place.side}`} role="dialog" aria-modal="false" aria-label="Quick tour" style={place.bottom !== undefined ? { bottom: place.bottom, left: place.left } : { top: place.top, left: place.left }}>
         {place.side !== "center" ? <span className="tour-arrow" aria-hidden="true" style={arrowLeft !== undefined ? { left: arrowLeft } : undefined} /> : null}
         <div className="tour-count">
           {step + 1} of {TOUR_STEPS.length}

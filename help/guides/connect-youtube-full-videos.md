@@ -7,7 +7,7 @@ keywords: connect youtube, full video, long video, upload to youtube, my channel
 fix: reconnect-youtube
 ---
 
-Do this once. Your full videos then upload straight to your own YouTube channel with the thumbnail, title, description, chapters and tags you approved, at the time on your Calendar. Your Shorts, TikToks and Reels keep going through Buffer.
+Do this once. Your full videos then upload straight to your own YouTube channel with the thumbnail, title, description, chapters and tags you approved, at the time on Posts. Your Shorts, TikToks and Reels keep going through Buffer.
 
 ## Tap Connect YouTube (full videos)
 

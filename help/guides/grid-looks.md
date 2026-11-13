@@ -51,7 +51,7 @@ One big moment on top and three small ones underneath.
 <!-- click: [data-look-option="grid_four"] -->
 <!-- target: [data-testid="mosaic"] -->
 
-In **Review**, tap **Change look** on a grid clip. Tap a cell, then choose what it shows and which cell plays its sound. Tap **Make it in this look**.
+In **New posts to look at**, tap **Change look** on a grid clip. Tap a cell, then choose what it shows and which cell plays its sound. Tap **Make it in this look**.
 
 ## Did this work?
 

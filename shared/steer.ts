@@ -30,7 +30,7 @@ export const MAX_COUNT = 30;
  */
 export const VOICE_CHOICES = ["quiet", "none", "pick"] as const;
 export type VoiceChoice = (typeof VOICE_CHOICES)[number];
-export const VOICE_LABEL: Record<VoiceChoice, string> = { quiet: "On quiet clips", none: "None for this dump", pick: "Let me pick in Review" };
+export const VOICE_LABEL: Record<VoiceChoice, string> = { quiet: "On quiet clips", none: "None this time", pick: "Let me pick later" };
 
 /** Music: "none", "any" (her songs, one per clip in turn; the studio's built-in music when she has none) or one song ("track:<id>"). */
 export type MusicChoice = "none" | "any" | `track:${string}`;

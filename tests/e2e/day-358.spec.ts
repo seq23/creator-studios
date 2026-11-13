@@ -115,7 +115,7 @@ test("Dump: 20 at a time of 50, search, archive with Undo, Show archived and Res
   const failed = Number(sql<{ n: number }>("SELECT COUNT(*) AS n FROM dumps WHERE archived_at IS NULL AND status = 'failed'")[0].n);
   expect(total).toBeGreaterThanOrEqual(50);
   await page.goto("/dump");
-  const history = page.getByRole("complementary", { name: "Your dumps" });
+  const history = page.getByRole("complementary", { name: "What you added" });
   await expect(history.locator("[data-count]")).toHaveText(`Showing 20 of ${total} dumps`);
   await history.getByRole("button", { name: "Show more" }).click();
   await expect(history.locator("[data-count]")).toHaveText(`Showing 40 of ${total} dumps`);
@@ -133,8 +133,8 @@ test("Dump: 20 at a time of 50, search, archive with Undo, Show archived and Res
   await expect(history.locator(`[data-dump-row="${id}"]`)).toHaveCount(1);
   await row.getByRole("button", { name: /Archive the dump from/ }).click();
   await history.getByRole("button", { name: /Show archived/ }).click();
-  await expect(page.getByRole("heading", { name: "Archived dumps" })).toBeVisible();
-  const archived = page.getByRole("complementary", { name: "Your dumps" }).locator(`[data-dump-row="${id}"]`);
+  await expect(page.getByRole("heading", { name: "Archived" })).toBeVisible();
+  const archived = page.getByRole("complementary", { name: "What you added" }).locator(`[data-dump-row="${id}"]`);
   await archived.getByRole("button", { name: "Restore" }).click();
   await expect(archived).toHaveCount(0);
   expect(sql<{ a: string | null }>(`SELECT archived_at AS a FROM dumps WHERE id = '${id}'`)[0].a).toBeNull();

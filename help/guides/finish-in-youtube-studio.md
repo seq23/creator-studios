@@ -23,7 +23,7 @@ After it posts, Home says **is up. Add its thumbnail and tags** with the links y
 <!-- route: /review?tab=approved -->
 <!-- target: [data-clip-id="demo_full_2"] [data-finish-studio] .btn-row -->
 
-In **Review → Approved**, tap **Download thumbnail** and **Copy tags**, then **Open YouTube Studio**.
+In **New posts to look at → Approved**, tap **Download thumbnail** and **Copy tags**, then **Open YouTube Studio**.
 
 ## Set them in YouTube Studio
 
@@ -38,7 +38,7 @@ On the video's page, upload the thumbnail you downloaded, paste the tags, and ta
 <!-- route: /review?tab=approved -->
 <!-- target: [data-clip-id="demo_full_2"] [data-finish-studio] button:has-text("I did it") -->
 
-Back in Review, tap **I did it** and the Home card goes away.
+Back in New posts to look at, tap **I did it** and the Home card goes away.
 
 ## Did this work?
 

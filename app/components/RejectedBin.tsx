@@ -33,7 +33,7 @@ export function RejectedBin() {
       bin.reload();
     }
   }
-  const bringBack = (it: BinItem) => run(() => post(`/api/bin/${it.source}/${it.id}/restore`), () => (it.source === "clip" ? "Brought back. It is waiting for your OK in Review." : "Brought back. It is on your Posts list again."));
+  const bringBack = (it: BinItem) => run(() => post(`/api/bin/${it.source}/${it.id}/restore`), () => (it.source === "clip" ? "Brought back. It is waiting for your OK in New posts to look at." : "Brought back. It is on your Posts list again."));
   const remove = (it: BinItem) => run(() => del(`/api/bin/${it.source}/${it.id}`), () => "Deleted for good. Your original photos and videos are kept.");
   const empty = () =>
     run(

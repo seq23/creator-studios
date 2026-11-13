@@ -16,7 +16,7 @@ export function SoundCard({ sound, owner, onSave, hasSample = false }: { sound: 
       <h2>Sound</h2>
       <Card>
         <div className="set-label">Camera sound</div>
-        <div className="hint">What happens to the sound your phone recorded. You can change it for one dump on the Dump screen.</div>
+        <div className="hint">What happens to the sound your phone recorded. You can change it for one batch on the Add screen.</div>
         <div className="steer-chips" role="radiogroup" aria-label="Camera sound">
           {CAMERA_SOUNDS.map((m) => (
             <button key={m} type="button" role="radio" aria-checked={sound.camera === m} className={`steer-chip${sound.camera === m ? " on" : ""}`} disabled={!owner} onClick={() => set({ camera: m })}>

@@ -115,7 +115,7 @@ function sentence(s: string) {
 export function Review() {
   const toast = useToast();
   const { refreshCounts } = useApp();
-  // ?tab= opens a tab (Home's "Copy the tags in Review" goes to Approved; day 358 found it ignored).
+  // ?tab= opens a tab (Home's "Copy the tags in New posts to look at" goes to Approved; day 358 found it ignored).
   const [params] = useSearchParams();
   const [tab, setTab] = useState<Tab>(() => (["new", "approved", "rejected"].includes(params.get("tab") ?? "") ? (params.get("tab") as Tab) : "new"));
   const [search, setSearch] = useState(() => params.get("q") ?? "");
@@ -214,7 +214,7 @@ export function Review() {
   }
 
   const approve = (ids: string[]) =>
-    run(() => (ids.length === 1 ? post(`/api/clips/${ids[0]}/approve`) : post("/api/clips/bulk", { action: "approve", ids })), ids.length === 1 ? "Approved. It will go on the Calendar." : `${plural(ids.length, "clip")} approved.`);
+    run(() => (ids.length === 1 ? post(`/api/clips/${ids[0]}/approve`) : post("/api/clips/bulk", { action: "approve", ids })), ids.length === 1 ? "Approved. It will go on Posts." : `${plural(ids.length, "clip")} approved.`);
   // "Wrong words" is not a no: the post stays in New and its words are written again (worker/routes/clips.ts).
   async function reject(ids: string[], reason: string | null) {
     setBusy(true);
@@ -276,7 +276,7 @@ export function Review() {
 
   return (
     <div className="page review-page">
-      <PageHead title="Review clips" lede="Approve the clips you’d post and reject the rest. Nothing posts until you approve it.">
+      <PageHead title="New posts to look at" lede="Say yes to the ones you’d post and no to the rest. Nothing posts until you say yes.">
         {tab === "new" && newIds.length > 0 ? (
           <>
             <button className="btn quiet" disabled={busy} onClick={() => setRejecting(newIds)}>
@@ -340,16 +340,16 @@ export function Review() {
 
       {list.data && visible.length === 0 ? (
         nothingAtAll ? (
-          <Empty title="Nothing to review yet" cta={{ to: "/dump", label: "Dump videos" }} primary>
-            Dump some footage and the clips land here, usually 10 to 30 minutes later. We’ll email you.
+          <Empty title="Nothing to review yet" cta={{ to: "/dump", label: "Add photos and videos" }} primary>
+            Add photos and videos and your posts land here, usually 10 to 30 minutes later. We’ll email you.
           </Empty>
         ) : tab === "new" ? (
-          <Empty title="All caught up" cta={{ to: "/calendar", label: "See the Calendar" }} primary>
+          <Empty title="All caught up" cta={{ to: "/calendar", label: "See your posts" }} primary>
             {counts.hidden && !showHidden ? `Every new clip is reviewed. ${plural(counts.hidden, "clip")} scored lower and are hidden; switch on “Show hidden” to see them.` : "Every new clip is reviewed. Approved clips fill the Calendar."}
           </Empty>
         ) : tab === "approved" ? (
-          <Empty title="No approved clips here" cta={{ to: "/calendar", label: "See the Calendar" }}>
-            Approve clips in New and they wait here until they post. Posts already planned are on the Calendar.
+          <Empty title="No approved clips here" cta={{ to: "/calendar", label: "See your posts" }}>
+            Approve clips in New and they wait here until they post. Posts already planned are on Posts.
           </Empty>
         ) : (
           <Empty title="Nothing rejected">Clips you reject stay here until you delete them, in case you change your mind.</Empty>
