@@ -1,21 +1,18 @@
 // Research Brief (BUILD_PLAN.md section 6).
 //   GET   /api/research            newest brief (truth rules applied) + versions + uploads + job
 //   POST  /api/research/refresh    start the research job (needs a locked Brand Profile)
-//   POST  /api/research/approve    approve the newest draft; the previous approved → superseded
 //   PATCH /api/research            edit the newest draft's sections (truth rules re-applied)
 //   DELETE /api/research/uploads/:id  remove an outside report
 // Outside reports upload through /api/uploads with kind "research_upload".
-// The gate that stops cutting until a brief is approved lives in routes/dumps.ts briefGate().
+// Nothing waits for an approval (owner, 13 Nov 2026): a new brief is put to use the moment it is
+// written (lib/setupWait.ts selfSetup); she reads or changes the one in use here.
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { requireUser } from "../lib/auth";
 import { getConnectionSecret } from "../lib/connections";
 import { parseJson, recordEvent } from "../lib/db";
 import { fail, readJson } from "../lib/http";
-import { nowIso } from "../lib/ids";
-import { log } from "../lib/log";
-import { ensureFirstResearch, startResearch } from "../lib/setupWait";
-import { sendWaitingDumps } from "./dumps";
+import { ensureFirstResearch, selfSetup, startResearch } from "../lib/setupWait";
 import type { BriefBody, BriefSource, BriefView } from "@shared/types";
 import { briefCounts, enforceTruth, shapeProblems, WEB_SKIPPED_SOURCE_ID } from "../domain/brief";
 import { PROFILE_IN_USE } from "../lib/profileInUse";
@@ -43,6 +40,8 @@ const COLS = "version, body, sources, status, approved_at, created_at";
 
 research.get("/", async (c) => {
   await ensureFirstResearch(c.env, c.get("user").email);
+  // A brief written before 13 Nov 2026 and never approved is put to use now: nothing waits for her.
+  await selfSetup(c.env, { lockProfile: false });
   const row = await c.env.DB.prepare(`SELECT ${COLS} FROM research_briefs WHERE status != 'superseded' ORDER BY version DESC LIMIT 1`).first<BriefDb>();
   // Day 358: old briefs are archived (a tap, or the tidy rules at 90 days); "Show archived" lists them.
   const archived = c.req.query("archived") === "1";
@@ -73,25 +72,12 @@ research.post("/refresh", async (c) => {
   return c.json(r.already ? { ok: true, jobId: r.jobId, already: true } : { ok: true, jobId: r.jobId });
 });
 
-research.post("/approve", async (c) => {
-  const draft = await c.env.DB.prepare("SELECT version FROM research_briefs WHERE status = 'draft' ORDER BY version DESC LIMIT 1").first<{ version: number }>();
-  if (!draft) return fail(c, 409, "There is no new draft to approve. Press Refresh research to make one.", "approve-research-brief");
-  const now = nowIso();
-  await c.env.DB.batch([
-    c.env.DB.prepare("UPDATE research_briefs SET status = 'superseded' WHERE status = 'approved'"),
-    c.env.DB.prepare("UPDATE research_briefs SET status = 'approved', approved_at = ? WHERE version = ?").bind(now, draft.version),
-  ]);
-  await recordEvent(c.env.DB, "brief.approved", String(draft.version), {}, c.get("user").email);
-  log.info("research.approved");
-  // Every dump that was waiting for this setup step goes now, through the Dump button's own path.
-  const sent = await sendWaitingDumps(c.env, c.get("user").email);
-  return c.json({ ok: true, version: draft.version, approved_at: now, sent: sent.length });
-});
-
 research.patch("/", async (c) => {
   const body = await readJson<{ body?: unknown }>(c);
-  const draft = await c.env.DB.prepare(`SELECT ${COLS} FROM research_briefs WHERE status = 'draft' ORDER BY version DESC LIMIT 1`).first<BriefDb>();
-  if (!draft) return fail(c, 409, "Only a draft can be edited. Press Refresh research for a new draft.", "approve-research-brief");
+  // She can change the brief in use at any time; her change is used from the next upload on.
+  await selfSetup(c.env, { lockProfile: false });
+  const draft = await c.env.DB.prepare(`SELECT ${COLS} FROM research_briefs WHERE status = 'approved' ORDER BY version DESC LIMIT 1`).first<BriefDb>();
+  if (!draft) return fail(c, 409, "There is no brief to change yet. It is being written for you.", "approve-research-brief");
   const problems = shapeProblems(body?.body);
   if (problems.length) return fail(c, 422, "That edit could not be saved; reload the page and try again.");
   const sources = parseJson<BriefSource[]>(draft.sources, []);

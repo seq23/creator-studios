@@ -207,24 +207,24 @@ const nextMonthLabel = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(), no
 export function monthlyRefreshDecision(i: MonthlyRefreshInput): MonthlyRefreshDecision {
   const next = `Next refresh on ${nextMonthLabel(i.now)}.`;
   if (i.now.getUTCDate() > MONTHLY_REFRESH_LAST_DAY) return { run: false, note: next, light: "green", fix_guide: null };
-  if (!i.hasApproved) return { run: false, note: "No approved brief yet: the first one is made on Research. Monthly refreshes start after it.", light: "green", fix_guide: null };
-  if (!i.profileLocked) return { run: false, note: "The monthly refresh needs a locked Brand Profile.", light: "yellow", fix_guide: "upload-brand-docs" };
-  if (!i.aiReady) return { run: false, note: "The monthly refresh could not start: connect the AI (OpenRouter). Your approved brief stays live.", light: "yellow", fix_guide: "connect-openrouter" };
+  if (!i.hasApproved) return { run: false, note: "No brief yet: the first one is written by itself. Monthly refreshes start after it.", light: "green", fix_guide: null };
+  if (!i.profileLocked) return { run: false, note: "The monthly refresh needs your Brand Profile. Add a few words about you on Client Brain.", light: "yellow", fix_guide: "upload-brand-docs" };
+  if (!i.aiReady) return { run: false, note: "The monthly refresh could not start: connect the AI (OpenRouter). Your current brief stays in use.", light: "yellow", fix_guide: "connect-openrouter" };
   const since = monthStartIso(i.now);
   const thisMonth = i.researchJobs.filter((j) => j.created_at >= since);
-  if (thisMonth.some((j) => j.status !== "failed")) return { run: false, note: `This month's draft is made or on its way. ${next}`, light: "green", fix_guide: null };
-  return { run: true, note: "Monthly refresh started: a new draft is on its way. Your approved brief stays live until you approve it.", light: "green", fix_guide: null };
+  if (thisMonth.some((j) => j.status !== "failed")) return { run: false, note: `This month's brief is made or on its way. ${next}`, light: "green", fix_guide: null };
+  return { run: true, note: "Monthly refresh started: a new brief is on its way. It is used as soon as it is written; you can read or change it on Research.", light: "green", fix_guide: null };
 }
 
 /**
- * Which draft (if any) needs the "New brief draft ready" email: the newest draft, newer than the
- * approved brief, not emailed before. Only when an approved brief exists: that is a refresh, and
- * the email tells her the approved one stays live. `notifiedRefs` are emails_sent.ref_id values.
+ * Which brief (if any) needs the one-line "your brief was updated" email: the brief in use, when it
+ * replaced an earlier one and she was not emailed about it before. Never for the first brief (there
+ * is nothing it changed). `notifiedRefs` are emails_sent.ref_id values. (Owner, 13 Nov 2026: a new
+ * version is used at once and she is told; nothing waits for an approval.)
  */
-export function draftNoticeDue(i: { draftVersion: number | null; approvedVersion: number | null; notifiedRefs: string[] }): string | null {
-  if (i.draftVersion === null || i.approvedVersion === null) return null;
-  if (i.draftVersion <= i.approvedVersion) return null;
-  const ref = briefNoticeRef(i.draftVersion);
+export function inUseNoticeDue(i: { inUseVersion: number | null; replacedEarlier: boolean; notifiedRefs: string[] }): string | null {
+  if (i.inUseVersion === null || !i.replacedEarlier) return null;
+  const ref = briefNoticeRef(i.inUseVersion);
   return i.notifiedRefs.includes(ref) ? null : ref;
 }
 export const briefNoticeRef = (version: number) => `brief_v${version}`;

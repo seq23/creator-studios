@@ -236,8 +236,7 @@ brain.post("/profile/lock", async (c) => {
     c.env.DB.prepare("UPDATE brand_profile SET locked = 1, locked_at = ? WHERE version = ?").bind(nowIso(), cur.version),
   ]);
   await recordEvent(c.env.DB, "profile.locked", String(cur.version), {}, c.get("user").email);
-  // Setup runs by itself: the research starts (no Refresh to press), and if the brief is already
-  // approved every dump waiting for setup goes now.
+  // Setup runs by itself: the research starts (no Refresh to press), and any upload still waiting goes now.
   const research = await researchAfterLock(c.env, c.get("fake"), c.get("user").email);
   // The niche research is redone for the new profile at once (clip quality, 23 Oct 2026); never blocks the lock.
   await monthlyNicheRefresh(c.env).catch(() => log.warn("brain.niche_refresh_failed", {}));

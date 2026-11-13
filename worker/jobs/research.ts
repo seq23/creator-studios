@@ -18,6 +18,7 @@ import { loadObservations } from "./metrics";
 import { buildFakeBrief } from "./research_fake";
 import { themeList } from "../routes/mediakit";
 import { PROFILE_IN_USE } from "../lib/profileInUse";
+import { selfSetup } from "../lib/setupWait";
 
 export const RESEARCH_SYSTEM = `You write a Research Brief for a short-form video creator. Answer with ONE JSON object only.
 Keys: "audience": Claim[], "themes": [{"title": string, "claims": Claim[]}] (3 to 5 themes), "hooks": Claim[] (hook formulas in her voice),
@@ -94,6 +95,8 @@ export const researchJob: JobHandler = {
     await env.DB.prepare("UPDATE research_briefs SET status = 'superseded' WHERE status = 'draft'").run();
     const res = await env.DB.prepare("INSERT INTO research_briefs (body, sources, status) VALUES (?, ?, 'draft')").bind(JSON.stringify(body), JSON.stringify(sources)).run();
     await recordEvent(env.DB, "brief.drafted", jobId, { version: res.meta.last_row_id, sources: sources.length });
+    // Nothing waits for an approval (owner, 13 Nov 2026): the new brief is put to use at once.
+    await selfSetup(env, { lockProfile: false });
     log.info("research.apply", { sources: sources.length });
   },
 

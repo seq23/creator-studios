@@ -1,7 +1,7 @@
 // Phases 2, 3 and 8 end to end with fake services, on phone and desktop:
 //   Client Brain: upload a .md doc → fake extract → draft profile → edit → lock
-//   Research: refresh → fake research → claims with labels and source links → approve
-//   Gate (section 6): Dump is refused before, and goes through after, lock + approve
+//   Research: fake research → claims with labels and source links → in use at once, she can change it
+//   Nothing held (13 Nov 2026): an upload goes without a locked profile or an approved brief
 //   Stats: fake Instagram sign-in, TikTok export import, sync, the expired-token failure shape
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -33,9 +33,8 @@ async function dumpWithVideo(api: APIRequestContext): Promise<string> {
   return id;
 }
 
-// Leave the database as the other specs expect to find it: the smoke spec wants Dump refused on
-// "Brand Profile" (profile unlocked); the calendar spec wants launch posting slots, which only
-// holds while no brief is approved; the deals spec computes marketplace eligibility from the
+// Leave the database as the other specs expect to find it: the calendar spec wants launch posting
+// slots, which only holds while no brief is in use; the deals spec computes marketplace eligibility from the
 // newest TikTok account_stats row, so the rows the import and the fake sync write here must go.
 // There is no un-approve route (approval is a one-way action for her), so the local D1 is
 // cleared directly. Unlocking alone no longer closes the gate (the version locked last stays in use,
@@ -45,23 +44,10 @@ test.afterEach(async ({ page }) => {
   sql(["UPDATE brand_profile SET locked = 0, locked_at = NULL", "DELETE FROM research_briefs", "DELETE FROM account_stats", "DELETE FROM platform_videos", "DELETE FROM metrics", "DELETE FROM settings WHERE key IN ('learned_slots','learned_slots_at','youtube_public','youtube_channel','youtube_channel_typed','instagram_public','instagram_manual','instagram_reminder','instagram_handle_typed')"].join("; "));
 });
 
-test("brain → research → the cutting gate opens only after lock + approve", async ({ page }) => {
+test("brain → research: nothing is held; the studio uses the brief by itself and she can change it", async ({ page }) => {
   const api = page.request;
-
-  // Gate closed: no locked profile yet, so Dump is refused with the setup checklist; her video is
-  // saved and the dump waits for setup (it goes by itself once the brief is approved).
-  const dumpId = await dumpWithVideo(api);
-  const refused = await api.post(`/api/dumps/${dumpId}/dump`);
-  expect(refused.status()).toBe(409);
-  expect(await refused.json()).toMatchObject({
-    error: "Your video is saved. Two quick steps first, then your clips start by themselves:",
-    fix_guide: "upload-brand-docs",
-    setup: { files: 1, steps: [{ key: "profile", done: false, href: "/brain" }, { key: "brief", done: false, href: "/research" }] },
-  });
-  await page.goto(`/dump/${dumpId}`);
-  await expect(page.locator("[data-setup-checklist]")).toContainText("Your video is saved.");
-  await expect(page.locator("[data-setup-checklist]").getByRole("link", { name: "Lock your Brand Profile →" })).toHaveAttribute("href", "/brain");
-  await expect(page.locator("[data-setup-checklist]").getByRole("link", { name: "Approve your Research Brief →" })).toHaveAttribute("href", "/research");
+  // Another spec's upload may have made the studio lock the profile by itself: start unlocked.
+  await api.post("/api/brain/profile/unlock");
 
   // ---- Client Brain: upload → read → draft → edit → lock
   await page.goto("/brain");
@@ -97,10 +83,15 @@ test("brain → research → the cutting gate opens only after lock + approve", 
   await expect(page.getByLabel("Calls to action")).toBeDisabled();
   await expect(page.getByLabel("Calls to action")).toHaveValue(/fall gala/);
 
-  // ---- Research: the job the lock started → cited brief → approve
+  // ---- An upload sent before the brief exists goes at once: nothing waits for it.
+  const dumpId = await dumpWithVideo(api);
+  const went = await api.post(`/api/dumps/${dumpId}/dump`);
+  expect(went.status(), await went.text()).toBe(200);
   await page.goto(`/dump/${dumpId}`);
-  await expect(page.locator('[data-setup-step="profile"]')).toContainText("Lock your Brand Profile: done");
-  await expect(page.locator('[data-setup-step="brief"]')).toContainText("being written now");
+  await expect(page.locator("[data-setup-checklist]")).toHaveCount(0);
+  await expect(page.locator("[data-saved-waiting]")).toHaveCount(0);
+
+  // ---- Research: the job the lock started → cited brief, in use at once
   await runFake(api, lock.researchJobId!);
   await page.goto("/research");
   await page.reload();
@@ -114,15 +105,23 @@ test("brain → research → the cutting gate opens only after lock + approve", 
   // The header's "N claims marked uncertain" counts exactly the Uncertain pills on the page.
   const shownUncertain = await page.locator('.rs-claim[data-label="uncertain"]').count();
   await expect(page.locator(".rs-legend .hint")).toContainText(`${shownUncertain} claim${shownUncertain === 1 ? "" : "s"} marked uncertain`);
-  const approveCall = page.waitForResponse((r) => r.url().endsWith("/api/research/approve"));
-  await page.getByRole("button", { name: "Approve brief" }).click();
-  expect(((await (await approveCall).json()) as { sent: number }).sent).toBeGreaterThanOrEqual(1);
-  await expect(page.locator(".toast").filter({ hasText: /Approved\. Your .*being cut now/ })).toBeVisible();
-  await expect(page.getByText(/^Approved v\d+/)).toBeVisible();
+  // In use the moment it is written: no Approve button, nothing "needs your approval".
+  await expect(page.getByText(/^In use · version \d+/)).toBeVisible();
+  await expect(page.getByRole("button", { name: /Approve/ })).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(/needs your approval/i);
+  expect((await api.post("/api/research/approve")).status()).toBe(404);
+  // She can change it: her words are saved on the brief in use.
+  await page.getByRole("button", { name: "Change this brief" }).click();
+  const saveCall = page.waitForResponse((r) => r.url().endsWith("/api/research") && r.request().method() === "PATCH");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  expect((await saveCall).status()).toBe(200);
+  await expect(page.locator(".toast").filter({ hasText: "Saved. Your next posts use it." })).toBeVisible();
+  const research = (await (await api.get("/api/research")).json()) as { brief: { status: string } };
+  expect(research.brief.status).toBe("approved");
 
-  // ---- Gate open: the waiting dump went by itself, once; pressing Dump again sends nothing.
-  const after = (await (await api.get(`/api/dumps/${dumpId}`)).json()) as { dump: { status: string; waiting_for: unknown } };
-  expect(after.dump).toMatchObject({ status: "cutting", waiting_for: null });
+  // ---- The upload went once; pressing Dump again sends nothing.
+  const after = (await (await api.get(`/api/dumps/${dumpId}`)).json()) as { dump: { status: string; waiting_line: unknown } };
+  expect(after.dump).toMatchObject({ status: "cutting", waiting_line: null });
   const again = await api.post(`/api/dumps/${dumpId}/dump`);
   expect(again.status()).toBe(409);
   expect(await again.json()).toMatchObject({ error: "This dump was already sent." });

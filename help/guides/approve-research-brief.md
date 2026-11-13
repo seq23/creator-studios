@@ -1,20 +1,20 @@
 ---
-title: "Approve your research brief"
+title: "Read or change your research brief"
 group: getting_started
 screen: research
-last_checked: 2026-09-26
+last_checked: 2026-11-13
 keywords: research, brief, posting times, hooks, what to film
 ---
 
-The research brief says when to post, what hooks work and what to film next, with a source for every claim.
+The research brief says when to post, what hooks work and what to film next, with a source for every claim. It is written for you and used right away. Nothing waits for you to approve it.
 
-## Lock your Brand Profile first
+## Tell the studio about you first
 
 ![Step 1](/help/screenshots/approve-research-brief-1.png)
 <!-- route: /brain -->
 <!-- target: #sec-audience -->
 
-The research starts by itself the moment you lock your profile in **Client Brain**.
+The research starts by itself once **Client Brain** has a few words about you.
 
 ## Tap Refresh research
 
@@ -24,7 +24,7 @@ The research starts by itself the moment you lock your profile in **Client Brain
 
 Your first brief starts by itself. For a fresh one later, tap **Refresh research** (5 to 10 minutes).
 
-Dumped videos before approving? They wait, saved, and start cutting when you tap **Approve**.
+Uploaded videos already? They are made into posts without waiting for the brief.
 
 ## Jump to any section
 
@@ -50,13 +50,13 @@ Every claim says where it came from: your own numbers, the web, a report you add
 
 Have a ChatGPT or Perplexity report? Tap **Upload outside report**, then **Refresh research**.
 
-## Approve it
+## Change anything you like
 
 ![Step 6](/help/screenshots/approve-research-brief-6.png)
 <!-- route: /research -->
 <!-- target: .rs-lead -->
 
-When it looks right, tap **Approve brief**. A new draft comes each month; the approved one stays in use until you approve the next.
+Tap **Change this brief** to change anything, then **Save changes**. A new brief comes each month and is used right away; we tell you in one line when it does.
 
 ## Did this work?
 

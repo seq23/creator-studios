@@ -1,14 +1,17 @@
-// Setup before the first cut (section 6 gate): a locked Brand Profile and an approved Research
-// Brief. A dump refused by that gate waits (dumps.waiting_setup_at) instead of failing, and is sent
-// by itself, once, the moment both are done (sendWaitingDumps in routes/dumps.ts). Locking the
-// profile starts the research on its own (startResearch), so she never presses Refresh for it.
+// Setup runs by itself and holds nothing (owner, 13 Nov 2026): the studio locks its own first Brand
+// Profile and puts its own Research Brief to use (selfSetup), so an upload is never kept waiting for
+// an approval. Both stay under the menu to read, change or redo. Locking the profile starts the
+// research on its own (startResearch), so she never presses Refresh for it. An upload can still
+// wait for the one-time niche research of a brand-new studio (lib/nicheBrief.ts firstUploadGate),
+// which says so in plain words; those go by themselves too (sendWaitingDumps in routes/dumps.ts).
 import { fakeServices, type Env } from "../env";
 import { practice } from "./practice";
 import { getConnectionSecret } from "./connections";
-import { recordEvent } from "./db";
+import { parseJson, recordEvent } from "./db";
+import { nowIso } from "./ids";
+import { cleanSections, filledCount } from "../domain/profile";
 import { log } from "./log";
 import { dispatchJob } from "../services/github";
-import type { SetupStep } from "@shared/types";
 import { PROFILE_IN_USE } from "./profileInUse";
 
 /** A research job younger than this that has not finished counts as running. */
@@ -25,7 +28,7 @@ export type ResearchStart = { ok: true; jobId: string; already?: boolean } | { o
 /** Start the research job (the Refresh research button and the profile lock both come here). */
 export async function startResearch(env: Env, fake: boolean, email: string | null): Promise<ResearchStart> {
   const profile = await env.DB.prepare(`SELECT version FROM brand_profile ${PROFILE_IN_USE}`).first();
-  if (!profile) return { ok: false, status: 409, error: "Lock your Brand Profile first. The research starts from it.", fix_guide: "upload-brand-docs" };
+  if (!profile) return { ok: false, status: 409, error: "Tell the studio a little about you first, on Client Brain. The research starts from it.", fix_guide: "upload-brand-docs" };
   const running = await runningResearch(env);
   if (running) return { ok: true, jobId: running.id, already: true };
   if (!fake && !(await getConnectionSecret(env, "openrouter"))) return { ok: false, status: 409, error: "Connect the AI (OpenRouter) first; it writes the brief.", fix_guide: "connect-openrouter" };
@@ -52,29 +55,55 @@ export async function researchAfterLock(env: Env, fake: boolean, email: string |
   }
 }
 
-/** The two setup steps, ticked when done; plain words, a direct link each. */
-export async function setupSteps(env: Env): Promise<SetupStep[]> {
-  const profile = !!(await env.DB.prepare(`SELECT version FROM brand_profile ${PROFILE_IN_USE}`).first());
-  const brief = !!(await env.DB.prepare("SELECT version FROM research_briefs WHERE status = 'approved' LIMIT 1").first());
-  const draft = !!(await env.DB.prepare("SELECT version FROM research_briefs WHERE status = 'draft' LIMIT 1").first());
-  const writing = !brief && !draft && profile && !!(await runningResearch(env));
-  return [
-    { key: "profile", label: "Lock your Brand Profile", done: profile, href: "/brain" },
-    {
-      key: "brief",
-      label: "Approve your Research Brief",
-      done: brief,
-      href: "/research",
-      ...(brief ? {} : draft ? { note: "It is ready for you to read and approve." } : writing ? { note: "It is being written now (usually 5 to 10 minutes)." } : profile ? {} : { note: "It is written for you as soon as your profile is locked." }),
-    },
-  ];
-}
+/** Who did it, in the events, when the studio set itself up. */
+export const STUDIO_ACTOR = "the studio";
+/** A profile draft thinner than this is not a first version worth using (the same floor as her own Lock button, routes/brain.ts). */
+const PROFILE_MIN_SECTIONS = 3;
 
-/** "Your 19 videos are saved. Two quick steps first, then your clips start by themselves:" */
-export function setupHeadline(files: number, steps: SetupStep[]): string {
-  const left = steps.filter((s) => !s.done).length;
-  const what = files === 1 ? "Your video is saved." : `Your ${files} videos are saved.`;
-  return `${what} ${left === 1 ? "One quick step" : "Two quick steps"} first, then your clips start by themselves:`;
+/**
+ * Nothing is held (owner, 13 Nov 2026, replacing "research brief approved before the first cut"):
+ * the studio approves its own brief and locks its own first profile; both stay under the menu to
+ * read, change or redo.
+ *   - Brief: the newest draft is put to use at once (the one before it is replaced), first version
+ *     or a later one. A later one is told to her in one line (crons/brief.ts briefInUseNotice, Home).
+ *   - Profile (`lockProfile`: when an upload needs it): with no version in use yet, the newest draft
+ *     with something in it is locked. A profile she unlocked to edit is never touched (the version
+ *     she locked last stays in use, lib/profileInUse.ts).
+ * This is what lets a studio that was waiting on an unapproved draft flow again after a deploy with
+ * no hand edit: it runs on the hourly lane and whenever an upload is sent. Never throws.
+ */
+export async function selfSetup(env: Env, opts: { lockProfile: boolean }): Promise<{ profile: number | null; brief: number | null }> {
+  const done: { profile: number | null; brief: number | null } = { profile: null, brief: null };
+  try {
+    if (opts.lockProfile && !(await env.DB.prepare(`SELECT version FROM brand_profile ${PROFILE_IN_USE}`).first())) {
+      const newest = await env.DB.prepare("SELECT version, sections FROM brand_profile ORDER BY version DESC LIMIT 1").first<{ version: number; sections: string }>();
+      if (newest && filledCount(cleanSections(parseJson(newest.sections, {}))) >= PROFILE_MIN_SECTIONS) {
+        await env.DB.batch([
+          env.DB.prepare("UPDATE brand_profile SET locked = 0 WHERE version != ?").bind(newest.version),
+          env.DB.prepare("UPDATE brand_profile SET locked = 1, locked_at = ? WHERE version = ?").bind(nowIso(), newest.version),
+        ]);
+        await recordEvent(env.DB, "profile.self_locked", String(newest.version), {}, STUDIO_ACTOR);
+        log.info("setup.profile_self_locked");
+        done.profile = newest.version;
+      }
+    }
+    const draft = await env.DB.prepare("SELECT version FROM research_briefs WHERE status = 'draft' ORDER BY version DESC LIMIT 1").first<{ version: number }>();
+    if (draft) {
+      const before = await env.DB.prepare("SELECT version FROM research_briefs WHERE status = 'approved' ORDER BY version DESC LIMIT 1").first<{ version: number }>();
+      await env.DB.batch([
+        env.DB.prepare("UPDATE research_briefs SET status = 'superseded' WHERE status = 'approved'"),
+        env.DB.prepare("UPDATE research_briefs SET status = 'approved', approved_at = ? WHERE version = ? AND status = 'draft'").bind(nowIso(), draft.version),
+      ]);
+      await recordEvent(env.DB, "brief.self_approved", String(draft.version), { first: !before, replaced: before?.version ?? null }, STUDIO_ACTOR);
+      log.info("setup.brief_self_approved", { first: !before });
+      done.brief = draft.version;
+    }
+    // A profile just put to use with no brief on the way: the research starts by itself.
+    if (done.profile !== null) await ensureFirstResearch(env);
+  } catch {
+    log.warn("setup.self_failed");
+  }
+  return done;
 }
 
 /** A first brief that never started is retried at most this often. */

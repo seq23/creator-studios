@@ -54,8 +54,10 @@ test.describe("home and dump", () => {
     const setUp = page.locator("[data-get-set-up]");
     await expect(page.locator("[data-primary]")).toHaveCount(1);
     if (await setUp.count()) {
-      await expect(setUp.locator("[data-step]")).toHaveCount(4);
-      await expect(setUp.locator("[data-step]")).toContainText([/Connect Instagram & TikTok/, /Lock your Brand Profile/, /Approve your Research Brief/, /Upload your first videos/]);
+      // Three steps: nothing asks her to lock or approve anything (the studio does both by itself).
+      await expect(setUp.locator("[data-step]")).toHaveCount(3);
+      await expect(setUp.locator("[data-step]")).toContainText([/Connect Instagram & TikTok/, /Tell the studio about you/, /Upload your first videos/]);
+      await expect(setUp).not.toContainText(/Lock your|Approve your/);
       // only the next step opens up: its button (the one primary), its help guide; the others are one line each
       const next = setUp.locator("[data-step]:not([data-done])").first();
       await expect(next.locator("[data-primary]")).toHaveCount(1);
@@ -80,7 +82,7 @@ test.describe("home and dump", () => {
     }
   });
 
-  test("dump: pick a door, upload a small file in chunks, Dump is gated on the brief", async ({ page }) => {
+  test("dump: pick a door, upload a small file in chunks, and it goes at once (nothing held)", async ({ page }) => {
     await page.goto("/dump");
     // nothing is picked for her: the Dump button waits until she says which videos these are
     await expect(page.locator("[data-dump-button]")).toBeDisabled();
@@ -99,19 +101,18 @@ test.describe("home and dump", () => {
     await expect(page.locator("[data-primary]")).toHaveCount(1);
     await expect(page.getByRole("button", { name: "Dump 1 old post", exact: true })).toHaveAttribute("data-primary", "true");
     await page.getByRole("button", { name: "Dump 1 old post", exact: true }).click();
-    // Section 6 gate: no Brand Profile locked yet → never a red error: the video is saved and a
-    // calm checklist says the two steps, a link each; the clips start by themselves after them.
-    const list = page.locator("[data-setup-checklist]");
-    // (Another spec may already have locked the profile on this shared server: then one step is left.)
-    await expect(list).toContainText(/^Your video is saved\. (Two quick steps|One quick step) first, then your clips start by themselves:/);
-    const open = await list.locator("[data-setup-step]:not([data-done])").count();
-    expect(open).toBeGreaterThanOrEqual(1);
-    await expect(list.locator("[data-setup-step]:not([data-done]) a[href]")).toHaveCount(open);
-    await expect(list.locator('[data-setup-step="brief"] a[href="/research"]')).toHaveText("Approve your Research Brief →");
-    await expect(list.locator("[data-setup-step][data-done]")).toContainText(open === 2 ? [] : ["Lock your Brand Profile: done"]);
+    // Nothing is held (13 Nov 2026): with no Brand Profile locked and no Research Brief approved the
+    // upload still goes at once. No checklist, no red error, nothing asking her to lock or approve.
+    await expect(page.locator(".toast").filter({ hasText: "Dumped." })).toBeVisible();
     await expect(page.locator(".toast.bad")).toHaveCount(0);
-    // The dump card says what it waits for instead of looking stuck.
-    await expect(page.locator("[data-dump-row]").first()).toContainText(/Waiting for: (Lock your Brand Profile, then )?Approve your Research Brief/);
+    await expect(page.locator("[data-setup-checklist]")).toHaveCount(0);
+    const row = page.locator("[data-dump-row]").first();
+    await expect(row).toContainText("Cutting");
+    await expect(row).not.toContainText(/Waiting for|Not sent/);
+    // Home says her posts are being made, in one line, with nothing for her to keep open.
+    await page.goto("/");
+    await expect(page.locator("[data-making]")).toBeVisible();
+    await expect(page.locator("[data-making]")).toHaveText(/^Making your posts, ready (soon|about \d{1,2}(:\d{2})? (AM|PM)( tomorrow| on \w+)?)$/);
   });
 
   test("settings: caps stop at 10 and save; every feature switch is on by default and says what off does", async ({ page }) => {

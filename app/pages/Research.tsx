@@ -1,6 +1,6 @@
 // Research Brief (BUILD_PLAN.md section 6): the cited brief, every claim with its source link(s)
-// and a label (her data / web / upload / uncertain), Approve, Refresh, upload an outside report,
-// edit a draft. The Worker applies the truth rules before it sends the brief, so an uncited
+// and a label (her data / web / upload / uncertain), Refresh, upload an outside report, change the
+// brief in use (nothing waits for an approval; owner, 13 Nov 2026). The Worker applies the truth rules before it sends the brief, so an uncited
 // claim always arrives marked uncertain and is shown that way, never as fact.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -114,12 +114,10 @@ export function Research() {
   // rows drawn here (live test 25 Sep 2026: header said 2 uncertain, the page showed 3).
   const uncertainShown = (data?.counts?.uncertain ?? 0) + (brief ? PLATFORMS.filter((p) => label(frequencyClaim(p, sources), sources) === "uncertain").length : 0);
   const body = editing ?? brief?.body ?? null;
-  const isDraft = brief?.status === "draft";
-  // One next step: approve a draft waiting for her; save while editing it; otherwise refresh.
-  // Before the profile is locked, the step is on Client Brain.
-  const approveNext = isDraft && !editing;
-  const lockNext = !!data && !data.profileLocked && !isDraft;
-  const refreshNext = !!data && !isDraft && !lockNext;
+  // Nothing here waits for her (owner, 13 Nov 2026): the brief on screen is the one in use. One next
+  // step: save while changing it; otherwise refresh. With no profile yet, the step is on Client Brain.
+  const lockNext = !!data && !data.profileLocked && !brief;
+  const refreshNext = !!data && !editing && !lockNext;
 
   const edit = (fn: (b: BriefBody) => void) => {
     if (!editing) return;
@@ -134,7 +132,7 @@ export function Research() {
         title="Research Brief"
         lede={
           brief ? (
-            <span className="nums">{`${isDraft ? "Draft" : "Approved"} v${brief.version} · ${plural(data?.counts?.sources ?? 0, "source")}${isDraft ? " · needs your approval before clips are cut" : ` · approved ${fmtDate(brief.approved_at)}`}`}</span>
+            <span className="nums">{`In use · version ${brief.version} · ${plural(data?.counts?.sources ?? 0, "source")}${brief.approved_at ? ` · since ${fmtDate(brief.approved_at)}` : ""}`}</span>
           ) : (
             "When and what to post, written from your profile, your numbers and the web. Every claim links its source."
           )
@@ -152,11 +150,6 @@ export function Research() {
             Open Client Brain
           </Link>
         ) : null}
-        {approveNext ? (
-          <button className="btn" data-primary onClick={() => act("approve", () => post<{ sent?: number }>("/api/research/approve"), (r) => (r?.sent ? `Approved. Your ${r.sent === 1 ? "waiting dump is" : `${r.sent} waiting dumps are`} being cut now. We’ll email you when the clips are ready.` : "Approved. Clips can be cut now."))} disabled={busy === "approve"}>
-            Approve brief
-          </button>
-        ) : null}
       </PageHead>
 
       {loading && !data ? <Skeleton blocks={3} /> : null}
@@ -164,14 +157,14 @@ export function Research() {
       {data && !data.profileLocked && brief ? (
         <Notice tone="warn">
           <span>
-            Lock your Brand Profile first. The research starts from it. <Link to="/brain">Open Client Brain</Link>
+            Tell the studio a little about you first. The research starts from it. <Link to="/brain">Open Client Brain</Link>
           </span>
         </Notice>
       ) : null}
       {running ? (
         <Notice tone="info">
           <span>
-            <strong>Researching…</strong> started {ago(data?.job?.created_at)}. Usually 5 to 10 minutes. The new draft appears here.
+            <strong>Researching…</strong> started {ago(data?.job?.created_at)}. Usually 5 to 10 minutes. The new brief appears here and is used right away.
           </span>
         </Notice>
       ) : null}
@@ -196,7 +189,7 @@ export function Research() {
             Press Refresh research at the top. We read your profile, your numbers and the web, and write a brief where every claim links its source.
           </Empty>
         ) : (
-          <Empty title="No brief yet">Lock your Brand Profile on Client Brain (the button at the top), then come back and press Refresh research.</Empty>
+          <Empty title="No brief yet">Add a few words about you on Client Brain (the button at the top). Your brief is then written by itself.</Empty>
         )
       ) : null}
 
@@ -210,24 +203,22 @@ export function Research() {
             <span className="hint">Every claim links its source. {uncertainShown ? `${plural(uncertainShown, "claim")} marked uncertain.` : ""}</span>
           </div>
 
-          {isDraft ? (
-            <div className="btn-row">
-              {editing ? (
-                <>
-                  <button className="btn" data-primary disabled={busy === "save"} onClick={async () => (await act("save", () => patch("/api/research", { body: editing }), "Saved.")) && setEditing(null)}>
-                    Save edits
-                  </button>
-                  <button className="btn quiet" onClick={() => setEditing(null)}>
-                    Cancel
-                  </button>
-                </>
-              ) : (
-                <button className="btn quiet small" onClick={() => setEditing(structuredClone(brief.body))}>
-                  Edit this draft
+          <div className="btn-row">
+            {editing ? (
+              <>
+                <button className="btn" data-primary disabled={busy === "save"} onClick={async () => (await act("save", () => patch("/api/research", { body: editing }), "Saved. Your next posts use it.")) && setEditing(null)}>
+                  Save changes
                 </button>
-              )}
-            </div>
-          ) : null}
+                <button className="btn quiet" onClick={() => setEditing(null)}>
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button className="btn quiet small" onClick={() => setEditing(structuredClone(brief.body))}>
+                Change this brief
+              </button>
+            )}
+          </div>
 
           <div className="rs-layout">
             <nav className="rs-nav" aria-label="Brief sections">
@@ -350,7 +341,7 @@ function EarlierBriefs({ current }: { current: number | null }) {
               <div key={v.version} className="list-row">
                 <div className="grow">
                   <div className="title">Brief from {fmtDate(v.created_at)}</div>
-                  <div className="meta">{v.approved_at ? `Approved ${fmtDate(v.approved_at)}, replaced by a newer one` : "Replaced by a newer one"}</div>
+                  <div className="meta">{v.approved_at ? `Used from ${fmtDate(v.approved_at)}, replaced by a newer one` : "Replaced by a newer one"}</div>
                 </div>
                 {archived ? (
                   <button type="button" className="btn quiet small" onClick={() => restoreArchived(toast, "brief", v.version, list.reload)}>

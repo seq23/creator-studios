@@ -1,13 +1,15 @@
-// Setup runs by itself (worker/lib/setupWait.ts, routes/dumps.ts sendDump/sendWaitingDumps):
-// a Dump the setup gate refuses is kept as "waiting for setup" with her files saved; locking the
-// Brand Profile starts the research; approving the brief sends every waiting dump through the Dump
-// button's own path, exactly once. Unlocking the profile never stops her clips (lib/profileInUse.ts).
+// Nothing is held (owner, 13 Nov 2026; worker/lib/setupWait.ts selfSetup, routes/dumps.ts):
+// an upload never waits for a locked profile or an approved brief. The studio locks its own first
+// profile and puts its own brief to use; a later brief is used at once; uploads that were held
+// before go on the next hourly run with no hand edit, each exactly once. Unlocking the profile
+// never stops her clips (lib/profileInUse.ts).
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { harness } from "./helpers/studio-fix-env";
 import { sendDump, sendWaitingDumps } from "@worker/routes/dumps";
-import { ensureFirstResearch } from "@worker/lib/setupWait";
+import { ensureFirstResearch, selfSetup } from "@worker/lib/setupWait";
+import { researchJob } from "@worker/jobs/research";
 import { cutJob, type CutSpec } from "@worker/jobs/cut";
 
 const SECTIONS = '{"who":"We design gardens: Garden design","voice":"warm","ctas":"Message us.","themes":"Patios"}';
@@ -26,37 +28,136 @@ async function fresh() {
   const cutJobs = () => h.one<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE type = 'cut' AND ref_id = 'dmp_w'").n;
   const researchJobs = () => h.one<{ n: number }>("SELECT COUNT(*) AS n FROM jobs WHERE type = 'research'").n;
   const dump = (id = "dmp_w") => h.one<{ status: string; waiting_setup_at: string | null }>("SELECT status, waiting_setup_at FROM dumps WHERE id = ?", id);
-  /** The research job finished: a draft brief is waiting for her approval. */
+  /** A brief left as a draft by the old flow (written, never approved). */
   const draftLands = () => h.db.raw.exec("UPDATE jobs SET status = 'done' WHERE type = 'research'; INSERT INTO research_briefs (body, status) VALUES ('{}', 'draft');");
   return { ...h, cutJobs, researchJobs, dump, draftLands };
 }
 
-describe("a Dump refused by setup waits, with a plain checklist", () => {
-  it("marks the dump waiting and says what is left, with a link and a tick per step", async () => {
+const brief = (h: Awaited<ReturnType<typeof fresh>>) => h.db.raw.prepare("SELECT version, status FROM research_briefs ORDER BY version").all() as { version: number; status: string }[];
+const profile = (h: Awaited<ReturnType<typeof fresh>>) => h.one<{ locked: number; locked_at: string | null }>("SELECT locked, locked_at FROM brand_profile ORDER BY version DESC LIMIT 1");
+
+/** The research job the lock started comes back with its brief (the practice run's own result). */
+async function researchLands(h: Awaited<ReturnType<typeof fresh>>) {
+  const job = h.one<{ id: string }>("SELECT id FROM jobs WHERE type = 'research'");
+  await researchJob.applyResult(h.env, job.id, null, await researchJob.fakeRun!(h.env, job.id, null, {}));
+}
+
+describe("an upload never waits for a locked profile or an approved brief", () => {
+  it("goes at once: the studio locks its own first profile, and the research starts by itself", async () => {
     const h = await fresh();
     const r = await h.call("POST", "/api/dumps/dmp_w/dump");
-    expect(r.status).toBe(409);
-    expect(r.json.error).toBe("Your 3 videos are saved. Two quick steps first, then your clips start by themselves:");
-    expect(r.json.setup.files).toBe(3);
-    expect(r.json.setup.steps.map((s: { key: string; done: boolean; href: string }) => [s.key, s.done, s.href])).toEqual([
-      ["profile", false, "/brain"],
-      ["brief", false, "/research"],
-    ]);
-    expect(h.dump()).toMatchObject({ status: "uploading" });
-    expect(h.dump().waiting_setup_at).toBeTruthy();
-    expect(h.cutJobs()).toBe(0);
-    // The dump card says what it is waiting for instead of looking stuck.
-    const list = await h.call("GET", "/api/dumps");
-    expect(list.json.items[0].waiting_for.map((s: { key: string }) => s.key)).toEqual(["profile", "brief"]);
+    expect(r.status).toBe(200);
+    expect(h.dump()).toEqual({ status: "cutting", waiting_setup_at: null });
+    expect(h.cutJobs()).toBe(1);
+    expect(profile(h).locked).toBe(1);
+    expect(profile(h).locked_at).toBeTruthy();
+    expect(h.researchJobs()).toBe(1);
+    expect(h.one<{ n: number }>("SELECT COUNT(*) AS n FROM events WHERE kind = 'profile.self_locked'").n).toBe(1);
+    // The cut reads the profile the studio just put to use.
+    const job = h.one<{ id: string }>("SELECT id FROM jobs WHERE type = 'cut' AND ref_id = 'dmp_w'");
+    expect(((await cutJob.buildSpec(h.env, job.id, "dmp_w")) as CutSpec).brand_profile).toMatchObject({ voice: "warm" });
   });
 
-  it("ticks the profile once locked, and says only one step is left", async () => {
+  it("goes even with no profile at all and no brief: nothing is held", async () => {
     const h = await fresh();
-    expect((await h.call("POST", "/api/brain/profile/lock")).status).toBe(200);
-    const r = await h.call("POST", "/api/dumps/dmp_w/dump");
-    expect(r.status).toBe(409);
-    expect(r.json.error).toBe("Your 3 videos are saved. One quick step first, then your clips start by themselves:");
-    expect(r.json.setup.steps.map((s: { done: boolean }) => s.done)).toEqual([true, false]);
+    h.db.raw.exec("DELETE FROM brand_profile");
+    expect((await h.call("POST", "/api/dumps/dmp_w/dump")).status).toBe(200);
+    expect(h.cutJobs()).toBe(1);
+  });
+
+  it("a profile too thin to use is not locked by the studio, and the upload still goes", async () => {
+    const h = await fresh();
+    h.db.raw.exec(`UPDATE brand_profile SET sections = '{"who":"A garden studio"}'`);
+    expect((await h.call("POST", "/api/dumps/dmp_w/dump")).status).toBe(200);
+    expect(profile(h).locked).toBe(0);
+    expect(h.cutJobs()).toBe(1);
+  });
+
+  it("a profile she unlocked to edit is left alone: the version she locked last stays in use", async () => {
+    const h = await fresh();
+    const locked = (await h.call("POST", "/api/brain/profile/lock")).json.version as number;
+    await h.call("POST", "/api/brain/profile/unlock");
+    await h.call("PATCH", "/api/brain/profile", { sections: { voice: "brand new words" } });
+    expect((await selfSetup(h.env, { lockProfile: true })).profile).toBeNull();
+    const brain = await h.call("GET", "/api/brain");
+    expect(brain.json.profile.locked).toBe(false);
+    expect(brain.json.inUse.version).toBe(locked);
+  });
+});
+
+describe("the studio puts its own brief to use", () => {
+  it("the first brief is in use the moment the research writes it; no approve step exists", async () => {
+    const h = await fresh();
+    await h.call("POST", "/api/brain/profile/lock");
+    await researchLands(h);
+    const rows = brief(h);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows[rows.length - 1].status).toBe("approved");
+    expect(rows.filter((r) => r.status === "draft")).toEqual([]);
+    expect((await h.call("POST", "/api/research/approve")).status).toBe(404);
+  });
+
+  it("a later brief replaces the one in use at once", async () => {
+    const h = await fresh();
+    h.db.raw.exec("INSERT INTO research_briefs (body, status, approved_at) VALUES ('{}', 'approved', '2026-10-01T00:00:00.000Z'); INSERT INTO research_briefs (body, status) VALUES ('{}', 'draft');");
+    const newest = brief(h)[1].version;
+    expect((await selfSetup(h.env, { lockProfile: false })).brief).toBe(newest);
+    expect(brief(h).map((b) => b.status)).toEqual(["superseded", "approved"]);
+    // Nothing to do the second time.
+    expect(await selfSetup(h.env, { lockProfile: false })).toEqual({ profile: null, brief: null });
+  });
+
+  it("she can change the brief in use, and the cut reads her change", async () => {
+    const h = await fresh();
+    await h.call("POST", "/api/brain/profile/lock");
+    await researchLands(h);
+    const got = await h.call("GET", "/api/research");
+    expect(got.json.brief.status).toBe("approved");
+    const body = structuredClone(got.json.brief.body);
+    const r = await h.call("PATCH", "/api/research", { body });
+    expect(r.status).toBe(200);
+    expect(h.one<{ n: number }>("SELECT COUNT(*) AS n FROM events WHERE kind = 'brief.edited'").n).toBe(1);
+    expect(brief(h).filter((b) => b.status === "approved").length).toBe(1);
+  });
+});
+
+describe("a studio that was held before the change flows by itself (no hand edit, no migration)", () => {
+  /** The old state: profile never locked, a draft brief nobody approved, an upload marked waiting. */
+  async function held() {
+    const h = await fresh();
+    h.draftLands();
+    h.db.raw.exec("UPDATE dumps SET waiting_setup_at = '2026-11-10T00:00:00.000Z' WHERE id = 'dmp_w'");
+    return h;
+  }
+
+  it("the next hourly run locks the profile, uses the draft and sends the waiting upload, once", async () => {
+    const h = await held();
+    expect(await sendWaitingDumps(h.env, null)).toEqual(["dmp_w"]);
+    expect(h.dump()).toEqual({ status: "cutting", waiting_setup_at: null });
+    expect(brief(h).map((b) => b.status)).toEqual(["approved"]);
+    expect(profile(h).locked).toBe(1);
+    expect(h.cutJobs()).toBe(1);
+    expect(h.one<{ n: number }>("SELECT COUNT(*) AS n FROM events WHERE kind = 'dump.sent' AND ref_id = 'dmp_w'").n).toBe(1);
+    expect(await sendWaitingDumps(h.env, null)).toEqual([]);
+    expect((await h.call("POST", "/api/dumps/dmp_w/dump")).json.error).toBe("This dump was already sent.");
+    expect(h.cutJobs()).toBe(1);
+  });
+
+  it("an unapproved draft with nothing waiting (a later version on a working studio) is used on the next run", async () => {
+    const h = await fresh();
+    await h.call("POST", "/api/brain/profile/lock");
+    h.db.raw.exec("INSERT INTO research_briefs (body, status, approved_at) VALUES ('{}', 'approved', '2026-10-01T00:00:00.000Z'); INSERT INTO research_briefs (body, status) VALUES ('{}', 'draft');");
+    expect(await sendWaitingDumps(h.env, null)).toEqual([]);
+    expect(brief(h).map((b) => b.status)).toEqual(["superseded", "approved"]);
+    expect(h.dump()).toEqual({ status: "uploading", waiting_setup_at: null });
+    expect(h.cutJobs()).toBe(0);
+  });
+
+  it("the hourly run and the button racing still cut once", async () => {
+    const h = await held();
+    const [a, b, c] = await Promise.all([sendWaitingDumps(h.env, null), sendWaitingDumps(h.env, null), sendDump(h.env, "dmp_w", null, false)]);
+    expect(a.length + b.length + (c.ok ? 1 : 0)).toBe(1);
+    expect(h.cutJobs()).toBe(1);
   });
 });
 
@@ -71,63 +172,11 @@ describe("locking the Brand Profile starts the research", () => {
     await h.call("POST", "/api/brain/profile/lock");
     expect(h.researchJobs()).toBe(1);
   });
-  it("starts nothing when a draft is already waiting or a brief is approved", async () => {
+  it("starts nothing when a brief is already there", async () => {
     const h = await fresh();
     h.db.raw.exec("INSERT INTO research_briefs (body, status) VALUES ('{}', 'draft')");
     expect((await h.call("POST", "/api/brain/profile/lock")).json.researchStarted).toBe(false);
     expect(h.researchJobs()).toBe(0);
-  });
-});
-
-describe("approving the brief sends every waiting dump, exactly once", () => {
-  it("auto-sends the waiting dump through the Dump button's path", async () => {
-    const h = await fresh();
-    await h.call("POST", "/api/dumps/dmp_w/dump");
-    await h.call("POST", "/api/brain/profile/lock");
-    h.draftLands();
-    const r = await h.call("POST", "/api/research/approve");
-    expect(r.json).toMatchObject({ ok: true, sent: 1 });
-    expect(h.dump()).toEqual({ status: "cutting", waiting_setup_at: null });
-    expect(h.cutJobs()).toBe(1);
-    expect(h.one<{ n: number }>("SELECT COUNT(*) AS n FROM events WHERE kind = 'dump.sent' AND ref_id = 'dmp_w'").n).toBe(1);
-  });
-
-  it("never sends a dump twice: again, the Dump button after it, and a race all leave one cut job", async () => {
-    const h = await fresh();
-    await h.call("POST", "/api/dumps/dmp_w/dump");
-    await h.call("POST", "/api/brain/profile/lock");
-    h.draftLands();
-    // The button and the automatic send at the same moment.
-    const [auto, button] = await Promise.all([sendWaitingDumps(h.env, null), sendDump(h.env, "dmp_w", null, true)]);
-    expect(auto).toEqual([]); // the gate is still closed: the brief is a draft
-    expect(button.ok).toBe(false);
-    expect(h.cutJobs()).toBe(0);
-    await h.call("POST", "/api/research/approve");
-    expect(h.cutJobs()).toBe(1);
-    expect(await sendWaitingDumps(h.env, null)).toEqual([]);
-    expect((await h.call("POST", "/api/dumps/dmp_w/dump")).json.error).toBe("This dump was already sent.");
-    expect(h.cutJobs()).toBe(1);
-  });
-
-  it("two sends racing once the gate is open still cut once", async () => {
-    const h = await fresh();
-    await h.call("POST", "/api/dumps/dmp_w/dump");
-    await h.call("POST", "/api/brain/profile/lock");
-    h.draftLands();
-    h.db.raw.exec("UPDATE research_briefs SET status = 'approved'");
-    const [a, b, c] = await Promise.all([sendWaitingDumps(h.env, null), sendWaitingDumps(h.env, null), sendDump(h.env, "dmp_w", null, false)]);
-    expect(a.length + b.length + (c.ok ? 1 : 0)).toBe(1);
-    expect(h.cutJobs()).toBe(1);
-  });
-
-  it("sends nothing when no dump is waiting", async () => {
-    const h = await fresh();
-    await h.call("POST", "/api/brain/profile/lock");
-    h.draftLands();
-    const r = await h.call("POST", "/api/research/approve");
-    expect(r.json).toMatchObject({ ok: true, sent: 0 });
-    expect(h.dump()).toEqual({ status: "uploading", waiting_setup_at: null });
-    expect(h.cutJobs()).toBe(0);
   });
 });
 
@@ -136,7 +185,6 @@ describe("unlocking the Brand Profile never stops her clips", () => {
     const h = await fresh();
     const locked = (await h.call("POST", "/api/brain/profile/lock")).json.version as number;
     h.draftLands();
-    await h.call("POST", "/api/research/approve");
     expect((await h.call("POST", "/api/brain/profile/unlock")).status).toBe(200);
     // She edits while unlocked: a newer, unlocked version exists.
     expect((await h.call("PATCH", "/api/brain/profile", { sections: { voice: "brand new words" } })).status).toBe(200);

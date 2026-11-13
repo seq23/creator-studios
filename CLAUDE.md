@@ -41,8 +41,10 @@ Read `~/Brains/spry.md` before any work (business facts, priorities, voice, sett
 Real footage only (no AI video; one exception, owner's word 22 Oct 2026: a photo post's reel may get **realistic motion** from an open-source image-to-video model on a free Hugging Face Space, labelled “Made with AI”, with the slow zoom as the automatic fallback; jobs/photopack.py `realistic_clip`, Setup step `huggingface`) · two-door Dump · nothing posts without approval (one exception, owner's word 22 Oct 2026: **photo posts** auto-post with a heads-up email and a Skip, per studio `photoPosts`, shared/photoPosts.ts; a skipped post never goes out, guarded by tests/unit/photo-posts.test.ts) · hard cap 10
 posts per channel per week · Buffer free plan for posting · OpenRouter free models default ·
 **nothing hidden, nothing switched off**: every Settings switch defaults ON and no switch ever
-hides a screen, nav item or button · research brief approved before
-the first cut · public business contacts only for deals, she sends every pitch herself ·
+hides a screen, nav item or button · **nothing is held for an approval of the brief or profile**
+(owner's word 13 Nov 2026, replacing "research brief approved before the first cut"): the studio
+approves and locks its own first versions so nothing is held; both stay under the menu to read,
+change or redo (worker/lib/setupWait.ts `selfSetup`, tests/unit/setup-wait.test.ts) · public business contacts only for deals, she sends every pitch herself ·
 **every studio logs in with the email one-time code, never "open"** (validator
 `login-never-open`) · **no staging**.
 
