@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { HealthItem, SettingsShape } from "@shared/types";
+import type { PostsSummary } from "@shared/posts";
 import { get, patch, post } from "../lib/api";
 import { ago } from "../lib/format";
 import { foldHealth } from "../lib/health";
@@ -22,6 +23,8 @@ export function Settings() {
   const toast = useToast();
   const s = useLoad(() => get<SettingsShape>("/api/settings"));
   const health = useLoad(() => get<HealthItem[]>("/api/settings/health"));
+  // The one set of numbers (the same Home and the Calendar show): never a count worked out here.
+  const counts = useLoad(() => get<{ summary: PostsSummary }>("/api/posts/summary"));
   // Under Automatic voice overs: on with no recording saved, a studio voice speaks until hers exists.
   const voiceState = useLoad(() => get<{ auto: "on" | "needs_voice" | "off"; hasSample?: boolean }>("/api/voice"));
   const [draft, setDraft] = useState<SettingsShape | null>(null);
@@ -92,7 +95,13 @@ export function Settings() {
                 </div>
               ))}
               <div className="hint nums">
-                {total} posts a week from {Math.max(...PLATFORMS.map((p) => draft.weekly_caps[p]))} unique clips. Raise a platform only if its reach holds for two straight weeks.
+                Your limits add up to {total} posts a week.{" "}
+                {counts.data ? (
+                  <span data-count="week">
+                    This week: <span data-count="posted">{counts.data.summary.postedThisWeek} posted</span> · <span data-count="to-go">{counts.data.summary.toGo} still to go out</span>.{" "}
+                  </span>
+                ) : null}
+                Raise a platform only if its reach holds for two straight weeks.
               </div>
             </Card>
             <Card>

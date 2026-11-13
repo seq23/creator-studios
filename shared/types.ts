@@ -50,7 +50,8 @@ export interface GetSetUpStep {
 export interface HomeSummary {
   today: string;
   runway: { weeks: number; approvedClips: number; thresholdWeeks: number; weeklyNeed: number };
-  thisWeek: { posted: number; planned: number; perPlatform: Record<Platform, { posted: number; cap: number }> };
+  /** posted / toGo / plannedThrough are THE counts (shared/posts.ts PostsSummary): every kind of post, the same on every screen. */
+  thisWeek: { posted: number; toGo: number; plannedThrough: string | null; tz: string; perPlatform: Record<Platform, { posted: number; cap: number }> };
   waiting: { clips: number; clipsThisWeek: number; dumpsCutting: number; briefNeedsApproval: boolean; profileUnlocked: boolean };
   /** every light, worst first, capped (`total` = all of them; Settings lists the rest) */
   health: HomeSection<HealthItem>;

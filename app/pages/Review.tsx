@@ -1,7 +1,7 @@
 // Review (section 9). OWNED BY: phase 5. Clips grouped by dump, best score first. Per clip: play,
 // approve, reject (with a reason), delete (confirm), edit caption / hashtags / hook (one-tap swap
 // to the other hook), untick platforms, Paid partnership (#ad). Bulk: Approve all, Reject all,
-// select several. Tabs: New / Approved / Rejected (kept 7 days). Phone first: one column, big
+// select several. Tabs: New / Approved / Rejected (kept until she deletes them). Phone first: one column, big
 // Approve / Reject buttons; desktop: a grid.
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -29,7 +29,6 @@ export interface ReviewClip extends ClipRow {
   /** The short lines shown after the hook, before the end card (no voice over). */
   text_beats?: string[];
   reviewed_at: string | null;
-  purge_at: string | null;
   look: string | null;
   look_name: string | null;
   layout: { cells: ({ kind: "self" } | { kind: "clip"; clip_id: string } | { kind: "zoom"; zoom: number })[]; voice: number } | null;
@@ -217,7 +216,7 @@ export function Review() {
   const approve = (ids: string[]) =>
     run(() => (ids.length === 1 ? post(`/api/clips/${ids[0]}/approve`) : post("/api/clips/bulk", { action: "approve", ids })), ids.length === 1 ? "Approved. It will go on the Calendar." : `${plural(ids.length, "clip")} approved.`);
   const reject = (ids: string[], reason: string | null) =>
-    run(() => (ids.length === 1 ? post(`/api/clips/${ids[0]}/reject`, { reason }) : post("/api/clips/bulk", { action: "reject", ids, reason })), ids.length === 1 ? "Rejected. It stays in Rejected for 7 days." : `${plural(ids.length, "clip")} rejected.`);
+    run(() => (ids.length === 1 ? post(`/api/clips/${ids[0]}/reject`, { reason }) : post("/api/clips/bulk", { action: "reject", ids, reason })), ids.length === 1 ? "Rejected. It waits in the Rejected bin." : `${plural(ids.length, "clip")} rejected.`);
   const restore = (id: string) => run(() => post(`/api/clips/${id}/restore`), "Moved back to New.");
   const remove = (id: string) => run(() => del(`/api/clips/${id}`), "Deleted for good.");
 
@@ -317,7 +316,12 @@ export function Review() {
         <SearchBox value={q} onChange={setQ} label="Clip number (like 5) or words" />
       </div>
 
-      {tab === "rejected" && visible.length > 0 ? <p className="hint">Rejected clips are removed for good 7 days after you reject them. Changed your mind? Approve or move one back.</p> : null}
+      {tab === "rejected" ? (
+        <p className="hint" data-bin-pointer>
+          {visible.length > 0 ? "Rejected clips stay until you delete them. Changed your mind? Approve or move one back. " : ""}
+          Everything you said no to, photo posts too, is in the <Link to="/calendar/bin">Rejected bin ›</Link>
+        </p>
+      ) : null}
 
       {list.loading && !list.data ? <Skeleton blocks={3} columns={3} /> : null}
       {list.error ? <Empty title="Review didn’t load">Check your connection, then pull down or reload the page to try again.</Empty> : null}
@@ -336,7 +340,7 @@ export function Review() {
             Approve clips in New and they wait here until they post. Posts already planned are on the Calendar.
           </Empty>
         ) : (
-          <Empty title="Nothing rejected">Clips you reject stay here for 7 days in case you change your mind.</Empty>
+          <Empty title="Nothing rejected">Clips you reject stay here until you delete them, in case you change your mind.</Empty>
         )
       ) : null}
 
@@ -439,7 +443,7 @@ export function Review() {
       ) : null}
       {deleting ? (
         <Modal title="Delete this clip for good?" onClose={() => setDeleting(null)}>
-          <p>This removes the video file permanently. You can’t undo it. To keep it around for a week instead, reject it.</p>
+          <p>This removes the video file permanently. You can’t undo it. To keep it in case you change your mind, reject it instead.</p>
           <div className="btn-row">
             <button
               className="btn danger"
@@ -748,10 +752,7 @@ function ClipCard(props: {
           ))}
         </div>
         {tab === "rejected" ? (
-          <p className="hint">
-            {c.reject_reason ? `Reason: ${c.reject_reason}. ` : ""}
-            {c.purge_at ? `Removed for good on ${fmtDate(c.purge_at)}.` : ""}
-          </p>
+          <p className="hint">{c.reject_reason ? `Reason: ${c.reject_reason}.` : ""}</p>
         ) : null}
         <div className="clip-actions">
           {tab === "new" ? (

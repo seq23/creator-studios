@@ -55,7 +55,7 @@ Happy with everything? Tap **Approve all** at the top, or tick a few clips and u
 ![Step 7](/help/screenshots/review-and-approve-clips-7.png)
 <!-- target: .review-tab >> nth=2 -->
 
-Open **Rejected** to bring a clip back. Rejected clips are removed after 7 days.
+Open **Rejected** to bring a clip back. Rejected clips stay until you delete them. Everything you said no to, photo posts too, waits in the **Rejected bin** on the Calendar, where you can bring one back or delete it for good.
 
 ## See the lower-scoring clips
 

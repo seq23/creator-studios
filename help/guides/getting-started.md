@@ -36,7 +36,7 @@ New clips wait in **Review**. Nothing posts until you tap **Approve**.
 
 ![Step 4](/help/screenshots/getting-started-4.png)
 <!-- route: /calendar -->
-<!-- target: .cal-week -->
+<!-- target: .posts-list -->
 
 Approved clips fill your **Calendar** at good times, never more than 10 a week per app. Buffer posts them for you.
 

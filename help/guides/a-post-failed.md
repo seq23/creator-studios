@@ -14,20 +14,20 @@ The app said no to a post. It was tried again, then you got an email. The clip i
 ![Step 1](/help/screenshots/a-post-failed-1.png)
 <!-- target: [data-post="demo_post_h2"] -->
 
-Open **Calendar**. A post that didn't go out is red.
+Open **Calendar**. A post that didn't go out is listed under **Did not go out**, outlined in red.
 
 ## Read why
 
 ![Step 2](/help/screenshots/a-post-failed-2.png)
-<!-- click: [data-post="demo_post_h2"] .cal-post-main -->
+<!-- click: [data-post="demo_post_h2"] .post-open -->
 <!-- target: role=dialog >> .notice.bad -->
 
-Tap it. The red note says what the app said.
+Tap **Open ›**. The red note says what the app said.
 
 ## Tap Try again
 
 ![Step 3](/help/screenshots/a-post-failed-3.png)
-<!-- click: [data-post="demo_post_h2"] .cal-post-main -->
+<!-- click: [data-post="demo_post_h2"] .post-open -->
 <!-- target: role=button[name="Try again"] -->
 
 Fix the reason first (often: reconnect the app in Buffer), then tap **Try again**.
@@ -35,10 +35,10 @@ Fix the reason first (often: reconnect the app in Buffer), then tap **Try again*
 ## Or take it off
 
 ![Step 4](/help/screenshots/a-post-failed-4.png)
-<!-- click: [data-post="demo_post_h2"] .cal-post-main -->
-<!-- target: role=button[name="Take off the calendar"] -->
+<!-- click: [data-post="demo_post_h2"] .post-open -->
+<!-- target: role=button[name="Take it off the calendar"] -->
 
-Rather skip it? Tap **Take off the calendar**; the clip goes back to your pool.
+Rather skip it? Tap **Take it off the calendar**; the clip goes back to your pool.
 
 ## Check the app's light
 

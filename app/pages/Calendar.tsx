@@ -1,13 +1,19 @@
-// Calendar (section 10): week view (default) and month view of every planned, queued, posted
-// and failed post; drag to move on desktop, "Move to…" on phone; take a post off; swap two;
-// "Fill the calendar" plans the next weeks from approved clips right now (the hourly run
-// keeps 4 weeks filled on its own). Times are the audience's local time.
+// Calendar (section 10; owner's rulings, 13 Nov 2026). The default view is ONE list of every
+// upcoming post of every kind (reels AND photo posts), soonest first, each with its picture, its
+// words, its day and where it goes; then what cannot go out yet (the plain reason and one button),
+// what already went out (History, folded) and the Rejected bin. Week and month views are a tap
+// away: drag to move on desktop, the sheet's "Move to another day" on phone. "Fill the calendar"
+// plans the next weeks from approved clips right now (the hourly run keeps 4 weeks filled on its
+// own) and answers with one of three true things (shared/posts.ts fillLine). The weekly limits are
+// words, not a score. Times are the audience's local time.
 import { useMemo, useState, type DragEvent } from "react";
 import { Link } from "react-router-dom";
 import type { ClipRow, PostRow, SettingsShape } from "@shared/types";
 import { get, patch, post } from "../lib/api";
 import { plural } from "../lib/format";
 import { Empty, HelpButton, Modal, PageHead, Skeleton, useLoad, useToast } from "../components/ui";
+import { comingLine, fillLine, limitLine, plainDay, plainTime, runsOutSoon, type FillResult, type PostItem, type PostsList } from "@shared/posts";
+import { PostSheet } from "../components/PostSheet";
 import { PLATFORMS, PLATFORM_LABEL, RECIPES, type Platform } from "@shared/constants";
 import { Icon } from "../components/Icon";
 import { CalendarHistory } from "../components/CalendarHistory";
@@ -15,10 +21,10 @@ import { ToFilm } from "../components/ToFilm";
 import "../styles/calendar.css";
 
 type PoolClip = Pick<ClipRow, "id" | "hook_text" | "cover_url" | "recipe" | "door" | "platforms" | "score"> & { clip_label?: string };
-type View = "week" | "month";
+type View = "list" | "week" | "month";
 
 const SHORT: Record<Platform, string> = { tiktok: "TikTok", instagram: "Instagram", youtube: "YouTube" };
-const STATUS_TEXT: Record<PostRow["status"], string> = { planned: "Planned", in_buffer: "In Buffer", posted: "Posted", failed: "Failed", unscheduled: "Off" };
+const STATUS_TEXT: Record<PostRow["status"], string> = { planned: "Planned", in_buffer: "Lined up", posted: "Posted", failed: "Failed", unscheduled: "Off" };
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 // ---------- dates as YYYY-MM-DD strings in the audience time zone
@@ -44,6 +50,9 @@ function timeIn(iso: string, tz: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone: tz });
 }
 
+/** The list opens on this many days of posts; "Show the rest" brings the others (four weeks is 80 rows on a phone). */
+const LIST_DAYS = 7;
+
 /** The approved-not-scheduled list shows this many, then "Show all (N)" (day 358: 92 clips was 10 phone screens). */
 const POOL_SHOWN = 8;
 
@@ -53,13 +62,13 @@ export function Calendar() {
   const settings = useLoad(() => get<SettingsShape>("/api/settings"));
   const tz = settings.data?.audience_timezone ?? "America/New_York";
   const today = ymdIn(new Date(), tz);
-  const [view, setView] = useState<View>("week");
+  const [view, setView] = useState<View>("list");
   const [anchor, setAnchor] = useState<string | null>(null); // a day inside the shown week/month
   const at = anchor ?? today;
 
   // Visible days
   const days = useMemo(() => {
-    if (view === "week") {
+    if (view !== "month") {
       const mon = mondayOf(at);
       return Array.from({ length: 7 }, (_, i) => addDays(mon, i));
     }
@@ -79,8 +88,12 @@ export function Calendar() {
   const to = `${addDays(days[days.length - 1], 2)}T00:00:00.000Z`;
   const posts = useLoad(() => get<PostRow[]>(`/api/posts?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`), [from, to]);
   const pool = useLoad(() => get<PoolClip[]>("/api/posts/pool"));
+  const list = useLoad(() => get<PostsList>("/api/posts/upcoming"));
   const [busy, setBusy] = useState(false);
-  const [acting, setActing] = useState<PostRow | null>(null);
+  const [filled, setFilled] = useState<FillResult | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
+  const [allDays, setAllDays] = useState(false);
+  const [shownGroups, setShownGroups] = useState<Record<string, boolean>>({});
   const [adding, setAdding] = useState<{ clip: PoolClip; day: string } | null>(null);
 
   const byDay = useMemo(() => {
@@ -95,15 +108,17 @@ export function Calendar() {
   function reload() {
     posts.reload();
     pool.reload();
+    list.reload();
   }
 
   async function fill() {
     setBusy(true);
     try {
-      const r = await post<{ added: number; perPlatform: Record<Platform, number> }>("/api/posts/plan", {});
-      toast.ok(r.added ? `Added ${plural(r.added, "post")} to the calendar.` : "The calendar is already full for the next 4 weeks.");
+      // One of three true answers, said on the page (never "full" when it is only out of approved posts).
+      setFilled(await post<FillResult>("/api/posts/plan", {}));
       reload();
     } catch (e) {
+      setFilled(null);
       toast.bad(e);
     } finally {
       setBusy(false);
@@ -114,7 +129,6 @@ export function Calendar() {
     try {
       await patch(`/api/posts/${p.id}`, { date });
       toast.ok(`Moved to ${dayLabel(date)}.`);
-      setActing(null);
       reload();
     } catch (e) {
       toast.bad(e);
@@ -136,7 +150,7 @@ export function Calendar() {
   }
 
   const head = (
-    <PageHead title="Calendar" lede="Approved clips go out at the best times. Tap a post to move it, swap it or take it off.">
+    <PageHead title="Calendar" lede="Every post that is coming, soonest first. Open one to watch it, read it, move it or take it off.">
       <button className="btn" data-primary onClick={fill} disabled={busy}>
         {busy ? "Filling…" : "Fill the calendar"}
       </button>
@@ -159,57 +173,82 @@ export function Calendar() {
     );
   const caps = settings.data.weekly_caps;
 
-  // Caps line for the week being shown (week view) or the week containing the anchor (month view).
+  // Limits for the week being shown (week view) or the week containing the anchor (month view); the list shows this week's.
   const weekDays = new Set(Array.from({ length: 7 }, (_, i) => addDays(mondayOf(at), i)));
   const weekCount = (p: Platform) => (posts.data ?? []).filter((x) => x.platform === p && weekDays.has(ymdIn(new Date(x.scheduled_at), tz))).length;
+  const thisWeek = weekDays.has(today);
+  const limits = view === "list" ? (list.data?.limits ?? []) : PLATFORMS.map((p) => ({ platform: p, label: SHORT[p], used: weekCount(p), cap: caps[p] }));
   const inView = (posts.data ?? []).filter((p) => days.includes(ymdIn(new Date(p.scheduled_at), tz)));
-  const noClips = posts.data && pool.data && posts.data.length === 0 && pool.data.length === 0;
+  const nothingAnywhere = !!list.data && list.data.posts.length === 0 && list.data.blocked.length === 0;
+  const noClips = posts.data && pool.data && posts.data.length === 0 && pool.data.length === 0 && (view !== "list" || nothingAnywhere);
 
-  const title = view === "week" ? `${dayLabel(days[0], { day: "numeric", month: "short" })} – ${dayLabel(days[6], { day: "numeric", month: "short" })}` : dayLabel(at, { month: "long", year: "numeric" });
+  const title = view === "month" ? dayLabel(at, { month: "long", year: "numeric" }) : `${dayLabel(days[0], { day: "numeric", month: "short" })} – ${dayLabel(days[6], { day: "numeric", month: "short" })}`;
   const step = (dir: number) => setAnchor(view === "week" ? addDays(at, 7 * dir) : (() => { const d = toUtcDate(`${at.slice(0, 8)}01`); d.setUTCMonth(d.getUTCMonth() + dir); return d.toISOString().slice(0, 10); })());
+
+  // The list: every post that will go out, grouped by its day.
+  const coming = list.data?.posts ?? [];
+  const listDays: { day: string; posts: PostItem[] }[] = [];
+  for (const p of coming) {
+    const d = ymdIn(new Date(p.scheduled_at), tz);
+    const last = listDays[listDays.length - 1];
+    if (last?.day === d) last.posts.push(p);
+    else listDays.push({ day: d, posts: [p] });
+  }
+  const shownDays = allDays ? listDays : listDays.slice(0, LIST_DAYS);
+  const hiddenPosts = listDays.slice(shownDays.length).reduce((n, g) => n + g.posts.length, 0);
+  // What a reel can trade places with: every other reel that has not gone out.
+  const swappable = [...coming, ...(list.data?.blocked ?? []).flatMap((g) => g.posts)].filter((x) => x.source === "clip" && x.can.swap && x.id !== open);
 
   return (
     <div className="page cal">
       {head}
 
-      <div className="cal-bar">
-        <div className="row">
-          <button className="icon-btn" aria-label={view === "week" ? "Previous week" : "Previous month"} onClick={() => step(-1)}>
-            <Icon name="left" />
-          </button>
-          <strong className="cal-title">{title}</strong>
-          <button className="icon-btn" aria-label={view === "week" ? "Next week" : "Next month"} onClick={() => step(1)}>
-            <Icon name="right" />
-          </button>
-          {anchor && anchor !== today ? (
-            <button className="btn quiet small" onClick={() => setAnchor(null)}>
-              Today
-            </button>
+      {list.data ? (
+        <p className="posts-line" data-posts-line>
+          <strong>{comingLine(list.data.summary, tz)}</strong>
+          {runsOutSoon(list.data.summary) ? (
+            <Link className="posts-add" to="/dump">
+              Add photos and videos ›
+            </Link>
           ) : null}
-        </div>
-        <div className="cal-toggle" role="group" aria-label="View">
-          <button className={view === "week" ? "on" : ""} aria-pressed={view === "week"} onClick={() => setView("week")}>
-            Week
-          </button>
-          <button className={view === "month" ? "on" : ""} aria-pressed={view === "month"} onClick={() => setView("month")}>
-            Month
-          </button>
-        </div>
-      </div>
+        </p>
+      ) : (
+        <Skeleton lines={1} />
+      )}
 
-      <div className="cal-caps" aria-label="Posts this week per platform">
-        {PLATFORMS.map((p) => {
-          const n = weekCount(p);
-          return (
-            <span key={p} className={`cal-cap${n > caps[p] ? " over" : ""}`}>
-              <span className={`cal-dot ${p}`} aria-hidden="true" />
-              {SHORT[p]} <span className="nums">{n} / {caps[p]}</span>
-            </span>
-          );
-        })}
-        <span className="hint">
-          cap {settings.data.hard_cap_per_channel} per channel · times in your audience’s time zone ({tz})
-        </span>
+      {filled ? (
+        <div className="notice ok" role="status" data-fill-state={filled.state}>
+          {fillLine(filled, tz)}{" "}
+          {filled.state === "nothing_left" ? <Link to="/dump">Add photos and videos to fill the rest ›</Link> : null}
+        </div>
+      ) : null}
+
+      <div className="cal-bar">
+        {view === "list" ? (
+          <span className="hint">Times are in your audience’s time zone.</span>
+        ) : (
+          <div className="row">
+            <button className="icon-btn" aria-label={view === "week" ? "Previous week" : "Previous month"} onClick={() => step(-1)}>
+              <Icon name="left" />
+            </button>
+            <strong className="cal-title">{title}</strong>
+            <button className="icon-btn" aria-label={view === "week" ? "Next week" : "Next month"} onClick={() => step(1)}>
+              <Icon name="right" />
+            </button>
+            {anchor && anchor !== today ? (
+              <button className="btn quiet small" onClick={() => setAnchor(null)}>
+                Today
+              </button>
+            ) : null}
+          </div>
+        )}
+        <div className="cal-toggle" role="group" aria-label="View">
+          {(["list", "week", "month"] as View[]).map((v) => (
+            <button key={v} className={view === v ? "on" : ""} aria-pressed={view === v} onClick={() => setView(v)}>
+              {v === "list" ? "List" : v === "week" ? "Week" : "Month"}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Get it sponsored → "Add to my Calendar": the days she plans to film a video idea. Never a post. */}
@@ -222,10 +261,54 @@ export function Calendar() {
       ) : null}
 
       <div className="cal-layout">
-        {view === "week" ? (
+        {view === "list" ? (
+          <div className="posts-list" aria-label="Posts coming" data-posts-list>
+            {!list.data ? <Skeleton blocks={3} /> : null}
+            {list.data && coming.length === 0 && !noClips ? <p className="soft">Nothing is planned to go out. Tap Fill the calendar, or add photos and videos.</p> : null}
+            {shownDays.map((g) => (
+              <section key={g.day} className="posts-day" data-day={g.day} aria-label={plainDay(`${g.day}T12:00:00Z`, "UTC")}>
+                <h3 className="posts-day-name">{g.day === today ? `Today, ${plainDay(`${g.day}T12:00:00Z`, "UTC")}` : plainDay(`${g.day}T12:00:00Z`, "UTC")}</h3>
+                {g.posts.map((p) => (
+                  <PostListRow key={p.id} p={p} tz={tz} onOpen={() => setOpen(p.id)} />
+                ))}
+              </section>
+            ))}
+            {hiddenPosts > 0 || (allDays && listDays.length > LIST_DAYS) ? (
+              <button type="button" className="link-btn" aria-expanded={allDays} onClick={() => setAllDays((v) => !v)}>
+                {allDays ? "Show fewer ▴" : `+ ${plural(hiddenPosts, "more post")} after that ▾`}
+              </button>
+            ) : null}
+
+            {(list.data?.blocked ?? []).map((g) => {
+              // A few posts show at once; a long group folds behind its count. A post that did not go out always shows.
+              const shown = shownGroups[g.key] ?? (g.key === "failed" || g.posts.length <= 3);
+              return (
+                <section key={g.key} className="posts-group" data-blocked={g.key} aria-label={g.label}>
+                  <div className="posts-group-head">
+                    <strong>
+                      {g.label} ({g.posts.length})
+                    </strong>
+                    {g.action ? (
+                      <Link className="btn small quiet" to={g.action.to}>
+                        {g.action.label}
+                      </Link>
+                    ) : null}
+                  </div>
+                  <p className="hint">{g.posts[0].reason}</p>
+                  {g.key !== "failed" && g.posts.length > 3 ? (
+                    <button type="button" className="link-btn" aria-expanded={shown} onClick={() => setShownGroups((m) => ({ ...m, [g.key]: !shown }))}>
+                      {shown ? "Hide them ▴" : "Show them ▾"}
+                    </button>
+                  ) : null}
+                  {shown ? g.posts.map((p) => <PostListRow key={p.id} p={p} tz={tz} withDay onOpen={() => setOpen(p.id)} />) : null}
+                </section>
+              );
+            })}
+          </div>
+        ) : view === "week" ? (
           <div className="cal-week">
             {days.map((d) => {
-              const list = byDay.get(d) ?? [];
+              const dayPosts = byDay.get(d) ?? [];
               return (
                 <section
                   key={d}
@@ -240,9 +323,9 @@ export function Calendar() {
                   onDrop={(e) => onDrop(e, d)}
                 >
                   <h3 className="cal-day-name">{dayLabel(d)}</h3>
-                  {!posts.data ? <div className="skeleton cal-post-skel" aria-hidden="true" /> : list.length === 0 ? <div className="cal-none">Nothing planned</div> : null}
-                  {list.map((p) => (
-                    <PostCard key={p.id} p={p} tz={tz} onOpen={() => setActing(p)} />
+                  {!posts.data ? <div className="skeleton cal-post-skel" aria-hidden="true" /> : dayPosts.length === 0 ? <div className="cal-none">Nothing planned</div> : null}
+                  {dayPosts.map((p) => (
+                    <PostCard key={p.id} p={p} tz={tz} onOpen={() => setOpen(p.id)} />
                   ))}
                 </section>
               );
@@ -256,7 +339,7 @@ export function Calendar() {
               </div>
             ))}
             {days.map((d) => {
-              const list = byDay.get(d) ?? [];
+              const dayPosts = byDay.get(d) ?? [];
               const outside = d.slice(0, 7) !== at.slice(0, 7);
               return (
                 <button
@@ -267,10 +350,10 @@ export function Calendar() {
                     setAnchor(d);
                     setView("week");
                   }}
-                  aria-label={`${dayLabel(d, { weekday: "long", day: "numeric", month: "long" })}: ${plural(list.length, "post")}. Open this week.`}
+                  aria-label={`${dayLabel(d, { weekday: "long", day: "numeric", month: "long" })}: ${plural(dayPosts.length, "post")}. Open this week.`}
                 >
                   <span className="num">{Number(d.slice(8))}</span>
-                  {list.slice(0, 3).map((p) => (
+                  {dayPosts.slice(0, 3).map((p) => (
                     <span key={p.id} className={`cal-mini ${p.status}`}>
                       <span className={`cal-dot ${p.platform}`} aria-hidden="true" />
                       <span className="truncate">
@@ -278,7 +361,7 @@ export function Calendar() {
                       </span>
                     </span>
                   ))}
-                  {list.length > 3 ? <span className="cal-more">+{list.length - 3} more</span> : null}
+                  {dayPosts.length > 3 ? <span className="cal-more">+{dayPosts.length - 3} more</span> : null}
                 </button>
               );
             })}
@@ -287,7 +370,7 @@ export function Calendar() {
 
         <aside className="cal-pool card flat" aria-label="Approved, not scheduled">
           <h2>Approved, not scheduled</h2>
-          <div className="hint">Drag onto a day, tap Add, or let Fill the calendar do it.</div>
+          <div className="hint">{view === "week" ? "Drag onto a day, tap Add, or let Fill the calendar do it." : "Tap Add, or let Fill the calendar do it."}</div>
           {pool.data && pool.data.length === 0 ? (
             <div className="hint">
               Every approved clip is on the calendar. <Link to="/review">Review new clips</Link>
@@ -323,17 +406,62 @@ export function Calendar() {
         </aside>
       </div>
 
-      <CalendarHistory onChanged={reload} />
+      {/* The weekly limits, in words (13 Nov 2026: "10 / 10" at the top read as a score). */}
+      <ul className="cal-caps" aria-label={thisWeek || view === "list" ? "This week’s limits" : "That week’s limits"}>
+        {limits.map((l) => (
+          <li key={l.platform} className={`cal-cap${l.used > l.cap ? " over" : ""}`}>
+            <span className={`cal-dot ${l.platform}`} aria-hidden="true" />
+            {limitLine(l, thisWeek || view === "list" ? "this" : "that")}
+          </li>
+        ))}
+        <li className="hint">
+          A limit is the most that goes out in a week, never a target. Change it in <Link to="/settings">Settings</Link>.
+        </li>
+      </ul>
 
-      {inView.some((p) => p.status === "failed") ? (
+      <details className="posts-fold" data-history-fold>
+        <summary>Already posted{list.data ? ` (${list.data.summary.postedThisWeek} this week)` : ""} ▾</summary>
+        <CalendarHistory onChanged={reload} />
+      </details>
+
+      <p className="posts-bin-link">
+        <Link className="btn quiet" to="/calendar/bin" data-bin-link>
+          Rejected bin ({list.data?.bin ?? 0}) ›
+        </Link>
+      </p>
+
+      {inView.some((p) => p.status === "failed") && view !== "list" ? (
         <div className="notice bad">
           A post did not go out. Tap it to try again, or <Link to="/help/a-post-failed">see how to fix it</Link>.
         </div>
       ) : null}
 
-      {acting ? <PostActions p={acting} tz={tz} today={today} others={(posts.data ?? []).filter((x) => x.id !== acting.id && x.status !== "posted")} onClose={() => setActing(null)} onMove={move} onDone={() => { setActing(null); reload(); }} /> : null}
+      {open ? <PostSheet id={open} tz={tz} today={today} others={swappable} onClose={() => setOpen(null)} onChanged={reload} /> : null}
       {adding ? <AddClip clip={adding.clip} day={adding.day} today={today} tz={tz} onClose={() => setAdding(null)} onDone={() => { setAdding(null); reload(); }} /> : null}
       <HelpButton guide="move-or-remove-a-post" />
+    </div>
+  );
+}
+
+/** One post in the list: its picture, what it is in plain words, when and where, its words, and Open. */
+function PostListRow({ p, tz, withDay, onOpen }: { p: PostItem; tz: string; withDay?: boolean; onOpen: () => void }) {
+  return (
+    <div className={`post-row ${p.state}`} data-post={p.id} data-kind={p.kind}>
+      {p.thumb_url ? <img className="post-thumb" src={p.thumb_url} alt="" loading="lazy" /> : <span className="post-thumb post-thumb-none" aria-hidden="true">{p.video_url || p.source === "clip" ? "▶" : "▣"}</span>}
+      <div className="grow post-row-text">
+        <div className="post-row-top">
+          <span className="post-chip">{p.kind_label}</span>
+          <span className="hint">
+            {withDay ? `${plainDay(p.scheduled_at, tz)}, ` : ""}
+            {plainTime(p.scheduled_at, tz)} · {p.platform_label}
+          </span>
+        </div>
+        <div className="post-row-headline">{p.headline}</div>
+        {p.caption_line && p.caption_line !== p.headline ? <div className="hint post-row-caption">{p.caption_line}</div> : null}
+      </div>
+      <button type="button" className="btn quiet small post-open" onClick={onOpen} aria-label={`Open the ${p.kind_label} for ${p.platform_label}: ${p.headline}`}>
+        Open ›
+      </button>
     </div>
   );
 }
@@ -357,7 +485,7 @@ function PostCard({ p, tz, onOpen }: { p: PostRow; tz: string; onOpen: () => voi
         tabIndex={0}
         onClick={onOpen}
         onKeyDown={(e) => (e.key === "Enter" || e.key === " " ? (e.preventDefault(), onOpen()) : undefined)}
-        aria-label={`${SHORT[p.platform]} at ${timeIn(p.scheduled_at, tz)}: ${p.hook_text || "clip"}. ${STATUS_TEXT[p.status]}. Open actions.`}
+        aria-label={`${SHORT[p.platform]} at ${timeIn(p.scheduled_at, tz)}: ${p.hook_text || "clip"}. ${STATUS_TEXT[p.status]}. Open it.`}
       >
         {p.cover_url ? <img src={p.cover_url} alt="" loading="lazy" /> : <span className="cal-cover" aria-hidden="true" />}
         <span className="cal-post-text">
@@ -394,85 +522,6 @@ function PostCard({ p, tz, onOpen }: { p: PostRow; tz: string; onOpen: () => voi
 
 function nextDays(today: string, n: number): string[] {
   return Array.from({ length: n }, (_, i) => addDays(today, i));
-}
-
-function PostActions({ p, tz, today, others, onClose, onMove, onDone }: { p: PostRow; tz: string; today: string; others: PostRow[]; onClose: () => void; onMove: (p: PostRow, d: string) => Promise<void>; onDone: () => void }) {
-  const toast = useToast();
-  const current = ymdIn(new Date(p.scheduled_at), tz);
-  const [day, setDay] = useState(current >= today ? current : today);
-  const [swapWith, setSwapWith] = useState("");
-  const posted = p.status === "posted";
-
-  async function run(fn: () => Promise<unknown>, ok: string) {
-    try {
-      await fn();
-      toast.ok(ok);
-      onDone();
-    } catch (e) {
-      toast.bad(e);
-    }
-  }
-
-  return (
-    <Modal title={`${PLATFORM_LABEL[p.platform]} · ${dayLabel(current)} ${timeIn(p.scheduled_at, tz)}`} onClose={onClose}>
-      <p className="soft">
-        {p.clip_label ? `${p.clip_label} · ` : ""}“{p.hook_text || "Untitled clip"}” · {STATUS_TEXT[p.status]}
-      </p>
-      {p.error && p.status === "failed" ? <div className="notice bad">{p.error}</div> : null}
-      {posted ? (
-        <p className="hint">This one already went out, so it stays where it is.</p>
-      ) : (
-        <>
-          {p.status === "failed" ? (
-            <button className="btn" onClick={() => run(() => post(`/api/posts/${p.id}/retry`), "We’ll try that post again within the hour.")}>
-              Try again
-            </button>
-          ) : null}
-          <div className="field">
-            <label htmlFor="move-day">Move to…</label>
-            <div className="row wrap">
-              <select id="move-day" className="select cal-select" value={day} onChange={(e) => setDay(e.target.value)}>
-                {nextDays(today, 35).map((d) => (
-                  <option key={d} value={d}>
-                    {dayLabel(d, { weekday: "long", day: "numeric", month: "short" })}
-                    {d === current ? " (now)" : ""}
-                  </option>
-                ))}
-              </select>
-              <button className="btn dark" disabled={day === current} onClick={() => onMove(p, day)}>
-                Move
-              </button>
-            </div>
-            <div className="hint">Keeps the same time of day.</div>
-          </div>
-          {others.length ? (
-            <div className="field">
-              <label htmlFor="swap-with">Swap with…</label>
-              <div className="row wrap">
-                <select id="swap-with" className="select cal-select" value={swapWith} onChange={(e) => setSwapWith(e.target.value)}>
-                  <option value="">Pick another post</option>
-                  {others.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {dayLabel(ymdIn(new Date(o.scheduled_at), tz))} {timeIn(o.scheduled_at, tz)} · {SHORT[o.platform]} · {(o.hook_text || "clip").slice(0, 40)}
-                    </option>
-                  ))}
-                </select>
-                <button className="btn dark" disabled={!swapWith} onClick={() => run(() => post("/api/posts/swap", { a: p.id, b: swapWith }), "Swapped.")}>
-                  Swap
-                </button>
-              </div>
-            </div>
-          ) : null}
-          <button className="btn danger" onClick={() => run(() => post(`/api/posts/${p.id}/unschedule`), "Taken off. The clip is back in your approved pool.")}>
-            Take off the calendar
-          </button>
-        </>
-      )}
-      <button className="btn quiet" onClick={onClose}>
-        Close
-      </button>
-    </Modal>
-  );
 }
 
 function AddClip({ clip, day, today, tz, onClose, onDone }: { clip: PoolClip; day: string; today: string; tz: string; onClose: () => void; onDone: () => void }) {

@@ -114,6 +114,27 @@ export function fillWeek(input: {
   return out.sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at));
 }
 
+/**
+ * How many more posts one week could still take: per platform, the room under its cap or the
+ * posting times still ahead, whichever is smaller. 0 = the week is truly at its limits, which is
+ * the only time "Fill the calendar" may say everything is planned (13 Nov 2026: it said "already
+ * full" when it was simply out of approved clips).
+ */
+export function openSlots(input: { existing: ExistingPost[]; weekStart: string; weekEnd: string; timeZone: string; caps: Record<Platform, number>; slots: Record<Platform, Slot[]>; now: string }): number {
+  const { weekStart, weekEnd, timeZone, caps, slots, now } = input;
+  const active = input.existing.filter((p) => p.status !== "unscheduled");
+  const slotMap = slotsForWeek(weekStart, timeZone, caps, slots);
+  let open = 0;
+  for (const platform of PLATFORMS) {
+    const inWeek = active.filter((p) => p.platform === platform && p.scheduled_at >= weekStart && p.scheduled_at < weekEnd);
+    const room = Math.min(caps[platform] ?? 0, HARD_CAP_PER_CHANNEL_PER_WEEK) - inWeek.length;
+    if (room <= 0) continue;
+    const taken = new Set(inWeek.map((p) => p.scheduled_at));
+    open += Math.min(room, slotMap[platform].filter((t) => t > now && !taken.has(t)).length);
+  }
+  return open;
+}
+
 /** Plain-words refusal when a move or placement would break the cap; null when it fits. */
 export function capRefusal(platformLabel: string, countInWeek: number, cap: number): string | null {
   const limit = Math.min(cap, HARD_CAP_PER_CHANNEL_PER_WEEK);

@@ -21,6 +21,7 @@ import { fullVideoCards } from "../lib/fullVideo";
 import { clipFileAction } from "../domain/tidy";
 import { log } from "../lib/log";
 import { PROFILE_IN_USE } from "../lib/profileInUse";
+import { readSummary } from "../lib/postsList";
 
 export const home = new Hono<{ Bindings: Env; Variables: Vars }>();
 home.use("*", requireUser);
@@ -83,13 +84,9 @@ home.get("/", async (c) => {
   const { start, end } = weekBounds(new Date(), s.audience_timezone);
   const { results: weekPosts } = await db.prepare("SELECT platform, status FROM posts WHERE scheduled_at >= ? AND scheduled_at < ? AND status != 'unscheduled'").bind(start, end).all<{ platform: Platform; status: string }>();
   const perPlatform = Object.fromEntries(PLATFORMS.map((p) => [p, { posted: 0, cap: s.weekly_caps[p] }])) as Record<Platform, { posted: number; cap: number }>;
-  let posted = 0;
-  for (const p of weekPosts) {
-    if (p.status === "posted") {
-      posted++;
-      perPlatform[p.platform].posted++;
-    }
-  }
+  for (const p of weekPosts) if (p.status === "posted") perPlatform[p.platform].posted++;
+  // The one set of numbers (worker/domain/postCounts.ts): the same the Calendar and Settings show.
+  const counts = await readSummary(c.env);
 
   const waitingClips = (await db.prepare("SELECT COUNT(*) AS n FROM clips WHERE status = 'draft' AND hidden = 0").first<{ n: number }>())?.n ?? 0;
   const weekAgo = new Date(Date.now() - 7 * 86400_000).toISOString();
@@ -139,7 +136,7 @@ home.get("/", async (c) => {
     getSetUp: await getSetUp(c.env, !!profileLocked),
     today: new Date().toISOString(),
     runway: { weeks: runwayWeeks(approved, need), approvedClips: approved, thresholdWeeks: s.runway_threshold_weeks, weeklyNeed: need },
-    thisWeek: { posted, planned: weekPosts.length, perPlatform },
+    thisWeek: { posted: counts.postedThisWeek, toGo: counts.toGo, plannedThrough: counts.plannedThrough, tz: s.audience_timezone, perPlatform },
     waiting: { clips: waitingClips, clipsThisWeek: waitingNew, dumpsCutting: cutting, briefNeedsApproval: !!briefDraft, profileUnlocked: !profileLocked },
     health: capSection(foldHealth(health), HOME_CAPS.health),
     notices: capSection(shown(notices), HOME_CAPS.notices),

@@ -106,7 +106,7 @@ export function draftDeleteOn(c: Pick<ClipFileFacts, "created_at" | "keep_until"
 
 /**
  * One clip's file. Full videos have their own rule (worker/domain/fullVideo.ts storageAction);
- * rejected clips keep theirs (7 days after she rejects, the daily lane's rejected rule).
+ * rejected clips are kept: they wait in the Rejected bin until she deletes them.
  */
 export function clipFileAction(c: ClipFileFacts, now: Date): ClipFileAction {
   if (c.full_video || c.file_deleted_at || c.status === "deleted" || c.status === "rejected") return { do: "keep" };

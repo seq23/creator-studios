@@ -36,9 +36,10 @@ About a day before, each post goes to Buffer, which publishes it at its time.
 
 ![Step 4](/help/screenshots/how-posting-works-4.png)
 <!-- route: /calendar -->
+<!-- click: .posts-fold summary -->
 <!-- target: [data-post="demo_post_h1"] -->
 
-Once it's live the post says so, with a link to see it.
+Once it's live it moves under **Already posted**, with a link to see it.
 
 ## Each app has a light
 

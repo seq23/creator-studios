@@ -11,7 +11,9 @@ import { parseJson, recordEvent } from "../lib/db";
 import { fail, readJson } from "../lib/http";
 import { log, safeError } from "../lib/log";
 import { weekBounds, zonedToUtc, type PlannedPost, type SchedulableClip } from "../domain/slotting";
-import { ACTIVE_STATUSES, capRefusal, fillWeek, moveToDate, pickSlotTable, type ExistingPost } from "../domain/sync";
+import { ACTIVE_STATUSES, capRefusal, fillWeek, moveToDate, openSlots, pickSlotTable, type ExistingPost } from "../domain/sync";
+import { clipWeekLimits, postItem, postsList, readSummary } from "../lib/postsList";
+import type { FillResult, FillState } from "@shared/posts";
 import { readSettings } from "./settings";
 import { getBuffer } from "../services/buffer";
 import { newId, nowIso } from "../lib/ids";
@@ -54,7 +56,7 @@ async function slotTable(env: Env) {
  * nothing the second time. `respectHeld` (the cron) leaves alone clips she took off the
  * calendar herself; the "Fill the calendar" button (her own action) uses them again.
  */
-export async function planAhead(env: Env, opts: { weeks?: number; startWeek?: number; respectHeld: boolean; actor?: string }): Promise<{ added: number; perPlatform: Record<Platform, number>; slotsFrom: "brief" | "launch" }> {
+export async function planAhead(env: Env, opts: { weeks?: number; startWeek?: number; respectHeld: boolean; actor?: string }): Promise<{ added: number; perPlatform: Record<Platform, number>; slotsFrom: "brief" | "launch"; state: FillState; weeks: number }> {
   const s = await readSettings(env);
   const tz = s.audience_timezone;
   const { slots, source } = await slotTable(env);
@@ -77,6 +79,7 @@ export async function planAhead(env: Env, opts: { weeks?: number; startWeek?: nu
   const startWeek = Math.max(0, Math.min(opts.startWeek ?? 0, MAX_PLAN_WEEKS));
   const now = nowIso();
   const added: (PlannedPost & { id: string })[] = [];
+  let open = 0; // posts the weeks looked at could still take once this fill is done
   for (let w = startWeek; w < startWeek + weeks; w++) {
     const { start, end } = weekBounds(new Date(), tz, w);
     const planned = fillWeek({ clips, existing: [...existing], weekStart: start, weekEnd: end, timeZone: tz, caps, slots, now, fullClipIds });
@@ -85,6 +88,7 @@ export async function planAhead(env: Env, opts: { weeks?: number; startWeek?: nu
       existing.push({ id, clip_id: p.clip_id, platform: p.platform, scheduled_at: p.scheduled_at, status: "planned" });
       added.push({ ...p, id });
     }
+    open += openSlots({ existing, weekStart: start, weekEnd: end, timeZone: tz, caps, slots, now });
   }
   if (added.length) {
     await env.DB.batch(added.map((p) => env.DB.prepare("INSERT INTO posts (id, clip_id, platform, scheduled_at, status) VALUES (?, ?, ?, ?, 'planned')").bind(p.id, p.clip_id, p.platform, p.scheduled_at)));
@@ -92,7 +96,10 @@ export async function planAhead(env: Env, opts: { weeks?: number; startWeek?: nu
   }
   const perPlatform = Object.fromEntries(PLATFORMS.map((p) => [p, added.filter((a) => a.platform === p).length])) as Record<Platform, number>;
   log.info("posts.plan", { added: added.length, weeks, slots: source });
-  return { added: added.length, perPlatform, slotsFrom: source };
+  // Three true answers, never "full" when it is only out of approved clips (a clip posts once per
+  // platform, and the weekly numbers are limits, not targets).
+  const state: FillState = added.length ? "added" : open === 0 ? "all_planned" : "nothing_left";
+  return { added: added.length, perPlatform, slotsFrom: source, state, weeks };
 }
 
 /** Count active posts on a platform in the local week of `iso`, leaving out the given posts. */
@@ -134,6 +141,19 @@ posts.get("/", async (c) => {
     .all<Omit<PostRow, "cover_url"> & { media_token: string | null; cover_r2_key: string | null } & Num>();
   const out: PostRow[] = results.map(({ media_token, cover_r2_key, number, version, dump_created_at, ...r }) => ({ ...r, cover_url: coverUrl(media_token, cover_r2_key), clip_label: labelOf(c.env, { number, version, dump_created_at }) }));
   return c.json(out);
+});
+
+/** The one Posts list: every upcoming post of every kind, what cannot go out yet, the limits in words. */
+posts.get("/upcoming", async (c) => c.json(await postsList(c.env)));
+
+/** The one set of numbers (Home, the Calendar and Settings read the same function). */
+posts.get("/summary", async (c) => c.json({ summary: await readSummary(c.env), limits: await clipWeekLimits(c.env) }));
+
+/** One post, any kind, as the sheet shows it. */
+posts.get("/item/:id", async (c) => {
+  const item = await postItem(c.env, c.req.param("id"));
+  if (!item) return fail(c, 404, "That post is gone. Go back to Posts and look again.");
+  return c.json(item);
 });
 
 /** Posts per page in Calendar → History (day 358). */
@@ -215,7 +235,8 @@ posts.post("/plan", async (c) => {
   const approved = (await c.env.DB.prepare("SELECT COUNT(*) AS n FROM clips WHERE status = 'approved'").first<{ n: number }>())?.n ?? 0;
   if (!approved) return fail(c, 409, "There are no approved clips yet. Approve some in Review first.", "review-and-approve-clips");
   const r = await planAhead(c.env, { weeks, startWeek, respectHeld: false, actor: c.get("user").email });
-  return c.json(r);
+  const out: FillResult & typeof r = { ...r, summary: await readSummary(c.env) };
+  return c.json(out);
 });
 
 /** Put one approved clip from the pool onto a day (drag from the pool, or "Add to…" on phone). */

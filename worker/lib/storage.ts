@@ -88,7 +88,7 @@ export async function storageReport(env: Env): Promise<StorageReport> {
     { key: "clips_posted", label: "Posted clips", bytes: l.posted.b, count: l.posted.n, rule: "Cleared 30 days after posting (the cover, numbers and post link stay). Clips in your media kit are kept." },
     { key: "clips_drafts", label: "Clips waiting for review", bytes: l.drafts.b, count: l.drafts.n, rule: "Cleared 60 days after they were made, with a warning on Home a week before. Tap Keep to keep them." },
     { key: "clips_waiting", label: "Approved, not posted yet", bytes: l.waiting.b, count: l.waiting.n, rule: "Always kept." },
-    { key: "clips_rejected", label: "Rejected clips", bytes: l.rejected.b, count: l.rejected.n, rule: "Cleared 7 days after you reject them." },
+    { key: "clips_rejected", label: "Rejected clips", bytes: l.rejected.b, count: l.rejected.n, rule: "Kept in the Rejected bin until you delete them. Cleared early only if storage is still over the limit." },
     { key: "raw", label: "Your original videos", bytes: l.raw.b, count: l.raw.n, rule: "Cleared 7 days after they are cut into clips." },
     { key: "full_videos", label: "Full videos for YouTube", bytes: l.full.b, count: l.full.n, rule: "Cleared 7 days after posting, or 14 days if never approved (warned on Home first)." },
     { key: "voice", label: "Voice overs", bytes: l.voice.b, count: l.voice.n, rule: "Kept with their clip." },

@@ -60,29 +60,25 @@
   background: var(--primary);
   color: var(--primary-text);
 }
+/* The weekly limits, in words, under the posts (never a score at the top). */
 .cal-caps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
-  gap: var(--space-2xs);
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
+  gap: var(--space-3xs);
 }
 .cal-cap {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: var(--space-2xs);
-  border-radius: var(--pill);
-  padding: var(--space-3xs) var(--space-xs);
-  font-weight: 700;
   font-size: var(--text-sm);
-  background: var(--surface);
-  border: 1px solid var(--gold-soft);
+  color: var(--text-soft);
 }
 .cal-cap.over {
-  background: var(--danger-soft);
   color: var(--danger);
-  border-color: transparent;
 }
-
 .cal-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 260px;
@@ -397,4 +393,228 @@
   object-fit: cover;
   border-radius: var(--radius-sm);
   flex: none;
+}
+
+/* ---------- The one Posts list (13 Nov 2026): phone first, one column, 44 px targets. */
+.posts-line {
+  font-size: var(--text-md);
+  margin: 0;
+}
+.posts-line strong {
+  display: block;
+}
+.posts-add {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.posts-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+.posts-day,
+.posts-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  min-width: 0;
+}
+.posts-day-name {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.post-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-2xs);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+.post-row.failed {
+  border-color: var(--danger);
+}
+.post-row .grow {
+  flex: 1;
+  min-width: 0;
+}
+.post-thumb {
+  width: 52px;
+  height: 68px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--surface-sunk);
+}
+.post-thumb-none {
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+}
+.post-row-top,
+.post-when {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  flex-wrap: wrap;
+}
+.post-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--pill);
+  padding: 0 var(--space-2xs);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  background: var(--gold-faint);
+  color: var(--text);
+  white-space: nowrap;
+}
+.post-row-headline {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.post-row-caption {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.post-row .post-open {
+  width: auto;
+  flex-shrink: 0;
+  min-height: var(--touch);
+  white-space: nowrap;
+}
+.posts-group {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-xs);
+}
+.posts-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+.posts-group-head .btn,
+.bin-actions .btn {
+  min-height: var(--touch);
+}
+.posts-fold > summary {
+  min-height: var(--touch);
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+.posts-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.posts-bin-link {
+  margin: 0;
+}
+
+/* Open a post: the sheet. */
+.post-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+.post-media {
+  width: 100%;
+  max-height: 46dvh;
+  border-radius: var(--radius);
+  background: var(--surface-sunk);
+  object-fit: contain;
+}
+.post-media-none {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.post-photos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2xs);
+}
+.post-photos.one {
+  grid-template-columns: minmax(0, 1fr);
+}
+.post-photos img {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunk);
+}
+.post-headline {
+  font-size: var(--text-md);
+  overflow-wrap: anywhere;
+}
+.post-caption {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.post-words {
+  width: 100%;
+  min-height: 140px;
+}
+
+/* The Rejected bin. */
+.bin-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.bin-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+.bin-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+.bin-ask {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  padding: var(--space-sm);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.bin-ask .link-btn {
+  align-self: center;
+}
+.bin-empty {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.cal .danger-text,
+.cal .danger-text:hover {
+  color: var(--danger);
 }

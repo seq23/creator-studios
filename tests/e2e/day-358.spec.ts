@@ -149,6 +149,8 @@ test("Deals: Do this next is capped with Show all; a dead deal archives and come
 
 test("Calendar history: what already happened, failed ones to retry or let go", async ({ page }) => {
   await page.goto("/calendar");
+  // History sits folded under the list of what is coming ("Already posted (N this week)").
+  await page.locator("[data-history-fold] > summary").click();
   const h = page.getByRole("region", { name: "History" });
   const failed = Number(sql<{ n: number }>("SELECT COUNT(*) AS n FROM posts WHERE status = 'failed'")[0].n);
   await h.getByRole("button", { name: `Didn't go out (${failed})` }).click();
