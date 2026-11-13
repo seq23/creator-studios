@@ -10,6 +10,12 @@ export async function login(page: Page, email = "owner@studio.example") {
   if (!v.ok()) throw new Error(`verify failed: ${v.status()}`);
 }
 
+/** The local D1 was busy with the Worker's own write (nothing wrong with the SQL): worth another try. */
+export function isBusy(e: unknown): boolean {
+  const said = `${String((e as { stderr?: unknown }).stderr ?? "")}\n${String((e as { stdout?: unknown }).stdout ?? "")}\n${String(e)}`;
+  return /internal error|database is locked|SQLITE_BUSY/.test(said);
+}
+
 /**
  * Run SQL against the local D1 that `wrangler dev` serves the suite from. Specs use it to seed
  * what another phase's screen would have produced, and to put back what they changed: every spec
@@ -18,14 +24,17 @@ export async function login(page: Page, email = "owner@studio.example") {
  */
 export function sql<T = Record<string, unknown>>(command: string): T[] {
   // Playwright runs from the repo root, where wrangler dev keeps its local D1.
-  // The local D1 can answer "internal error" while the Worker holds a write: try again, then fail loudly.
+  // This is a second process on the SQLite file the running Worker writes to. While the Worker holds
+  // a write (a page's follow-on work, a cron lane) the local D1 answers "internal error" or
+  // "database is locked: SQLITE_BUSY" and nothing of the command is applied: try again, then fail
+  // loudly. Any other error (bad SQL, a missing table) fails at once.
   let out = "";
   for (let attempt = 1; ; attempt++) {
     try {
       out = execFileSync("npx", ["wrangler", "d1", "execute", "creator-studios-dev-db", "--local", "--json", "--command", command], { cwd: process.cwd(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
       break;
     } catch (e) {
-      if (attempt >= 3 || !String((e as { stderr?: unknown }).stderr ?? e).includes("internal error")) throw e;
+      if (attempt >= 4 || !isBusy(e)) throw e;
       execFileSync("sleep", [String(attempt)]);
     }
   }

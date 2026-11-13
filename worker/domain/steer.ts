@@ -379,6 +379,16 @@ const KEY_WORD: Record<SteerKey, string> = { looks: "the look", music: "the musi
 // ---------------------------------------------------------------- combining
 
 /**
+ * A tap and a note that differ in name but make the same thing do not disagree: "Let me pick in
+ * Review" and "no voice over" both make no voice over now (worker/domain/autoVoice.ts voiceFor), so
+ * telling her "you tapped one thing and wrote another" would be a false alarm.
+ */
+function sameThingMade(k: SteerKey, tapped: unknown, wrote: unknown): boolean {
+  const noneNow = (v: unknown) => v === "none" || v === "pick";
+  return k === "voice" && noneNow(tapped) && noneNow(wrote);
+}
+
+/**
  * The controls an upload (or one of its videos) is made with. Per control: the video's own note,
  * else what she typed for the upload, else a choice she tapped, else surprise. Where her note and
  * a tap disagree her note wins, and `clashes` says so in plain words for the screen, BEFORE the cut.
@@ -389,7 +399,7 @@ export function mergeControls(chips: SteerControls, dumpNote: SteerControls, vid
   for (const k of STEER_KEYS) {
     const v = videoNote[k] ?? dumpNote[k] ?? chips[k];
     if (v !== undefined) (out as Record<string, unknown>)[k] = v;
-    if (k !== "include" && k !== "avoid" && chips[k] !== undefined && dumpNote[k] !== undefined && JSON.stringify(chips[k]) !== JSON.stringify(dumpNote[k]))
+    if (k !== "include" && k !== "avoid" && chips[k] !== undefined && dumpNote[k] !== undefined && JSON.stringify(chips[k]) !== JSON.stringify(dumpNote[k]) && !sameThingMade(k, chips[k], dumpNote[k]))
       clashes.push(`You tapped one thing for ${KEY_WORD[k]} and wrote another. I'll go with what you wrote.`);
   }
   if (dumpNote.include || chips.include) out.include = [...new Set([...(chips.include ?? []), ...(dumpNote.include ?? []), ...(videoNote.include ?? [])])].slice(0, 8);
