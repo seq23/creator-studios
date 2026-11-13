@@ -17,7 +17,7 @@ import {
   type ExistingPost,
   REST_WEEKS,
 } from "@worker/domain/sync";
-import { planWeek, weekBounds, zonedToUtc, type SchedulableClip } from "@worker/domain/slotting";
+import { orderForWeek, planWeek, weekBounds, zonedToUtc, type SchedulableClip } from "@worker/domain/slotting";
 import { FakeBuffer, platformOf, resetFakeBuffer } from "@worker/services/buffer";
 import { BUFFER_MAX_RETRIES, BUFFER_QUEUE_LIMIT_PER_CHANNEL, DEFAULT_WEEKLY_CAPS, HARD_CAP_PER_CHANNEL_PER_WEEK, LAUNCH_SLOTS, PLATFORMS } from "@shared/constants";
 
@@ -37,6 +37,28 @@ const asExisting = (ps: { clip_id: string; platform: ExistingPost["platform"]; s
 const count = (ps: { platform: string }[], p: string) => ps.filter((x) => x.platform === p).length;
 
 describe("fillWeek (plan ahead)", () => {
+  // The weekly mix (owner, 13 Nov 2026): with another kind waiting, no kind takes more than about half
+  // of a platform's week, and two of the same kind never sit back to back.
+  it("a pool of mostly moving photos: at most half of each platform's week while other kinds wait, kinds alternate", () => {
+    const mp = clips(16).map((c) => ({ ...c, id: `mp_${c.id}`, asset_id: `mpa_${c.asset_id}`, score: 0.99 - Number(c.id.slice(1)) / 1000, kind: "moving_photo" }));
+    const other = clips(6).map((c) => ({ ...c, id: `ot_${c.id}`, asset_id: `ota_${c.asset_id}`, score: 0.5, kind: Number(c.id.slice(1)) % 2 ? "team_working" : "payoff_first" }));
+    // Five moving photos already fill half of TikTok's week: the other five slots go to the other kinds.
+    const day = (i: number) => new Date(Date.parse(WEEK.start) + (i + 1) * 3_600_000 * 20).toISOString();
+    const already = asExisting(mp.slice(10, 15).map((c, i) => ({ clip_id: c.id, platform: "tiktok" as const, scheduled_at: day(i) })));
+    const tt = fill([...mp, ...other], already).filter((p) => p.platform === "tiktok");
+    expect(tt).toHaveLength(5);
+    expect(tt.filter((p) => p.clip_id.startsWith("mp_"))).toEqual([]);
+    // With only one other reel, the week is still filled: the rule never leaves a slot empty.
+    const few = fill([...mp, other[0]], already).filter((p) => p.platform === "tiktok");
+    expect(few).toHaveLength(5);
+    expect(few.map((p) => p.clip_id)).toContain(other[0].id);
+  });
+  it("the week's order alternates kinds when it can", () => {
+    const k = (i: number, kind: string) => clip(i, { kind, score: 1 - i / 100 });
+    const order = orderForWeek([k(0, "a"), k(1, "a"), k(2, "a"), k(3, "b"), k(4, "b")]).map((c) => c.kind);
+    for (let i = 1; i < 4; i++) expect(order[i]).not.toBe(order[i - 1]);
+  });
+
   // Repeat after a rest (owner, 13 Nov 2026): REST_WEEKS after it went out, a reel may go out on the
   // same platform again, but never ahead of one that has not been out there yet.
   it("a reel that went out more than the rest ago fills a slot again, after every fresh reel", () => {

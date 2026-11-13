@@ -62,18 +62,18 @@ export async function planAhead(env: Env, opts: { weeks?: number; startWeek?: nu
   const tz = s.audience_timezone;
   const { slots, source } = await slotTable(env);
   const { results: rows } = await env.DB.prepare(
-    `SELECT c.id, c.asset_id, c.score, c.platforms, d.door, c.full_video,
+    `SELECT c.id, c.asset_id, c.score, c.platforms, d.door, c.full_video, c.clip_type,
        EXISTS (SELECT 1 FROM posts p WHERE p.clip_id = c.id AND p.status = 'unscheduled') AS held
      FROM clips c JOIN dumps d ON d.id = c.dump_id
      WHERE ${POSTABLE_CLIP_SQL}`,
-  ).all<{ id: string; asset_id: string; score: number; platforms: string; door: "new" | "recycle"; held: number; full_video: number }>();
+  ).all<{ id: string; asset_id: string; score: number; platforms: string; door: "new" | "recycle"; held: number; full_video: number; clip_type: string | null }>();
   const { results: fullRows } = await env.DB.prepare("SELECT id FROM clips WHERE full_video = 1").all<{ id: string }>();
   const fullClipIds = new Set(fullRows.map((r) => r.id));
   const existing = await activePosts(env);
   const hasActive = new Set(existing.map((p) => p.clip_id));
   const clips: SchedulableClip[] = rows
     .filter((r) => !(opts.respectHeld && r.held && !hasActive.has(r.id)))
-    .map((r) => ({ id: r.id, asset_id: r.asset_id, score: r.score, door: r.door, full: !!r.full_video, platforms: (r.full_video ? ["youtube"] : parseJson<Platform[]>(r.platforms, [...PLATFORMS])).filter((p): p is Platform => PLATFORMS.includes(p as Platform)) }));
+    .map((r) => ({ id: r.id, asset_id: r.asset_id, score: r.score, door: r.door, full: !!r.full_video, kind: r.clip_type, platforms: (r.full_video ? ["youtube"] : parseJson<Platform[]>(r.platforms, [...PLATFORMS])).filter((p): p is Platform => PLATFORMS.includes(p as Platform)) }));
 
   const caps = Object.fromEntries(PLATFORMS.map((p) => [p, Math.min(s.weekly_caps[p] ?? 0, s.hard_cap_per_channel, HARD_CAP_PER_CHANNEL_PER_WEEK)])) as Record<Platform, number>;
   const weeks = Math.max(1, Math.min(opts.weeks ?? PLAN_AHEAD_WEEKS, MAX_PLAN_WEEKS));

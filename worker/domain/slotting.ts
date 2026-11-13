@@ -14,6 +14,8 @@ export interface SchedulableClip {
   door: "new" | "recycle";
   /** A full video for YouTube (the third door): at most one a week on the Calendar. */
   full?: boolean;
+  /** Its kind (the clip type: moving photo, team working…), for the weekly mix. */
+  kind?: string | null;
 }
 
 export interface PlannedPost {
@@ -85,7 +87,11 @@ export function orderForWeek(clips: SchedulableClip[]): SchedulableClip[] {
   const out: SchedulableClip[] = [];
   while (pool.length) {
     const last = out[out.length - 1];
-    let idx = pool.findIndex((c) => !last || (c.asset_id !== last.asset_id && c.door !== last.door));
+    // The weekly mix (owner, 13 Nov 2026): never two of the same kind back to back when another kind is there.
+    const otherKind = (c: SchedulableClip) => !last || !c.kind || c.kind !== last.kind;
+    let idx = pool.findIndex((c) => otherKind(c) && (!last || (c.asset_id !== last.asset_id && c.door !== last.door)));
+    if (idx < 0) idx = pool.findIndex((c) => otherKind(c) && (!last || c.asset_id !== last.asset_id));
+    if (idx < 0) idx = pool.findIndex((c) => !last || (c.asset_id !== last.asset_id && c.door !== last.door));
     if (idx < 0) idx = pool.findIndex((c) => !last || c.asset_id !== last.asset_id);
     if (idx < 0) idx = 0;
     out.push(pool.splice(idx, 1)[0]);
