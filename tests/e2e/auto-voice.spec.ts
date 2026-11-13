@@ -146,9 +146,18 @@ test("Dump: the Voice over chip (not all or none) and Review: Add voice over on 
   await expect(group.getByRole("button", { name: "Let me pick in Review" })).toHaveAttribute("aria-pressed", "true");
   await expect(group.getByRole("button", { name: /On quiet clips/ })).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator("[data-voice-hint]")).toContainText("tap Add voice over on any clip in Review");
-  // a note says it too, and is read back before Dump
+  // a tap alone is never called a clash
+  await expect(page.locator("[data-clash]")).toHaveCount(0);
+  // a note says it too, and is read back in the one line before Dump. "Let me pick in Review" and
+  // "no voice over" make the same thing (none now), so she is NOT told she tapped one thing and wrote another.
   await page.getByLabel("Notes for this dump").fill("no voice over on this one");
-  await expect(page.locator("[data-understood]")).toContainText("Voice over: none for this dump");
+  await expect(page.locator("[data-understood] [data-plan]")).toHaveText("I'll make a mix of posts: no voice over.");
+  await expect(page.locator("[data-clash]")).toHaveCount(0);
+  await expect(page.locator("[data-leftover]")).toHaveCount(0);
+  // tapping a voice over on the quiet clips while the note says none IS a clash: said, and her note wins
+  await group.getByRole("button", { name: /On quiet clips/ }).click();
+  await expect(page.locator("[data-clash]")).toHaveText("You tapped one thing for the voice over and wrote another. I'll go with what you wrote.");
+  await expect(page.locator("[data-understood] [data-plan]")).toHaveText("I'll make a mix of posts: no voice over.");
 
   // "Let me pick in Review": the dump makes none; Add voice over on one clip makes just that one
   const since = new Date().toISOString();

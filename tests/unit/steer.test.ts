@@ -80,6 +80,11 @@ describe("chips, the dump's note and a video's note combine", () => {
     expect(m.not_followed).toEqual([]);
     // agreeing, or only one of them saying it, is no clash
     expect(mergeControls({ pace: "fast" }, { pace: "fast", count: 2 }).clashes).toEqual([]);
+    // "Let me pick in Review" tapped and "no voice over" written make the same thing (none now): no false alarm
+    expect(mergeControls({ voice: "pick" }, { voice: "none" })).toMatchObject({ controls: { voice: "none" }, clashes: [] });
+    expect(mergeControls({ voice: "none" }, { voice: "pick" }).clashes).toEqual([]);
+    // a voice over on quiet clips tapped, none written: that one is a real clash
+    expect(mergeControls({ voice: "quiet" }, { voice: "none" }).clashes).toEqual(["You tapped one thing for the voice over and wrote another. I'll go with what you wrote."]);
     expect(mergeControls({ count: 5 }, {}).controls.count).toBe(5);
   });
   it("cleanControls keeps what is real and says what is not", () => {

@@ -46,8 +46,12 @@ test.afterEach(async ({ page }) => {
 
 test("brain → research: nothing is held; the studio uses the brief by itself and she can change it", async ({ page }) => {
   const api = page.request;
-  // Another spec's upload may have made the studio lock the profile by itself: start unlocked.
+  // Another spec's upload may have made the studio lock the profile by itself, which also starts the
+  // research by itself (lib/setupWait.ts ensureFirstResearch); no fake ever runs that job, so it
+  // would still count as "being written" here and this lock would rightly start none. Start
+  // unlocked, with no research on the way.
   await api.post("/api/brain/profile/unlock");
+  sql("DELETE FROM jobs WHERE type = 'research' AND status IN ('queued', 'dispatched', 'running')");
 
   // ---- Client Brain: upload → read → draft → edit → lock
   await page.goto("/brain");
