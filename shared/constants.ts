@@ -102,7 +102,14 @@ export const LAUNCH_SLOTS: Record<Platform, Slot[]> = {
   ],
 };
 
-export const REJECT_REASONS = ["too long", "not on brand", "bad hook", "bad cut", "other"] as const;
+export const REJECT_REASONS = ["too long", "not on brand", "bad hook", "bad cut", "wrong words", "other"] as const;
+/**
+ * "Wrong words" is not a no to the post (owner, 13 Nov 2026): picking it has the words written
+ * again for that post, which stays in New (worker/routes/clips.ts decide); the old line is kept
+ * as one she turned down (worker/domain/studioMemory.ts).
+ */
+export const WRONG_WORDS = "wrong words";
+export const REJECT_REASON_LABEL: Partial<Record<(typeof REJECT_REASONS)[number], string>> = { "wrong words": "Wrong words (write new ones)" };
 
 /**
  * The deal pipeline a talent manager runs (docs/reviews/agency-pov.md), in order, then the two

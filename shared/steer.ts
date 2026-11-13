@@ -65,7 +65,28 @@ export interface Understood {
   not_followed: NotFollowed[];
   /** "rules" (always) or "rules+ai" when the free AI model also read it. */
   by: "rules" | "rules+ai";
+  /** Parts of her note that ask for something the studio could not use, in her own words. Never dropped in silence. */
+  leftover?: string[];
+  /** The one line said back before anything is made: "I'll make about 4 posts: short, no words on screen." */
+  plan?: string;
+  /** Where her note and a choice she tapped disagree, said before the cut: her note wins. */
+  clashes?: string[];
 }
+
+/** What POST /api/dumps/understand answers: the reading, plus what the screen sends back next time. */
+export interface SaidBack extends Understood {
+  /** What the note alone was read as (sent back next time, so a fix she tapped is dropped once she types something else for it). */
+  note_controls: SteerControls;
+  /** Her one-tap fixes in force. */
+  fixed: SteerControls;
+  /** The number of posts the line names (0 = not known yet). */
+  about: number;
+}
+
+/** One-tap fixes under the line said back (app/components/Steer.tsx): each changes what her note was read as. */
+export const QUICK_FIXES = ["fewer", "more", "one", "no_words", "instagram_only"] as const;
+export type QuickFix = (typeof QUICK_FIXES)[number];
+export const QUICK_FIX_LABEL: Record<QuickFix, string> = { fewer: "Fewer", more: "More", one: "Just one", no_words: "No words on screen", instagram_only: "Instagram only" };
 
 export const STEER_KEYS = ["looks", "music", "pace", "length", "count", "captions", "platforms", "voice", "camera", "include", "avoid"] as const;
 export type SteerKey = (typeof STEER_KEYS)[number];

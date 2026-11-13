@@ -82,14 +82,34 @@ test("which videos: two cards, nothing picked, a hint bubble on each, the Dump b
   await expect(page.locator("[data-dump-button]")).toBeEnabled();
 });
 
-test("a note is read back before Dump; what can't be done is said", async ({ page }) => {
+test("one line is always said back before Dump; what can't be used or done is said; one-tap fixes change it", async ({ page }) => {
   await page.goto("/dump");
-  await page.getByLabel("Notes for this dump").fill("2x4 grid, no music, fast. Also a 3x3 grid please.");
+  const plan = page.locator("[data-understood] [data-plan]");
+  // with no note at all
+  await expect(plan).toHaveText("I'll make a mix of posts.");
+  await page.getByLabel("Notes for this dump").fill("2x4 grid, no music, fast. Also a 3x3 grid please. make a carousel");
+  await expect(plan).toContainText("Grid of eight");
+  await expect(plan).toContainText("no music");
+  await expect(plan).toContainText("quick cuts");
   const u = page.locator("[data-understood]");
-  await expect(u).toContainText("Look: Grid of eight (8 cells)");
-  await expect(u).toContainText("Music: none");
-  await expect(u).toContainText("Pace: fast");
   await expect(u.locator("[data-not-followed]")).toContainText("a 3 by 3 grid, because that grid doesn't exist");
+  // a part it could not use is said back in her own words, never dropped
+  await expect(u.locator("[data-leftover]")).toHaveText("I couldn’t use this part: “make a carousel”");
+  // one-tap fixes
+  const fixes = page.getByRole("group", { name: "Quick changes" });
+  await expect(fixes.getByRole("button")).toHaveText(["Fewer", "More", "Just one", "No words on screen", "Instagram only"]);
+  await fixes.getByRole("button", { name: "Just one" }).click();
+  await expect(plan).toContainText("I'll make 1 post:");
+  await expect(fixes.getByRole("button", { name: "Just one" })).toHaveAttribute("aria-pressed", "true");
+  await fixes.getByRole("button", { name: "Instagram only" }).click();
+  await expect(plan).toContainText("Instagram only");
+  await fixes.getByRole("button", { name: "No words on screen" }).click();
+  await expect(plan).toContainText("no words on screen");
+  // what she types wins over the earlier tap
+  await page.getByLabel("Notes for this dump").fill("3 posts, no music");
+  await expect(plan).toHaveText("I'll make 3 posts: no music, no words on screen, Instagram only.");
+  // every fix is a 44 px target on a phone
+  for (const b of await fixes.getByRole("button").all()) expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);
 });
 
 test("steered by chips and a note: the clips follow, the dump says what it could not do", async ({ page }) => {
@@ -102,8 +122,11 @@ test("steered by chips and a note: the clips follow, the dump says what it could
   await page.getByRole("group", { name: "How many" }).getByRole("button", { name: "5 clips" }).click();
   await page.getByRole("group", { name: "Clip length" }).getByRole("button", { name: /Short/ }).click();
   await page.getByRole("group", { name: "Platforms" }).getByRole("button", { name: "TikTok" }).click();
+  await page.getByRole("group", { name: "Pace" }).getByRole("button", { name: "Fast" }).click();
   await page.getByLabel("Notes for this dump").fill("keep it calm. 3x3 grid");
-  await expect(page.locator("[data-understood]")).toContainText("Pace: calm");
+  await expect(page.locator("[data-plan]")).toHaveText("I'll make 5 posts: short (under 20 seconds), calm, Grid of four, TikTok only.");
+  // her note and her tap disagree: said before the cut, and her note wins
+  await expect(page.locator("[data-clash]")).toHaveText("You tapped one thing for the pace and wrote another. I'll go with what you wrote.");
   const res = page.waitForResponse((r) => /\/api\/dumps\/[^/]+\/dump$/.test(r.url()));
   await page.locator("[data-dump-button]").click();
   expect((await res).ok()).toBe(true);
@@ -114,10 +137,14 @@ test("steered by chips and a note: the clips follow, the dump says what it could
   expect(clips.every((c) => c.look === "grid_four" && c.end_s - c.start_s <= 21 && JSON.stringify(c.platforms) === '["tiktok"]')).toBe(true);
   await page.reload();
   await expect(page.locator("[data-not-followed]")).toContainText("a 3 by 3 grid");
-  await expect(page.locator("[data-tried]")).toContainText("What we tried: 5 clips in 1 look (Grid of four)");
+  // the clash was said before the cut; it is not repeated afterwards
+  await expect(page.locator("[data-not-followed]")).not.toContainText("tapped");
+  // what was made, as kinds of post in her words: never a list of looks
+  await expect(page.locator("[data-tried]")).toHaveText(/^\s*5 posts: \d .*\.$/);
+  await expect(page.locator("[data-tried]")).not.toContainText(/look|grid/i);
 });
 
-test("Surprise me: varied looks and a What we tried line", async ({ page }) => {
+test("Surprise me: varied looks and one plain line on what was made", async ({ page }) => {
   await page.goto("/dump");
   await page.getByRole("radio", { name: /New videos I just filmed/ }).click();
   await upload(page);
@@ -129,7 +156,7 @@ test("Surprise me: varied looks and a What we tried line", async ({ page }) => {
   const clips = await clipsOf(page.request, dumpId);
   expect(new Set(clips.map((c) => c.look)).size).toBeGreaterThanOrEqual(Math.min(clips.length, 5));
   await page.reload();
-  await expect(page.locator("[data-tried]")).toContainText(/What we tried: \d+ clips in \d+ looks/);
+  await expect(page.locator("[data-tried]")).toHaveText(/^\s*\d+ posts: \d .*\.$/);
 });
 
 test("Review: Change music and Try another version re-render just that clip", async ({ page }) => {

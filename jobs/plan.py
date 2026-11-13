@@ -581,7 +581,8 @@ COPY_SYSTEM = (
     "on screen in each shot and its state (before = empty or unfinished, in_progress, after = the finished result). Write ONLY about "
     "what is listed. Never mention any service other than the clip's service. Call something finished, a reveal or an after ONLY if a "
     "shot's state is after; say before or empty ONLY if a shot's state is before. Never write people's names, addresses or prices. "
-    "Never mention automation, software or how the video was made. Follow studio_rules exactly. Learn from what the owner kept and turned down (never reuse a turned-down hook). Every clip's hook must be different from every other clip's "
+    "Never mention automation, software or how the video was made. When owner_note is given it is what the owner wrote about these videos: "
+    "use its facts, occasion and tone in the words, and never say the opposite of it; it never overrides what is on screen or the rules here. Follow studio_rules exactly. Learn from what the owner kept and turned down (never reuse a turned-down hook). Every clip's hook must be different from every other clip's "
     "and describe that clip's own shots; do not reuse lines from the voice examples. hook and hook_alt: on-screen text, max 8 words each. caption: "
     "max 150 characters in their voice. When how_her_videos_feel is given, match it: her kind of hook, caption style, energy and way of talking. When the clips list a clip_type, write for that kind of clip and follow the playbook "
     "(payoff first, local words: use the place_words naturally when given). Calls to action are opt-in: when studio_rules names cta_phrases, do NOT put a call to action "
@@ -594,12 +595,15 @@ COPY_SYSTEM = (
 )
 
 
-def copy_prompt(plans: list[Plan], profile: dict[str, str] | None, feedback: dict[int, str] | None = None, rules: dict[str, Any] | None = None, memory: dict[str, Any] | None = None, extra: dict[str, Any] | None = None) -> str:
+def copy_prompt(plans: list[Plan], profile: dict[str, str] | None, feedback: dict[int, str] | None = None, rules: dict[str, Any] | None = None, memory: dict[str, Any] | None = None, extra: dict[str, Any] | None = None, owner_note: str = "") -> str:
     prof = profile or {}
+    note = re.sub(r"\s+", " ", owner_note or "").strip()[:600]
     return json.dumps(
         {
             **({"studio_rules": rules} if rules else {}),
             **(extra or {}),
+            # What she wrote with this upload reaches the words (owner, 13 Nov 2026: "it listens").
+            **({"owner_note": note} if note else {}),
             **memory_prompt(memory),
             "voice": prof.get("voice", "")[:600],
             "do_dont": prof.get("do_dont", "")[:600],
@@ -676,13 +680,13 @@ def apply_copy(plans: list[Plan], answer: Any, profile: dict[str, str] | None, s
     return fell
 
 
-def write_copy(key: str | None, plans: list[Plan], profile: dict[str, str] | None, services: list[str], model: str, ask: Any, feedback: dict[int, str] | None = None, guard: Any = None, rules: dict[str, Any] | None = None, memory: dict[str, Any] | None = None, extra: dict[str, Any] | None = None) -> int:
+def write_copy(key: str | None, plans: list[Plan], profile: dict[str, str] | None, services: list[str], model: str, ask: Any, feedback: dict[int, str] | None = None, guard: Any = None, rules: dict[str, Any] | None = None, memory: dict[str, Any] | None = None, extra: dict[str, Any] | None = None, owner_note: str = "") -> int:
     """ONE text call for every clip of the dump (or a re-cut's clips). `ask(key, payload)` returns
     the model's text (cut.ask_text in the job: the $0 ladder, OpenRouter free then the studio's
     Cloudflare share, so it is asked even with no OpenRouter key; a fake in tests)."""
     answer = None
     if plans:
-        payload = {"model": model, "max_tokens": 3500, "response_format": {"type": "json_object"}, "messages": [{"role": "system", "content": COPY_SYSTEM}, {"role": "user", "content": copy_prompt(plans, profile, feedback, rules, memory, extra)}]}
+        payload = {"model": model, "max_tokens": 3500, "response_format": {"type": "json_object"}, "messages": [{"role": "system", "content": COPY_SYSTEM}, {"role": "user", "content": copy_prompt(plans, profile, feedback, rules, memory, extra, owner_note)}]}
         try:
             CALLS["text"] = CALLS.get("text", 0) + 1
             text = ask(key, payload)

@@ -12,7 +12,7 @@ import { log } from "../lib/log";
 import { pollEditorJobs, startDumpCut } from "../lib/editorJobs";
 import { editorDef } from "../domain/editors";
 import { cleanControls } from "../domain/steer";
-import { confirmUnderstood, readUnderstood, tracksOf, understand } from "../lib/steerStore";
+import { confirmUnderstood, readUnderstood, sayBack, tracksOf, understand } from "../lib/steerStore";
 import type { NotFollowed } from "@shared/steer";
 import type { ApiError, AssetRow, DumpList, DumpSummary, SetupStep, SetupWait } from "@shared/types";
 import { ensureFirstResearch, setupHeadline, setupSteps } from "../lib/setupWait";
@@ -173,12 +173,12 @@ dumps.post("/:id/mine", async (c) => {
 });
 
 /**
- * Here's what we understood: a note (the dump's or a video's) read into controls, before she
+ * The line said back: her note, her taps and her one-tap fixes read together, before she
  * presses Dump. Rules always; the free AI too when it is connected. Nothing is stored here.
  */
 dumps.post("/understand", async (c) => {
-  const body = await readJson<{ text?: string }>(c);
-  return c.json(await understand(c.env, String(body?.text ?? "").slice(0, 4000)));
+  const body = await readJson<{ text?: string; steer?: unknown; dump_id?: string; fixed?: unknown; prev_note?: unknown; fix?: string }>(c);
+  return c.json(await sayBack(c.env, { text: String(body?.text ?? "").slice(0, 4000), chips: body?.steer, dumpId: body?.dump_id ? String(body.dump_id) : null, fixed: body?.fixed, prevNote: body?.prev_note, fix: body?.fix }));
 });
 
 /** Notes, the chips she tapped (steer; {} = Surprise me) and the reading of the note she saw. */
@@ -198,7 +198,8 @@ dumps.patch("/:id", async (c) => {
     const notes = String(body.notes).slice(0, 4000);
     await c.env.DB.prepare("UPDATE dumps SET notes = ? WHERE id = ? AND status = 'uploading'").bind(notes, id).run();
     if (body.understood !== undefined) {
-      const u = notes.trim() ? await confirmUnderstood(c.env, notes, body.understood) : null;
+      // A one-tap fix under the line said back is kept with an empty note too: it is part of what she saw.
+      const u = notes.trim() || (body.understood as { controls?: object } | null)?.controls ? await confirmUnderstood(c.env, notes, body.understood) : null;
       await c.env.DB.prepare("UPDATE dumps SET steer_notes = ? WHERE id = ? AND status = 'uploading'").bind(u ? JSON.stringify(u) : null, id).run();
     }
   }

@@ -20,7 +20,7 @@ import { refreshPublicStats } from "../lib/publicStats";
 import { youtubeDirectSync } from "../lib/youtubeDirect";
 import { photoPostsTick, photoStopLights } from "../lib/photoPosts";
 import { wordsPass } from "../lib/wordsPass";
-import { finishPendingCuts } from "../jobs/cut";
+import { finishPendingCuts, retryWaitingCuts } from "../jobs/cut";
 import { ensureFirstResearch } from "../lib/setupWait";
 import { sendWaitingDumps } from "../routes/dumps";
 import { autoRedoSweep } from "../lib/autoRedo";
@@ -71,6 +71,8 @@ export async function runCron(env: Env, cron: string): Promise<void> {
       await sendWaitingDumps(env, null);
       // Studio fix: clips that came back with no words of their own get them (worker/lib/wordsPass.ts).
       await wordsPass(env).catch(() => log.warn("cron.words_failed"));
+      // Uploads waiting because no AI model could look at the videos are tried again (named stop, worker/jobs/cut.ts).
+      await retryWaitingCuts(env).catch(() => log.warn("cron.model_wait_failed"));
       // A cut's follow-on (light, email, editors, voice overs) left over after its callback answered.
       await finishPendingCuts(env).catch(() => log.warn("cron.cut_follow_on_failed"));
       // Held clips are redone on their own, never asking her (owner, 23 Oct 2026; worker/lib/autoRedo.ts).

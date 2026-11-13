@@ -49,12 +49,12 @@ import {
   type ResolvedLook,
   type StoredEditing,
 } from "../domain/looks";
-import { getSetting } from "../lib/db";
+import { getSetting, setHealth } from "../lib/db";
 import { CUT_REF } from "../lib/jobStorage";
 import { voiceReady, autoVoiceDump, removeVoiceOver } from "../lib/autoVoice";
-import { cleanControls, mergeControls, recipesAllowed, steerLook, steerMusic, steerPlatforms, steerRecipes, steerTarget, whatWeTried } from "../domain/steer";
+import { cleanControls, mergeControls, recipesAllowed, steerLook, steerMusic, steerPlatforms, steerRecipes, steerTarget, TOO_SHORT_S, whatWeTried, type UnusedWhy } from "../domain/steer";
 import { readUnderstood, tracksOf } from "../lib/steerStore";
-import type { NotFollowed, SteerControls } from "@shared/steer";
+import { LENGTHS, type NotFollowed, type SteerControls } from "@shared/steer";
 import { applyImport, buildImportSpec, fakeImport, importFailed, type ImportSpec } from "./cut_import";
 import { connectedEditors, editorChoice, queueClipEditors } from "../lib/editorJobs";
 import { effectiveEditor } from "../domain/editors";
@@ -135,6 +135,10 @@ export interface SteerSpec {
   count: number | null;
   include: string[];
   avoid: string[];
+  /** The length she asked for, in seconds, for the planner that builds posts from shots (jobs/clipmaker.py plan_typed); null = the kind's own. */
+  length: { minS: number; maxS: number } | null;
+  /** She asked for these looks herself (a note or a tap): only then is a look that can't be used said back. */
+  looks_asked: boolean;
   /** Camera sound for these clips (shared/sound.ts); a video's own note may set it for that video. */
   camera?: CameraSound;
 }
@@ -313,6 +317,8 @@ async function buildDumpSpec(env: Env, jobId: string, dumpId: string): Promise<C
       count: ctl.count ?? null,
       include: ctl.include ?? [],
       avoid: ctl.avoid ?? [],
+      length: ctl.length ? { minS: LENGTHS[ctl.length].minS, maxS: LENGTHS[ctl.length].maxS } : null,
+      looks_asked: !!ctl.looks?.length,
       ...(ctl.camera ? { camera: ctl.camera } : {}),
     };
   };
@@ -712,6 +718,20 @@ export interface CutResult {
   /** Studio fix: the stage the engine gave each file, and how many distinct clips (styles never count). */
   asset_roles?: Record<string, string>;
   clip_counts?: { distinct?: number; by_type?: Record<string, number> };
+  /** Videos of this upload that are in no post, and why (jobs/cut.py unused_videos). */
+  unused?: unknown;
+}
+
+/** The job's list of videos it could not use, checked: only this upload's own, only the three reasons. */
+export function cleanUnused(v: unknown, assetIds: ReadonlySet<string>): { asset_id: string; why: UnusedWhy }[] {
+  if (!Array.isArray(v)) return [];
+  const out: { asset_id: string; why: UnusedWhy }[] = [];
+  for (const x of v.slice(0, 200)) {
+    const id = String((x as { asset_id?: unknown })?.asset_id ?? "");
+    const why = String((x as { why?: unknown })?.why ?? "");
+    if (assetIds.has(id) && (why === "unsteady" || why === "short" || why === "spare") && !out.some((o) => o.asset_id === id)) out.push({ asset_id: id, why });
+  }
+  return out;
 }
 
 /**
@@ -995,6 +1015,8 @@ export function cleanParts(v: unknown, start: number, end: number): [number, num
 /** Plain sentences for the Dump screen when cutting fails. Never echoes the raw error. */
 export function plainFailure(safeError: string): string {
   const e = safeError.toLowerCase();
+  // Every video under TOO_SHORT_S seconds (jobs/cut.py TooShort): say what to add, not "try again".
+  if (e.includes("tooshort")) return `These videos are too short for a reel. Add videos of ${TOO_SHORT_S} seconds or more.`;
   if (e.includes("no usable") || e.includes("no clips") || e.includes("nousable")) return "We couldn't find any usable moments in these videos. Try longer takes with talking or action, then dump again.";
   if (e.includes("download") || e.includes("nosuchkey") || e.includes("clienterror")) return "We couldn't open your videos. Try dumping them again.";
   if (e.includes("ffmpeg") || e.includes("calledprocesserror") || e.includes("decode")) return "One of the videos couldn't be read. It may be damaged or in an unusual format. Try exporting it again from your phone.";
@@ -1100,7 +1122,7 @@ export async function applyDumpClips(env: Env, jobId: string, dumpId: string, re
     env.DB.prepare("UPDATE dumps SET status = 'ready', clips_made = ?, ready_at = ?, error_summary = NULL, follow_on_pending = ? WHERE id = ?").bind(clips.length, readyAt, opts.editor ? FOLLOW_ON_IMPORT : FOLLOW_ON_BUILT_IN, dumpId),
   );
   // Never silently dropped: what her notes asked that could not be done, and what the job could not find.
-  const told = await steerOutcome(env, dumpId, (result as CutResult & { steer_report?: unknown }).steer_report, clips);
+  const told = await steerOutcome(env, dumpId, (result as CutResult & { steer_report?: unknown }).steer_report, clips.filter((c) => !c.hidden && !c.style_of), cleanUnused((result as CutResult).unused, new Set(allowed.keys())));
   stmts.push(env.DB.prepare("UPDATE dumps SET not_followed = ?, tried = ? WHERE id = ?").bind(JSON.stringify(told.not_followed), told.tried, dumpId));
   await env.DB.batch(stmts);
   const tSave = Date.now();
@@ -1230,13 +1252,15 @@ export function numberClips(clips: Pick<CleanClip, "id" | "style_of">[], seq: nu
   return out;
 }
 
-/** Everything her chips and notes asked that the dump could not do, and the one-line "What we tried". */
-export async function steerOutcome(env: Env, dumpId: string, report: unknown, clips: { look: string | null; music: string | null }[]): Promise<{ not_followed: NotFollowed[]; tried: string }> {
+/** Everything her note and taps asked that the upload could not do, and the one plain line on what it became. */
+export async function steerOutcome(env: Env, dumpId: string, report: unknown, clips: { clip_type?: string | null }[], unused: { why: UnusedWhy }[] = []): Promise<{ not_followed: NotFollowed[]; tried: string }> {
   const dump = await env.DB.prepare("SELECT steer, steer_notes FROM dumps WHERE id = ?").bind(dumpId).first<{ steer: string | null; steer_notes: string | null }>();
   const tracks = await tracksOf(env);
   const chips = cleanControls(parseJson(dump?.steer ?? null, {}), tracks).controls;
   const note = readUnderstood(dump?.steer_notes ?? null);
-  const nf: NotFollowed[] = [...(note?.not_followed ?? []), ...mergeControls(chips, note?.controls ?? {}).not_followed];
+  // A clash between her note and a tap was said BEFORE the cut (Understood.clashes); it is not repeated here.
+  const nf: NotFollowed[] = [...(note?.not_followed ?? [])];
+  for (const part of note?.leftover ?? []) nf.push({ what: `"${part.slice(0, 110)}"`, why: "I couldn't use this part of your note" });
   const { results: assetNotes } = await env.DB.prepare("SELECT steer_notes FROM assets WHERE dump_id = ? AND steer_notes IS NOT NULL").bind(dumpId).all<{ steer_notes: string }>();
   for (const a of assetNotes) nf.push(...(readUnderstood(a.steer_notes)?.not_followed ?? []));
   // Voice over "on quiet clips" asked for (chip or note) while her voice isn't saved: said, never dropped.
@@ -1248,7 +1272,7 @@ export async function steerOutcome(env: Env, dumpId: string, report: unknown, cl
   const seen = new Set<string>();
   return {
     not_followed: nf.filter((x) => (seen.has(x.what) ? false : (seen.add(x.what), true))),
-    tried: whatWeTried(clips, tracks.map((t) => ({ r2_key: t.r2_key, name: t.name }))),
+    tried: whatWeTried(clips, unused),
   };
 }
 
@@ -1394,9 +1418,62 @@ async function onFailure(env: Env, jobId: string, refId: string | null, safeErro
     log.warn("cut.failed.after_saved", { len: safeError.length });
     return;
   }
+  // No AI model could look at her videos (jobs/cut.py NoModelYet): nothing generic is made. The
+  // upload waits and is tried again by itself (retryWaitingCuts, hourly); she sees one plain line.
+  if (/nomodelyet/i.test(safeError) && (await waitForModel(env, dumpId))) return;
   await env.DB.prepare("UPDATE dumps SET status = 'failed', error_summary = ? WHERE id = ?").bind(plainFailure(safeError), dumpId).run();
   await clipCuttingLight(env, { status: "failed", at: nowIso() });
   log.warn("cut.failed", { len: safeError.length });
+}
+
+// ---------------------------------------------------------------- waiting for a model (named stop)
+
+/** What she reads while an upload waits for the AI to answer. */
+export const MODEL_WAIT_LINE = "Your posts are taking longer than usual. Nothing is needed from you.";
+/** What she reads when it never answered in MODEL_WAIT_TRIES tries (about two days). */
+export const MODEL_GAVE_UP_LINE = "We couldn't make your posts this time. Your videos are safe. Tell your helper.";
+export const MODEL_WAIT_TRIES = 48;
+const MODEL_WAIT_HEALTH = "Posts waiting for the AI";
+
+/** The upload goes back to waiting (true), or it has waited long enough and stops for the helper (false). */
+async function waitForModel(env: Env, dumpId: string): Promise<boolean> {
+  const tries = await env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE kind = 'dump.waiting_model' AND ref_id = ?").bind(dumpId).first<{ n: number }>();
+  const n = Number(tries?.n ?? 0) + 1;
+  if (n > MODEL_WAIT_TRIES) {
+    await env.DB.prepare("UPDATE dumps SET status = 'failed', error_summary = ? WHERE id = ?").bind(MODEL_GAVE_UP_LINE, dumpId).run();
+    await setHealth(env.DB, MODEL_WAIT_HEALTH, "red", `No free AI model answered in ${MODEL_WAIT_TRIES} tries. Check the OpenRouter key and its free models.`, "connect-openrouter");
+    await clipCuttingLight(env, { status: "failed", at: nowIso() });
+    log.error("cut.model_wait.gave_up", { tries: n - 1 });
+    return true;
+  }
+  await env.DB.prepare("UPDATE dumps SET status = 'queued', error_summary = ? WHERE id = ?").bind(MODEL_WAIT_LINE, dumpId).run();
+  await recordEvent(env.DB, "dump.waiting_model", dumpId, { try: n });
+  await setHealth(env.DB, MODEL_WAIT_HEALTH, "yellow", `No free AI model could look at the videos (try ${n} of ${MODEL_WAIT_TRIES}). It is tried again every hour by itself.`, "connect-openrouter");
+  log.warn("cut.model_wait", { try: n });
+  return true;
+}
+
+/**
+ * The hourly lane: every upload waiting for a model is sent to the cutter again. Returns how many
+ * went. With none waiting the health light goes green (the stop is over). Never throws.
+ */
+export async function retryWaitingCuts(env: Env): Promise<number> {
+  const { results } = await env.DB.prepare("SELECT id FROM dumps WHERE status = 'queued' AND error_summary = ? AND archived_at IS NULL ORDER BY created_at LIMIT 10").bind(MODEL_WAIT_LINE).all<{ id: string }>();
+  let sent = 0;
+  for (const d of results) {
+    // Not while a cut for it is still out (a retry that has not reported yet).
+    const out = await env.DB.prepare("SELECT 1 AS x FROM jobs WHERE type = 'cut' AND ref_id = ? AND status IN ('queued', 'dispatched', 'running') LIMIT 1").bind(d.id).first();
+    if (out) continue;
+    const r = await dispatchJob(env, "cut", d.id);
+    if (r.dispatched) sent++;
+    else log.warn("cut.model_wait.dispatch_failed", {});
+  }
+  if (!results.length) {
+    const light = await env.DB.prepare("SELECT light FROM health WHERE name = ?").bind(MODEL_WAIT_HEALTH).first<{ light: string }>().catch(() => null);
+    if (light && light.light === "yellow") await setHealth(env.DB, MODEL_WAIT_HEALTH, "green", "The AI answered; nothing is waiting.", null);
+  }
+  if (sent) log.info("cut.model_wait.retried", { sent });
+  return sent;
 }
 
 // ---------------------------------------------------------------- fake runner

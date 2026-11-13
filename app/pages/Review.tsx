@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { ClipRow } from "@shared/types";
-import { PLATFORMS, PLATFORM_LABEL, RECIPES, REJECT_REASONS, type Platform, type Recipe } from "@shared/constants";
+import { PLATFORMS, PLATFORM_LABEL, RECIPES, REJECT_REASONS, REJECT_REASON_LABEL, WRONG_WORDS, type Platform, type Recipe } from "@shared/constants";
 import { api, del, get, patch, post } from "../lib/api";
 import { fmtDate, fmtSeconds, plural } from "../lib/format";
 import { Empty, HelpButton, Modal, MoreRow, PageHead, SearchBox, Skeleton, Switch, useLoad, useToast } from "../components/ui";
@@ -215,8 +215,20 @@ export function Review() {
 
   const approve = (ids: string[]) =>
     run(() => (ids.length === 1 ? post(`/api/clips/${ids[0]}/approve`) : post("/api/clips/bulk", { action: "approve", ids })), ids.length === 1 ? "Approved. It will go on the Calendar." : `${plural(ids.length, "clip")} approved.`);
-  const reject = (ids: string[], reason: string | null) =>
-    run(() => (ids.length === 1 ? post(`/api/clips/${ids[0]}/reject`, { reason }) : post("/api/clips/bulk", { action: "reject", ids, reason })), ids.length === 1 ? "Rejected. It waits in the Rejected bin." : `${plural(ids.length, "clip")} rejected.`);
+  // "Wrong words" is not a no: the post stays in New and its words are written again (worker/routes/clips.ts).
+  async function reject(ids: string[], reason: string | null) {
+    setBusy(true);
+    try {
+      const r = ids.length === 1 ? await post<{ rewriting?: boolean }>(`/api/clips/${ids[0]}/reject`, { reason }) : await post<{ rewriting?: number }>("/api/clips/bulk", { action: "reject", ids, reason });
+      const rewriting = Number(r?.rewriting ?? 0);
+      if (reason === WRONG_WORDS && rewriting) after(ids.length === 1 ? "Writing new words for this post. It stays in New." : `Writing new words for ${plural(rewriting, "post")}. They stay in New.`);
+      else after(ids.length === 1 ? "Rejected. It waits in the Rejected bin." : `${plural(ids.length, "clip")} rejected.`);
+    } catch (e) {
+      toast.bad(e);
+    } finally {
+      setBusy(false);
+    }
+  }
   const restore = (id: string) => run(() => post(`/api/clips/${id}/restore`), "Moved back to New.");
   const remove = (id: string) => run(() => del(`/api/clips/${id}`), "Deleted for good.");
 
@@ -893,7 +905,7 @@ function RejectModal({ count, onPick, onClose }: { count: number; onPick: (reaso
       <div className="reason-list">
         {REJECT_REASONS.map((r) => (
           <button key={r} className="btn quiet block" onClick={() => onPick(r)}>
-            {sentence(r)}
+            {REJECT_REASON_LABEL[r] ?? sentence(r)}
           </button>
         ))}
       </div>

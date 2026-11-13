@@ -115,7 +115,7 @@ export interface DumpSummary {
   understood: Understood | null;
   /** After the cut: what could not be done as asked, and why (never silently dropped). */
   not_followed: NotFollowed[];
-  /** "What we tried: …" (one line, Surprise me). */
+  /** What the upload became, in one plain line ("4 posts: 2 of the team working, …"; worker/domain/steer.ts whatWeTried). */
   tried: string | null;
   /** Archived (by her or by the tidy rules): out of the list unless "Show archived". */
   archived_at?: string | null;

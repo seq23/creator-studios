@@ -1,5 +1,5 @@
 {
-  "_about": "Notes a creator writes on a dump or a video, and what worker/domain/steer.ts parseNotes must read from them. tracks: her songs in My music for every case.",
+  "_about": "Notes a creator writes on a dump or a video, and what worker/domain/steer.ts parseNotes must read from them. leftover: the parts it must say it could not use, in her words (none when absent). tracks: her songs in My music for every case.",
   "tracks": [{ "id": "upl_upbeat001", "name": "Upbeat summer.mp3" }, { "id": "upl_chill0002", "name": "Chill piano.m4a" }],
   "cases": [
     { "note": "no camera sound please, the background talk is noise", "controls": { "camera": "off" }, "not_followed": [] },
@@ -20,6 +20,16 @@
     { "note": "no grids, bold hook, word-by-word captions", "controls": { "looks": ["bold_hook"], "captions": "karaoke" }, "not_followed": [] },
     { "note": "no grids", "controls": { "looks": ["clean", "bold_hook", "karaoke", "brand_card", "cinematic", "reaction"] }, "not_followed": [] },
     { "note": "split screen, song called \"Chill piano\"", "controls": { "looks": ["split"], "music": "track:upl_chill0002" }, "not_followed": [] },
-    { "note": "grid of four, ten clips, longer", "controls": { "looks": ["grid_four"], "count": 10, "length": "long" }, "not_followed": [] }
+    { "note": "grid of four, ten clips, longer", "controls": { "looks": ["grid_four"], "count": 10, "length": "long" }, "not_followed": [] },
+    { "note": "just one video please, not too long", "controls": { "count": 1, "length": "short" }, "not_followed": [] },
+    { "note": "one 15 second reel of the balloon arch going up", "controls": { "count": 1, "length": "short", "include": ["balloon arch going up"] }, "not_followed": [] },
+    { "note": "not too fast, no words, no music", "controls": { "pace": "normal", "captions": "none", "music": "none" }, "not_followed": [] },
+    { "note": "a few short videos, not too slow", "controls": { "count": 3, "length": "short", "pace": "normal" }, "not_followed": [] },
+    { "note": "make a carousel", "controls": {}, "not_followed": [], "leftover": ["make a carousel"] },
+    { "note": "start with the red door photo", "controls": { "include": ["red door photo"] }, "not_followed": ["starting with \"red door photo\""] },
+    { "note": "no talking, just pretty music", "controls": { "music": "any", "camera": "off", "voice": "none" }, "not_followed": [] },
+    { "note": "a couple of posts for Facebook", "controls": { "count": 2 }, "not_followed": ["Facebook"] },
+    { "note": "more like the last one I approved", "controls": {}, "not_followed": [], "leftover": ["more like the last one I approved"] },
+    { "note": "Baby shower in Germantown. 2 posts, and can you add sparkles", "controls": { "count": 2 }, "not_followed": [], "leftover": ["and can you add sparkles"] }
   ]
 }

@@ -66,3 +66,16 @@
 .tried {
   font-size: var(--text-sm);
 }
+
+/* The one line said back before she sends, and what could not be used. */
+.understood-plan {
+  margin: 0;
+  font-size: var(--text-md, 1rem);
+  font-weight: 600;
+}
+.understood-left {
+  margin: var(--space-3xs) 0 0;
+}
+.understood-fixes {
+  margin-top: var(--space-xs);
+}
