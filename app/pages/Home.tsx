@@ -102,14 +102,15 @@ export function Home() {
               <Stat
                 label="This week"
                 value={
-                  <span data-count="posted">
-                    {data.thisWeek.posted} <small>posted</small>
+                  <span className="home-week-line">
+                    <span data-count="posted">
+                      {data.thisWeek.posted} <small>posted</small>
+                    </span>
+                    <small aria-hidden="true">·</small>
+                    <Link to="/calendar" className="home-to-go" data-count="to-go" title={data.thisWeek.plannedThrough ? `Planned through ${plainDay(data.thisWeek.plannedThrough, data.thisWeek.tz)}` : undefined}>
+                      {data.thisWeek.toGo} to go ›
+                    </Link>
                   </span>
-                }
-                sub={
-                  <Link to="/calendar" data-count="to-go" title={data.thisWeek.plannedThrough ? `Planned through ${plainDay(data.thisWeek.plannedThrough, data.thisWeek.tz)}` : undefined}>
-                    {data.thisWeek.toGo} still to go out ›
-                  </Link>
                 }
               >
                 <ul className="home-plats" aria-label="Posted this week per platform">

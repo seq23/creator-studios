@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runwayLow, runwayWeeks, weeklyNeed } from "@worker/domain/runway";
 import { inCooldown, rankRecycle, recyclePlatforms } from "@worker/domain/cooldown";
-import { canTransition, rejectedExpired, schedulable } from "@worker/domain/approval";
+import { canTransition, schedulable } from "@worker/domain/approval";
 import { canMove, nextFollowup } from "@worker/domain/deals";
 import { DEFAULT_WEEKLY_CAPS } from "@shared/constants";
 
@@ -51,10 +51,10 @@ describe("approval", () => {
   it("deleted is final", () => {
     for (const to of ["draft", "approved", "rejected"] as const) expect(canTransition("deleted", to)).toBe(false);
   });
-  it("a rejection can be undone within 7 days", () => {
+  it("a rejection can be undone, to approved or back to new, and only she deletes it for good", () => {
     expect(canTransition("rejected", "approved")).toBe(true);
-    expect(rejectedExpired("2026-09-10T00:00:00Z", new Date("2026-09-16T00:00:00Z"), 7)).toBe(false);
-    expect(rejectedExpired("2026-09-10T00:00:00Z", new Date("2026-09-18T00:00:00Z"), 7)).toBe(true);
+    expect(canTransition("rejected", "draft")).toBe(true);
+    expect(canTransition("rejected", "deleted")).toBe(true);
   });
 });
 

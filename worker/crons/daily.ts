@@ -1,5 +1,5 @@
 // Daily lane: supply monitor ("Time to dump" email), retention (raw originals after 7 days,
-// rejected clips after 7 days, public links 30 days after posting), the day-358 storage rules
+// public links 30 days after posting; rejected clips are never cleared, they wait in the bin), the day-358 storage rules
 // (posted clip files after 30 days unless in the kit, drafts after 60 days with the Home warning
 // first, the hard budget), the Storage light from every file, tidy (archive, never delete),
 // health recheck, the Voice · ElevenLabs light.
@@ -13,8 +13,7 @@ import { serviceHealthRows } from "./buffer-sync";
 import { recheckElevenLabs } from "../lib/premiumVoice";
 import { fullVideoRetention } from "../lib/fullVideo";
 import { clipFileRules, enforceBudget, measureStorage, storageHealth, tidyDaily } from "../lib/storage";
-import { versionFiles } from "../lib/clipVersions";
-import { CLIP_RETENTION_AFTER_POST_DAYS, RAW_RETENTION_DAYS, REJECTED_RETENTION_DAYS, TIME_TO_DUMP_REPEAT_DAYS } from "@shared/constants";
+import { CLIP_RETENTION_AFTER_POST_DAYS, RAW_RETENTION_DAYS, TIME_TO_DUMP_REPEAT_DAYS } from "@shared/constants";
 
 export async function dailyMaintenance(env: Env): Promise<void> {
   await supplyMonitor(env);
@@ -82,16 +81,8 @@ async function retention(env: Env) {
     await env.DB.prepare("UPDATE assets SET raw_deleted_at = ? WHERE id = ?").bind(new Date().toISOString(), a.id).run();
   }
 
-  const rejCutoff = new Date(now - REJECTED_RETENTION_DAYS * 86400_000).toISOString();
-  const { results: rejected } = await env.DB.prepare("SELECT id, r2_key, cover_r2_key FROM clips WHERE status = 'rejected' AND reviewed_at < ? LIMIT 100").bind(rejCutoff).all<{ id: string; r2_key: string; cover_r2_key: string | null }>();
-  for (const cl of rejected) {
-    await env.FILES.delete(cl.r2_key);
-    if (cl.cover_r2_key) await env.FILES.delete(cl.cover_r2_key);
-    // Its kept versions (Compare versions in Review) go with it.
-    const kept = await versionFiles(env, cl.id);
-    if (kept.length) await env.FILES.delete(kept);
-    await env.DB.prepare("UPDATE clips SET status = 'deleted', media_token = NULL WHERE id = ?").bind(cl.id).run();
-  }
+  // Rejected clips are never cleared here (owner's ruling, 13 Nov 2026): they wait in the Rejected
+  // bin until she taps "Delete for good" or "Empty the bin" (worker/routes/bin.ts).
 
   const postCutoff = new Date(now - CLIP_RETENTION_AFTER_POST_DAYS * 86400_000).toISOString();
   const { results: posted } = await env.DB.prepare(
@@ -114,7 +105,7 @@ async function retention(env: Env) {
     // keep the file for stats; the public media link expires (section 13)
     await env.DB.prepare("UPDATE clips SET media_token = NULL WHERE id = ?").bind(cl.id).run();
   }
-  log.info("retention", { raws: raws.length, rejected: rejected.length, expired_links: posted.length - kept, kit_kept: kept });
+  log.info("retention", { raws: raws.length, expired_links: posted.length - kept, kit_kept: kept });
 }
 
 /** Clip ids in a kit's showcase (draft JSON, published content JSON, or a pre-versions kit's featured list). */

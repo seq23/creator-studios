@@ -31,7 +31,6 @@ export const DEFAULT_RECYCLE_COOLDOWN_DAYS = 90;
 /** Raw originals are deleted this long after processing; clips kept until posted + this. */
 export const RAW_RETENTION_DAYS = 7;
 export const CLIP_RETENTION_AFTER_POST_DAYS = 30;
-export const REJECTED_RETENTION_DAYS = 7;
 
 /**
  * Home stays one phone screen however much piles up (day 358, docs/reviews/2026-09-26-day-358.md):

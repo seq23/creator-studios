@@ -10,8 +10,7 @@ import { readStudioRules } from "./studioRules";
 import { weekBounds } from "../domain/slotting";
 import { ACTIVE_STATUSES } from "../domain/sync";
 import { postCounts, type CountRow } from "../domain/postCounts";
-import { addDays } from "./ids";
-import { HARD_CAP_PER_CHANNEL_PER_WEEK, PLATFORMS, REJECTED_RETENTION_DAYS, type Platform } from "@shared/constants";
+import { HARD_CAP_PER_CHANNEL_PER_WEEK, PLATFORMS, type Platform } from "@shared/constants";
 import { isFinalCaption, postText } from "@shared/postText";
 import { withAiLabel } from "@shared/contentRules";
 import { SOCIAL_LABEL, SOCIAL_SETUP, type ItemKind, type Social, type SocialPostStatus } from "@shared/photoPosts";
@@ -253,13 +252,11 @@ export async function binList(env: Env): Promise<BinList> {
       headline: c.hook_text || "Untitled",
       thumb_url: c.media_token && c.cover_r2_key ? `/media/${c.media_token}?cover=1` : c.cover_r2_key ? `/api/clips/${c.id}/cover` : null,
       rejected_at: c.reviewed_at,
-      // Settings → Storage clears a rejected reel by itself after a week (worker/crons/daily.ts): the bin says when.
-      clears_on: c.reviewed_at ? addDays(c.reviewed_at, REJECTED_RETENTION_DAYS) : null,
     })),
     ...photos.map((p) => {
       const it = photoItem(p);
-      return { id: p.id, source: "photo" as const, kind_label: `${it.kind_label} · ${it.platform_label}`, headline: it.headline, thumb_url: it.thumb_url, rejected_at: p.skipped_at, clears_on: null };
+      return { id: p.id, source: "photo" as const, kind_label: `${it.kind_label} · ${it.platform_label}`, headline: it.headline, thumb_url: it.thumb_url, rejected_at: p.skipped_at };
     }),
   ].sort((a, b) => (b.rejected_at ?? "").localeCompare(a.rejected_at ?? ""));
-  return { tz: (await readSettings(env)).audience_timezone, items, keep_days: REJECTED_RETENTION_DAYS };
+  return { tz: (await readSettings(env)).audience_timezone, items };
 }

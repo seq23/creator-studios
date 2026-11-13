@@ -17,7 +17,3 @@ export function schedulable(status: ClipStatus): boolean {
   return status === "approved";
 }
 
-export function rejectedExpired(reviewedAt: string | null, now: Date, retentionDays: number): boolean {
-  if (!reviewedAt) return false;
-  return new Date(reviewedAt).getTime() + retentionDays * 86400_000 < now.getTime();
-}

@@ -25,10 +25,10 @@ import type { Env, Vars } from "../env";
 import { requireUser } from "../lib/auth";
 import { getSetting, parseJson, recordEvent } from "../lib/db";
 import { fail, readJson } from "../lib/http";
-import { addDays, newId, nowIso } from "../lib/ids";
+import { newId, nowIso } from "../lib/ids";
 import { log } from "../lib/log";
 import { canTransition, type ClipStatus } from "../domain/approval";
-import { PLATFORMS, RECIPES, REJECT_REASONS, REJECTED_RETENTION_DAYS, type Platform, type Recipe } from "@shared/constants";
+import { PLATFORMS, RECIPES, REJECT_REASONS, type Platform, type Recipe } from "@shared/constants";
 import type { ClipRow } from "@shared/types";
 import { cellCount, cleanGridLayout, defaultGridLayout, editingFromStored, isGridLook, isLookId, LOOK_IDS, lookById, ZOOMS, type GridLayout, type LookId, type StoredEditing } from "../domain/looks";
 import { tracksOf } from "../lib/steerStore";
@@ -97,11 +97,6 @@ export function cleanPlatforms(v: unknown): Platform[] | null {
   return out.length ? out : null;
 }
 
-/** When a rejected clip is removed for good (7 days after she rejected it). */
-export function purgeAt(reviewedAt: string | null): string | null {
-  return reviewedAt ? addDays(reviewedAt, REJECTED_RETENTION_DAYS) : null;
-}
-
 // ---------------------------------------------------------------- list
 
 export interface ReviewClip extends ClipRow {
@@ -110,7 +105,6 @@ export interface ReviewClip extends ClipRow {
   /** The short lines shown after the hook, before the end card (clips.text_beats). */
   text_beats: string[];
   reviewed_at: string | null;
-  purge_at: string | null;
   /** The Look it is rendered in, and its name; null for clips made before Looks. */
   look: string | null;
   look_name: string | null;
@@ -326,7 +320,6 @@ function toView(r: ClipDb): ReviewClip {
     source_file: r.source_file,
     door: r.door,
     reviewed_at: r.reviewed_at,
-    purge_at: r.status === "rejected" ? purgeAt(r.reviewed_at) : null,
     look: r.look,
     look_name: lookById(r.look)?.name ?? null,
     layout: parseJson<GridLayout | null>(r.layout, null),

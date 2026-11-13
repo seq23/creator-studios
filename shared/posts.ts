@@ -105,15 +105,11 @@ export interface BinItem {
   headline: string;
   thumb_url: string | null;
   rejected_at: string | null;
-  /** When the studio clears it by itself (Settings → Storage); null = it stays until she deletes it. */
-  clears_on: string | null;
 }
 
 export interface BinList {
   tz: string;
   items: BinItem[];
-  /** Days a rejected reel stays before it is cleared automatically. */
-  keep_days: number;
 }
 
 /** "Fri 13 Nov" in the audience's time zone. Pure. */

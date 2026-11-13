@@ -46,10 +46,9 @@ export function RejectedBin() {
 
   return (
     <div className="page cal bin">
-      <PageHead title={bin.data ? `Rejected bin · ${plural(items.length, "post")}` : "Rejected bin"} lede="Posts you said no to wait here. Nothing in the bin is ever posted." />
+      <PageHead title={bin.data ? `Rejected bin · ${plural(items.length, "post")}` : "Rejected bin"} lede="Posts you said no to wait here until you bring them back or delete them. Nothing in the bin is ever posted." />
       {!bin.data ? <Skeleton blocks={2} /> : null}
       {bin.data && items.length === 0 ? <Empty title="The bin is empty">When you say no to a post it waits here, so you can bring it back if you change your mind.</Empty> : null}
-      {items.some((it) => it.clears_on) ? <p className="hint">To save space, a reel is cleared by itself {bin.data!.keep_days} days after you say no to it. Bring it back before then to keep it.</p> : null}
 
       <div className="bin-list">
         {items.map((it) => {
@@ -64,7 +63,6 @@ export function RejectedBin() {
                     <span className="hint">{it.rejected_at ? `Rejected ${day(it.rejected_at, tz)}` : "Rejected"}</span>
                   </div>
                   <div className="post-row-headline">{it.headline}</div>
-                  {it.clears_on ? <div className="hint">Cleared by itself on {day(it.clears_on, tz)}</div> : null}
                 </div>
               </div>
               {asking === key ? (

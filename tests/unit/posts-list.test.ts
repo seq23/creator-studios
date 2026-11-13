@@ -4,7 +4,8 @@
 //   - one list of every upcoming post of every kind, with its words, and what cannot go out yet;
 //   - one set of numbers: Home, the Calendar and the Settings line agree, photo posts counted;
 //   - the Rejected bin: nothing in it can be planned or sent; Bring back; Delete for good removes
-//     the made file and never her originals, and never a post that is planned or already out.
+//     the made file and never her originals, and never a post that is planned or already out;
+//     the daily job never clears a rejected reel, however long ago she said no.
 import { beforeEach, describe, expect, it } from "vitest";
 import worker from "@worker/index";
 import type { Env } from "@worker/env";
@@ -20,6 +21,7 @@ import { saveConnection } from "@worker/lib/connections";
 import { hydrate } from "@worker/lib/practice";
 import { postCounts } from "@worker/domain/postCounts";
 import { planAhead } from "@worker/routes/posts";
+import { dailyMaintenance } from "@worker/crons/daily";
 import { comingLine, fillLine, limitLine, type BinList, type FillResult, type PostsList, type PostsSummary } from "@shared/posts";
 
 const BASE = "https://pnp.example";
@@ -259,6 +261,20 @@ describe("the Rejected bin", () => {
     expect((raw.prepare("SELECT status FROM clips WHERE id = 'clp_0'").get() as { status: string }).status).toBe("draft");
     expect((await call<BinList>("GET", "/api/bin")).json.items).toEqual([]);
     expect((await call("POST", "/api/bin/clip/clp_0/restore")).status).toBe(409); // not in the bin any more
+  });
+
+  it("the daily job never clears a rejected reel: 30 days on it is still in the bin with its files, and still comes back", async () => {
+    await seedClips(1);
+    expect((await call("POST", "/api/clips/clp_0/reject", { reason: "bad hook" })).status).toBe(200);
+    raw.prepare("UPDATE clips SET reviewed_at = ? WHERE id = 'clp_0'").run(new Date(Date.now() - 30 * DAY).toISOString());
+    const before = raw.prepare("SELECT status, r2_key, cover_r2_key, media_token FROM clips WHERE id = 'clp_0'").get();
+    await dailyMaintenance(env);
+    expect(raw.prepare("SELECT status, r2_key, cover_r2_key, media_token FROM clips WHERE id = 'clp_0'").get()).toEqual(before);
+    expect(before).toMatchObject({ status: "rejected", r2_key: "clips/dmp_t/clp_0.mp4", cover_r2_key: "clips/dmp_t/clp_0.jpg" });
+    expect(await stored("clips/dmp_t/clp_0.mp4")).toBe(true);
+    expect(await stored("clips/dmp_t/clp_0.jpg")).toBe(true);
+    expect((await call<BinList>("GET", "/api/bin")).json.items.map((i) => i.id)).toEqual(["clp_0"]);
+    expect((await call("POST", "/api/bin/clip/clp_0/restore")).status).toBe(200);
   });
 
   it("Delete for good removes the made post and its made file, never the original; never a post that is planned or out", async () => {

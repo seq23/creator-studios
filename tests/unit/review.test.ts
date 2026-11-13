@@ -1,7 +1,7 @@
 // Review rules (section 9 and 12b): the #ad disclosure, reject reasons, platform ticks, tabs,
 // and the 7-day Rejected window.
 import { describe, expect, it } from "vitest";
-import { cleanPlatforms, normalizeReason, purgeAt, tabStatus, withDisclosure } from "@worker/routes/clips";
+import { cleanPlatforms, normalizeReason, tabStatus, withDisclosure } from "@worker/routes/clips";
 
 describe("paid partnership disclosure", () => {
   it("appends #ad once, at the end", () => {
@@ -42,9 +42,5 @@ describe("tabs and retention", () => {
     expect(tabStatus("rejected")).toBe("rejected");
     expect(tabStatus("deleted")).toBe("draft");
     expect(tabStatus(undefined)).toBe("draft");
-  });
-  it("a rejected clip is removed 7 days after she rejected it", () => {
-    expect(purgeAt("2026-09-25T10:00:00.000Z")).toBe("2026-10-02T10:00:00.000Z");
-    expect(purgeAt(null)).toBeNull();
   });
 });

@@ -152,10 +152,17 @@ test("one list of every upcoming post, reels and photo posts; the same numbers o
   expect(upcoming.posts.length).toBe(coming); // the number counts exactly the posts in the list
   const fromApi = (await (await page.request.get("/api/posts/summary")).json()).summary as { postedThisWeek: number; toGo: number };
   expect(fromApi.toGo).toBe(coming);
+  await page.evaluate(() => localStorage.setItem("ss-tour-done", "1")); // the first-login tour would cover the tile
   await page.goto("/");
-  await expect(page.locator('[data-count="to-go"]')).toContainText(`${coming} still to go out`);
-  await expect(page.locator('[data-count="posted"]')).toContainText(`${fromApi.postedThisWeek} posted`);
-  await page.locator('[data-count="to-go"]').scrollIntoViewIfNeeded();
+  // One line in the This-week tile: "N posted · M to go ›", never wrapped, a 44px tap target.
+  const toGo = page.locator('[data-count="to-go"]');
+  await expect(toGo).toHaveText(`${coming} to go ›`);
+  await expect(page.locator('[data-count="posted"]')).toHaveText(`${fromApi.postedThisWeek} posted`);
+  const postedBox = (await page.locator('[data-count="posted"] small').boundingBox())!;
+  const toGoBox = (await toGo.boundingBox())!;
+  expect(toGoBox.height).toBeGreaterThanOrEqual(44);
+  expect(Math.abs(toGoBox.y + toGoBox.height / 2 - (postedBox.y + postedBox.height / 2))).toBeLessThan(4); // the same line
+  await toGo.evaluate((e) => e.scrollIntoView({ block: "center" })); // the picture shows the tile, clear of the bottom bar
   await shot(page, "08-home-same-numbers", isMobile);
   await page.goto("/settings");
   await expect(page.locator('[data-count="to-go"]')).toHaveText(`${coming} still to go out`);
@@ -250,11 +257,12 @@ test("the Rejected bin: reject, bring back, delete for good (asked on the page),
   await link.click();
   await expect(page).toHaveURL(/\/calendar\/bin$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Rejected bin · 2 posts");
-  await expect(page.locator("body")).toContainText("Posts you said no to wait here. Nothing in the bin is ever posted.");
+  await expect(page.locator("body")).toContainText("Posts you said no to wait here until you bring them back or delete them. Nothing in the bin is ever posted.");
   const reelRow = page.locator(`[data-bin-id="${first}"]`);
   await expect(reelRow.locator(".post-chip")).toHaveText("Reel");
   await expect(reelRow).toContainText(/Rejected (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} [A-Z][a-z]{2}/);
-  await expect(reelRow).toContainText(/Cleared by itself on (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} [A-Z][a-z]{2}/);
+  // The bin holds a post until she deletes it: no clear date anywhere on the page.
+  await expect(page.locator(".page")).not.toContainText(/clear/i);
   await shot(page, "11-rejected-bin", isMobile);
 
   // Bring back: the reel waits for her OK again.
