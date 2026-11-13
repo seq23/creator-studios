@@ -44,6 +44,11 @@ def load(spec: dict[str, Any] | None) -> dict[str, Any]:
     pb["order"] = list(TYPE_IDS)
     pb["niche_first"] = []
     pb["niche_hooks"], pb["caption_tips"], pb["niche_formats"] = [], [], []
+    # "More like this" / "Less like this" (owner, 13 Nov 2026; spec.memory.taste from studioMemory.ts):
+    # kinds she asked for more of are tried first; kinds she asked for less of only fill a short batch.
+    taste = ((spec or {}).get("memory") or {}).get("taste") or {}
+    pb["more"] = [k[5:] for k in (taste.get("more") or []) if isinstance(k, str) and k.startswith("clip:") and k[5:] in TYPE_IDS]
+    pb["less"] = [k[5:] for k in (taste.get("less") or []) if isinstance(k, str) and k.startswith("clip:") and k[5:] in TYPE_IDS]
     niche = (spec or {}).get("niche_playbook")
     if isinstance(niche, dict):
         fmts = [str(f.get("name") if isinstance(f, dict) else f)[:80] for f in (niche.get("formats") or [])][:12]

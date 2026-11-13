@@ -76,6 +76,7 @@ function cleanUp() {
     [
       "DELETE FROM posts",
       "DELETE FROM social_posts",
+      "DELETE FROM events WHERE kind = 'post.taste'",
       "DELETE FROM pack_items",
       "DELETE FROM pack_photos",
       "DELETE FROM photo_packs",
@@ -228,6 +229,12 @@ test("open a post of each kind: watch it, read the whole caption, change the wor
   await expect(sheet.getByRole("button", { name: "Skip this post (it will not go out)" })).toBeVisible();
   await expect(sheet.getByLabel("Swap for a different post")).toHaveCount(0);
   await shot(page, "06-photo-post-words-saved", isMobile);
+  // "Less like this" (owner, 13 Nov 2026): saved against this kind of post, said in place, button stays pressed.
+  await sheet.getByRole("button", { name: /Less like this/ }).click();
+  await expect(page.locator(".toast").filter({ hasText: "fewer posts like this one" }).first()).toBeVisible();
+  await expect(sheet.getByRole("button", { name: /Less like this/ })).toHaveAttribute("aria-pressed", "true");
+  expect(sql<{ n: number }>(`SELECT COUNT(*) AS n FROM events WHERE kind = 'post.taste' AND detail LIKE '%"photo:%' AND detail LIKE '%"more":false%'`)[0].n).toBeGreaterThanOrEqual(1);
+  sql("DELETE FROM events WHERE kind = 'post.taste'"); // later tests in this shared studio plan photo sets unsteered
   await sheet.getByRole("button", { name: "✕ Close" }).last().click();
   await expect(sheet).toHaveCount(0);
 
