@@ -9,12 +9,12 @@ keywords: pinterest, pin, pins, board, connect pinterest
 
 Your photo sets are pinned to your Pinterest board once it is connected. Until then they wait safely on Photo sets.
 
-## Find Pinterest on Setup
+## Find Pinterest under Connections
 
 ![Step 1](/help/screenshots/connect-pinterest-1.png)
 <!-- target: #setup-pinterest -->
 
-Open **Setup** and find the **Pinterest** card.
+Open **Connections** (under **More**), tap **Open your services and keys**, and find the **Pinterest** card.
 
 ## Get an access token
 

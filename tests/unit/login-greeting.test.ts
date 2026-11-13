@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
+import { MemoryRouter } from "react-router-dom";
 
 vi.mock("../../app/state", () => ({ useApp: () => ({ refreshMe: async () => {} }) }));
 vi.mock("../../app/components/ui", () => ({ useToast: () => ({ bad: () => {} }) }));
@@ -13,7 +14,8 @@ const greeting = async (hash: string) => {
   vi.stubGlobal("window", { location: { hash, pathname: "/" }, history: { replaceState: () => {} } });
   // @ts-expect-error the app's .tsx is typechecked by tsconfig.json (DOM + JSX), not this worker-typed test config
   const { Login } = await import("../../app/pages/Login");
-  const html = renderToString(createElement(Login));
+  // Inside a router, as in the app (Login sends a new studio to Get set up with useNavigate).
+  const html = renderToString(createElement(MemoryRouter, null, createElement(Login)));
   return html.match(/<span class="script">([^<]*)<\/span>/)?.[1];
 };
 

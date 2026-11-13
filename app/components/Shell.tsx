@@ -11,7 +11,6 @@ import { useApp } from "../state";
 import { Icon, type IconName } from "./Icon";
 import { Tour } from "./Tour";
 import { Wordmark } from "./Wordmark";
-import { PracticeBanner } from "./PracticeBanner";
 import { FreeAiNote } from "./FreeAiNote";
 import { studio } from "../lib/studio";
 import { get, post } from "../lib/api";
@@ -37,9 +36,9 @@ const NAV: NavItem[] = [
   { to: "/research", label: "Research", icon: "research", group: "business" },
   { to: "/stats", label: "Stats", icon: "stats", group: "business" },
   { to: "/voice", label: "Voice overs", icon: "voice", group: "business" },
-  // Where a creator connects Instagram and TikTok (through Buffer), in the menu on phone and laptop (owner, 23 Oct 2026).
-  { to: "/settings/connections", label: "Connect Instagram & TikTok", icon: "connect", group: "setup" },
-  { to: "/setup", label: "Setup", icon: "check", group: "setup" },
+  // Where a creator connects Instagram and TikTok and, below them, her own optional services and keys.
+  // The Setup tab is gone (owner, 13 Nov 2026): its keys live at the bottom of Connections.
+  { to: "/settings/connections", label: "Connections", icon: "connect", group: "setup" },
   { to: "/settings", label: "Settings", icon: "settings", group: "setup" },
   { to: "/help", label: "Help", icon: "help", group: "setup" },
 ];
@@ -145,7 +144,6 @@ export function Shell() {
       </aside>
       <main className="main" id="main">
         <BackLink />
-        <PracticeBanner />
         <FreeAiNote />
         <WhatsNewNote />
         <Outlet />

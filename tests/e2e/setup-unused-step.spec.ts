@@ -15,7 +15,7 @@ test("Setup still draws when the server leaves a step out (an unused service)", 
   });
   await page.goto("/setup");
   await expect(page.locator(".setup-steps > li").first()).toBeVisible();
-  await expect(page.locator(".setup-progress")).toContainText("set up");
+  await expect(page.getByRole("heading", { name: "Your own services and keys" })).toBeVisible();
   expect(errors).toEqual([]);
   const wide = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(wide).toBe(false);

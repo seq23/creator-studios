@@ -24,13 +24,14 @@ Your helper creates a token in GitHub for this dashboard only and saves it on th
 
 Open **Settings**. **Job runner (GitHub)** is green when it's working.
 
-## It shows on Home too
+## Home tells you if it stops
 
 ![Step 3](/help/screenshots/connect-github-3.png)
 <!-- route: / -->
-<!-- target: .home-health -->
+<!-- target: [data-home-list] -->
+<!-- shared -->
 
-Home's **Health** card shows the same lights, worst first.
+If it ever turns red, **Home** shows a row with a **Fix** button.
 
 ## Did this work?
 

@@ -430,7 +430,7 @@ async function verifyInside(s, sessionSecret) {
       await page.context().addCookies([{ name: "ss_session", value: cookie.split("=")[1], url: s.url }]);
       await page.goto(`${s.url}/setup`);
       await page.locator(".setup-step .pill[data-state]").first().waitFor({ timeout: 20000 });
-      out.page = { progress: await page.locator(".setup-progress").innerText(), practicePills: await page.locator('.pill[data-state="practice"]').count(), banner: await page.locator(".practice-banner").count(), title: await page.title() };
+      out.page = { cards: await page.locator(".setup-steps > li").count(), practicePills: await page.locator('.pill[data-state="practice"]').count(), banner: await page.locator(".practice-banner").count(), title: await page.title() };
       await page.screenshot({ path: path.join(process.env.VERIFY_SHOTS_DIR, `${s.slug}-setup.png`), fullPage: false });
       await page.goto(`${s.url}/`);
       await page.screenshot({ path: path.join(process.env.VERIFY_SHOTS_DIR, `${s.slug}-home.png`), fullPage: false });

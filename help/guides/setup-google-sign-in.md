@@ -7,7 +7,7 @@ keywords: google, oauth, client id, youtube upload, full videos
 fix: reconnect-youtube
 ---
 
-One card on Setup, about five minutes. Free accounts are enough.
+One card under More → Connections → Your services and keys, about five minutes. Free accounts are enough.
 
 ## Find the Google sign-in card
 
@@ -15,7 +15,7 @@ One card on Setup, about five minutes. Free accounts are enough.
 <!-- route: /setup -->
 <!-- target: .setup-step:has(#setup-google_app) -->
 
-Open **Setup** and find **Google sign-in**. Until it is set up, Connect YouTube makes a practice connection and uploads are simulated.
+Open **Connections** (under **More**), tap **Open your services and keys**, and find **Google sign-in**. Until it is set up, Connect YouTube makes a practice connection and uploads are simulated.
 
 ## Make a web sign-in client
 

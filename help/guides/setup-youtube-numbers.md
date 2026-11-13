@@ -6,7 +6,7 @@ last_checked: 2026-10-07
 keywords: youtube, stats, api key, google cloud, numbers
 ---
 
-One card on Setup, about five minutes. Free accounts are enough.
+One card under More → Connections → Your services and keys, about five minutes. Free accounts are enough.
 
 ## Find the YouTube numbers card
 
@@ -14,7 +14,7 @@ One card on Setup, about five minutes. Free accounts are enough.
 <!-- route: /setup -->
 <!-- target: .setup-step:has(#setup-youtube_api) -->
 
-Open **Setup** and find **YouTube numbers**. Until it has a key, Stats shows sample YouTube numbers marked practice.
+Open **Connections** (under **More**), tap **Open your services and keys**, and find **YouTube numbers**. Until it has a key, Stats shows sample YouTube numbers marked practice.
 
 ## Make a key in Google Cloud
 

@@ -8,12 +8,12 @@ keywords: hugging face, motion, video, photo video, ai video, realistic motion
 
 One photo can become a short video where the camera moves gently, made by a free open-source AI model. Until Hugging Face is connected, photo videos use the slow zoom, and everything else works as usual. Videos made this way are labelled “Made with AI”.
 
-## Find Hugging Face on Setup
+## Find Hugging Face under Connections
 
 ![Step 1](/help/screenshots/connect-huggingface-1.png)
 <!-- target: #setup-huggingface -->
 
-Open **Setup** and find the **Connect Hugging Face (free) for realistic motion** card.
+Open **Connections** (under **More**), tap **Open your services and keys**, and find the **Connect Hugging Face (free) for realistic motion** card.
 
 ## Make a free token
 

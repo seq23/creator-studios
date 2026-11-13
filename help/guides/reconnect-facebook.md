@@ -13,7 +13,7 @@ Facebook said the Page token ran out or was changed. Your posts wait safely unti
 ![Step 1](/help/screenshots/reconnect-facebook-1.png)
 <!-- target: #setup-facebook .setup-where -->
 
-On **Setup**, open the **Facebook Page** card and follow the steps to make a new long-lived Page token.
+On **Your services and keys** (More → Connections), open the **Facebook Page** card and follow the steps to make a new long-lived Page token.
 
 ## Paste the new token
 

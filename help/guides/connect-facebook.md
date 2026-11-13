@@ -9,12 +9,12 @@ keywords: facebook, page, page token, connect facebook, post to facebook
 
 Your photo posts go to your Facebook Page once it is connected. Until then they wait safely on Photo sets.
 
-## Find Facebook Page on Setup
+## Find Facebook Page under Connections
 
 ![Step 1](/help/screenshots/connect-facebook-1.png)
 <!-- target: #setup-facebook -->
 
-Open **Setup** and find the **Facebook Page** card.
+Open **Connections** (under **More**), tap **Open your services and keys**, and find the **Facebook Page** card.
 
 ## Get a Page token
 

@@ -26,7 +26,13 @@ test.describe("login", () => {
     const code = await page.locator(".notice strong").textContent();
     await page.getByLabel("The code from your email").fill(code!.trim());
     await page.getByRole("button", { name: "Log in" }).click();
-    await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
+    // The first time, a studio that is not set up lands in Get set up; after that, on Home.
+    await expect(page.locator("[data-start-step], h1:text-matches('^Hi ')").first()).toBeVisible();
+    const notSetUp = !!((await (await page.request.get("/api/home")).json()) as { getSetUp: unknown[] | null }).getSetUp;
+    if (notSetUp) {
+      await expect(page).toHaveURL(/\/start$/);
+      await expect(page.locator("[data-start-step]")).toContainText("of 3");
+    } else await expect(page.getByRole("heading", { name: /^Hi / })).toBeVisible();
   });
 
   test("an unknown email gets the same answer and no code", async ({ page }) => {
@@ -37,42 +43,59 @@ test.describe("login", () => {
 });
 
 test.describe("home and dump", () => {
-  test("home shows runway, this week, waiting, health, your voice, and the big Dump button", async ({ page }) => {
+  test("home is one list: line 1 says what needs her, each row has why and one action, this week, voice overs", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("ss-tour-done", "1")); // the tour has its own test (deals-help)
     await page.goto("/");
-    await expect(page.getByText("Runway")).toBeVisible();
     // the optional voice is always there, quietly: one line and a link, never a primary or a badge
     const voice = page.locator(".home-voice");
     await expect(voice).toContainText("Your voice overs");
     await expect(voice).toContainText("Optional: record your voice so your clips can have voice overs in it");
     await expect(voice.getByRole("link", { name: /Set up in 5 steps/ })).toHaveAttribute("href", "/voice");
     await expect(voice.locator(".badge, [data-primary], .dot.red")).toHaveCount(0);
-    await expect(page.getByText("This week")).toBeVisible();
-    await expect(page.getByText("Waiting for you")).toBeVisible();
+    await expect(page.locator("[data-this-week]")).toContainText(/This week · \d+ posted · \d+ still to go out/);
+    await expect(page.locator("[data-posts-left]")).toHaveText(/posts? (left|planned)/);
     await expect(page.getByRole("link", { name: "+ Add photos and videos" })).toBeVisible();
-    // one next step per screen: while she is setting up, it is the first unfinished "Get set up"
-    // step (a fresh studio: Connect Instagram & TikTok); once set up, the Dump link.
-    const setUp = page.locator("[data-get-set-up]");
+    // No tiles, no practice banner, no inside words.
+    await expect(page.locator(".home-stats, .practice-banner")).toHaveCount(0);
+    await expect(page.locator("main")).not.toContainText(/Runway|Practice mode|Health/);
+    // Line 1 counts the rows; every row says why and has exactly one action.
+    const rows = page.locator("[data-home-list] > li:not(.done)");
+    const n = await rows.count();
+    await expect(page.locator("[data-needs-you]")).toBeVisible();
+    await expect(page.locator("[data-needs-you]")).toContainText(n === 0 ? "Nothing needs you today" : n === 1 ? "1 thing needs you" : `${n} things need you`);
+    for (const row of await rows.all()) {
+      await expect(row).toContainText("Why: ");
+      await expect(row.locator("a")).toHaveCount(1);
+    }
+    // one next step per screen: while she is setting up it is Get set up; once set up, the Add button.
     await expect(page.locator("[data-primary]")).toHaveCount(1);
+    const setUp = page.locator('[data-row="get-set-up"]');
     if (await setUp.count()) {
-      // Three steps: nothing asks her to lock or approve anything (the studio does both by itself).
-      await expect(setUp.locator("[data-step]")).toHaveCount(3);
-      await expect(setUp.locator("[data-step]")).toContainText([/Connect Instagram & TikTok/, /Tell the studio about you/, /Upload your first videos/]);
-      await expect(setUp).not.toContainText(/Lock your|Approve your/);
-      // only the next step opens up: its button (the one primary), its help guide; the others are one line each
-      const next = setUp.locator("[data-step]:not([data-done])").first();
-      await expect(next.locator("[data-primary]")).toHaveCount(1);
-      await expect(next.getByRole("link", { name: "How to do this" })).toHaveAttribute("href", /^\/help\//);
-      await expect(setUp.getByRole("link", { name: "How to do this" })).toHaveCount(1);
-      for (const step of await setUp.locator("[data-step]:not([data-done])").all()) await expect(step.locator("a[href^='/']").first()).toBeVisible();
-      if ((await next.getAttribute("data-step")) === "connect") await expect(next.locator("[data-why-buffer] summary")).toHaveText("Why Buffer? ▾");
+      await expect(setUp.locator("[data-primary]")).toHaveText("Start ›");
+      await setUp.locator("a").click();
+      // Get set up: three steps, one at a time, nothing asks her to lock or approve anything.
+      await expect(page).toHaveURL(/\/start$/);
+      await expect(page.locator("[data-start-step]")).toContainText("of 3");
+      await expect(page.locator("main")).not.toContainText(/Lock your|Approve your|key/i);
+      await expect(page.locator("[data-primary]")).toHaveCount(1);
+      await expect(page.getByRole("link", { name: "How to do this" })).toHaveAttribute("href", /^\/help\//);
+      if ((await page.locator("[data-start-step]").getAttribute("data-start-step")) === "1") {
+        await expect(page.locator("[data-place]")).toHaveCount(3);
+        await expect(page.locator('[data-place="facebook"]')).toContainText("Optional");
+        await page.locator("[data-start-next]").click();
+        await expect(page.locator("[data-start-step]")).toHaveAttribute("data-start-step", "2");
+      }
+      await page.locator("[data-start-later]").click();
+      await expect(page).toHaveURL(/\/$/);
     } else {
       await expect(page.locator("[data-primary]")).toHaveText("+ Add photos and videos");
+      await expect(page.locator('[data-row="set-up"]')).toHaveText("✓ Set up");
     }
-    // Connect Instagram & TikTok is in the main menu (phone: under More).
+    // Connections is in the main menu (phone: under More); the Setup tab is gone.
     if (test.info().project.name === "phone") await page.locator("[data-menu]").click();
-    const menuLink = page.locator("nav").getByRole("link", { name: "Connect Instagram & TikTok", exact: true });
-    await expect(menuLink).toBeVisible();
-    await expect(menuLink).toHaveAttribute("href", "/settings/connections");
+    const nav = page.locator("nav:visible");
+    await expect(nav.getByRole("link", { name: "Connections", exact: true })).toHaveAttribute("href", "/settings/connections");
+    await expect(nav.getByRole("link", { name: "Setup", exact: true })).toHaveCount(0);
   });
 
   test("every screen is reachable and has a ? help button", async ({ page }) => {

@@ -15,6 +15,7 @@ import { Stats } from "./pages/Stats";
 import { Voice } from "./pages/Voice";
 import { Settings } from "./pages/Settings";
 import { Setup } from "./pages/Setup";
+import { Start } from "./pages/Start";
 import { Connect } from "./pages/Connect";
 import { Deals } from "./pages/Deals";
 import { MediaKit } from "./pages/MediaKit";
@@ -50,6 +51,7 @@ export function App() {
           <Route path="/research" element={<Research />} />
           <Route path="/stats" element={<Stats />} />
           <Route path="/voice" element={<Voice />} />
+          <Route path="/start" element={<Start />} />
           <Route path="/setup" element={<Setup />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/connections" element={<Connect />} />

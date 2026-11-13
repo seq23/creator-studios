@@ -5,6 +5,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { getSetUp } from "@worker/routes/home";
+import { homeRows, postsLeftLine } from "@shared/home";
+import type { HomeSummary } from "@shared/types";
 import { harness } from "./helpers/studio-fix-env";
 import { WHY_BUFFER } from "@shared/whyBuffer";
 
@@ -33,20 +35,33 @@ describe("Get set up", () => {
     expect((await getSetUp(h.env, true))?.[0].done).toBe(false);
   });
 
-  it("Home sends it and shows it first", async () => {
-    const home = readFileSync("worker/routes/home.ts", "utf8");
-    expect(home).toMatch(/getSetUp: await getSetUp\(c\.env, !!profileLocked\)/);
-    const page = readFileSync("app/pages/Home.tsx", "utf8");
-    expect(page.indexOf("<GetSetUp")).toBeGreaterThan(0);
-    expect(page.indexOf("<GetSetUp")).toBeLessThan(page.indexOf("<Skeleton"));
+  it("Home lists what needs her: Get set up first and the only primary; then looking, adding more, and red lights only", () => {
+    const base = {
+      runway: { weeks: 0.5, approvedClips: 3, thresholdWeeks: 2, weeklyNeed: 10 },
+      thisWeek: { posted: 16, toGo: 10, plannedThrough: "2026-11-22", tz: "America/Chicago", perPlatform: {} },
+      waiting: { clips: 12, clipsThisWeek: 12, dumpsCutting: 0, making: null },
+      followups: { items: [{ key: "f1", dealId: "dl_1", brand: "Brightside", dueAt: "2026-11-14", what: "Send follow-up 1" }], total: 3 },
+      health: { items: [{ name: "Buffer", label: "Buffer", light: "red" }, { name: "Email (Resend)", label: "Email", light: "grey" }, { name: "Storage", label: "Storage", light: "yellow" }], total: 3 },
+    };
+    const setting = homeRows({ ...base, getSetUp: [{ key: "connect", done: false }, { key: "profile", done: true }, { key: "videos", done: false }] } as unknown as HomeSummary);
+    expect(setting[0]).toMatchObject({ key: "get-set-up", to: "/start", primary: true });
+    expect(setting[0].why).toMatch(/^2 steps left/);
+    expect(setting.filter((r) => r.primary)).toHaveLength(1);
+    expect(setting.map((r) => r.key)).not.toContain("add-more"); // while setting up, Get set up is the way to add
+    const running = homeRows({ ...base, getSetUp: null } as unknown as HomeSummary);
+    expect(running.map((r) => r.key)).toEqual(["look", "add-more", "followups", "fix-Buffer"]); // grey and yellow lights are not hers
+    expect(running[2]).toMatchObject({ title: "Brightside: Send follow-up 1", to: "/deals?deal=dl_1" });
+    expect(running[2].why).toMatch(/^2 more due after it\. Why: /);
+    expect(running.every((r) => /Why: /.test(r.why) && r.action && r.to.startsWith("/"))).toBe(true);
+    expect(running[1].why).toMatch(/^10 posts left\. Why: nothing is planned after /);
+    expect(homeRows({ ...base, getSetUp: null, waiting: { ...base.waiting, clips: 0 }, runway: { ...base.runway, weeks: 4 }, health: { items: [], total: 0 }, followups: { items: [], total: 0 } } as unknown as HomeSummary)).toEqual([]);
+    expect(postsLeftLine({ ...base, getSetUp: null } as unknown as HomeSummary)).toBe("Less than a week of posts left.");
+    expect(postsLeftLine({ ...base, runway: { ...base.runway, weeks: 1.2 } } as unknown as HomeSummary)).toBe("About a week of posts left.");
+    expect(postsLeftLine({ ...base, thisWeek: { ...base.thisWeek, toGo: 0 } } as unknown as HomeSummary)).toBe("No posts left to go out.");
   });
 });
 
 describe("Connect Instagram & TikTok is easy to find", () => {
-  it("is in the main menu (phone and laptop read the same list)", () => {
-    const shell = readFileSync("app/components/Shell.tsx", "utf8");
-    expect(shell).toContain('{ to: "/settings/connections", label: "Connect Instagram & TikTok"');
-  });
   it("the Buffer card shows Why Buffer?, and its guide exists", () => {
     const connect = readFileSync("app/pages/Connect.tsx", "utf8");
     expect(connect).toMatch(/def\.service === "buffer" \? <WhyBuffer \/>/);

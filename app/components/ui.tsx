@@ -104,7 +104,7 @@ export function useLoad<T>(loader: () => Promise<T>, deps: unknown[] = []) {
  * script flourish (the brand's Allura, at most one per screen), the Playfair title, and a one-
  * sentence lede. `children` is the action area; mark the screen's one next step `data-primary`.
  */
-export function PageHead({ eyebrow, script, title, lede, crumb, children }: { eyebrow?: string; script?: string; title: ReactNode; lede?: ReactNode; crumb?: ReactNode; children?: ReactNode }) {
+export function PageHead({ eyebrow, script, title, lede, crumb, children }: { eyebrow?: ReactNode; script?: string; title: ReactNode; lede?: ReactNode; crumb?: ReactNode; children?: ReactNode }) {
   return (
     <div className="page-head">
       <div>

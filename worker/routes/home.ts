@@ -70,7 +70,7 @@ export async function getSetUp(env: Env, profileInUse: boolean): Promise<GetSetU
   const steps: GetSetUpStep[] = [
     { key: "connect", label: "Connect Instagram & TikTok", line: "Through Buffer (free): make a Buffer account, add Instagram and TikTok inside Buffer, then paste your Buffer key here.", done: buffer, to: "/settings/connections", guide: "connect-buffer" },
     { key: "profile", label: "Tell the studio about you", line: "Upload a few docs about you. The studio writes your profile and uses it; you can change it any time.", done: profile, to: "/brain", guide: "upload-brand-docs" },
-    { key: "videos", label: "Upload your first videos", line: "Choose your videos on Dump. Your posts start by themselves.", done: videos, to: "/dump", guide: "dump-new-footage" },
+    { key: "videos", label: "Add your first photos and videos", line: "Choose them on Add. Your posts start by themselves.", done: videos, to: "/dump", guide: "dump-new-footage" },
   ];
   return steps.every((s) => s.done) ? null : steps;
 }

@@ -8,13 +8,14 @@ keywords: red light, light, yellow, green, grey, broken, not working, health, so
 
 Green: working. Yellow: needs a look soon. Red: not working, and it says how to fix it. Grey: not set up (fine for optional things).
 
-## Home shows the worst first
+## Home shows only what is yours to fix
 
 ![Step 1](/help/screenshots/health-lights-1.png)
 <!-- route: / -->
-<!-- target: .home-health -->
+<!-- target: [data-home-list] -->
+<!-- shared -->
 
-On **Home**, the **Health** card lists the lights, worst first.
+On **Home**, a red light shows as a row with a **Fix** button. Everything else stays in **Settings**.
 
 ## See every light
 
