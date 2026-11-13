@@ -2,8 +2,8 @@
 title: "Move or remove a post"
 group: everyday
 screen: calendar
-last_checked: 2026-09-26
-keywords: move, reschedule, remove, delete post, swap, calendar, change day
+last_checked: 2026-11-13
+keywords: more like this, less like this, move, reschedule, remove, delete post, swap, calendar, change day
 ---
 
 ## Tap the post
@@ -37,16 +37,24 @@ Pick another post under **Swap for a different post** and tap **Swap**. The two 
 
 Tap **Take it off the calendar**. The clip goes back to your approved pool. A photo post says **Skip this post** instead: a skipped post never goes out and waits in the **Rejected bin**.
 
-## Approved, not scheduled
+## Say "more like this" or "less like this"
 
 ![Step 5](/help/screenshots/move-or-remove-a-post-5.png)
+<!-- click: [data-post="demo_post_h4"] .post-open -->
+<!-- target: [data-taste] -->
+
+Tap **More like this** or **Less like this** on any post. The next batch makes more, or fewer, of that kind of post. Change your mind any time: the last tap counts.
+
+## Approved, not scheduled
+
+![Step 6](/help/screenshots/move-or-remove-a-post-6.png)
 <!-- target: [aria-label="Approved, not scheduled"] -->
 
 Clips waiting for a spot are listed here. Tap **Add** to place one yourself.
 
 ## Never more than the weekly limit
 
-![Step 6](/help/screenshots/move-or-remove-a-post-6.png)
+![Step 7](/help/screenshots/move-or-remove-a-post-7.png)
 <!-- target: .cal-caps -->
 
 Each app has a weekly limit (at most 10), written out under your posts. It is the most that goes out in a week, never a target. A full week says so; move a post out first.

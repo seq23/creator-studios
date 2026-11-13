@@ -29,6 +29,20 @@ export function PostSheet({ id, tz, today, others, onClose, onChanged }: { id: s
   const [day, setDay] = useState("");
   const [swapWith, setSwapWith] = useState("");
   const [busy, setBusy] = useState(false);
+  const [taste, setTaste] = useState<boolean | null>(null);
+
+  async function tell(more: boolean) {
+    setBusy(true);
+    try {
+      await post(`/api/posts/item/${id}/taste`, { more });
+      setTaste(more);
+      toast.ok(more ? "Got it. The next batch makes more posts like this one." : "Got it. The next batch makes fewer posts like this one.");
+    } catch (e) {
+      toast.bad(e);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (item.error && !p)
     return (
@@ -110,6 +124,16 @@ export function PostSheet({ id, tz, today, others, onClose, onChanged }: { id: s
         </div>
         {p.source === "clip" ? <h3 className="post-headline">{p.headline}</h3> : null}
         {p.reason ? <div className={`notice ${p.state === "failed" ? "bad" : "warn"}`}>{p.reason}</div> : null}
+
+        {/* "More like this" / "Less like this" (owner, 13 Nov 2026): what she says here shapes the next batch. */}
+        <div className="taste-row" data-taste>
+          <button type="button" className={`btn quiet small${taste === true ? " on" : ""}`} aria-pressed={taste === true} disabled={busy} onClick={() => void tell(true)}>
+            👍 More like this
+          </button>
+          <button type="button" className={`btn quiet small${taste === false ? " on" : ""}`} aria-pressed={taste === false} disabled={busy} onClick={() => void tell(false)}>
+            👎 Less like this
+          </button>
+        </div>
 
         {editing && p.edit ? (
           <div className="field">

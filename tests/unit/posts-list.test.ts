@@ -341,3 +341,32 @@ describe("the Rejected bin", () => {
     expect((await photoPostsTick(await hydrate(env), Date.now() + 30 * DAY)).posted).toBe(posts.length - same.length);
   });
 });
+
+// "More like this" / "Less like this" on any post (owner, 13 Nov 2026): a tap is saved against the kind
+// of post, the latest tap per kind wins, and the next batch reads it (clips: jobs/tests/test_taste.py).
+describe("More like this / Less like this", () => {
+  it("a tap on a reel is saved as its clip type and reaches the cut job's memory; the latest tap wins", async () => {
+    const { loadMemory } = await import("@worker/domain/studioMemory");
+    await seedClips(1);
+    raw.exec("UPDATE clips SET clip_type = 'moving_photo' WHERE id = 'clp_0'");
+    raw.exec(`INSERT INTO posts (id, clip_id, platform, scheduled_at, status) VALUES ('pst_t1', 'clp_0', 'tiktok', '${new Date(Date.now() + DAY).toISOString()}', 'planned')`);
+    const less = await call("POST", "/api/posts/item/pst_t1/taste", { more: false });
+    expect(less).toEqual({ status: 200, json: { ok: true, kind: "clip:moving_photo", more: false } });
+    expect((await loadMemory(env)).taste).toEqual({ more: [], less: ["clip:moving_photo"] });
+    await call("POST", "/api/posts/item/pst_t1/taste", { more: true });
+    expect((await loadMemory(env)).taste).toEqual({ more: ["clip:moving_photo"], less: [] });
+    expect((await call("POST", "/api/posts/item/pst_t1/taste", {})).status).toBe(400);
+    expect((await call("POST", "/api/posts/item/pst_gone/taste", { more: true })).status).toBe(404);
+  });
+
+  it("Less like this on a photo set: the next pack plans no photo sets while other kinds remain", async () => {
+    await readyPack();
+    const set = raw.prepare("SELECT id FROM social_posts WHERE item_kind = 'carousel' LIMIT 1").get() as { id: string };
+    expect(set).toBeTruthy();
+    expect((await call("POST", `/api/posts/item/${set.id}/taste`, { more: false })).json).toMatchObject({ kind: "photo:carousel" });
+    const next = await readyPack();
+    const kinds = (raw.prepare("SELECT item_kind FROM social_posts WHERE pack_id = ?").all(next) as { item_kind: string }[]).map((r) => r.item_kind);
+    expect(kinds.length).toBeGreaterThan(0);
+    expect(kinds).not.toContain("carousel");
+  });
+});

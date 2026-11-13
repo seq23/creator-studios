@@ -30,6 +30,7 @@ import { weekBounds, zonedToUtc } from "../domain/slotting";
 import { moveToDate } from "../domain/sync";
 import { localDate, planPack, postLine, skipToken, starterCaptions, whenLine } from "../domain/photoPosts";
 import { hasRules, parseRules, priceList, textProblems, withAiLabel, type ContentRules } from "@shared/contentRules";
+import { loadTaste } from "../domain/studioMemory";
 import {
   AI_MADE,
   PACK_MAX_PHOTOS,
@@ -281,7 +282,11 @@ export async function schedulePack(env: Env, packId: string, now = Date.now()): 
     const k = `${cp.platform}|${w.start}`;
     weekCounts.set(k, (weekCounts.get(k) ?? 0) + 1);
   }
-  const plan = planPack(now, cfg, tz, items.map((i) => i.kind), taken, weekFull);
+  // "Less like this" on a kind of photo post (owner, 13 Nov 2026): that kind is left out while another remains.
+  const less = new Set((await loadTaste(env)).less);
+  const kinds = items.map((i) => i.kind);
+  const wanted = kinds.filter((k) => !less.has(`photo:${k}`));
+  const plan = planPack(now, cfg, tz, wanted.length ? wanted : kinds, taken, weekFull);
   const order: Record<Social, number> = { facebook: 0, instagram: 1, tiktok: 2, pinterest: 0 };
   for (const p of plan) {
     const caption = captions[order[p.platform] % Math.max(1, captions.length)] ?? "";
