@@ -96,16 +96,14 @@ async function homeNotices(page: Page) {
   // Undo brings the last one back
   await page.getByRole("button", { name: "Undo" }).last().click();
   await expect(page.locator("[data-notice]")).toHaveCount(1);
-  // two dumps and two follow-ups at most, each "See all (N)" with the true count
-  await expect(page.locator(".home-lists .list-row")).toHaveCount(4);
-  const dumpsTotal = Number(sql<{ n: number }>("SELECT COUNT(*) AS n FROM dumps WHERE archived_at IS NULL")[0].n);
-  await expect(page.getByRole("link", { name: `See all (${dumpsTotal})` })).toBeVisible();
-  const key = await page.locator(".home-lists [data-home-key^='dump:']").first().getAttribute("data-home-key");
-  const row = page.locator(`[data-home-key="${key}"]`);
-  await row.getByRole("button", { name: "Hide this from Home" }).click();
-  await expect(row).toHaveCount(0);
-  await page.getByRole("button", { name: "Undo" }).last().click();
-  await expect(row).toHaveCount(1);
+  // Home is one list (13 Nov 2026): follow-ups due are one row with the true count that opens Deals;
+  // what she added lives on Add, never as a second list here.
+  const home = (await (await page.request.get("/api/home")).json()) as { followups: { total: number } };
+  expect(home.followups.total).toBeGreaterThan(0);
+  const due = page.locator('[data-row="followups"]');
+  await expect(due).toContainText(home.followups.total === 1 ? "Why: " : `${home.followups.total - 1} more due after it. Why: `);
+  await expect(due.locator("a")).toHaveAttribute("href", /^\/deals\?deal=/);
+  await expect(page.locator(".home-lists, [data-home-key^='dump:']")).toHaveCount(0);
   if (phone) expect(await homeBottom(page)).toBeLessThanOrEqual(HOME_MAX);
 }
 

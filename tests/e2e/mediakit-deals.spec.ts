@@ -230,13 +230,15 @@ test.describe("brand deals", () => {
 
     // Home and the Monday recap carry the same due email
     await page.goto("/");
-    const followups = page.locator("section", { has: page.getByRole("heading", { name: "Follow-ups" }) });
-    await expect(followups).toContainText("Brightside Bottle Co.");
-    // The row names the step (not a generic "Follow up") and opens that deal, not the Deals list.
-    const row = followups.locator("a.list-row", { hasText: "Brightside Bottle Co." });
-    await expect(row.locator(".title")).toContainText("follow-up 1", { ignoreCase: true });
-    await expect(row.locator(".pill")).toContainText(/^(Due|Overdue) /);
-    await expect(row).toHaveAttribute("href", /\/deals\?deal=/);
+    // One Home row (13 Nov 2026): it names the soonest deal and its step (not a generic "Follow up")
+    // and opens that deal, not the Deals list.
+    const row = page.locator('[data-row="followups"]');
+    const due = ((await (await page.request.get("/api/home")).json()) as { followups: { items: { brand: string; what: string; dealId: string }[] } }).followups.items;
+    const mine = due.find((f) => f.brand === "Brightside Bottle Co.");
+    expect(mine?.what).toMatch(/follow-up 1/i);
+    await expect(row.locator(".title")).toHaveText(`${due[0].brand}: ${due[0].what}`);
+    await expect(row).toContainText("Why: ");
+    await expect(row.locator("a")).toHaveAttribute("href", `/deals?deal=${due[0].dealId}`);
     const before = ((await (await page.request.get("/api/settings")).json()) as { features: Record<string, boolean> }).features;
     expect((await page.request.patch("/api/settings", { data: { features: { ...before, weekly_recap: true } } })).ok()).toBe(true);
     try {

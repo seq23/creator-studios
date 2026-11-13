@@ -40,6 +40,18 @@ export function homeRows(d: HomeSummary): HomeRow[] {
       to: "/dump",
       action: "Add",
     });
+  // The soonest deal email due, named by its step, opening that deal; the rest counted in the why.
+  const next = d.followups.items[0];
+  if (d.followups.total > 0 && next) {
+    const more = d.followups.total - 1;
+    rows.push({
+      key: "followups",
+      title: `${next.brand}: ${next.what}`,
+      why: `${more ? `${more} more due after it. ` : ""}Why: the brand is waiting on an email you send from Deals.`,
+      to: `/deals?deal=${next.dealId}`,
+      action: "Open",
+    });
+  }
   for (const h of foldHealth(d.health.items).filter((x) => x.light === "red")) rows.push({ key: `fix-${h.name}`, title: `${h.label} needs a look`, why: "Why: it stopped working, so something may not go out.", to: "/settings", action: "Fix" });
   return rows;
 }

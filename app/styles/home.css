@@ -333,20 +333,22 @@
   }
 }
 @media (max-width: 560px) {
-  /* Home only: the title and the one action share a row, so a year of notices still fits one
-     screen with room to spare whatever fonts the phone draws (CI's Linux fonts ran 40 px taller). */
+  /* Home only: her name on its own line and the Add button full width under it (13 Nov 2026). The
+     old shared row squeezed a name into three lines once the button said "+ Add photos and videos",
+     and a year of notices must still fit one screen whatever fonts the phone draws (CI's Linux fonts
+     run ~40 px taller; tests/e2e/day-358.spec.ts). */
   .home .page-head {
-    flex-wrap: nowrap;
-    align-items: center;
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+  .home .page-head > div:first-child {
+    flex-basis: 100%;
   }
   .home .page-head .actions {
-    width: auto;
-    flex: none;
+    width: 100%;
   }
-  .home .page-head .actions > [data-primary] {
-    flex: none;
-    padding-left: var(--space-sm);
-    padding-right: var(--space-sm);
+  .home .page-head .actions > .btn {
+    width: 100%;
   }
 }
 
@@ -425,4 +427,19 @@
   min-height: 44px;
   display: inline-flex;
   align-items: center;
+}
+
+@media (max-width: 560px) {
+  /* one line each, so the lists below still fit one phone screen (tests/e2e/day-358.spec.ts) */
+  .home .home-week {
+    font-size: var(--text-sm);
+  }
+  .home .home-week a {
+    min-height: var(--touch);
+  }
+  .home .home-voice {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
 }

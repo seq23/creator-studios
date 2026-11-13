@@ -40,6 +40,7 @@ describe("Get set up", () => {
       runway: { weeks: 0.5, approvedClips: 3, thresholdWeeks: 2, weeklyNeed: 10 },
       thisWeek: { posted: 16, toGo: 10, plannedThrough: "2026-11-22", tz: "America/Chicago", perPlatform: {} },
       waiting: { clips: 12, clipsThisWeek: 12, dumpsCutting: 0, making: null },
+      followups: { items: [{ key: "f1", dealId: "dl_1", brand: "Brightside", dueAt: "2026-11-14", what: "Send follow-up 1" }], total: 3 },
       health: { items: [{ name: "Buffer", label: "Buffer", light: "red" }, { name: "Email (Resend)", label: "Email", light: "grey" }, { name: "Storage", label: "Storage", light: "yellow" }], total: 3 },
     };
     const setting = homeRows({ ...base, getSetUp: [{ key: "connect", done: false }, { key: "profile", done: true }, { key: "videos", done: false }] } as unknown as HomeSummary);
@@ -48,10 +49,12 @@ describe("Get set up", () => {
     expect(setting.filter((r) => r.primary)).toHaveLength(1);
     expect(setting.map((r) => r.key)).not.toContain("add-more"); // while setting up, Get set up is the way to add
     const running = homeRows({ ...base, getSetUp: null } as unknown as HomeSummary);
-    expect(running.map((r) => r.key)).toEqual(["look", "add-more", "fix-Buffer"]); // grey and yellow lights are not hers
+    expect(running.map((r) => r.key)).toEqual(["look", "add-more", "followups", "fix-Buffer"]); // grey and yellow lights are not hers
+    expect(running[2]).toMatchObject({ title: "Brightside: Send follow-up 1", to: "/deals?deal=dl_1" });
+    expect(running[2].why).toMatch(/^2 more due after it\. Why: /);
     expect(running.every((r) => /Why: /.test(r.why) && r.action && r.to.startsWith("/"))).toBe(true);
     expect(running[1].why).toMatch(/^10 posts left\. Why: nothing is planned after /);
-    expect(homeRows({ ...base, getSetUp: null, waiting: { ...base.waiting, clips: 0 }, runway: { ...base.runway, weeks: 4 }, health: { items: [], total: 0 } } as unknown as HomeSummary)).toEqual([]);
+    expect(homeRows({ ...base, getSetUp: null, waiting: { ...base.waiting, clips: 0 }, runway: { ...base.runway, weeks: 4 }, health: { items: [], total: 0 }, followups: { items: [], total: 0 } } as unknown as HomeSummary)).toEqual([]);
     expect(postsLeftLine({ ...base, getSetUp: null } as unknown as HomeSummary)).toBe("Less than a week of posts left.");
     expect(postsLeftLine({ ...base, runway: { ...base.runway, weeks: 1.2 } } as unknown as HomeSummary)).toBe("About a week of posts left.");
     expect(postsLeftLine({ ...base, thisWeek: { ...base.thisWeek, toGo: 0 } } as unknown as HomeSummary)).toBe("No posts left to go out.");

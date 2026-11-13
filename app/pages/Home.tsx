@@ -7,27 +7,14 @@ import { gbWords } from "@shared/bytes";
 import { plainDay } from "@shared/posts";
 import { makingLine } from "@shared/making";
 import { homeRows, postsLeftLine } from "@shared/home";
-import { Card, DismissButton, Dot, Empty, HelpButton, Notice, PageHead, Skeleton, useLoad, useToast } from "../components/ui";
+import { DismissButton, Dot, HelpButton, Notice, PageHead, Skeleton, useLoad, useToast } from "../components/ui";
 import { Icon } from "../components/Icon";
 import { useApp } from "../state";
 import "../styles/home.css";
 
-type RecentDump = HomeSummary["recentDumps"]["items"][number];
-
-const DUMP_STATUS: Record<RecentDump["status"], { text: string; tone: "ok" | "warn" | "bad" | "" }> = {
-  uploading: { text: "Still uploading", tone: "warn" },
-  queued: { text: "Waiting to cut", tone: "" },
-  cutting: { text: "Cutting…", tone: "" },
-  ready: { text: "Ready for review", tone: "ok" },
-  reviewed: { text: "Reviewed", tone: "ok" },
-  failed: { text: "Needs a look", tone: "bad" },
-};
-
-const DOOR_WORDS: Record<RecentDump["door"], string> = { new: "New footage", recycle: "Old posts", youtube: "Full video" };
-
 // Day 358 (docs/reviews/2026-09-26-day-358.md): Home stays one phone screen however much piles
-// up. Every list arrives capped by the Worker (shared/constants.ts HOME_CAPS) with its true total;
-// "See all (N)" goes to the screen that holds the rest, and every card has a × with Undo.
+// up. Since 13 Nov 2026 it is one list (shared/home.ts): what she added lives on Add, follow-ups due
+// are one row that opens Deals, and every notice has a × with Undo.
 export function Home() {
   const { me } = useApp();
   const toast = useToast();
@@ -119,74 +106,6 @@ export function Home() {
             </Link>
           </div>
 
-          <div className="split home-lists">
-            <section className="section">
-              <div className="section-head">
-                <h2>What you added</h2>
-                <Link to="/dump">
-                  {data.recentDumps.total > data.recentDumps.items.length ? `See all (${data.recentDumps.total})` : "See all"} <Icon name="arrow" size="sm" />
-                </Link>
-              </div>
-              {data.recentDumps.items.length === 0 ? (
-                <Empty title="Nothing added yet" cta={{ to: "/dump", label: "Add your first photos and videos" }}>
-                  Add photos and videos from your phone. The studio turns them into posts for you to look at.
-                </Empty>
-              ) : (
-                <Card className="flat">
-                  <div className="list">
-                    {data.recentDumps.items.map((d) => {
-                      const s = DUMP_STATUS[d.status];
-                      return (
-                        <Link key={d.id} to={d.status === "ready" ? "/review" : `/dump/${d.id}`} className="list-row home-row" data-home-key={d.key}>
-                          <div className="grow">
-                            <div className="title">
-                              {fmtDate(d.created_at)} · {DOOR_WORDS[d.door]} · {plural(d.files, "video")}
-                            </div>
-                            <div className="meta home-row-extra">{d.clips_made ? `${plural(d.clips_made, "clip")} made` : d.progress ? `${d.progress.step} · ${d.progress.done}/${d.progress.total}` : ""}</div>
-                          </div>
-                          <span className={`pill ${s.tone}`}>{s.text}</span>
-                          <DismissButton label="Hide this from Home" onClick={() => dismiss(d.key, "Hidden from Home. It is still on Add.")} />
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </Card>
-              )}
-            </section>
-
-            <section className="section">
-              <div className="section-head">
-                <h2>Follow-ups</h2>
-                <Link to="/deals">
-                  {data.followups.total > data.followups.items.length ? `See all (${data.followups.total})` : "Deals"} <Icon name="arrow" size="sm" />
-                </Link>
-              </div>
-              {data.followups.items.length === 0 ? (
-                <p className="soft home-empty">Nothing due. Pitches you send from Deals come back here on day 5, 12 and 19.</p>
-              ) : (
-                <Card className="flat">
-                  <div className="list">
-                    {data.followups.items.map((f) => {
-                      const overdue = Date.parse(f.dueAt) < Date.now() - 86400_000;
-                      return (
-                        <Link key={f.key} to={`/deals?deal=${f.dealId}`} className="list-row home-row" data-home-key={f.key}>
-                          <div className="grow">
-                            <div className="title">
-                              {f.brand}: {f.what}
-                            </div>
-                          </div>
-                          <span className={`pill ${overdue ? "bad" : "warn"}`}>
-                            {overdue ? "Overdue" : "Due"} {fmtDate(f.dueAt)}
-                          </span>
-                          <DismissButton label={`Hide ${f.brand} from Home`} onClick={() => dismiss(f.key, "Hidden from Home. It is still on Deals.")} />
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </Card>
-              )}
-            </section>
-          </div>
         </>
       ) : null}
       <HelpButton guide="what-runway-means" />
