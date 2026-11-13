@@ -188,7 +188,7 @@ describe("one list, one set of numbers", () => {
     for (const p of list.posts) expect(`${p.kind_label} ${p.platform_label} ${p.headline} ${p.edit_note ?? ""} ${p.reason ?? ""}`).not.toMatch(/Buffer|clp_|pst_|spo_|runway/i);
 
     expect(list.blocked).toHaveLength(1);
-    expect(list.blocked[0]).toMatchObject({ key: "connect:facebook", label: "Waiting on Facebook", action: { label: "Connect ›", to: "/setup#setup-facebook" } });
+    expect(list.blocked[0]).toMatchObject({ key: "connect:facebook", label: "Waiting on Facebook", action: { label: "Connect ›", to: "/settings/connections" } });
     expect(list.blocked[0].posts.map((p) => p.id)).toEqual([fb.id]);
     expect(list.posts.some((p) => p.id === fb.id)).toBe(false);
     expect(list.limits.map((l) => l.label)).toEqual(["TikTok", "Instagram", "YouTube"]);

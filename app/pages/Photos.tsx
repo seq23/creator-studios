@@ -9,7 +9,7 @@ import { get, patch, post, del } from "../lib/api";
 import { uploadFile } from "../lib/upload";
 import { fmtDateTime } from "../lib/format";
 import { HelpButton, Notice, PageHead, Skeleton, useLoad, useToast } from "../components/ui";
-import { PACK_MAX_PHOTOS, SOCIAL_LABEL, ITEM_LABEL, isPhoto, type PackView, type PhotosHome, type SocialPostView } from "@shared/photoPosts";
+import { connectTo, PACK_MAX_PHOTOS, SOCIAL_LABEL, ITEM_LABEL, isPhoto, type PackView, type PhotosHome, type SocialPostView } from "@shared/photoPosts";
 import "../styles/photos.css";
 
 const CONNECT_LABEL: Record<string, string> = { facebook: "Connect Facebook", pinterest: "Connect Pinterest", buffer: "Connect Buffer (Instagram and TikTok)", github: "Connect the photo maker" };
@@ -51,7 +51,7 @@ function PhotosBody({ home, reload }: { home: PhotosHome; reload: () => void | P
           </p>
           <div className="photos-banner-actions">
             {home.stops.map((s) => (
-              <Link key={s.platform} className="btn small quiet" to={`/setup#setup-${s.setup}`}>
+              <Link key={s.platform} className="btn small quiet" to={connectTo(s.setup)}>
                 {s.label} →
               </Link>
             ))}
@@ -303,8 +303,8 @@ function PostCard({ post: p, reload }: { post: SocialPostView; reload: () => voi
       {!editing && p.status !== "skipped" && (
         <div className="photos-actions">
           {p.connect && (
-            <Link className="btn" data-primary to={`/setup#setup-${p.connect}`}>
-              {CONNECT_LABEL[p.connect] ?? "Open Setup"} →
+            <Link className="btn" data-primary to={connectTo(p.connect)}>
+              {CONNECT_LABEL[p.connect] ?? "Connect"} →
             </Link>
           )}
           {p.status === "failed" && (

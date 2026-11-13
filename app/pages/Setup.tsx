@@ -26,7 +26,9 @@ export function Setup() {
   }, [data]);
   const { refreshMe } = useApp();
   // A service that is already set up for her is never shown (owner, 13 Nov 2026): nothing to do there.
-  const mine = data ? shownSteps(data).filter((x) => x.status.state !== "provided") : [];
+  // Facebook goes through Buffer now (Connections → Facebook Page, owner 13 Nov 2026: no developer tools,
+  // ever); the old Page-token card shows only on a studio that already uses one.
+  const mine = data ? shownSteps(data).filter((x) => x.status.state !== "provided" && !(x.step.id === "facebook" && x.status.state === "practice")) : [];
   return (
     <div className="page setup-page">
       <PageHead

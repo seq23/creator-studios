@@ -398,3 +398,52 @@ describe("photos added on the Add screen", () => {
     expect(packPhotos()).toHaveLength(0);
   });
 });
+
+// Facebook through Buffer (owner, 13 Nov 2026): with no Page token of her own, a Facebook photo post
+// goes out through Buffer, where her Page is already added: no developer tools. The real Buffer
+// client against a stand-in Buffer, so the exact request is proven (developers.buffer.com: images as
+// assets [{ image: { url } }], FacebookPostMetadataInput.type required).
+describe("Facebook through Buffer", () => {
+  const live = async (withPage: boolean) => {
+    env = makeEnv({ FAKE_SERVICES: "0", PHOTO_POSTS: JSON.stringify({ ...CFG, platforms: ["facebook"] }) } as Partial<Env>);
+    await saveConnection(env, "buffer", "live-buffer-key-0001", "ok", {});
+    const created: Record<string, unknown>[] = [];
+    vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+      if (!String(url).startsWith("https://api.buffer.com")) return new Response("{}", { status: 200 });
+      const body = JSON.parse(String(init?.body ?? "{}")) as { query: string; variables?: { input?: Record<string, unknown> } };
+      if (body.query.includes("account")) return Response.json({ data: { account: { id: "acc", organizations: [{ id: "org1", name: "PnP" }] } } });
+      if (body.query.includes("channels"))
+        return Response.json({ data: { channels: withPage ? [{ id: "fbch1", name: "pnp", service: "facebook", displayName: "Porch & Party", isDisconnected: false, isQueuePaused: false, serviceId: null, externalLink: null }] : [] } });
+      if (body.query.includes("createPost")) {
+        created.push(body.variables!.input!);
+        return Response.json({ data: { createPost: { post: { id: "bufpost1" } } } });
+      }
+      return Response.json({ data: { posts: { edges: [] } } });
+    });
+    return created;
+  };
+
+  it("a photo set goes to her Page through Buffer: every image in order, as a Facebook post", async () => {
+    const created = await live(true);
+    await readyPack(["main", "main", "main"], "clean");
+    await tick(Date.parse("2026-10-24T16:05:00.000Z")); // day 2: the photo set
+    const fb = created.filter((c) => c.channelId === "fbch1");
+    expect(fb.length).toBeGreaterThanOrEqual(1);
+    const set = fb.find((c) => (c.assets as { image?: unknown }[]).every((a) => a.image));
+    expect(set).toBeTruthy();
+    expect((set!.assets as { image: { url: string } }[]).length).toBeGreaterThanOrEqual(2);
+    for (const a of set!.assets as { image: { url: string } }[]) expect(a.image.url).toMatch(/^https:\/\/pnp\.example\/media\/p\//);
+    expect(set!.metadata).toEqual({ facebook: { type: "post" } });
+    const row = posts().find((p) => p.platform === "facebook" && p.item_kind === "carousel")!;
+    expect(row.status).toBe("posted");
+  });
+
+  it("with no Page in Buffer either, Facebook posts wait as Connect Facebook and nothing is sent", async () => {
+    const created = await live(false);
+    await readyPack(["main", "main"], "clean");
+    await tick(Date.parse("2026-10-24T16:05:00.000Z"));
+    expect(created).toEqual([]);
+    expect(posts().filter((p) => p.platform === "facebook").every((p) => p.status !== "posted")).toBe(true);
+    expect(posts().some((p) => p.platform === "facebook" && p.status === "waiting")).toBe(true);
+  });
+});

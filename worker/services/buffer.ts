@@ -21,6 +21,18 @@ export interface BufferChannel {
   link?: string | null;
 }
 
+/**
+ * Her Facebook Page as Buffer lists it (Service enum "facebook", developers.buffer.com reference). Kept
+ * apart from BufferChannel: Facebook is not one of the clip platforms (caps, calendar), only photo
+ * posts go there (owner, 13 Nov 2026: Facebook through the posting service she already connected).
+ */
+export interface BufferFacebookPage {
+  id: string;
+  handle: string;
+  connected: boolean;
+  paused?: boolean;
+}
+
 export interface BufferPostStatus {
   id: string;
   /** unknown = the read did not get through; the post is left as it is. */
@@ -32,7 +44,7 @@ export interface BufferPostStatus {
 /** One post for one channel. `title` is the clip's hook (YouTube requires a title). */
 export interface CreatePostArgs {
   channelId: string;
-  platform: Platform;
+  platform: Platform | "facebook";
   text: string;
   title: string;
   mediaUrl: string;
@@ -41,6 +53,17 @@ export interface CreatePostArgs {
   aiGenerated?: boolean;
   /** A full video for YouTube: the privacy she picked (Public / Unlisted / Private). */
   privacy?: "public" | "unlisted" | "private";
+  /** A photo post: these images, in order, instead of the video at mediaUrl. */
+  imageUrls?: string[];
+}
+
+/**
+ * The post's assets: one entry per file, each exactly one of image or video (developers.buffer.com
+ * examples/create-image-post: "an ordered list where each entry specifies exactly one of image,
+ * video, or document"). Pure.
+ */
+export function postAssets(input: Pick<CreatePostArgs, "mediaUrl" | "imageUrls">): Record<string, unknown>[] {
+  return input.imageUrls?.length ? input.imageUrls.map((url) => ({ image: { url } })) : [VIDEO_ASSET(input.mediaUrl)];
 }
 
 /**
@@ -55,9 +78,12 @@ export const YOUTUBE_CATEGORY_ID = "26";
 // (introspected with the live key, 26 Sep 2026) has `isAiGenerated: Boolean` on
 // TikTokPostMetadataInput, InstagramPostMetadataInput and YoutubePostMetadataInput ("Whether the
 // post discloses AI-generated content"); each platform shows its own AI label from it.
-export function postMetadata(platform: Platform, title: string, aiGenerated = false, privacy: "public" | "unlisted" | "private" = "public"): Record<string, unknown> | undefined {
+export function postMetadata(platform: Platform | "facebook", title: string, aiGenerated = false, privacy: "public" | "unlisted" | "private" = "public"): Record<string, unknown> | undefined {
   const ai = aiGenerated ? { isAiGenerated: true } : {};
   if (platform === "instagram") return { instagram: { type: "reel", shouldShareToFeed: true, ...ai } };
+  // FacebookPostMetadataInput.type is required (PostTypeFacebook: post | reel | story). A photo set
+  // or a video both go out as a Page post.
+  if (platform === "facebook") return { facebook: { type: "post" } };
   if (platform === "youtube") {
     const t = title.replace(/\s+/g, " ").trim().slice(0, 100) || "New video";
     // privacy: YoutubePrivacy enum (public | unlisted | private), introspected 26 Sep 2026.
@@ -68,7 +94,7 @@ export function postMetadata(platform: Platform, title: string, aiGenerated = fa
 }
 
 export interface BufferClient {
-  checkKey(): Promise<{ ok: boolean; channels: BufferChannel[]; error: string | null; organizationId?: string }>;
+  checkKey(): Promise<{ ok: boolean; channels: BufferChannel[]; error: string | null; organizationId?: string; facebook?: BufferFacebookPage | null }>;
   createPost(input: CreatePostArgs): Promise<{ ok: boolean; id: string | null; error: string | null }>;
   getPost(id: string): Promise<BufferPostStatus>;
   deletePost(id: string): Promise<boolean>;
@@ -118,7 +144,9 @@ export class FakeBuffer implements BufferClient {
       { id: "ch_instagram", platform: "instagram", handle: "@samplechannel", connected: !this.key.includes("ig-missing"), service_id: "17841400000000001", link: "https://instagram.com/samplechannel" },
       { id: "ch_youtube", platform: "youtube", handle: "Sample Creator", connected: true, service_id: "UCfakeSampleCreator0001", link: "https://www.youtube.com/channel/UCfakeSampleCreator0001" },
     ];
-    return { ok: true, channels, error: null, organizationId: "fake_org" };
+    // "fb-page": a Buffer account with a Facebook Page added (Porch & Party's, 13 Nov 2026).
+    const facebook: BufferFacebookPage | null = this.key.includes("fb-page") ? { id: "ch_facebook", handle: "Sample Creator Page", connected: true } : null;
+    return { ok: true, channels, error: null, organizationId: "fake_org", facebook };
   }
   async createPost(input: CreatePostArgs) {
     if (!this.key) return { ok: false, id: null, error: "Buffer is not connected." };
@@ -206,12 +234,14 @@ class RealBuffer implements BufferClient {
         `query { channels(input: { organizationId: ${JSON.stringify(org)} }) { id name service displayName isDisconnected isQueuePaused serviceId externalLink } }`,
       );
       const channels: BufferChannel[] = [];
+      let facebook: BufferFacebookPage | null = null;
       for (const ch of data.channels) {
+        if (ch.service.toLowerCase() === "facebook" && !facebook) facebook = { id: ch.id, handle: ch.displayName || ch.name, connected: !ch.isDisconnected, paused: ch.isQueuePaused };
         const platform = platformOf(ch.service);
         if (!platform || channels.some((c) => c.platform === platform)) continue;
         channels.push({ id: ch.id, platform, handle: ch.displayName || ch.name, connected: !ch.isDisconnected, paused: ch.isQueuePaused, service_id: ch.serviceId ?? null, link: ch.externalLink ?? null });
       }
-      return { ok: true, channels, error: null, organizationId: org };
+      return { ok: true, channels, error: null, organizationId: org, facebook };
     } catch (e) {
       return { ok: false, channels: [], error: e instanceof Error ? e.message : "Buffer did not answer." };
     }
@@ -225,7 +255,7 @@ class RealBuffer implements BufferClient {
           input: {
             channelId: input.channelId,
             text: input.text,
-            assets: [VIDEO_ASSET(input.mediaUrl)],
+            assets: postAssets(input),
             mode: "customScheduled",
             schedulingType: "automatic",
             needsApproval: false,

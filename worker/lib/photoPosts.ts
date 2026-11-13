@@ -23,7 +23,7 @@ import { getLlm } from "../services/openrouter";
 import { emailFrame, sendEmail } from "../services/email";
 import { getFacebook, facebookConnected } from "../services/facebook";
 import { getPinterest, pinterestConnected } from "../services/pinterest";
-import { getBuffer } from "../services/buffer";
+import { getBuffer, type BufferFacebookPage } from "../services/buffer";
 import { bufferState } from "../crons/buffer-sync";
 import { readSettings } from "../routes/settings";
 import { weekBounds, zonedToUtc } from "../domain/slotting";
@@ -108,10 +108,32 @@ export async function draftCaptions(env: Env, note: string): Promise<string[]> {
 
 // ------------------------------------------------------------------ connections and gates
 
+/**
+ * Her Facebook Page as Buffer lists it, when it can post (owner, 13 Nov 2026: Facebook through the
+ * posting service she already connected, no developer tools). Read from the hourly Buffer check; a
+ * studio whose stored check predates this field is checked once, now.
+ */
+export async function bufferFacebook(env: Env): Promise<BufferFacebookPage | null> {
+  if (practice(env, "buffer") && !fakeServices(env)) return null;
+  const read = async () => parseJson<{ facebook?: BufferFacebookPage | null }>((await env.DB.prepare("SELECT meta FROM connections WHERE service = 'buffer' AND status = 'ok'").first<{ meta: string }>())?.meta, {});
+  let meta = await read();
+  if (meta.facebook === undefined) {
+    try {
+      await bufferState(env, await getBuffer(env), true);
+      meta = await read();
+    } catch {
+      return null;
+    }
+  }
+  const fb = meta.facebook;
+  return fb && fb.connected && !fb.paused ? fb : null;
+}
+
 /** Whether a platform can post now (after hydrate), and the Setup card to open when not. */
 export async function platformReady(env: Env, p: Social): Promise<boolean> {
+  if (p === "facebook" && !facebookConnected(env)) return !!(await bufferFacebook(env)) || fakeServices(env);
   if (fakeServices(env)) return true;
-  if (p === "facebook") return facebookConnected(env);
+  if (p === "facebook") return true;
   if (p === "pinterest") return pinterestConnected(env);
   if (practice(env, "buffer")) return false;
   try {
@@ -123,7 +145,7 @@ export async function platformReady(env: Env, p: Social): Promise<boolean> {
 }
 
 const CONNECT_WHY: Record<Social, string> = {
-  facebook: "Facebook posts wait until your Facebook Page is connected.",
+  facebook: "Facebook posts wait until your Facebook Page is added in Buffer.",
   instagram: "Instagram posts wait until Buffer is connected with your Instagram added.",
   tiktok: "TikTok posts wait until Buffer is connected with your TikTok added.",
   pinterest: "Pins wait until your Pinterest account is connected.",
@@ -397,7 +419,21 @@ export async function sendPost(env: Env, row: PostRow): Promise<SocialPostStatus
   const text = flagged ? row.caption : withAiLabel(row.caption, aiMade);
   let result: { ok: boolean; id: string | null; url: string | null; error: string | null };
   try {
-    if (row.platform === "facebook") {
+    if (row.platform === "facebook" && !facebookConnected(env)) {
+      // No Page token of her own: through Buffer, where her Page is already added.
+      const page = await bufferFacebook(env);
+      if (!page) return wait("connect:facebook");
+      const r = await (await getBuffer(env)).createPost({
+        channelId: page.id,
+        platform: "facebook",
+        text,
+        title: env.APP_NAME,
+        mediaUrl: mediaUrl(env, item.media_token, video ? "video" : 0),
+        imageUrls: video ? undefined : images.map((_, i) => mediaUrl(env, item.media_token!, i)),
+        scheduledAt: new Date().toISOString(),
+      });
+      result = { ok: r.ok, id: r.id, url: null, error: r.error };
+    } else if (row.platform === "facebook") {
       const fb = getFacebook(env);
       result = video ? await fb.postVideo({ videoUrl: mediaUrl(env, item.media_token, "video"), text }) : await fb.postPhotos({ imageUrls: images.map((_, i) => mediaUrl(env, item.media_token!, i)), text });
     } else if (row.platform === "pinterest") {

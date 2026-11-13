@@ -26,7 +26,8 @@ export function Start() {
   const step = picked ?? firstOpen;
   const buffer = conns.data?.find((c) => c.service === "buffer");
   const channels = buffer?.status === "ok" ? ((buffer.meta.channels as { platform: string; connected: boolean }[] | undefined) ?? []) : [];
-  const connected = (p: string) => channels.some((c) => c.platform === p && c.connected);
+  const fbPage = buffer?.status === "ok" ? (buffer.meta.facebook as { connected: boolean } | null | undefined) : null;
+  const connected = (p: string) => (p === "facebook" ? !!fbPage?.connected : channels.some((c) => c.platform === p && c.connected));
   const later = () => {
     try {
       localStorage.setItem(START_SEEN_KEY, "1");

@@ -19,7 +19,7 @@ import { planAhead } from "../routes/posts";
 import { POSTABLE_CLIP_SQL } from "../domain/sourceCheck";
 import { clipPostText, POST_TEXT_COLUMNS } from "../lib/postText";
 import { readSettings } from "../routes/settings";
-import { bufferRequests, getBuffer, type BufferChannel, type BufferClient } from "../services/buffer";
+import { bufferRequests, getBuffer, type BufferChannel, type BufferClient, type BufferFacebookPage } from "../services/buffer";
 import { emailFrame, sendEmail } from "../services/email";
 import { checkEditor, checkFirecrawl, checkHunter, checkOpenRouter, type KeyCheck } from "../services/keychecks";
 import { API_EDITORS } from "../domain/editors";
@@ -54,6 +54,8 @@ interface BufferMeta {
   organization_id?: string;
   checked_at?: string;
   queue?: Partial<Record<Platform, number>>;
+  /** Her Facebook Page in Buffer, or null when none is added; absent = not read since this was added. */
+  facebook?: BufferFacebookPage | null;
 }
 
 interface BufferState {
@@ -91,7 +93,7 @@ export async function bufferState(env: Env, client: BufferClient, force: boolean
     const n = await client.queueCount(ch.id);
     if (n >= 0) remoteQueue[p] = n;
   }
-  const patch: BufferMeta = { channels: r.channels, checked_at: nowIso(), queue: remoteQueue };
+  const patch: BufferMeta = { channels: r.channels, checked_at: nowIso(), queue: remoteQueue, facebook: r.facebook ?? null };
   if (r.organizationId) patch.organization_id = r.organizationId;
   await markConnection(env, "buffer", "ok", null, patch as Record<string, unknown>);
   return { connected: true, ok: true, error: null, channels, remoteQueue, checkedNow: true };

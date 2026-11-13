@@ -12,7 +12,17 @@ import { Link, useSearchParams } from "react-router-dom";
 import type { ConnectionView } from "@shared/types";
 import { get, post } from "../lib/api";
 import { ago } from "../lib/format";
-import { Card, Dot, HelpButton, Modal, Notice, PageHead, Skeleton, useLoad, useToast } from "../components/ui";
+import {
+  Card,
+  Dot,
+  HelpButton,
+  Modal,
+  Notice,
+  PageHead,
+  Skeleton,
+  useLoad,
+  useToast,
+} from "../components/ui";
 import { Icon } from "../components/Icon";
 import "../styles/settings.css";
 import { useApp } from "../state";
@@ -24,28 +34,95 @@ type Service = ConnectionView["service"];
 
 // `title` is the section-and-vendor name the key box is labelled with (guides and specs find the
 // box by it); `name` is the vendor alone, shown as the card title under the numbered step.
-const KEY_SERVICES: { service: Service; title: string; name: string; why: string; steps: string[]; guide: string; optional?: boolean; editor?: boolean }[] = [
-  { service: "buffer", title: "Posting · Buffer", name: "Buffer", why: "This is how your clips post to Instagram, TikTok and YouTube. Instagram and TikTok don’t let apps post directly without a long approval, so Buffer (free) does the posting.", steps: ["Make a free Buffer account at buffer.com", "In Buffer, add your Instagram and TikTok", "Open Buffer → Settings → API", "Click Create key, then copy it", "Paste it here"], guide: "connect-buffer" },
-  { service: "openrouter", title: "AI · OpenRouter", name: "OpenRouter", why: "Writes captions, hooks, your Research Brief and pitch drafts. Free models by default.", steps: ["Open openrouter.ai → Keys", "Create key, copy it", "Paste it here"], guide: "connect-openrouter" },
-  { service: "firecrawl", title: "Web research · Firecrawl", name: "Firecrawl", why: "Optional, faster web research for your Research Brief and brand finder. 1,000 free credits a month. Without it the dashboard searches the web for free.", steps: ["Open firecrawl.dev → API Keys", "Copy your key", "Paste it here"], guide: "connect-firecrawl" },
-  { service: "hunter", title: "Brand deals · Hunter.io", name: "Hunter.io", why: "Finds public partnership emails on brand websites. Free account: 50 lookups a month.", steps: ["Create a free Hunter account", "Open API → copy key", "Paste it here"], guide: "connect-hunter", optional: true },
+const KEY_SERVICES: {
+  service: Service;
+  title: string;
+  name: string;
+  why: string;
+  steps: string[];
+  guide: string;
+  optional?: boolean;
+  editor?: boolean;
+}[] = [
+  {
+    service: "buffer",
+    title: "Posting · Buffer",
+    name: "Buffer",
+    why: "This is how your clips post to Instagram, TikTok and YouTube. Instagram and TikTok don’t let apps post directly without a long approval, so Buffer (free) does the posting.",
+    steps: [
+      "Make a free Buffer account at buffer.com",
+      "In Buffer, add your Instagram and TikTok",
+      "Open Buffer → Settings → API",
+      "Click Create key, then copy it",
+      "Paste it here",
+    ],
+    guide: "connect-buffer",
+  },
+  {
+    service: "openrouter",
+    title: "AI · OpenRouter",
+    name: "OpenRouter",
+    why: "Writes captions, hooks, your Research Brief and pitch drafts. Free models by default.",
+    steps: [
+      "Open openrouter.ai → Keys",
+      "Create key, copy it",
+      "Paste it here",
+    ],
+    guide: "connect-openrouter",
+  },
+  {
+    service: "firecrawl",
+    title: "Web research · Firecrawl",
+    name: "Firecrawl",
+    why: "Optional, faster web research for your Research Brief and brand finder. 1,000 free credits a month. Without it the dashboard searches the web for free.",
+    steps: ["Open firecrawl.dev → API Keys", "Copy your key", "Paste it here"],
+    guide: "connect-firecrawl",
+  },
+  {
+    service: "hunter",
+    title: "Brand deals · Hunter.io",
+    name: "Hunter.io",
+    why: "Finds public partnership emails on brand websites. Free account: 50 lookups a month.",
+    steps: [
+      "Create a free Hunter account",
+      "Open API → copy key",
+      "Paste it here",
+    ],
+    guide: "connect-hunter",
+    optional: true,
+  },
   {
     service: "elevenlabs",
     title: "Voice overs · ElevenLabs (premium)",
     name: "ElevenLabs",
     why: "Premium voice cloning: best quality, seconds per voice over, uses your own ElevenLabs credits. Without it the free built-in voice is used, which is good quality and takes a few minutes.",
-    steps: ["Open elevenlabs.io → your profile → API keys", "Create API key, copy it", "Paste it here"],
+    steps: [
+      "Open elevenlabs.io → your profile → API keys",
+      "Create API key, copy it",
+      "Paste it here",
+    ],
     guide: "connect-elevenlabs",
     optional: true,
   },
   // Connected editors (worker/domain/editors.ts is the one list; these rows show it).
-  ...EDITOR_LIST.map((e) => ({ service: e.id as Service, title: `Editor · ${e.name}`, name: e.name, why: e.why, steps: e.steps, guide: `connect-${e.id}`, optional: true, editor: true })),
+  ...EDITOR_LIST.map((e) => ({
+    service: e.id as Service,
+    title: `Editor · ${e.name}`,
+    name: e.name,
+    why: e.why,
+    steps: e.steps,
+    guide: `connect-${e.id}`,
+    optional: true,
+    editor: true,
+  })),
 ];
 
 export function Connect() {
   const { me } = useApp();
   const toast = useToast();
-  const { data, loading, reload } = useLoad(() => get<ConnectionView[]>("/api/connections"));
+  const { data, loading, reload } = useLoad(() =>
+    get<ConnectionView[]>("/api/connections"),
+  );
   const [confirmAll, setConfirmAll] = useState(false);
   const [params, setParams] = useSearchParams();
   const oauthNote = oauthMessage(params);
@@ -55,12 +132,17 @@ export function Connect() {
   // With everything connected, Buffer's "Check again" (posting is what matters most).
   // The stats sign-ins are optional extra detail (owner decision 25 Sep 2026), never the next step.
   const order: Service[] = ["buffer", "openrouter", "firecrawl", "hunter"];
-  const primary: Service | null = !owner || !data ? null : (order.find((sv) => byService(sv)?.status !== "ok") ?? "buffer");
+  const primary: Service | null =
+    !owner || !data
+      ? null
+      : (order.find((sv) => byService(sv)?.status !== "ok") ?? "buffer");
 
   async function disconnectAll() {
     try {
       await post("/api/connections/disconnect-all");
-      toast.ok("Everything disconnected. Nothing will post until you reconnect Buffer.");
+      toast.ok(
+        "Everything disconnected. Nothing will post until you reconnect Buffer.",
+      );
       setConfirmAll(false);
       reload();
     } catch (e) {
@@ -73,7 +155,8 @@ export function Connect() {
       <PageHead
         crumb={
           <>
-            <Link to="/settings">Settings</Link> <Icon name="right" size="sm" /> Connections
+            <Link to="/settings">Settings</Link> <Icon name="right" size="sm" />{" "}
+            Connections
           </>
         }
         title="Connections"
@@ -83,9 +166,15 @@ export function Connect() {
       {oauthNote ? (
         <Notice tone={oauthNote.ok ? "ok" : "bad"}>
           <span className="grow">
-            {oauthNote.text} {oauthNote.guide ? <Link to={`/help/${oauthNote.guide}`}>How to fix</Link> : null}
+            {oauthNote.text}{" "}
+            {oauthNote.guide ? (
+              <Link to={`/help/${oauthNote.guide}`}>How to fix</Link>
+            ) : null}
           </span>
-          <button className="btn quiet small" onClick={() => setParams({}, { replace: true })}>
+          <button
+            className="btn quiet small"
+            onClick={() => setParams({}, { replace: true })}
+          >
             OK
           </button>
         </Notice>
@@ -96,54 +185,124 @@ export function Connect() {
       {data ? (
         <>
           <Section n={1} title={KEY_SERVICES[0].title}>
-            <KeyCard def={KEY_SERVICES[0]} conn={byService("buffer")} owner={owner} primary={primary === "buffer"} onChange={reload} />
+            <KeyCard
+              def={KEY_SERVICES[0]}
+              conn={byService("buffer")}
+              owner={owner}
+              primary={primary === "buffer"}
+              onChange={reload}
+            />
             <ChannelsCard conn={byService("buffer")} />
+            <FacebookPageCard conn={byService("buffer")} onChange={reload} />
           </Section>
 
           <Section n={2} title="YouTube · full videos">
-            <YouTubeDirectCard conn={byService("youtube")} owner={owner} onChange={reload} />
+            <YouTubeDirectCard
+              conn={byService("youtube")}
+              owner={owner}
+              onChange={reload}
+            />
           </Section>
 
           <Section n={3} title="Stats · no sign-in needed">
             <Card className="flat">
-              <div className="hint">Lets the dashboard learn what works for you. Your numbers come in without signing in anywhere.</div>
+              <div className="hint">
+                Lets the dashboard learn what works for you. Your numbers come
+                in without signing in anywhere.
+              </div>
               <div className="list">
-                <NoLoginRow name="YouTube" line="Public numbers, read on their own through the channel Buffer posts to." cta="See YouTube numbers" />
-                <NoLoginRow name="Instagram" line="Type your followers and reach on Stats whenever you like (2 minutes)." cta="Add Instagram numbers" />
+                <NoLoginRow
+                  name="YouTube"
+                  line="Public numbers, read on their own through the channel Buffer posts to."
+                  cta="See YouTube numbers"
+                />
+                <NoLoginRow
+                  name="Instagram"
+                  line="Type your followers and reach on Stats whenever you like (2 minutes)."
+                  cta="Add Instagram numbers"
+                />
                 <TikTokRow conn={byService("tiktok")} />
               </div>
-              <div className="hint">TikTok: upload the export from TikTok Studio once a month (the zip it gives you is fine).</div>
+              <div className="hint">
+                TikTok: upload the export from TikTok Studio once a month (the
+                zip it gives you is fine).
+              </div>
             </Card>
             <Card className="flat">
               <div className="title">Extra detail · optional</div>
               <div className="hint">
-                Signing in adds a little more (YouTube watch time, Instagram reach per video). Nothing waits on it. Google or Meta may show a warning page until the app is approved; that is expected.
+                Signing in adds a little more (YouTube watch time, Instagram
+                reach per video). Nothing waits on it. Google or Meta may show a
+                warning page until the app is approved; that is expected.
               </div>
               <div className="list">
-                <StatsRow name="Instagram (optional)" provider="meta" conn={byService("meta")} connectLabel="Connect with Instagram" owner={owner} primary={false} onChange={reload} />
-                <StatsRow name="YouTube (optional)" provider="google" conn={byService("google")} connectLabel="Connect with Google" owner={owner} primary={false} onChange={reload} />
+                <StatsRow
+                  name="Instagram (optional)"
+                  provider="meta"
+                  conn={byService("meta")}
+                  connectLabel="Connect with Instagram"
+                  owner={owner}
+                  primary={false}
+                  onChange={reload}
+                />
+                <StatsRow
+                  name="YouTube (optional)"
+                  provider="google"
+                  conn={byService("google")}
+                  connectLabel="Connect with Google"
+                  owner={owner}
+                  primary={false}
+                  onChange={reload}
+                />
               </div>
             </Card>
           </Section>
 
           <Section n={4} title="AI and research">
             <div className="grid cols-2">
-              <KeyCard def={KEY_SERVICES[1]} conn={byService("openrouter")} owner={owner} primary={primary === "openrouter"} onChange={reload} />
-              <KeyCard def={KEY_SERVICES[2]} conn={byService("firecrawl")} owner={owner} primary={primary === "firecrawl"} onChange={reload} />
+              <KeyCard
+                def={KEY_SERVICES[1]}
+                conn={byService("openrouter")}
+                owner={owner}
+                primary={primary === "openrouter"}
+                onChange={reload}
+              />
+              <KeyCard
+                def={KEY_SERVICES[2]}
+                conn={byService("firecrawl")}
+                owner={owner}
+                primary={primary === "firecrawl"}
+                onChange={reload}
+              />
             </div>
           </Section>
 
           <Section n={5} title="Brand deals · optional">
-            <KeyCard def={KEY_SERVICES[3]} conn={byService("hunter")} owner={owner} primary={primary === "hunter"} onChange={reload} />
+            <KeyCard
+              def={KEY_SERVICES[3]}
+              conn={byService("hunter")}
+              owner={owner}
+              primary={primary === "hunter"}
+              onChange={reload}
+            />
           </Section>
 
           <Section n={6} title="Voice overs · premium, optional">
-            <KeyCard def={KEY_SERVICES[4]} conn={byService("elevenlabs")} owner={owner} primary={false} onChange={reload} />
+            <KeyCard
+              def={KEY_SERVICES[4]}
+              conn={byService("elevenlabs")}
+              owner={owner}
+              primary={false}
+              onChange={reload}
+            />
           </Section>
 
           <Section n={7} title="Editing apps · optional">
             <Card className="flat">
-              <div className="hint">The built-in editor makes every clip for free. Use your own apps on top whenever you like.</div>
+              <div className="hint">
+                The built-in editor makes every clip for free. Use your own apps
+                on top whenever you like.
+              </div>
               <div className="list">
                 {(["capcut", "inshot"] as const).map((app) => (
                   <div key={app} className="list-row" data-handoff={app}>
@@ -160,10 +319,21 @@ export function Connect() {
                 ))}
               </div>
             </Card>
-            <div className="hint">Editors with their own key: connect one, then pick it under Settings → Editing → Who edits. <Link to="/help/connect-an-editor">Which editor does what</Link></div>
+            <div className="hint">
+              Editors with their own key: connect one, then pick it under
+              Settings → Editing → Who edits.{" "}
+              <Link to="/help/connect-an-editor">Which editor does what</Link>
+            </div>
             <div className="grid cols-2">
               {KEY_SERVICES.filter((d) => d.editor).map((d) => (
-                <KeyCard key={d.service} def={d} conn={byService(d.service)} owner={owner} primary={false} onChange={reload} />
+                <KeyCard
+                  key={d.service}
+                  def={d}
+                  conn={byService(d.service)}
+                  owner={owner}
+                  primary={false}
+                  onChange={reload}
+                />
               ))}
             </div>
           </Section>
@@ -172,7 +342,10 @@ export function Connect() {
             <section className="section" data-own-services>
               <h2>Your own services and keys · optional</h2>
               <p className="soft">
-                {me?.practice?.length ? "Some optional services are not connected, so they run on a free stand-in. Nothing is broken." : "Everything optional is connected."} You never have to open this.
+                {me?.practice?.length
+                  ? "Some optional services are not connected, so they run on a free stand-in. Nothing is broken."
+                  : "Everything optional is connected."}{" "}
+                You never have to open this.
               </p>
               <div>
                 <Link className="btn quiet" to="/setup">
@@ -185,9 +358,15 @@ export function Connect() {
           {owner ? (
             <section className="section connect-danger">
               <h2>Start over</h2>
-              <p className="soft">Removes every key at once. Nothing posts until you reconnect Buffer.</p>
+              <p className="soft">
+                Removes every key at once. Nothing posts until you reconnect
+                Buffer.
+              </p>
               <div>
-                <button className="btn danger" onClick={() => setConfirmAll(true)}>
+                <button
+                  className="btn danger"
+                  onClick={() => setConfirmAll(true)}
+                >
                   Disconnect everything
                 </button>
               </div>
@@ -197,8 +376,14 @@ export function Connect() {
       ) : null}
 
       {confirmAll ? (
-        <Modal title="Disconnect everything?" onClose={() => setConfirmAll(false)}>
-          <p>Every key is removed. Nothing posts until you reconnect Buffer. Your clips and calendar are kept.</p>
+        <Modal
+          title="Disconnect everything?"
+          onClose={() => setConfirmAll(false)}
+        >
+          <p>
+            Every key is removed. Nothing posts until you reconnect Buffer. Your
+            clips and calendar are kept.
+          </p>
           <div className="btn-row">
             <button className="btn danger" onClick={disconnectAll}>
               Yes, disconnect everything
@@ -214,7 +399,15 @@ export function Connect() {
   );
 }
 
-function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+function Section({
+  n,
+  title,
+  children,
+}: {
+  n: number;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="section">
       <div className="row">
@@ -229,7 +422,14 @@ function Section({ n, title, children }: { n: number; title: string; children: R
 function StatusPill({ conn }: { conn: ConnectionView | null }) {
   const status = conn?.status ?? "missing";
   const light = status === "ok" ? "green" : status === "error" ? "red" : "grey";
-  const text = status === "ok" ? `${conn?.meta.host ? "Connected for you" : "Connected"}${conn?.last_ok_at ? ` · checked ${ago(conn.last_ok_at)}` : ""}` : status === "error" ? (conn?.last_error ?? "Needs you") : status === "disconnected" ? "Disconnected" : "Not connected";
+  const text =
+    status === "ok"
+      ? `${conn?.meta.host ? "Connected for you" : "Connected"}${conn?.last_ok_at ? ` · checked ${ago(conn.last_ok_at)}` : ""}`
+      : status === "error"
+        ? (conn?.last_error ?? "Needs you")
+        : status === "disconnected"
+          ? "Disconnected"
+          : "Not connected";
   return (
     <span className="row status-pill">
       <Dot light={light} />
@@ -238,7 +438,19 @@ function StatusPill({ conn }: { conn: ConnectionView | null }) {
   );
 }
 
-function KeyCard({ def, conn, owner, primary, onChange }: { def: (typeof KEY_SERVICES)[number]; conn: ConnectionView | null; owner: boolean; primary: boolean; onChange: () => void }) {
+function KeyCard({
+  def,
+  conn,
+  owner,
+  primary,
+  onChange,
+}: {
+  def: (typeof KEY_SERVICES)[number];
+  conn: ConnectionView | null;
+  owner: boolean;
+  primary: boolean;
+  onChange: () => void;
+}) {
   const toast = useToast();
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
@@ -248,7 +460,10 @@ function KeyCard({ def, conn, owner, primary, onChange }: { def: (typeof KEY_SER
   async function check() {
     setBusy(true);
     try {
-      const r = await post<{ note?: string | null }>(`/api/connections/${def.service}/key`, { key });
+      const r = await post<{ note?: string | null }>(
+        `/api/connections/${def.service}/key`,
+        { key },
+      );
       toast.ok(r.note ?? `${def.name} connected.`);
       setKey("");
       onChange();
@@ -291,10 +506,15 @@ function KeyCard({ def, conn, owner, primary, onChange }: { def: (typeof KEY_SER
       {def.service === "elevenlabs" ? <ElevenLabsPlan conn={conn} /> : null}
       {credits !== undefined ? (
         <div className="hint nums">
-          {credits} of {(conn?.meta.credits_total as number | undefined) ?? "your"} credits left this month
+          {credits} of{" "}
+          {(conn?.meta.credits_total as number | undefined) ?? "your"} credits
+          left this month
         </div>
       ) : def.editor && connected ? (
-        <div className="hint">{def.name}’s API doesn’t report credits; see them in your {def.name} account.</div>
+        <div className="hint">
+          {def.name}’s API doesn’t report credits; see them in your {def.name}{" "}
+          account.
+        </div>
       ) : null}
       {!connected ? (
         <>
@@ -307,8 +527,21 @@ function KeyCard({ def, conn, owner, primary, onChange }: { def: (typeof KEY_SER
             </ol>
           </div>
           <div className="key-row">
-            <input className="input" type="password" aria-label={`${def.title} key`} value={key} onChange={(e) => setKey(e.target.value)} placeholder="Paste the key" disabled={!owner} />
-            <button className={primary ? "btn" : "btn quiet"} data-primary={primary || undefined} onClick={check} disabled={!owner || busy || key.length < 8}>
+            <input
+              className="input"
+              type="password"
+              aria-label={`${def.title} key`}
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              placeholder="Paste the key"
+              disabled={!owner}
+            />
+            <button
+              className={primary ? "btn" : "btn quiet"}
+              data-primary={primary || undefined}
+              onClick={check}
+              disabled={!owner || busy || key.length < 8}
+            >
               {busy ? "Checking…" : "Check key"}
             </button>
           </div>
@@ -327,7 +560,12 @@ function KeyCard({ def, conn, owner, primary, onChange }: { def: (typeof KEY_SER
         </>
       ) : (
         <div className="btn-row">
-          <button className={primary ? "btn small" : "btn quiet small"} data-primary={primary || undefined} onClick={recheck} disabled={busy}>
+          <button
+            className={primary ? "btn small" : "btn quiet small"}
+            data-primary={primary || undefined}
+            onClick={recheck}
+            disabled={busy}
+          >
             Check again
           </button>
           {owner ? (
@@ -351,12 +589,18 @@ function ElevenLabsPlan({ conn }: { conn: ConnectionView | null }) {
   return (
     <div className="eleven-plan" data-testid="elevenlabs-plan">
       <div className="hint nums">
-        Plan: <strong>{m.tier}</strong> · {n(used)} of {n(limit)} characters used this month
+        Plan: <strong>{m.tier}</strong> · {n(used)} of {n(limit)} characters
+        used this month
       </div>
       {m.can_clone === true ? (
-        <Notice tone="ok">Voice cloning is on your plan: your voice overs use the premium voice.</Notice>
+        <Notice tone="ok">
+          Voice cloning is on your plan: your voice overs use the premium voice.
+        </Notice>
       ) : (
-        <Notice tone="warn">Your ElevenLabs plan does not include voice cloning; the built-in voice will be used.</Notice>
+        <Notice tone="warn">
+          Your ElevenLabs plan does not include voice cloning; the built-in
+          voice will be used.
+        </Notice>
       )}
     </div>
   );
@@ -364,8 +608,13 @@ function ElevenLabsPlan({ conn }: { conn: ConnectionView | null }) {
 
 function ChannelsCard({ conn }: { conn: ConnectionView | null }) {
   if (conn?.status !== "ok") return null;
-  const channels = (conn.meta.channels as { platform: Platform; handle: string; connected: boolean }[] | undefined) ?? [];
-  const missing = (["tiktok", "instagram", "youtube"] as Platform[]).filter((p) => !channels.some((c) => c.platform === p));
+  const channels =
+    (conn.meta.channels as
+      | { platform: Platform; handle: string; connected: boolean }[]
+      | undefined) ?? [];
+  const missing = (["tiktok", "instagram", "youtube"] as Platform[]).filter(
+    (p) => !channels.some((c) => c.platform === p),
+  );
   return (
     <Card className="flat">
       <div className="label">Channels we found in your Buffer</div>
@@ -375,10 +624,19 @@ function ChannelsCard({ conn }: { conn: ConnectionView | null }) {
             <Dot light={ch.connected ? "green" : "red"} />
             <div className="grow">
               <div className="title">{PLATFORM_LABEL[ch.platform]}</div>
-              <div className="meta">{ch.connected ? `${ch.handle} · posting OK` : "Needs reconnect in Buffer"}</div>
+              <div className="meta">
+                {ch.connected
+                  ? `${ch.handle} · posting OK`
+                  : "Needs reconnect in Buffer"}
+              </div>
             </div>
             {!ch.connected ? (
-              <a className="btn quiet small" href="https://publish.buffer.com/channels" target="_blank" rel="noreferrer">
+              <a
+                className="btn quiet small"
+                href="https://publish.buffer.com/channels"
+                target="_blank"
+                rel="noreferrer"
+              >
                 Open Buffer to reconnect
               </a>
             ) : null}
@@ -391,7 +649,12 @@ function ChannelsCard({ conn }: { conn: ConnectionView | null }) {
               <div className="title">{PLATFORM_LABEL[p]}</div>
               <div className="meta">Not added in Buffer yet</div>
             </div>
-            <a className="btn quiet small" href="https://publish.buffer.com/channels/connect" target="_blank" rel="noreferrer">
+            <a
+              className="btn quiet small"
+              href="https://publish.buffer.com/channels/connect"
+              target="_blank"
+              rel="noreferrer"
+            >
               Open Buffer to add it
             </a>
           </div>
@@ -406,29 +669,164 @@ function ChannelsCard({ conn }: { conn: ConnectionView | null }) {
   );
 }
 
+/**
+ * Facebook through Buffer (owner, 13 Nov 2026): her photo posts reach her Facebook Page through the
+ * Buffer account she already connected. No developer tools: four short steps inside Buffer, then one
+ * "Check it worked" (a fresh read of her Buffer channels).
+ */
+function FacebookPageCard({
+  conn,
+  onChange,
+}: {
+  conn: ConnectionView | null;
+  onChange: () => void;
+}) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  if (conn?.status !== "ok") return null;
+  const page = conn.meta.facebook as
+    { handle: string; connected: boolean; paused?: boolean } | null | undefined;
+  const ok = !!page && page.connected && !page.paused;
+  async function checkIt() {
+    setBusy(true);
+    try {
+      const r = await post<{
+        meta: { facebook?: { handle: string; connected: boolean } | null };
+      }>("/api/connections/buffer/recheck");
+      const fb = r.meta.facebook;
+      if (fb?.connected)
+        toast.ok(
+          `It worked: ${fb.handle} is connected. Facebook posts go out through Buffer.`,
+        );
+      else
+        toast.bad(
+          new Error(
+            "Buffer does not show a Facebook Page yet. Do the four steps above, then check again.",
+          ),
+        );
+      onChange();
+    } catch (e) {
+      toast.bad(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div data-facebook-page={ok ? "connected" : "missing"}>
+      <Card className="flat">
+        <div className="list-row">
+          <Dot light={ok ? "green" : "grey"} />
+          <div className="grow">
+            <div className="title">Facebook Page · optional</div>
+            <div className="meta">
+              {ok
+                ? `${page!.handle} · your photo posts go here through Buffer`
+                : page?.paused
+                  ? "Paused inside Buffer: press Resume there"
+                  : "Not added in Buffer yet"}
+            </div>
+          </div>
+        </div>
+        {ok ? null : (
+          <>
+            <ol className="soft key-steps" data-facebook-steps>
+              <li>Open Buffer.</li>
+              <li>Tap Add a channel.</li>
+              <li>Choose Facebook Page.</li>
+              <li>Pick your Page, then come back here.</li>
+            </ol>
+            <div className="btn-row">
+              <a
+                className="btn quiet small"
+                href="https://publish.buffer.com/channels/connect"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open Buffer
+              </a>
+              <button
+                type="button"
+                className="btn small"
+                onClick={() => void checkIt()}
+                disabled={busy}
+                data-check-facebook
+              >
+                {busy ? "Checking…" : "Check it worked"}
+              </button>
+            </div>
+            <Link to="/help/connect-facebook" className="link-btn">
+              Picture-by-picture guide
+            </Link>
+          </>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 const OAUTH_ERRORS: Record<string, string> = {
-  not_set_up: "stats sign-in is not set up on this dashboard yet (the app keys are missing).",
+  not_set_up:
+    "stats sign-in is not set up on this dashboard yet (the app keys are missing).",
   denied: "the sign-in was cancelled, so nothing was connected.",
   expired: "the sign-in took too long. Press Connect again.",
-  no_account: "that account has no Professional Instagram or YouTube channel to read.",
-  no_upload: "Google didn't give permission to upload. Tap Connect YouTube again, leave every box ticked, then tap Continue.",
+  no_account:
+    "that account has no Professional Instagram or YouTube channel to read.",
+  no_upload:
+    "Google didn't give permission to upload. Tap Connect YouTube again, leave every box ticked, then tap Continue.",
   failed: "the connection did not finish. Press Connect again.",
 };
 
 /** The redirect back from /api/oauth/<provider>/callback carries ?connected= or ?oauth_error=. */
-function oauthMessage(params: URLSearchParams): { ok: boolean; text: string; guide: string | null } | null {
+function oauthMessage(
+  params: URLSearchParams,
+): { ok: boolean; text: string; guide: string | null } | null {
   const who = (p: string | null) => (p === "google" ? "YouTube" : "Instagram");
   const connected = params.get("connected");
-  if (connected === "youtube") return { ok: true, text: "YouTube connected. Your full videos now upload straight to your channel, with their thumbnail and tags.", guide: null };
-  if (params.get("oauth_error") && params.get("provider") === "youtube") return { ok: false, text: `YouTube: ${OAUTH_ERRORS[params.get("oauth_error")!] ?? OAUTH_ERRORS.failed}`, guide: "connect-youtube-full-videos" };
-  if (connected === "meta" || connected === "google") return { ok: true, text: `${who(connected)} stats connected. We’ll read your results every week.`, guide: null };
+  if (connected === "youtube")
+    return {
+      ok: true,
+      text: "YouTube connected. Your full videos now upload straight to your channel, with their thumbnail and tags.",
+      guide: null,
+    };
+  if (params.get("oauth_error") && params.get("provider") === "youtube")
+    return {
+      ok: false,
+      text: `YouTube: ${OAUTH_ERRORS[params.get("oauth_error")!] ?? OAUTH_ERRORS.failed}`,
+      guide: "connect-youtube-full-videos",
+    };
+  if (connected === "meta" || connected === "google")
+    return {
+      ok: true,
+      text: `${who(connected)} stats connected. We’ll read your results every week.`,
+      guide: null,
+    };
   const err = params.get("oauth_error");
   if (!err) return null;
   const provider = params.get("provider") === "google" ? "google" : "meta";
-  return { ok: false, text: `${who(provider)}: ${OAUTH_ERRORS[err] ?? OAUTH_ERRORS.failed}`, guide: `connect-${provider}` };
+  return {
+    ok: false,
+    text: `${who(provider)}: ${OAUTH_ERRORS[err] ?? OAUTH_ERRORS.failed}`,
+    guide: `connect-${provider}`,
+  };
 }
 
-function StatsRow({ name, provider, conn, connectLabel, owner, primary, onChange }: { name: string; provider: "meta" | "google"; conn: ConnectionView | null; connectLabel: string; owner: boolean; primary: boolean; onChange: () => void }) {
+function StatsRow({
+  name,
+  provider,
+  conn,
+  connectLabel,
+  owner,
+  primary,
+  onChange,
+}: {
+  name: string;
+  provider: "meta" | "google";
+  conn: ConnectionView | null;
+  connectLabel: string;
+  owner: boolean;
+  primary: boolean;
+  onChange: () => void;
+}) {
   const toast = useToast();
   const status = conn?.status ?? "missing";
   const account = conn?.meta.account as string | undefined;
@@ -444,7 +842,9 @@ function StatsRow({ name, provider, conn, connectLabel, owner, primary, onChange
   }
   return (
     <div className="list-row stats-row">
-      <Dot light={status === "ok" ? "green" : status === "error" ? "red" : "grey"} />
+      <Dot
+        light={status === "ok" ? "green" : status === "error" ? "red" : "grey"}
+      />
       <div className="grow">
         <div className="title">{name}</div>
         <div className="meta">
@@ -458,7 +858,11 @@ function StatsRow({ name, provider, conn, connectLabel, owner, primary, onChange
       {owner ? (
         status === "ok" || status === "error" ? (
           <>
-            <a className={primary ? "btn small" : "btn quiet small"} data-primary={primary || undefined} href={start}>
+            <a
+              className={primary ? "btn small" : "btn quiet small"}
+              data-primary={primary || undefined}
+              href={start}
+            >
               Reconnect
             </a>
             <button className="btn danger small" onClick={disconnect}>
@@ -466,7 +870,11 @@ function StatsRow({ name, provider, conn, connectLabel, owner, primary, onChange
             </button>
           </>
         ) : (
-          <a className={primary ? "btn small" : "btn quiet small"} data-primary={primary || undefined} href={start}>
+          <a
+            className={primary ? "btn small" : "btn quiet small"}
+            data-primary={primary || undefined}
+            href={start}
+          >
             {connectLabel}
           </a>
         )
@@ -475,7 +883,15 @@ function StatsRow({ name, provider, conn, connectLabel, owner, primary, onChange
   );
 }
 
-function NoLoginRow({ name, line, cta }: { name: string; line: string; cta: string }) {
+function NoLoginRow({
+  name,
+  line,
+  cta,
+}: {
+  name: string;
+  line: string;
+  cta: string;
+}) {
   return (
     <div className="list-row">
       <div className="grow">
@@ -496,7 +912,9 @@ function TikTokRow({ conn }: { conn: ConnectionView | null }) {
       <Dot light={imported ? "green" : "grey"} />
       <div className="grow">
         <div className="title">TikTok</div>
-        <div className="meta">{imported ? `Last import ${ago(imported)}` : "No export uploaded yet"}</div>
+        <div className="meta">
+          {imported ? `Last import ${ago(imported)}` : "No export uploaded yet"}
+        </div>
       </div>
       <Link className="btn quiet small" to="/stats">
         Upload TikTok export
@@ -510,7 +928,15 @@ function TikTokRow({ conn }: { conn: ConnectionView | null }) {
  * the button, pick her Google account, Advanced, Go to workers.dev (unsafe), Continue (worker/routes/oauth.ts
  * /api/oauth/youtube/start). Red when Google refused the sign-in: Reconnect YouTube.
  */
-function YouTubeDirectCard({ conn, owner, onChange }: { conn: ConnectionView | null; owner: boolean; onChange: () => void }) {
+function YouTubeDirectCard({
+  conn,
+  owner,
+  onChange,
+}: {
+  conn: ConnectionView | null;
+  owner: boolean;
+  onChange: () => void;
+}) {
   const toast = useToast();
   const status = conn?.status ?? "missing";
   const account = conn?.meta.account as string | undefined;
@@ -518,7 +944,9 @@ function YouTubeDirectCard({ conn, owner, onChange }: { conn: ConnectionView | n
   async function disconnect() {
     try {
       await post("/api/connections/youtube/disconnect");
-      toast.ok("YouTube disconnected. Full videos go back to Upload it yourself.");
+      toast.ok(
+        "YouTube disconnected. Full videos go back to Upload it yourself.",
+      );
       onChange();
     } catch (e) {
       toast.bad(e);
@@ -526,42 +954,55 @@ function YouTubeDirectCard({ conn, owner, onChange }: { conn: ConnectionView | n
   }
   return (
     <div data-youtube-direct>
-    <Card className="flat">
-      <div className="list-row">
-        <Dot light={status === "ok" ? "green" : status === "error" ? "red" : "grey"} />
-        <div className="grow">
-          <div className="title">YouTube (full videos)</div>
-          <div className="meta">
-            {status === "ok"
-              ? `Connected${account ? ` · ${account}` : ""} · full videos upload straight to your channel`
-              : status === "error"
-                ? (conn?.last_error ?? "YouTube needs you to reconnect.")
-                : "Not connected: full videos wait for you to upload them yourself"}
+      <Card className="flat">
+        <div className="list-row">
+          <Dot
+            light={
+              status === "ok" ? "green" : status === "error" ? "red" : "grey"
+            }
+          />
+          <div className="grow">
+            <div className="title">YouTube (full videos)</div>
+            <div className="meta">
+              {status === "ok"
+                ? `Connected${account ? ` · ${account}` : ""} · full videos upload straight to your channel`
+                : status === "error"
+                  ? (conn?.last_error ?? "YouTube needs you to reconnect.")
+                  : "Not connected: full videos wait for you to upload them yourself"}
+            </div>
           </div>
         </div>
-      </div>
-      {owner ? (
-        <div className="btn-row">
-          {status === "ok" ? (
-            <button className="btn danger small" onClick={disconnect}>
-              Disconnect
-            </button>
-          ) : (
-            <a className="btn small" href={start}>
-              {status === "error" ? "Reconnect YouTube" : "Connect YouTube (full videos)"}
-            </a>
-          )}
+        {owner ? (
+          <div className="btn-row">
+            {status === "ok" ? (
+              <button className="btn danger small" onClick={disconnect}>
+                Disconnect
+              </button>
+            ) : (
+              <a className="btn small" href={start}>
+                {status === "error"
+                  ? "Reconnect YouTube"
+                  : "Connect YouTube (full videos)"}
+              </a>
+            )}
+          </div>
+        ) : null}
+        <div className="hint">
+          Your long videos go straight to your own channel with the thumbnail,
+          title, description, chapters and tags you approved, at the time on
+          your Calendar. Your Shorts, TikToks and Reels keep going through
+          Buffer.
         </div>
-      ) : null}
-      <div className="hint">
-        Your long videos go straight to your own channel with the thumbnail, title, description, chapters and tags you approved, at the time on your Calendar. Your Shorts, TikToks and Reels keep going through Buffer.
-      </div>
-      {status !== "ok" ? (
-        <div className="hint" data-unverified-note>
-          You sign in on Google's own page. Pick your account. Google then shows “Google hasn't verified this app”: that is expected (it's your own dashboard). Tap the small <strong>Advanced</strong> link, then <strong>Go to workers.dev (unsafe)</strong>, then <strong>Continue</strong>.
-        </div>
-      ) : null}
-    </Card>
+        {status !== "ok" ? (
+          <div className="hint" data-unverified-note>
+            You sign in on Google's own page. Pick your account. Google then
+            shows “Google hasn't verified this app”: that is expected (it's your
+            own dashboard). Tap the small <strong>Advanced</strong> link, then{" "}
+            <strong>Go to workers.dev (unsafe)</strong>, then{" "}
+            <strong>Continue</strong>.
+          </div>
+        ) : null}
+      </Card>
     </div>
   );
 }

@@ -45,7 +45,7 @@ export async function checkOpenRouter(env: Env, key: string): Promise<KeyCheck> 
 export async function checkBufferKey(env: Env, key: string): Promise<KeyCheck> {
   const buffer = await getBuffer(env, key);
   const r = await buffer.checkKey();
-  return { ok: r.ok, error: r.error, meta: { channels: r.channels } };
+  return { ok: r.ok, error: r.error, meta: { channels: r.channels, facebook: r.facebook ?? null } };
 }
 
 /**
