@@ -13,7 +13,7 @@ Hugging Face said the token ran out or was changed. Photo videos use the slow zo
 ![Step 1](/help/screenshots/reconnect-huggingface-1.png)
 <!-- target: #setup-huggingface .setup-where -->
 
-On **Setup**, open the **Connect Hugging Face (free) for realistic motion** card and follow the steps to make a new token.
+On **Your services and keys** (More → Connections), open the **Connect Hugging Face (free) for realistic motion** card and follow the steps to make a new token.
 
 ## Paste the new token
 

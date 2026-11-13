@@ -76,7 +76,7 @@ export function Connect() {
             <Link to="/settings">Settings</Link> <Icon name="right" size="sm" /> Connections
           </>
         }
-        title="Connect your accounts"
+        title="Connections"
         lede="You always log in on TikTok, Instagram, Google or Buffer’s own page. We never see your passwords, and keys are stored encrypted in your Cloudflare account."
       />
 
@@ -167,6 +167,20 @@ export function Connect() {
               ))}
             </div>
           </Section>
+
+          {owner ? (
+            <section className="section" data-own-services>
+              <h2>Your own services and keys · optional</h2>
+              <p className="soft">
+                {me?.practice?.length ? "Some optional services are not connected, so they run on a free stand-in. Nothing is broken." : "Everything optional is connected."} You never have to open this.
+              </p>
+              <div>
+                <Link className="btn quiet" to="/setup">
+                  Open your services and keys ›
+                </Link>
+              </div>
+            </section>
+          ) : null}
 
           {owner ? (
             <section className="section connect-danger">

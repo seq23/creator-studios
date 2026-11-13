@@ -8,21 +8,21 @@ keywords: setup, keys, practice mode, connect, api key
 
 Your studio runs on a few outside services. Each one uses your own account and key; nothing of anyone else's is loaded.
 
-## Practice mode is on until you add a key
+## A free stand-in runs until you add a key
 
 ![Step 1](/help/screenshots/setup-1.png)
 <!-- route: /setup -->
 <!-- target: .setup-step:has(#setup-resend) .pill -->
 
-Until a service has its key, its feature runs on a practice stand-in: it works and shows sample results, but never posts, sends or spends. A line at the top of every screen, and the pill on each Setup card, say which ones.
+All of this is optional. Until a service has its key, its feature runs on a free stand-in: it works and shows sample results, but never posts, sends or spends. The pill on each card says which.
 
-## Open Setup
+## Open your services and keys
 
 ![Step 2](/help/screenshots/setup-2.png)
 <!-- route: /setup -->
-<!-- target: .setup-progress -->
+<!-- target: .setup-steps > li >> nth=0 -->
 
-Tap **Setup** in the menu. It lists every service your studio runs on, one card each, and how many are set up.
+Tap **More**, then **Connections**, then **Open your services and keys** at the bottom. One card for each service that is yours to set up. A service that is already set up for you is not listed.
 
 ## Follow one card at a time
 

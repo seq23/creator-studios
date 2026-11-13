@@ -7,7 +7,7 @@ keywords: email, resend, alerts, notices, weekly recap
 fix: i-didnt-get-an-email
 ---
 
-One card on Setup, about five minutes. Free accounts are enough.
+One card under More → Connections → Your services and keys, about five minutes. Free accounts are enough.
 
 ## Find the Email card
 
@@ -15,7 +15,7 @@ One card on Setup, about five minutes. Free accounts are enough.
 <!-- route: /setup -->
 <!-- target: .setup-step:has(#setup-resend) -->
 
-Open **Setup**. The first card is **Email**. Until it has a key, emails are listed on the health board but not sent.
+Open **Connections** (under **More**), tap **Open your services and keys**,. The first card is **Email**. Until it has a key, emails are listed on the health board but not sent.
 
 ## Make a Resend key
 

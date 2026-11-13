@@ -13,7 +13,7 @@ Pinterest said the access token ran out or was changed. Your pins wait safely un
 ![Step 1](/help/screenshots/reconnect-pinterest-1.png)
 <!-- target: #setup-pinterest .setup-where -->
 
-On **Setup**, open the **Pinterest** card and follow the steps to make a new access token.
+On **Your services and keys** (More → Connections), open the **Pinterest** card and follow the steps to make a new access token.
 
 ## Paste the new token
 

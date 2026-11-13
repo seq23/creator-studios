@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from "react";
-import { post } from "../lib/api";
+import { useNavigate } from "react-router-dom";
+import { get, post } from "../lib/api";
+import { START_SEEN_KEY } from "./Start";
 import { useApp } from "../state";
 import { useToast } from "../components/ui";
 import { LegalLinks } from "../components/Shell";
@@ -7,6 +9,7 @@ import { Wordmark } from "../components/Wordmark";
 import { studio } from "../lib/studio";
 
 export function Login() {
+  const navigate = useNavigate();
   const { refreshMe } = useApp();
   const toast = useToast();
   const [email, setEmail] = useState("");
@@ -43,6 +46,18 @@ export function Login() {
     setBusy(true);
     try {
       await post("/api/auth/verify", { email, code });
+      // A new studio lands in Get set up the first time, on Home after that (owner, 13 Nov 2026).
+      let seen = true;
+      try {
+        seen = !!localStorage.getItem(START_SEEN_KEY);
+        localStorage.setItem(START_SEEN_KEY, "1");
+      } catch {
+        /* ignore */
+      }
+      if (!seen) {
+        const home = await get<{ getSetUp: unknown[] | null }>("/api/home").catch(() => null);
+        if (home?.getSetUp) navigate("/start", { replace: true });
+      }
       await refreshMe();
     } catch (err) {
       toast.bad(err);

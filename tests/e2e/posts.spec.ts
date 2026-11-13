@@ -154,15 +154,13 @@ test("one list of every upcoming post, reels and photo posts; the same numbers o
   expect(fromApi.toGo).toBe(coming);
   await page.evaluate(() => localStorage.setItem("ss-tour-done", "1")); // the first-login tour would cover the tile
   await page.goto("/");
-  // One line in the This-week tile: "N posted · M to go ›", never wrapped, a 44px tap target.
-  const toGo = page.locator('[data-count="to-go"]');
-  await expect(toGo).toHaveText(`${coming} to go ›`);
+  // Home's This week line: the same two numbers in the same words as Settings, and a 44px way to Posts.
+  await expect(page.locator('[data-count="to-go"]')).toHaveText(`${coming} still to go out`);
   await expect(page.locator('[data-count="posted"]')).toHaveText(`${fromApi.postedThisWeek} posted`);
-  const postedBox = (await page.locator('[data-count="posted"] small').boundingBox())!;
-  const toGoBox = (await toGo.boundingBox())!;
-  expect(toGoBox.height).toBeGreaterThanOrEqual(44);
-  expect(Math.abs(toGoBox.y + toGoBox.height / 2 - (postedBox.y + postedBox.height / 2))).toBeLessThan(4); // the same line
-  await toGo.evaluate((e) => e.scrollIntoView({ block: "center" })); // the picture shows the tile, clear of the bottom bar
+  const toGo = page.locator("[data-this-week] a");
+  await expect(toGo).toHaveAttribute("href", "/calendar");
+  expect((await toGo.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await toGo.evaluate((e) => e.scrollIntoView({ block: "center" })); // the picture shows the line, clear of the bottom bar
   await shot(page, "08-home-same-numbers", isMobile);
   await page.goto("/settings");
   await expect(page.locator('[data-count="to-go"]')).toHaveText(`${coming} still to go out`);

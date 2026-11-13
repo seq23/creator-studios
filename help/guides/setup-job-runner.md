@@ -7,7 +7,7 @@ keywords: github, jobs, cutting, clips, actions, token
 fix: clips-look-wrong
 ---
 
-One card on Setup, about five minutes. Free accounts are enough.
+One card under More → Connections → Your services and keys, about five minutes. Free accounts are enough.
 
 ## Find the Clip cutting card
 
@@ -15,7 +15,7 @@ One card on Setup, about five minutes. Free accounts are enough.
 <!-- route: /setup -->
 <!-- target: .setup-step:has(#setup-github) -->
 
-Open **Setup** and find **Clip cutting**. Until it is set up, a practice cutter makes sample clips so you can try Review.
+Open **Connections** (under **More**), tap **Open your services and keys**, and find **Clip cutting**. Until it is set up, a practice cutter makes sample clips so you can try Review.
 
 ## Copy the job repository
 

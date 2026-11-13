@@ -130,6 +130,8 @@
   .home .page-head {
     gap: var(--space-xs);
   }
+  /* the name on one line and the Add button full width under it, never a name squeezed into 3 lines */
+
   .home .notice {
     padding: var(--space-xs) var(--space-sm);
     font-size: var(--text-sm);
@@ -369,4 +371,58 @@
   margin: calc(var(--space-2xs, 4px) - var(--space-md)) 0 0;
   color: var(--muted);
   font-size: var(--text-sm);
+}
+
+/* Home as one list (owner, 13 Nov 2026): what needs her, each with why and one action. */
+.home-left {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.home-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.home-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 44px;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.home-list li.done {
+  min-height: 0;
+  padding: 0 var(--space-sm);
+  border: 0;
+  background: transparent;
+}
+.home-list .grow {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.home-list .title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.home-list a {
+  flex: none;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.home-week {
+  margin: 0;
+}
+.home-week a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
 }

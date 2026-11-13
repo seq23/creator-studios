@@ -1,20 +1,4 @@
 /* Setup (app/pages/Setup.tsx). Tokens only (validator design-tokens). */
-.practice-banner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2xs) var(--space-xs);
-  margin: 0 0 var(--space-md);
-  padding: var(--space-xs) var(--space-sm);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-.practice-text {
-  flex: 1 1 16rem;
-  color: var(--text-soft);
-  font-size: var(--text-sm);
-}
 .free-ai-note {
   margin: 0 0 var(--space-md);
   padding: var(--space-xs) var(--space-sm);

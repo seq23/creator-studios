@@ -6,7 +6,7 @@ last_checked: 2026-10-07
 keywords: instagram, meta, app id, stats
 ---
 
-One card on Setup, about five minutes. Free accounts are enough.
+One card under More → Connections → Your services and keys, about five minutes. Free accounts are enough.
 
 ## Find the Instagram sign-in card
 
@@ -14,7 +14,7 @@ One card on Setup, about five minutes. Free accounts are enough.
 <!-- route: /setup -->
 <!-- target: .setup-step:has(#setup-meta_app) -->
 
-Open **Setup** and find **Instagram sign-in**. It is optional: Stats works without it, and until it is set up the sign-in is a practice one.
+Open **Connections** (under **More**), tap **Open your services and keys**, and find **Instagram sign-in**. It is optional: Stats works without it, and until it is set up the sign-in is a practice one.
 
 ## Make a Meta app
 

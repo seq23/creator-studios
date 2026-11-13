@@ -12,9 +12,10 @@ Your dashboard turns the videos you film into posts, finds brands that pay creat
 
 ![Step 1](/help/screenshots/getting-started-1.png)
 <!-- route: / -->
-<!-- target: .home-stats -->
+<!-- target: [data-home-list] -->
+<!-- shared -->
 
-**Home** shows the clips waiting for you, how many weeks of posts you have, this week's posts and the health lights.
+**Home** says in one line whether anything needs you, how many weeks of posts are left, and lists each thing that needs you with why and one button.
 
 ## Add: your photos and videos
 

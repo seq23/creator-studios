@@ -1,46 +1,47 @@
 ---
-title: "Your Home screen and what \"runway\" means"
+title: "Your Home screen"
 group: everyday
 screen: home
-last_checked: 2026-09-26
-keywords: home, runway, weeks, how many clips left, dashboard
+last_checked: 2026-11-13
+keywords: home, runway, weeks, how many posts left, dashboard, what needs me
 ---
 
-## Waiting for you
+## Does anything need you?
 
 ![Step 1](/help/screenshots/what-runway-means-1.png)
-<!-- target: a.card.accent[href="/review"] -->
+<!-- target: [data-needs-you] -->
 
-Home shows how many new clips wait in **New posts to look at**. Tap it to review.
+The top line of **Home** says how many things need you today, or that nothing does.
 
-## Runway
+## How many weeks of posts are left
 
 ![Step 2](/help/screenshots/what-runway-means-2.png)
-<!-- target: .card:has-text("Runway") -->
+<!-- target: [data-posts-left] -->
 
-**Runway** is how many weeks of approved clips you have left. Under 2 weeks, you get a **Time to dump** email with ideas for what to film.
+One line says about how long your posts will last. When it gets short you also get an email with ideas for what to film.
+
+## The list
+
+![Step 3](/help/screenshots/what-runway-means-3.png)
+<!-- target: [data-home-list] -->
+<!-- shared -->
+
+Each row is one thing that needs you, with why and one button: new posts to look at, add more, or something to fix. Nothing else is yours to do.
 
 ## This week
 
-![Step 3](/help/screenshots/what-runway-means-3.png)
-<!-- target: .home-plats -->
-
-How many posts went out this week for each app, against its weekly limit.
-
-## Health
-
 ![Step 4](/help/screenshots/what-runway-means-4.png)
-<!-- target: .home-health -->
+<!-- target: [data-this-week] -->
 
-The health lights, worst first. Tap the card to see them all in **Settings**.
+How many posts went out this week and how many are still to go out. Tap **See them on Posts** for every one of them.
 
-## Change the runway email
+## Change the reminder email
 
 ![Step 5](/help/screenshots/what-runway-means-5.png)
 <!-- route: /settings -->
 <!-- target: role=button[name="More weeks of runway"] -->
 
-Open **Settings** and change when the runway email comes with **+** and **−**.
+Open **Settings** and change when the reminder email comes with **+** and **−**.
 
 ## Did this work?
 

@@ -28,7 +28,7 @@ Buffer's free plan covers 3 channels: Instagram, TikTok and YouTube. You sign in
 
 ![Step 3](/help/screenshots/why-we-post-through-buffer-3.png)
 <!-- route: /settings/connections -->
-<!-- target: role=heading[name="Connect your accounts"] -->
+<!-- target: role=heading[name="Connections"] -->
 
 We'll switch you over ourselves, with nothing for you to redo. Until then, **Connect Instagram & TikTok** in the menu opens this page and walks you through Buffer.
 

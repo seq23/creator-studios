@@ -102,7 +102,7 @@ async function homeNotices(page: Page) {
   await expect(page.getByRole("link", { name: `See all (${dumpsTotal})` })).toBeVisible();
   const key = await page.locator(".home-lists [data-home-key^='dump:']").first().getAttribute("data-home-key");
   const row = page.locator(`[data-home-key="${key}"]`);
-  await row.getByRole("button", { name: "Hide this dump from Home" }).click();
+  await row.getByRole("button", { name: "Hide this from Home" }).click();
   await expect(row).toHaveCount(0);
   await page.getByRole("button", { name: "Undo" }).last().click();
   await expect(row).toHaveCount(1);

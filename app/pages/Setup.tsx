@@ -12,7 +12,7 @@ import "../styles/setup.css";
 
 const STATE_LABEL: Record<SetupStatus["state"], { text: string; tone: "ok" | "warn" | "bad" | "" }> = {
   live: { text: "Live · your key", tone: "ok" },
-  provided: { text: "Provided by your studio host", tone: "ok" },
+  provided: { text: "Already set up for you", tone: "ok" },
   practice: { text: "Practice mode", tone: "warn" },
   error: { text: "Needs a new key", tone: "bad" },
 };
@@ -25,13 +25,14 @@ export function Setup() {
     document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: "start" });
   }, [data]);
   const { refreshMe } = useApp();
-  const done = data ? data.steps.filter((s) => s.state === "live" || s.state === "provided").length : 0;
+  // A service that is already set up for her is never shown (owner, 13 Nov 2026): nothing to do there.
+  const mine = data ? shownSteps(data).filter((x) => x.status.state !== "provided") : [];
   return (
     <div className="page setup-page">
       <PageHead
-        eyebrow="Setup"
-        title="Connect your own services"
-        lede="Each service your studio runs on, one at a time. Until a key is in, that feature runs in practice mode: it works, shows sample results, and never posts, sends or spends."
+        eyebrow="Connections"
+        title="Your own services and keys"
+        lede="All optional. Until a key is in, that feature runs on a free stand-in: it works, shows sample results, and never posts, sends or spends."
       >
         <HelpButton guide="setup" />
       </PageHead>
@@ -40,14 +41,9 @@ export function Setup() {
         <Skeleton lines={6} />
       ) : (
         <>
-          <p className="setup-progress" aria-live="polite">
-            <strong>
-              {done} of {shownSteps(data).length}
-            </strong>{" "}
-            set up
-          </p>
+          {mine.length === 0 ? <p className="setup-progress">Nothing to do here: every service is already set up for you.</p> : null}
           <ol className="setup-steps">
-            {shownSteps(data).map(({ step, status }, i) => (
+            {mine.map(({ step, status }, i) => (
               <li key={step.id} id={`setup-${step.id}`}>
                 <StepCard
                   n={i + 1}
