@@ -23,7 +23,7 @@ After you pick your videos, **How should we cut this?** starts on **Surprise me*
 <!-- click: [data-door="new"] -->
 <!-- target: .steer-group >> nth=0 -->
 
-Tap a look, music, pace or length. A tapped choice wins over the note.
+Tap a look, music, pace or length. If your note says something different, your note wins, and the screen tells you so before anything is made.
 
 ## Or just write it
 
@@ -34,14 +34,14 @@ Tap a look, music, pace or length. A tapped choice wins over the note.
 
 Type it in the note, like "all 2x4 grids, no music, keep them short".
 
-## Check what we understood
+## Check what it says back
 
 ![Step 4](/help/screenshots/steer-a-dump-4.png)
 <!-- fill: #notes => All 2x4 grids, no music, keep them short -->
 <!-- click: [data-door="new"] -->
 <!-- target: [data-understood] -->
 
-**Here's what we understood** lists what the note will do. Not right? Change the note or tap a choice.
+Above the button there is always one line, like **I'll make about 4 posts: short, no music.** If it couldn't use part of your note, it says which part, in your words. Not right? Tap **Fewer**, **More**, **Just one**, **No words on screen** or **Instagram only**, or change your note.
 
 ## Voice over for this dump
 
@@ -57,7 +57,7 @@ Type it in the note, like "all 2x4 grids, no music, keep them short".
 <!-- route: / -->
 <!-- target: main a.list-row >> nth=0 -->
 
-When the clips are ready, the dump says what it tried, and anything it couldn't do as asked.
+When they are ready, it says what it made (like "4 posts: 2 of the team working, 1 set-up, 1 walk-in"), which videos it couldn't use and why, and anything it couldn't do as asked.
 
 ## Did this work?
 

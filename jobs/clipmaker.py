@@ -145,10 +145,52 @@ POOLS: dict[str, tuple[list[str], int, bool | None]] = {
 TRY_ORDER = ["team_working", "payoff_first", "set_up_with_me", "photo_slideshow", "pov_walk_in", "prep_only", "photo_details", "video_to_photo", "finished_walkthrough", "moving_photo"]
 
 
-def plan_typed(looks: list[S.Look], pb: dict[str, Any], target: dict[str, int], service: str | None, tracks: dict[str, list[float]], talk_assets: set[str] | None = None) -> list[P.Plan]:
+def shows(what: str, phrase: str) -> bool:
+    """A shot's description shows what she named ("the red door opening"): most of the phrase's
+    strong words are in it (a plural or -ing ending aside). An empty description shows nothing."""
+    def stem(w: str) -> str:
+        return re.sub(r"(ing|es|s)$", "", w) if len(w) > 4 else w
+    need = [stem(w) for w in re.findall(r"[a-z0-9']+", phrase.lower()) if len(w) >= 3 and w not in _SMALL]
+    have = {stem(w) for w in re.findall(r"[a-z0-9']+", (what or "").lower())}
+    if not need or not have:
+        return False
+    hits = sum(1 for w in need if w in have)
+    return hits >= max(1, -(-len(need) * 3 // 5))
+
+
+_SMALL = {"the", "and", "for", "with", "that", "this", "from", "into", "onto", "when", "where", "part", "bit", "one", "ones", "some", "any", "our", "her", "his", "their", "going", "being", "photo", "photos", "video", "videos", "shot", "shots", "clip", "clips"}
+
+
+def steer_looks(looks: list[S.Look], steer: dict[str, Any] | None) -> tuple[list[S.Look], set[str], list[dict[str, str]]]:
+    """Her "leave out" and "must include", applied to what the studio SAW (each shot's description):
+    the shots she asked to leave out are gone before anything is planned; the shots that show what
+    she asked for are returned as wanted (the planner takes them first). What was never seen is said."""
+    st = steer or {}
+    report: list[dict[str, str]] = []
+    avoid = [str(x) for x in (st.get("avoid") or []) if str(x).strip()]
+    include = [str(x) for x in (st.get("include") or []) if str(x).strip()]
+    described = any((lk.shot.what or "").strip() for lk in looks)
+    kept = [lk for lk in looks if not any(shows(lk.shot.what, a) for a in avoid)]
+    wanted: set[str] = set()
+    for x in include:
+        hit = {lk.key for lk in kept if shows(lk.shot.what, x)}
+        if hit:
+            wanted |= hit
+        elif described:
+            report.append({"what": f'"{x}"', "why": "I didn't see it in these videos, so no post could show it"})
+    return kept, wanted, report
+
+
+def plan_typed(looks: list[S.Look], pb: dict[str, Any], target: dict[str, int], service: str | None, tracks: dict[str, list[float]], talk_assets: set[str] | None = None, steer: dict[str, Any] | None = None) -> list[P.Plan]:
     """Clips by type, every one ending on its event's hero, distinct, up to target['max']. Each clip
-    takes the shots used least so far, so the footage spreads across as many kinds of clip as it holds."""
+    takes the shots used least so far, so the footage spreads across as many kinds of clip as it holds.
+    `steer` is what she asked for (spec.steer): how many (target is already her number), how long
+    (steer.length: every kind is planned inside it), what must be in (those shots are taken first)
+    and what to leave out (those shots are never used). Applied here, while planning, never by
+    cutting the list down afterwards."""
     hold = float(pb.get("hero_hold_s", 2.0))
+    looks, wanted, _told = steer_looks(looks, steer)
+    span = (steer or {}).get("length") if isinstance((steer or {}).get("length"), dict) else None
     by_key = {lk.key: lk for lk in looks}
     events: dict[str, list[S.Look]] = {}
     for lk in looks:
@@ -157,7 +199,16 @@ def plan_typed(looks: list[S.Look], pb: dict[str, Any], target: dict[str, int], 
         events.setdefault(lk.event, []).append(lk)
     plans: list[P.Plan] = []
     chosen: list[set[str]] = []
-    used: dict[str, int] = {}
+    # A shot that shows what she asked to include counts as "used less than never": it is taken first.
+    used: dict[str, int] = {k: -1 for k in wanted}
+
+    def bounds(t: dict[str, Any]) -> tuple[float, float]:
+        """The kind's own length, inside the length she asked for (never past the kind's own maximum)."""
+        lo, hi = float(t["length_s"][0]), float(t["length_s"][1])
+        if not span:
+            return lo, hi
+        hi2 = min(hi, float(span.get("maxS") or hi))
+        return min(max(lo, float(span.get("minS") or lo)), hi2), hi2
 
     def heroes(ev: list[S.Look], photo: bool | None) -> list[S.Look]:
         return sorted([lk for lk in ev if lk.hero_rank and (photo is None or lk.photo == photo)], key=lambda x: (used.get(x.key, 0), x.hero_rank))
@@ -182,14 +233,15 @@ def plan_typed(looks: list[S.Look], pb: dict[str, Any], target: dict[str, int], 
     def finish(ctype: str, parts: list[P.Part], ev_id: str, single: bool = False) -> P.Plan | None:
         t = PB.template(pb, ctype)
         parts = _distinct_inside(parts, by_key)
-        parts = _trim(parts, float(t["length_s"][1]))
+        lo, hi = bounds(t)
+        parts = _trim(parts, hi)
         if not parts or parts[-1].stage != "hero" or (not single and len(parts) < 2):
             return None
         pl = P.Plan(SHAPE_OF.get(ctype, "montage"), service, parts)
         pl.clip_type, pl.event_group, pl.hero_asset_id = ctype, ev_id, parts[-1].asset_id
         if pl.shape == "transformation" and not any(p.state == "before" for p in parts):
             pl.shape = "montage"
-        if pl.length < float(t["length_s"][0]) - 0.01 and ctype != "moving_photo":
+        if pl.length < lo - 0.01 and ctype != "moving_photo":
             return None
         return pl
 
@@ -202,7 +254,7 @@ def plan_typed(looks: list[S.Look], pb: dict[str, Any], target: dict[str, int], 
             if not walks:
                 return None
             for w in take(walks, len(walks), i):
-                p = _piece(w, min(12.0, w.length), tracks.get(w.asset_id, []))
+                p = _piece(w, min(12.0, bounds(t)[1], w.length), tracks.get(w.asset_id, []))
                 if not p:
                     continue
                 if w.hero_rank:

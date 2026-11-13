@@ -65,7 +65,7 @@ async function sourcesKept(env: Env, clipId: string): Promise<boolean> {
   return true;
 }
 
-export async function rewriteDumpWords(env: Env, dumpId: string, numbers: number[] | null, rerenderAll = false, rerenderOnly = false): Promise<RewriteResult | null> {
+export async function rewriteDumpWords(env: Env, dumpId: string, numbers: number[] | null, rerenderAll = false, rerenderOnly = false, wordsBudgetMs: number = OPS_WORDS_BUDGET_MS): Promise<RewriteResult | null> {
   const dump = await env.DB.prepare("SELECT id, status FROM dumps WHERE id = ?").bind(dumpId).first<{ id: string; status: string }>();
   if (!dump || !["ready", "reviewed"].includes(dump.status)) return null;
   const { results } = await env.DB.prepare(
@@ -111,7 +111,7 @@ export async function rewriteDumpWords(env: Env, dumpId: string, numbers: number
   // One words pass now (WORDS_PER_RUN clips, one free-model call each, so the request stays short);
   // the hourly lane writes the rest. The re-renders went first: the old line leaves the picture
   // whether or not the new words are in yet.
-  const r = rerenderOnly ? null : await wordsPass(env, new Date(), { deadline: Date.now() + OPS_WORDS_BUDGET_MS });
+  const r = rerenderOnly ? null : await wordsPass(env, new Date(), { deadline: Date.now() + wordsBudgetMs });
   const written = r?.written ?? 0;
   const waiting = r?.waiting ?? 0;
   return { cleared: rerenderOnly ? 0 : targets.length, written, waiting, rerenders, rerender_failed: failed, source_cleared: cleared, source_cleared_note: cleared ? SOURCE_CLEARED_NOTE : null };

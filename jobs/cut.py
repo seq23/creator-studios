@@ -79,6 +79,63 @@ class NoUsableMoments(Exception):
 
 # ---------------------------------------------------------------- small helpers
 
+class TooShort(NoUsableMoments):
+    """Nothing could be made and every video is under TOO_SHORT_S seconds: the Worker says what to add
+    (worker/jobs/cut.ts plainFailure), not "try again"."""
+
+
+class NoModelYet(Exception):
+    """An AI model is connected but none could look at these videos (rate limits, an outage). Nothing
+    generic is made in its place (owner, 13 Nov 2026): the cut stops here, the Worker keeps the
+    upload waiting and sends it again by itself (worker/jobs/cut.ts waitForModel, retryWaitingCuts)."""
+
+
+# A video shorter than this cannot carry a reel (the shortest kinds need 7 to 8 seconds).
+TOO_SHORT_S = 8.0
+
+
+def unused_videos(prepared: list[Any], meta: dict[str, dict[str, Any]], looks: list[Any], clips: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """The videos of this upload that are in no post she will see, and why: too short for a reel,
+    never steady and clear enough, or simply not needed. Photos are never listed."""
+    used = {x for c in clips if not c.get("hidden_reason") for x in (c.get("files_used") or [])}
+    out: list[dict[str, str]] = []
+    for a, _norm, info, _wav in prepared:
+        aid = a["id"]
+        if aid in used or meta.get(aid, {}).get("photo"):
+            continue
+        best = max((lk.quality for lk in looks if lk.asset_id == aid), default=None)
+        why = "short" if float(info["duration"]) < TOO_SHORT_S else "unsteady" if best is not None and best < ST.GOOD else "spare"
+        out.append({"asset_id": aid, "why": why})
+    return out
+
+
+def nobody_looked(has_model: bool, door: str, mode: str, video_sources: list[str]) -> bool:
+    """True when a model is connected, this is a new upload's first cut, and not one of its videos
+    was looked at by a model ("vision:…", a saved sheet, the local open model): only guesses
+    ("local" = the picture-match backup, "none"). Then nothing is made; the cut waits (NoModelYet)."""
+    if not has_model or door == "recycle" or mode == "again" or not video_sources:
+        return False
+    return all(src.split(":")[0] in ("none", "local") for src in video_sources)
+
+
+def same_ending_once(moments: list[tuple["Moment", "Source"]]) -> list[tuple["Moment", "Source"]]:
+    """Near-duplicates are one post (owner, 13 Nov 2026: twelve posts of one kind all ending on the
+    same shot): of the posts of one kind that end on the same shot, the first (the strongest plan)
+    stays. Posts where she talks to the camera are different words each time and are never merged."""
+    seen: set[tuple[str, str, int, int]] = set()
+    out: list[tuple[Moment, Source]] = []
+    for m, src in moments:
+        owners = part_owners(m)
+        last = m.parts[-1] if m.parts else (m.start, m.end)
+        key = (m.clip_type or "", owners[-1] if owners else m.asset_id, round(last[0]), round(last[1]))
+        if m.clip_type != "talk_to_camera" and m.hero_asset_id and key in seen:
+            log("cut.same_ending_dropped", clip_type=m.clip_type or "")
+            continue
+        seen.add(key)
+        out.append((m, src))
+    return out
+
+
 def new_clip_id() -> str:
     return "clp_" + "".join(secrets.choice(ALPHABET) for _ in range(16))
 
@@ -1840,6 +1897,10 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
     rules_s = CM.studio_rules(spec, spec.get("brand_profile"))
     pb = PB.load(spec)
     target = rules_s["clip_target"]["max"]
+    # How many: her number is what gets planned (never a longer list cut down afterwards).
+    want = (spec.get("steer") or {}).get("count")
+    if want:
+        target = max(1, int(want))
     engine = {"transcript": "none", "picker": "fallback", "crop": "center", "subtitles": "none"}
     mediapipe = heavy.get("mediapipe", False)
     brand = brand_for(spec, work, download)
@@ -1910,6 +1971,13 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
     progress("Looking at your videos", 0, len(prepared))
     sheets.update(V.see_videos(key, [{"asset_id": a["id"], "video": norm, "duration": info["duration"], "notes": " ".join(x for x in (spec.get("notes", ""), a.get("file_note") or "") if x)} for a, norm, info, _w in prepared], services, work, cached, service_looks))
     progress("Looking at your videos", len(prepared), len(prepared))
+    # No model answered: never the blind guess in its place. With a model connected, a new upload
+    # whose videos nobody could look at waits and is tried again later (NoModelYet). With no model
+    # connected at all (practice mode) there is nothing to wait for, and the cut carries on.
+    videos = [a["id"] for a, *_ in prepared if not meta[a["id"]]["photo"]]
+    if nobody_looked(bool(key), door, str(spec.get("mode") or ""), [sheets[aid].source for aid in videos]):
+        log("cut.no_model", videos=len(videos))
+        raise NoModelYet("no model could look at the videos")
     sound_labels: dict[str, dict[str, float]] = {}
     for i, (a, norm, info, wav) in enumerate(prepared):
         tr, runs, mode = heard[a["id"]]
@@ -1975,7 +2043,13 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         # Studio fix: clips by TYPE from the playbook, each ending on its event's hero, distinct cuts,
         # as many as the footage gives up to the studio's clip target (jobs/clipmaker.py).
         quota = P.careful_quota(target, memory) if spec.get("mode") != "again" else 3
-        plans = CM.plan_typed(looks, pb, {"min": rules_s["clip_target"]["min"], "max": quota}, service, tracks, {aid for aid, s_ in srcs.items() if not s_.muted})
+        if want and spec.get("mode") != "again":
+            quota = int(want)
+        # Her length, what must be in and what to leave out are applied while planning, against what
+        # the studio saw in each shot (jobs/clipmaker.py steer_looks); what it never saw is said.
+        st_dump = spec.get("steer") or {}
+        steer_report.extend(CM.steer_looks(looks, st_dump)[2])
+        plans = CM.plan_typed(looks, pb, {"min": rules_s["clip_target"]["min"], "max": quota}, service, tracks, {aid for aid, s_ in srcs.items() if not s_.muted}, st_dump)
         if not plans and seen and shape != "talking":
             # Nothing typed could be made (no hero view at all): the earlier planner, so the dump still gets clips.
             plans = P.plan_clips(sheet_list, shape, service, quota, hers)
@@ -1990,7 +2064,7 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
             # Each clip is labelled with the service its own shots show, not the dump's (jobs/plan.py clip_service).
             for pl in plans:
                 pl.service = P.clip_service(pl.parts, sheets, service)
-        P.write_copy(key, plans, profile, services, OPENROUTER_MODEL, ask_text, feedback={0: spec.get("change_request")} if spec.get("change_request") and plans else None, guard=text_ok, rules=PR.copy_rules(rules), memory=memory, extra={**copy_extra(rules_s, pb, len(plans)), **voice_context(spec), "hook_rules": HOOK_RULES})
+        P.write_copy(key, plans, profile, services, OPENROUTER_MODEL, ask_text, feedback={0: spec.get("change_request")} if spec.get("change_request") and plans else None, guard=text_ok, rules=PR.copy_rules(rules), memory=memory, extra={**copy_extra(rules_s, pb, len(plans)), **voice_context(spec), "hook_rules": HOOK_RULES}, owner_note=str(spec.get("notes") or ""))
         spec["_used_hooks"] = [pl.hook for pl in plans if pl.hook and not pl.words_pending][-40:]
         for j, pl in enumerate(plans):
             pm = plan_moment(pl)
@@ -2046,10 +2120,13 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
                 moments.append((m, src))
                 spec["_used_hooks"] = [*(spec.get("_used_hooks") or []), m.hook][-40:]
     if not moments:
+        if videos and all(float(info["duration"]) < TOO_SHORT_S for a, _n, info, _w in prepared if a["id"] in videos):
+            raise TooShort("every video is too short")
         raise NoUsableMoments("no moments")
     # Distinct cuts only: a moment that shares most of its footage with one already made is dropped
-    # (a look or a re-pick never counts as another clip).
-    moments = distinct_moments(moments)
+    # (a look or a re-pick never counts as another clip), and posts of one kind ending on the same
+    # shot are one post.
+    moments = same_ending_once(distinct_moments(moments))
     # Clip quality (owner, 23 Oct 2026): the payoff in the first 2 seconds, and no two hooks alike.
     flashed = sum(1 for m, _ in moments if payoff_first(m, pb))
     hook_stats = distinct_hooks(moments, spec, key, text_ok, pb, rules_s["place_words"])
@@ -2057,8 +2134,15 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
     if len(moments) < rules_s["clip_target"]["min"] and not (spec.get("steer") or {}).get("count"):
         steer_report.append({"what": f"{rules_s['clip_target']['min']} clips", "why": f"these videos hold {len(moments)} different cuts; the same cut is never made again in another look"})
     looks_like = P.looks_like(service, sure, shape, camera)
-    # How many: her number, the moments she asked to include first, then the strongest.
+    # How many: planned to her number above; this only guards a path that still found more (the
+    # moments she asked to include first, then the strongest).
     want = (spec.get("steer") or {}).get("count")
+    span = (spec.get("steer") or {}).get("length") if isinstance((spec.get("steer") or {}).get("length"), dict) else None
+    if span:
+        off = [m for m, _s in moments if clip_seconds(m) < float(span.get("minS") or 0) - 1.0 or clip_seconds(m) > float(span.get("maxS") or 999) + 1.5]
+        if off:
+            shorter = sum(1 for m in off if clip_seconds(m) < float(span.get("minS") or 0))
+            steer_report.append({"what": "the length you asked for", "why": f"these videos only hold {'shorter' if shorter >= len(off) - shorter else 'longer'} moments for {len(off)} of the posts, so those came out {'shorter' if shorter >= len(off) - shorter else 'longer'}"})
     if want and len(moments) > int(want):
         moments.sort(key=lambda ms: (0 if getattr(ms[0], "included", None) else 1, -clip_score(ms[0], ms[1], recipes)))
         moments = moments[: int(want)]
@@ -2085,8 +2169,10 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         body = grid_body(m)
         turn = rot[k % len(rot):] + rot[: k % len(rot)]
         fitting = [r for r in turn if look_fits(L.look_options(r), m, len(body))]
+        # Said only for a look SHE asked for (a note or a tap): never a list of looks she didn't pick.
+        asked_looks = bool((a_steer or spec.get("steer") or {}).get("looks_asked"))
         for r in turn:
-            if r not in fitting and r not in skipped_looks:
+            if asked_looks and r not in fitting and r not in skipped_looks:
                 skipped_looks.add(r)
                 lo = L.look_options(r)
                 why = f"these videos don't have {len(L.cells_of(lo))} different shots for one clip, and a look never repeats a picture" if lo["layout"] == "grid" else "the small replay box only goes on a clip where someone talks to the camera"
@@ -2251,6 +2337,8 @@ def cut_dump(spec: dict[str, Any], work: Path, download: Downloader, upload: Upl
         "asset_roles": ST.asset_roles(looks),
         "clip_counts": {**CM.counts([c["clip_type"] for c in clips if not c["hidden_reason"]]), "hidden": sum(1 for c in clips if c["hidden_reason"]), "target": rules_s["clip_target"]},
         "sound_labels": sound_labels,
+        # The videos in no post she will see, and why (too short, not steady enough, not needed).
+        "unused": unused_videos(prepared, meta, looks, clips),
     }
 
 

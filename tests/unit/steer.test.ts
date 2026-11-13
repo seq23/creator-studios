@@ -4,7 +4,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { cleanControls, describe as sayIt, mergeControls, parseNotes, recipesAllowed, steerLook, steerMusic, steerPlatforms, steerRecipes, steerTarget, whatWeTried } from "@worker/domain/steer";
+import { cleanControls, describe as sayIt, mergeControls, parseNotes, planLine, quickFix, recipesAllowed, steerLook, steerMusic, steerPlatforms, steerRecipes, steerTarget, whatWeTried } from "@worker/domain/steer";
+import { sayBack } from "@worker/lib/steerStore";
 import { resolveLook, DEFAULT_EDITING } from "@worker/domain/looks";
 import { RECIPES } from "@shared/constants";
 import { STEER_KEYS } from "@shared/steer";
@@ -16,7 +17,7 @@ import type { Env } from "@worker/env";
 
 const FX = JSON.parse(readFileSync(path.join(__dirname, "fixtures", "steer-notes.json"), "utf8")) as {
   tracks: { id: string; name: string }[];
-  cases: { note: string; controls: Record<string, unknown>; not_followed: string[] }[];
+  cases: { note: string; controls: Record<string, unknown>; not_followed: string[]; leftover?: string[] }[];
 };
 
 describe("notes read into controls (fixtures)", () => {
@@ -26,8 +27,24 @@ describe("notes read into controls (fixtures)", () => {
       expect(u.controls).toEqual(c.controls);
       expect(u.not_followed.map((x) => x.what)).toEqual(c.not_followed);
       expect(u.said.length).toBe(Object.keys(c.controls).length);
+      // Never dropped in silence: every part that asks for something unreadable is said back, in her words.
+      expect(u.leftover).toEqual(c.leftover ?? []);
+      // Always one line said back, whatever she wrote.
+      expect(u.plan).toMatch(/^I'll make /);
     });
   }
+  it("the misreads the hostile test found (13 Nov 2026) stay fixed", () => {
+    // "not too long" was read as Long (45-90 s)
+    expect(parseNotes("just one video please, not too long", FX.tracks).controls.length).not.toBe("long");
+    // "one" was lost because the number did not touch the noun
+    expect(parseNotes("one 15 second reel of the balloon arch going up", FX.tracks).controls.count).toBe(1);
+    // a number of seconds or a grid is never a count
+    expect(parseNotes("30 second clips", FX.tracks).controls.count).toBeUndefined();
+    expect(parseNotes("2 by 4 grid videos", FX.tracks).controls.count).toBeUndefined();
+    // a negation never turns the thing on
+    expect(parseNotes("not fast", FX.tracks).controls.pace).toBe("normal");
+    expect(parseNotes("nothing too long", FX.tracks).controls).toEqual({ length: "short" });
+  });
   it("every control is covered by at least one fixture", () => {
     const seen = new Set(FX.cases.flatMap((c) => Object.keys(c.controls)));
     for (const k of STEER_KEYS) expect(seen.has(k), k).toBe(true);
@@ -55,10 +72,15 @@ describe("notes read into controls (fixtures)", () => {
 });
 
 describe("chips, the dump's note and a video's note combine", () => {
-  it("video note > chip > dump note > surprise; a clash is said", () => {
+  it("video note > what she typed > a tap > surprise; the clash is said before the cut, in plain words", () => {
     const m = mergeControls({ pace: "calm", looks: ["clean"] }, { pace: "fast", count: 5, avoid: ["cough"] }, { looks: ["grid_eight"] });
-    expect(m.controls).toEqual({ pace: "calm", looks: ["grid_eight"], count: 5, avoid: ["cough"] });
-    expect(m.not_followed.map((x) => x.what)).toEqual(["your note's pace"]);
+    expect(m.controls).toEqual({ pace: "fast", looks: ["grid_eight"], count: 5, avoid: ["cough"] });
+    expect(m.clashes).toEqual(["You tapped one thing for the pace and wrote another. I'll go with what you wrote."]);
+    // nothing about it is left for after the cut
+    expect(m.not_followed).toEqual([]);
+    // agreeing, or only one of them saying it, is no clash
+    expect(mergeControls({ pace: "fast" }, { pace: "fast", count: 2 }).clashes).toEqual([]);
+    expect(mergeControls({ count: 5 }, {}).controls.count).toBe(5);
   });
   it("cleanControls keeps what is real and says what is not", () => {
     const r = cleanControls({ looks: ["grid_eight", "sparkle"], music: "track:gone", count: 99, pace: "warp", platforms: ["tiktok", "myspace"] }, FX.tracks);
@@ -95,10 +117,31 @@ describe("controls reach what the job renders", () => {
   it("says it back in plain words", () => {
     expect(sayIt({ looks: ["grid_eight"], music: "none", pace: "fast" }, [])).toEqual(["Look: Grid of eight (8 cells)", "Music: none", "Pace: fast"]);
   });
-  it("What we tried sums up a Surprise me batch", () => {
-    expect(whatWeTried([{ look: "grid_eight", music: "music/a" }, { look: "clean", music: null }, { look: "karaoke", music: "music/a" }], [{ r2_key: "music/a", name: "Upbeat summer.mp3" }])).toBe(
-      "What we tried: 3 clips in 3 looks (Grid of eight, Clean, Karaoke captions), 1 grid, music on 2 (Upbeat summer.mp3).",
-    );
+});
+
+describe("what was made and what is said back", () => {
+  it("what was made, in her words: kinds of post, videos that could not be used, and what to add", () => {
+    const made = [{ clip_type: "team_working" }, { clip_type: "team_working" }, { clip_type: "set_up_with_me" }, { clip_type: "pov_walk_in" }];
+    const six = Array.from({ length: 6 }, () => ({ why: "unsteady" as const }));
+    expect(whatWeTried(made, six)).toBe("4 posts: 2 of the team working, 1 set-up, 1 walk-in; 6 videos weren't steady enough.");
+    expect(whatWeTried([{ clip_type: "payoff_first" }], [{ why: "short" }, { why: "short" }, { why: "spare" }])).toBe("1 post: 1 before and after. These 2 videos are too short for a reel. Add videos of 8 seconds or more.");
+    expect(whatWeTried([], [{ why: "short" }])).toBe("This video is too short for a reel. Add videos of 8 seconds or more.");
+    // never a list of looks, grids or songs she did not ask about
+    expect(whatWeTried(made, six)).not.toMatch(/look|grid|music|clip/i);
+    expect(whatWeTried([], [])).toBe("");
+  });
+  it("the one line said back, always, and the one-tap fixes under it", () => {
+    expect(planLine({}, [], 4)).toBe("I'll make about 4 posts, a mix of kinds.");
+    expect(planLine({}, [])).toBe("I'll make a mix of posts.");
+    expect(planLine({ count: 1, length: "short", captions: "none", platforms: ["instagram"] }, [])).toBe("I'll make 1 post: short (under 20 seconds), no words on screen, Instagram only.");
+    expect(quickFix({}, "fewer", 8).count).toBe(4);
+    expect(quickFix({ count: 2 }, "fewer", 2).count).toBe(1);
+    expect(quickFix({ count: 1 }, "fewer", 1).count).toBe(1);
+    expect(quickFix({}, "more", 4).count).toBe(6);
+    expect(quickFix({ count: 28 }, "more", 28).count).toBe(30);
+    expect(quickFix({ count: 9 }, "one", 9).count).toBe(1);
+    expect(quickFix({}, "no_words", 4).captions).toBe("none");
+    expect(quickFix({}, "instagram_only", 4).platforms).toEqual(["instagram"]);
   });
 });
 
@@ -147,15 +190,49 @@ describe("the note \"2x4 grid, no music, fast\" reaches the cut job", () => {
     expect(a2.steer).toBeUndefined();
     expect(spec.steer.include).toEqual(["cake reveal"]);
   });
-  it("after the cut: what couldn't be followed (note, clash, job report) and What we tried are on the dump", async () => {
-    const { env, db } = await dumpEnv({ pace: "calm" }, "3x3 grid, fast");
+  it("her note wins over a tap, the clash is NOT repeated after the cut, and the dump says what was made", async () => {
+    const { env, db } = await dumpEnv({ pace: "calm" }, "3x3 grid, fast, more like the last one I approved");
     const spec = (await cutJob.buildSpec(env, "job_s4", "dmp_s1")) as CutSpec;
-    const result = (await cutJob.fakeRun!(env, "job_s4", "dmp_s1", { clips: 4 })) as { clips: unknown[]; steer_report?: unknown };
+    const result = (await cutJob.fakeRun!(env, "job_s4", "dmp_s1", { clips: 4 })) as { clips: unknown[]; steer_report?: unknown; unused?: unknown };
     result.steer_report = [{ what: '"kitchen"', why: "we never heard it in these videos, so no clip could include it" }];
+    result.unused = [{ asset_id: "ast_s2", why: "unsteady" }, { asset_id: "ast_someone_elses", why: "short" }, { asset_id: "ast_s1", why: "made up" }];
     await cutJob.applyResult(env, "job_s4", "dmp_s1", result);
     const d = db.raw.prepare("SELECT not_followed, tried FROM dumps WHERE id = 'dmp_s1'").get() as { not_followed: string; tried: string };
-    expect(JSON.parse(d.not_followed).map((x: { what: string }) => x.what)).toEqual(["a 3 by 3 grid", "your note's pace", '"kitchen"']);
-    expect(d.tried).toMatch(/^What we tried: \d+ clips in /);
-    expect(spec.looks[spec.rotation[0]]!.punch_in).toBe(false); // the chip (calm) won over the note (fast)
+    expect(JSON.parse(d.not_followed).map((x: { what: string }) => x.what)).toEqual(["a 3 by 3 grid", '"more like the last one I approved"', '"kitchen"']);
+    // only this upload's own videos, only the known reasons
+    expect(d.tried).toMatch(/^4 posts: .*; 1 video wasn't steady enough\.$/);
+    expect(spec.looks[spec.rotation[0]]!.punch_in).toBe(true); // what she typed (fast) won over the tap (calm)
+  });
+  it("a look is reported as not followed only when she asked for it; her length reaches the planner", async () => {
+    const asked = (await cutJob.buildSpec((await dumpEnv({ looks: ["grid_eight"], length: "short" }, "")).env, "job_s5", "dmp_s1")) as CutSpec;
+    expect(asked.steer.looks_asked).toBe(true);
+    expect(asked.steer.length).toEqual({ minS: 8, maxS: 20 });
+    const surprise = (await cutJob.buildSpec((await dumpEnv({}, "")).env, "job_s6", "dmp_s1")) as CutSpec;
+    expect(surprise.steer.looks_asked).toBe(false);
+    expect(surprise.steer.length).toBeNull();
+  });
+  it("said back before the cut: her note, her taps, what could not be used, and one-tap fixes that her typing overrides", async () => {
+    const { env } = await dumpEnv({ pace: "calm", count: 5 }, "");
+    const first = await sayBack(env, { text: "fast please. make a carousel", chips: { pace: "calm", count: 5 }, dumpId: "dmp_s1" });
+    expect(first.plan).toBe("I'll make 5 posts: quick cuts.");
+    expect(first.leftover).toEqual(["make a carousel"]);
+    expect(first.clashes).toEqual(["You tapped one thing for the pace and wrote another. I'll go with what you wrote."]);
+    // no note at all: still one line, sized to what she uploaded (2 videos)
+    const empty = await sayBack(env, { text: "", chips: {}, dumpId: "dmp_s1" });
+    expect(empty.plan).toBe("I'll make about 2 posts, a mix of kinds.");
+    // a tap on "Just one" changes it; it is kept while her note says nothing else about how many
+    const one = await sayBack(env, { text: "", chips: {}, dumpId: "dmp_s1", prevNote: empty.note_controls, fixed: empty.fixed, fix: "one" });
+    expect(one.plan).toBe("I'll make 1 post.");
+    expect(one.controls.count).toBe(1);
+    const still = await sayBack(env, { text: "no music", chips: {}, dumpId: "dmp_s1", prevNote: one.note_controls, fixed: one.fixed });
+    expect(still.controls).toEqual({ music: "none", count: 1 });
+    // then she types a number: what she typed wins over the earlier tap
+    const typed = await sayBack(env, { text: "no music, 3 posts", chips: {}, dumpId: "dmp_s1", prevNote: still.note_controls, fixed: still.fixed });
+    expect(typed.controls.count).toBe(3);
+    expect(typed.fixed).toEqual({});
+    expect(typed.plan).toBe("I'll make 3 posts: no music.");
+    // a made-up fix or a made-up fixed value does nothing
+    const junk = await sayBack(env, { text: "", chips: {}, dumpId: "dmp_s1", fixed: { count: "lots", looks: ["grid_eight"] }, fix: "explode" });
+    expect(junk.fixed).toEqual({});
   });
 });

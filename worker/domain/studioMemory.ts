@@ -1,7 +1,9 @@
 // Studio Memory (studio intelligence layer 8, owner's plan 22 Oct 2026) and the live switch of
 // layer 9. The studio learns from what already happened in its own D1, read fresh for every cut
 // (nothing is copied into a second list that could drift):
-//   - approvals and rejections in Review (clips.status, clips.reject_reason), by story shape and service;
+//   - approvals and rejections in Review (clips.status, clips.reject_reason), by story shape and service,
+//     INCLUDING rejected posts she later deleted for good (the row keeps its reason and words; only the
+//     file goes), and lines she turned down with "Wrong words" (events "clip.words_rejected");
 //   - "Try another version" notes (clips.again_notes);
 //   - her one-tap answers under the plain line (events "dump.question_answered": a service she
 //     corrected, a video she said is a before);
@@ -92,7 +94,7 @@ export function chooseApproach(prev: Approach, r: { rate: number; reviewed: numb
 }
 
 /** The summary the cut job reads. Pure. */
-export function summarize(rows: readonly ReviewedRow[], notes: readonly string[], corrections: readonly { from: string; to: string }[], prev: Approach): MemorySummary {
+export function summarize(rows: readonly ReviewedRow[], notes: readonly string[], corrections: readonly { from: string; to: string }[], prev: Approach, wrongWords: readonly string[] = []): MemorySummary {
   const shapes: MemorySummary["shapes"] = {};
   for (const r of rows) {
     const k = r.shape ?? "unsure";
@@ -113,8 +115,9 @@ export function summarize(rows: readonly ReviewedRow[], notes: readonly string[]
   return {
     shapes,
     kept_hooks: [...new Set(rows.filter((r) => r.status === "approved" && r.hook_text.trim()).map((r) => clip(r.hook_text, 80)))].slice(0, 8),
-    turned_down_hooks: [...new Set(rows.filter((r) => r.status === "rejected" && r.hook_text.trim()).map((r) => clip(r.hook_text, 80)))].slice(0, 8),
-    reject_reasons: [...new Set(rows.map((r) => (r.reject_reason ? clip(r.reject_reason, 120) : "")).filter(Boolean))].slice(0, 6),
+    // "Wrong words" lines first: she said no to exactly those words.
+    turned_down_hooks: [...new Set([...wrongWords.map((h) => clip(h, 80)).filter(Boolean), ...rows.filter((r) => r.status === "rejected" && r.hook_text.trim()).map((r) => clip(r.hook_text, 80))])].slice(0, 8),
+    reject_reasons: [...new Set([...(wrongWords.length ? ["wrong words"] : []), ...rows.map((r) => (r.reject_reason ? clip(r.reject_reason, 120) : "")).filter(Boolean)])].slice(0, 6),
     notes: [...new Set(notes.map((n) => clip(n, 200)).filter(Boolean))].slice(0, 6),
     relabel,
     rejection: { rate: rate.rate, reviewed: rate.reviewed, window_days: WINDOW_DAYS },
@@ -127,9 +130,11 @@ export function summarize(rows: readonly ReviewedRow[], notes: readonly string[]
 export async function loadMemory(env: Pick<Env, "DB">): Promise<MemorySummary> {
   const since = new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString();
   const { results: rows } = await env.DB.prepare(
-    `SELECT c.status, c.shape, c.service, c.hook_text, c.reject_reason, c.reviewed_at,
+    // A rejected post deleted for good is still a no she gave (routes/clips.ts keeps reject_reason on
+    // the deleted row; a post deleted without ever being rejected has none and teaches nothing).
+    `SELECT CASE WHEN c.status = 'deleted' THEN 'rejected' ELSE c.status END AS status, c.shape, c.service, c.hook_text, c.reject_reason, c.reviewed_at,
             (SELECT MAX(m.views) FROM posts p JOIN metrics m ON m.post_id = p.id WHERE p.clip_id = c.id) AS views
-     FROM clips c WHERE c.status IN ('approved', 'rejected') AND c.reviewed_at >= ? ORDER BY c.reviewed_at DESC LIMIT 200`,
+     FROM clips c WHERE (c.status IN ('approved', 'rejected') OR (c.status = 'deleted' AND c.reject_reason IS NOT NULL)) AND c.reviewed_at >= ? ORDER BY c.reviewed_at DESC LIMIT 200`,
   )
     .bind(since)
     .all<ReviewedRow>();
@@ -145,9 +150,20 @@ export async function loadMemory(env: Pick<Env, "DB">): Promise<MemorySummary> {
       }
     })
     .filter((x): x is { from: string; to: string } => !!x);
+  const { results: wordRows } = await env.DB.prepare("SELECT detail FROM events WHERE kind = 'clip.words_rejected' AND created_at >= ? ORDER BY created_at DESC LIMIT 20").bind(since).all<{ detail: string }>();
+  const wrongWords = wordRows
+    .map((w) => {
+      try {
+        const h = (JSON.parse(w.detail) as { hook?: unknown }).hook;
+        return typeof h === "string" ? h : "";
+      } catch {
+        return "";
+      }
+    })
+    .filter(Boolean);
   const prevSetting = await getSetting<{ approach?: Approach }>(env.DB, "cut_approach", {});
   const prev: Approach = prevSetting.approach === "careful" ? "careful" : "standard";
-  const m = summarize(rows, noteRows.map((r) => r.again_notes), corrections, prev);
+  const m = summarize(rows, noteRows.map((r) => r.again_notes), corrections, prev, wrongWords);
   if (m.approach !== prev) {
     await setSetting(env.DB, "cut_approach", { approach: m.approach, since: nowIso(), rate: m.rejection.rate, reviewed: m.rejection.reviewed });
     await recordEvent(env.DB, "studio.approach_switched", null, { from: prev, to: m.approach, rate: m.rejection.rate, reviewed: m.rejection.reviewed, why: m.why });

@@ -15,7 +15,7 @@ import { DumpHistory } from "../components/DumpHistory";
 import { PLATFORMS, PLATFORM_LABEL } from "@shared/constants";
 import { Icon } from "../components/Icon";
 import { NotFollowedList, SteerPanel, UnderstoodNote, type SteerLook, type SteerTrack } from "../components/Steer";
-import type { SteerControls, Understood } from "@shared/steer";
+import type { QuickFix, SaidBack, SteerControls, Understood } from "@shared/steer";
 import { isPhoto, PACK_MAX_PHOTOS } from "@shared/photoPosts";
 import "../styles/dump.css";
 
@@ -65,8 +65,12 @@ export function Dump() {
   const [door, setDoor] = useState<Door | null>(null);
   const [hintOpen, setHintOpen] = useState<Door | null>(null);
   const [steer, setSteer] = useState<SteerControls>({});
-  const [understood, setUnderstood] = useState<Understood | null>(null);
+  // What the studio says back before she sends (always one line), with her one-tap fixes.
+  const [understood, setUnderstood] = useState<(Understood & Partial<SaidBack>) | null>(null);
   const understandTimer = useRef<number | null>(null);
+  const saidRef = useRef<(Understood & Partial<SaidBack>) | null>(null);
+  saidRef.current = understood;
+  const readSeq = useRef(0);
   const editing = useLoad(() => get<{ looks: SteerLook[]; music: SteerTrack[] }>("/api/editing"));
   // The Voice over chip's default: the Settings switch, and whether her voice is saved.
   const voiceState = useLoad(() => get<{ auto: "on" | "needs_voice" | "off"; hasSample: boolean; ready?: boolean }>("/api/voice"));
@@ -101,7 +105,8 @@ export function Dump() {
       setNotes(current.data.dump.notes);
       setVoiceNotes(current.data.dump.voice_notes ?? "");
       setSteer(current.data.dump.steer ?? {});
-      setUnderstood(current.data.dump.understood ?? null);
+      // While she is still adding, the line said back on screen stands (it is re-read as things change).
+      if (current.data.dump.status !== "uploading" || !saidRef.current) setUnderstood(current.data.dump.understood ?? null);
     }
   }, [current.data]);
 
@@ -174,19 +179,32 @@ export function Dump() {
     reloadCurrent();
   }
 
+  /** Say it back: her note, her taps and her one-tap fixes read together. The newest answer wins. */
+  const readBack = useCallback(async (text: string, chips: SteerControls, id: string | null, change?: { fix?: QuickFix; fixed?: SteerControls }) => {
+    const seq = ++readSeq.current;
+    const prev = saidRef.current;
+    try {
+      const r = await post<SaidBack>("/api/dumps/understand", { text, steer: chips, dump_id: id ?? undefined, fixed: change?.fixed ?? prev?.fixed, prev_note: prev?.note_controls, fix: change?.fix });
+      if (seq === readSeq.current) setUnderstood(r);
+    } catch {
+      /* the note is still read when she presses the button */
+    }
+  }, []);
+
   async function saveNotes(v: string) {
     setNotes(v);
-    // Here's what we understood: read shortly after she stops typing (rules, plus the free AI when connected).
+    // Read shortly after she stops typing (rules, plus the free AI when connected).
     if (understandTimer.current) window.clearTimeout(understandTimer.current);
-    understandTimer.current = window.setTimeout(async () => {
-      if (!v.trim()) return setUnderstood(null);
-      try {
-        setUnderstood(await post<Understood>("/api/dumps/understand", { text: v }));
-      } catch {
-        /* the note is still read when she presses Dump */
-      }
-    }, 700);
+    understandTimer.current = window.setTimeout(() => void readBack(v, steer, dumpId), 700);
     if (dumpId) await patch(`/api/dumps/${dumpId}`, { notes: v }).catch(() => undefined);
+  }
+
+  /** A one-tap fix under the line. Tapping one that is on takes it off again. */
+  function tapFix(fix: QuickFix) {
+    const fixed = understood?.fixed ?? {};
+    const off: SteerControls | null =
+      fix === "one" && fixed.count === 1 ? { ...fixed, count: undefined } : fix === "no_words" && fixed.captions === "none" ? { ...fixed, captions: undefined } : fix === "instagram_only" && fixed.platforms?.join() === "instagram" ? { ...fixed, platforms: undefined } : null;
+    void readBack(notes, steer, dumpId, off ? { fixed: off } : { fix });
   }
 
   async function saveVoiceNotes(v: string) {
@@ -201,6 +219,7 @@ export function Dump() {
 
   async function changeSteer(next: SteerControls) {
     setSteer(next);
+    void readBack(notes, next, dumpId);
     if (dumpId) await patch(`/api/dumps/${dumpId}`, { steer: next }).catch(() => undefined);
   }
 
@@ -255,6 +274,12 @@ export function Dump() {
   const totalBytes = assets.reduce((n, a) => n + a.size_bytes, 0);
   // The one next step: choose videos until something is uploaded, then press Dump.
   const hasVideos = uploadedCount > 0;
+  // The line is said back from the start and again whenever what it depends on changes (files added or removed).
+  const sayBackFor = editable && door !== "youtube" ? `${dumpId ?? ""}:${uploadedCount}` : null;
+  useEffect(() => {
+    if (sayBackFor !== null) void readBack(notes, steer, dumpId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sayBackFor, readBack]);
 
   return (
     <div className="page">
@@ -363,7 +388,10 @@ export function Dump() {
           ) : (
             <Notice tone={dump.status === "failed" ? "bad" : dump.status === "ready" ? "ok" : "info"}>
               <span>
-                {dump.status === "queued" || dump.status === "cutting" ? (
+                {(dump.status === "queued" || dump.status === "cutting") && dump.error_summary ? (
+                  // A named stop she can read (no AI model answered yet): it is tried again by itself.
+                  <span data-waiting-line>{dump.error_summary}</span>
+                ) : dump.status === "queued" || dump.status === "cutting" ? (
                   <>
                     <strong>Cutting…</strong> {dump.progress ? `${dump.progress.step} (${dump.progress.done}/${dump.progress.total})` : "usually 10 to 30 minutes"}. We’ll email you when the clips are ready. You can leave this page.
                   </>
@@ -447,7 +475,6 @@ export function Dump() {
                   placeholder="e.g. Trip weekend, lean funny. All 2x4 grids, no music, keep them short. Don't use the part where I cough."
                 />
                 <div className="hint">You can ask for looks (like a 2x4 grid), music, pace, length, how many clips, captions, platforms, and moments to keep in or leave out.</div>
-                <UnderstoodNote understood={understood} />
               </div>
               <div className="field" data-voice-notes>
                 <label htmlFor="voice-notes">Notes for the voice (you can leave this empty)</label>
@@ -470,6 +497,7 @@ export function Dump() {
                 voice={{ choice: voiceState.data?.auto === "off" ? "none" : "quiet", hasVoice: !!(voiceState.data?.ready ?? voiceState.data?.hasSample) }}
                 camera={settingsState.data?.sound.camera ?? "keep"}
               />
+              <UnderstoodNote understood={understood} onFix={tapFix} fixed={understood?.fixed} />
               <div className="row wrap">
                 <button className="btn big" data-primary={hasVideos && door ? true : undefined} disabled={!door || sending || uploading || uploadedCount === 0} onClick={send} data-dump-button>
                   {sending ? "Sending…" : door ? `Dump ${uploadedCount || ""} ${uploadedCount === 1 ? DOORS[door].noun[0] : DOORS[door].noun[1]}`.replace("  ", " ") : "Dump"}

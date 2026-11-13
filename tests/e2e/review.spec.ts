@@ -119,13 +119,29 @@ test("approve one, reject one with a reason, change her mind from the Rejected t
   await page.getByRole("tab", { name: /Rejected/ }).click();
   const rejected = page.locator(`[data-clip-id="${second.id}"]`);
   await expect(rejected).toContainText("Reason: too long");
-  await expect(rejected).toContainText("Removed for good on");
+  // Phase 1 (8 Nov 2026): a rejected clip is kept until she deletes it; no removal date is promised any more.
+  await expect(page.getByText("Rejected clips stay until you delete them.")).toBeVisible();
+  await expect(rejected).not.toContainText("Removed for good on");
   await rejected.getByRole("button", { name: "Approve" }).click();
   await expect(rejected).toHaveCount(0);
 
   const approved = await clipsOf(page.request, dumpId, "approved");
   expect(approved.map((c) => c.id).sort()).toEqual([first.id, second.id].sort());
   expect(approved.find((c) => c.id === second.id)?.reject_reason).toBeNull();
+});
+
+test("Wrong words: the post stays in New and its words are written again, it is not rejected", async ({ page }) => {
+  const dumpId = await readyDump(page.request);
+  const [first] = await clipsOf(page.request, dumpId, "new", false);
+  await page.goto("/review");
+  await group(page, dumpId).locator(`[data-clip-id="${first.id}"]`).getByRole("button", { name: "Reject" }).click();
+  await noSideScroll(page);
+  await page.getByRole("dialog").getByRole("button", { name: "Wrong words (write new ones)" }).click();
+  await expect(page.locator(".toast").first()).toContainText("Writing new words for this post. It stays in New.");
+  await expect(group(page, dumpId).locator(`[data-clip-id="${first.id}"]`)).toHaveCount(1);
+  expect((await clipsOf(page.request, dumpId, "rejected")).map((c) => c.id)).not.toContain(first.id);
+  const now = (await clipsOf(page.request, dumpId, "new")).find((c) => c.id === first.id)!;
+  expect(now.hook_text).not.toBe(first.hook_text);
 });
 
 test("select several and reject them together with a reason", async ({ page }) => {

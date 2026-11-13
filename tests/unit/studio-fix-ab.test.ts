@@ -149,7 +149,10 @@ describe("words pending: stored, never approved, never posted, written by the wo
     expect(row().words_pending).toBe(0);
     // Both on-demand callers pass the deadline; the hourly lane does not need one.
     expect(readFileSync("worker/routes/ops.ts", "utf8")).toMatch(/wordsPass\(c\.env, new Date\(\), \{ deadline: Date\.now\(\) \+ OPS_WORDS_BUDGET_MS \}\)/);
-    expect(readFileSync("worker/lib/rewriteWords.ts", "utf8")).toMatch(/wordsPass\(env, new Date\(\), \{ deadline: Date\.now\(\) \+ OPS_WORDS_BUDGET_MS \}\)/);
+    // rewriteDumpWords: always a deadline, the ops budget unless its caller gives a shorter one ("Wrong words" in Review).
+    expect(readFileSync("worker/lib/rewriteWords.ts", "utf8")).toMatch(/wordsBudgetMs: number = OPS_WORDS_BUDGET_MS\)/);
+    expect(readFileSync("worker/lib/rewriteWords.ts", "utf8")).toMatch(/wordsPass\(env, new Date\(\), \{ deadline: Date\.now\(\) \+ wordsBudgetMs \}\)/);
+    expect(readFileSync("worker/lib/rewriteWords.ts", "utf8")).not.toMatch(/wordsPass\(env\)|wordsPass\(env, new Date\(\)\)/);
     expect(readFileSync("worker/routes/ops.ts", "utf8")).not.toMatch(/wordsPass\(c\.env\)/);
   });
 

@@ -1,9 +1,12 @@
 // How she steers a dump, on the Dump screen (worker/domain/steer.ts has the rules):
-//   - Surprise me (the default): we pick, varied across the batch, and say what we tried
+//   - Surprise me (the default): we pick, varied across the batch, and say what was made
 //   - or tap chips: Look, Music, Pace, Clip length, How many, Captions, Platforms, Voice over, Camera sound. An untapped
 //     group stays "Surprise me" for that one thing. Every group is always shown (nothing hidden).
-// Under the note: "Here's what we understood", and anything we can't do as asked, before Dump.
-import type { NotFollowed, SteerControls, Understood } from "@shared/steer";
+// Before she sends: ONE line said back, always ("I'll make about 4 posts: …"), any part of her note
+// that could not be used in her own words, any clash between her note and a tap (her note wins),
+// and one-tap fixes. Nothing she wrote is dropped in silence (owner, 13 Nov 2026).
+import type { NotFollowed, QuickFix, SteerControls, Understood } from "@shared/steer";
+import { QUICK_FIXES, QUICK_FIX_LABEL } from "@shared/steer";
 import { CAPTION_CHOICES, CAPTION_LABEL, COUNT_CHOICES, LENGTHS, PACES, VOICE_CHOICES, VOICE_LABEL, type VoiceChoice } from "@shared/steer";
 import { PLATFORMS, PLATFORM_LABEL, type Platform } from "@shared/constants";
 import { CAMERA_HINT, CAMERA_LABEL, CAMERA_SOUNDS, type CameraSound } from "@shared/sound";
@@ -182,23 +185,61 @@ export function SteerPanel({ steer, onChange, looks, tracks, disabled, voice, ca
   );
 }
 
-/** "Here's what we understood" under a note, and what can't be done as asked. */
-export function UnderstoodNote({ understood, compact }: { understood: Understood | null; compact?: boolean }) {
-  if (!understood || (!understood.said.length && !understood.not_followed.length)) return null;
+/** Which one-tap fixes are in force now (Fewer and More are steps, never "on"). */
+function fixOn(fix: QuickFix, fixed: SteerControls | undefined): boolean {
+  if (fix === "one") return fixed?.count === 1;
+  if (fix === "no_words") return fixed?.captions === "none";
+  if (fix === "instagram_only") return fixed?.platforms?.length === 1 && fixed.platforms[0] === "instagram";
+  return false;
+}
+
+/**
+ * What the studio says back before anything is made. The upload's own (not `compact`): always one
+ * line, then what it couldn't use, then the one-tap fixes. Under one video's note (`compact`): what
+ * that note was read as, and what it couldn't use.
+ */
+export function UnderstoodNote({ understood, compact, onFix, fixed }: { understood: Understood | null; compact?: boolean; onFix?: (fix: QuickFix) => void; fixed?: SteerControls }) {
+  if (!understood) return null;
+  const leftover = understood.leftover ?? [];
+  const clashes = understood.clashes ?? [];
+  if (compact && !understood.said.length && !understood.not_followed.length && !leftover.length) return null;
   return (
     <div className={`understood${compact ? " compact" : ""}`} data-understood>
-      {understood.said.length ? (
+      {!compact && understood.plan ? (
+        <p className="understood-plan" data-plan>
+          {understood.plan}
+        </p>
+      ) : null}
+      {compact && understood.said.length ? (
+        <ul>
+          {understood.said.map((s) => (
+            <li key={s}>{s}</li>
+          ))}
+        </ul>
+      ) : null}
+      {leftover.map((l) => (
+        <p key={l} className="understood-left" data-leftover>
+          I couldn’t use this part: “{l}”
+        </p>
+      ))}
+      {clashes.map((c) => (
+        <p key={c} className="understood-left" data-clash>
+          {c}
+        </p>
+      ))}
+      <NotFollowedList items={understood.not_followed} before />
+      {!compact && onFix ? (
         <>
-          <div className="label">Here's what we understood</div>
-          <ul>
-            {understood.said.map((s) => (
-              <li key={s}>{s}</li>
+          <div className="steer-chips understood-fixes" role="group" aria-label="Quick changes">
+            {QUICK_FIXES.map((f) => (
+              <Chip key={f} on={fixOn(f, fixed)} onClick={() => onFix(f)}>
+                {QUICK_FIX_LABEL[f]}
+              </Chip>
             ))}
-          </ul>
+          </div>
+          <div className="hint">Not right? Tap one of these, or change your note. What you write wins over a choice you tapped.</div>
         </>
       ) : null}
-      <NotFollowedList items={understood.not_followed} before />
-      {!compact ? <div className="hint">Not right? Change the note or tap a choice below; a tapped choice wins.</div> : null}
     </div>
   );
 }
@@ -207,7 +248,7 @@ export function NotFollowedList({ items, before }: { items: NotFollowed[]; befor
   if (!items.length) return null;
   return (
     <div className="not-followed" data-not-followed>
-      <div className="label">{before ? "We can't do this as asked" : "Not followed"}</div>
+      <div className="label">{before ? "I can’t do this as asked" : "What I couldn’t do"}</div>
       <ul>
         {items.map((x) => (
           <li key={x.what}>

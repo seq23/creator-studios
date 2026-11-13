@@ -556,7 +556,7 @@ def check_steer(tmp: Path, problems: list[str], heavy: dict) -> None:
     song = {"r2_key": "music/upl_selftestsong"}
     base = spec_for("new", "dmp_steer1", [{"id": "ast_steer", "r2_key": "wide.mp4", "allowed_platforms": ["tiktok", "instagram", "youtube"], "file_note": None}])
     grid = {**base, "rotation": ["grid_eight"], "looks": {"grid_eight": {"punch_in": True, "music": False}}, "music": [song], "target_clips": {"min": 3, "max": 3},
-            "steer": {"rotation": ["grid_eight"], "count": None, "include": [], "avoid": [], "allowed_recipes": list(cut.RECIPE_ORDER)}}
+            "steer": {"rotation": ["grid_eight"], "looks_asked": True, "count": None, "include": [], "avoid": [], "allowed_recipes": list(cut.RECIPE_ORDER)}}
     r = cut.cut_dump(grid, work / "w1", download, upload, FakeJob().progress, heavy)
     # Studio fix (owner, 23 Oct 2026: "Grid-of-four showing the same roses in 3 of 4 cells"): a grid is
     # made only from as many DIFFERENT shots as it has cells. One unseen video has no 8 different shots,
@@ -572,6 +572,12 @@ def check_steer(tmp: Path, problems: list[str], heavy: dict) -> None:
             problems.append("steer: music under a clip after \"no music\"")
     if any(c["look"] != "grid_eight" for c in r["clips"]) and not any("different shots" in x.get("why", "") for x in r.get("steer_report") or []):
         problems.append("steer: the 2x4 grid she asked for was skipped without telling her why")
+    # A look she never asked for is never listed as "not followed" (owner, 13 Nov 2026): the same cut
+    # with the grid coming from the studio's own rotation says nothing about it.
+    quiet = {**grid, "dump_id": "dmp_steer1b", "output_prefix": "clips/dmp_steer1b/", "steer": {**grid["steer"], "looks_asked": False}}
+    r = cut.cut_dump(quiet, work / "w1b", download, upload, FakeJob().progress, heavy)
+    if any("different shots" in x.get("why", "") for x in r.get("steer_report") or []):
+        problems.append("steer: a look she never asked for was reported as not followed")
     short = {k: {"minS": 8, "maxS": min(v["maxS"], 20)} for k, v in cut.DEFAULT_RECIPES.items()}
     tune = {**base, "dump_id": "dmp_steer2", "output_prefix": "clips/dmp_steer2/", "rotation": ["clean"], "looks": {"clean": {"music": True}}, "music": [song], "recipes": short,
             "target_clips": {"min": 2, "max": 2}, "steer": {"rotation": ["clean"], "count": 2, "include": [], "avoid": [], "allowed_recipes": list(cut.RECIPE_ORDER)}}

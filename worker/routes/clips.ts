@@ -28,7 +28,8 @@ import { fail, readJson } from "../lib/http";
 import { newId, nowIso } from "../lib/ids";
 import { log } from "../lib/log";
 import { canTransition, type ClipStatus } from "../domain/approval";
-import { PLATFORMS, RECIPES, REJECT_REASONS, type Platform, type Recipe } from "@shared/constants";
+import { PLATFORMS, RECIPES, REJECT_REASONS, WRONG_WORDS, type Platform, type Recipe } from "@shared/constants";
+import { rewriteDumpWords } from "../lib/rewriteWords";
 import type { ClipRow } from "@shared/types";
 import { cellCount, cleanGridLayout, defaultGridLayout, editingFromStored, isGridLook, isLookId, LOOK_IDS, lookById, ZOOMS, type GridLayout, type LookId, type StoredEditing } from "../domain/looks";
 import { tracksOf } from "../lib/steerStore";
@@ -537,6 +538,27 @@ interface Decision {
   ok: boolean;
   status?: number;
   error?: string;
+  /** "Wrong words": the post was not rejected; its words are being written again. */
+  rewriting?: boolean;
+}
+
+/** How long a "Wrong words" tap may wait on the new words; what is not written by then comes in the hourly pass. */
+const WRONG_WORDS_BUDGET_MS = 20_000;
+
+/**
+ * "Wrong words" on a New post: its words are written again (the same path as the host's
+ * rewrite-words, worker/lib/rewriteWords.ts), it stays in New, and the line she turned down is kept
+ * for learning (event clip.words_rejected, read by worker/domain/studioMemory.ts). False when the
+ * words can't be rewritten for this one (an edited clip, a dump still cutting): then it is a plain no.
+ */
+async function rewriteWrongWords(env: Env, clip: { id: string; dump_id: string }, actor: string): Promise<boolean> {
+  const row = await env.DB.prepare("SELECT number, hook_text FROM clips WHERE id = ? AND status = 'draft' AND style_of IS NULL").bind(clip.id).first<{ number: number | null; hook_text: string }>();
+  if (!row || row.number === null) return false;
+  const r = await rewriteDumpWords(env, clip.dump_id, [row.number], false, false, WRONG_WORDS_BUDGET_MS);
+  if (!r || r.cleared < 1) return false;
+  await recordEvent(env.DB, "clip.words_rejected", clip.id, { hook: row.hook_text.replace(/\s+/g, " ").trim().slice(0, 80) }, actor);
+  await recordEvent(env.DB, "dump.rewrite_words", clip.dump_id, { ...r, by: "wrong words" }, actor);
+  return true;
 }
 
 /** Posts already handed to Buffer keep their file; she can change them only from the Calendar. */
@@ -580,6 +602,11 @@ export async function decide(env: Env, id: string, to: ClipStatus, actor: string
   // Its words are still being written: approving now would post a half caption.
   if (to === "approved" && clip.words_pending) return { ok: false, status: 409, error: "This clip's words are still being written. It can be approved as soon as they are in, usually within the hour." };
 
+  if (to === "rejected" && reason === WRONG_WORDS && clip.status === "draft" && (await rewriteWrongWords(env, clip, actor))) {
+    touched.add(clip.dump_id);
+    return { ok: true, rewriting: true };
+  }
+
   const now = nowIso();
   if (to === "rejected" || to === "deleted") {
     // Its other looks (styles) go with it: they are options of this clip, not clips of their own.
@@ -592,7 +619,12 @@ export async function decide(env: Env, id: string, to: ClipStatus, actor: string
   if (to === "deleted") {
     await removeFiles(env, [clip.r2_key, clip.cover_r2_key, ...(await versionFiles(env, id))]);
     await env.DB.batch([
-      env.DB.prepare("UPDATE clips SET status = 'deleted', media_token = NULL, reviewed_at = ? WHERE id = ?").bind(now, id),
+      // "Delete for good" removes the file, never what was learned: a rejected post keeps its reason
+      // (a no with no reason becomes "other"), its words and the day she said no, so Studio Memory
+      // still reads it (worker/domain/studioMemory.ts loadMemory).
+      env.DB.prepare(
+        "UPDATE clips SET media_token = NULL, reject_reason = CASE WHEN status = 'rejected' THEN COALESCE(reject_reason, 'other') ELSE NULL END, reviewed_at = CASE WHEN status = 'rejected' THEN COALESCE(reviewed_at, ?) ELSE ? END, status = 'deleted' WHERE id = ?",
+      ).bind(now, now, id),
       env.DB.prepare("UPDATE posts SET status = 'unscheduled' WHERE clip_id = ? AND status = 'planned'").bind(id),
     ]);
   } else if (to === "rejected") {
@@ -620,8 +652,8 @@ async function single(c: Context<{ Bindings: Env; Variables: Vars }>, to: ClipSt
   const r = await decide(c.env, c.req.param("id") ?? "", to, c.get("user").email, reason, touched);
   if (!r.ok) return fail(c, (r.status ?? 409) as 404 | 409, r.error ?? "That did not work.", "review-and-approve-clips");
   await syncDumpStatus(c.env, touched);
-  log.info("clip.decide", { to });
-  return c.json({ ok: true });
+  log.info("clip.decide", { to, rewriting: !!r.rewriting });
+  return c.json({ ok: true, rewriting: !!r.rewriting });
 }
 
 clips.post("/:id/approve", (c) => single(c, "approved"));
@@ -644,14 +676,16 @@ clips.post("/bulk", async (c) => {
   const touched = new Set<string>();
   let done = 0;
   let skipped = 0;
+  let rewriting = 0;
   for (const id of ids) {
     const r = await decide(c.env, id, to, c.get("user").email, reason, touched);
     if (r.ok) done++;
     else skipped++;
+    if (r.rewriting) rewriting++;
   }
   await syncDumpStatus(c.env, touched);
-  log.info("clip.bulk", { action, done, skipped });
-  return c.json({ ok: true, done, skipped });
+  log.info("clip.bulk", { action, done, skipped, rewriting });
+  return c.json({ ok: true, done, skipped, rewriting });
 });
 
 // ---------------------------------------------------------------- edit
