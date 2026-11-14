@@ -8,7 +8,8 @@ import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { requireUser } from "../lib/auth";
 import { parseJson, recordEvent } from "../lib/db";
-import { TASTE_EVENT } from "../domain/studioMemory";
+import { loadTaste, TASTE_EVENT } from "../domain/studioMemory";
+
 import { fail, readJson } from "../lib/http";
 import { log, safeError } from "../lib/log";
 import { weekBounds, zonedToUtc, type PlannedPost, type SchedulableClip } from "../domain/slotting";
@@ -20,6 +21,9 @@ import { getBuffer } from "../services/buffer";
 import { newId, nowIso } from "../lib/ids";
 import { HARD_CAP_PER_CHANNEL_PER_WEEK, PLATFORMS, PLATFORM_LABEL, type Platform } from "@shared/constants";
 import type { ClipRow, PostRow } from "@shared/types";
+
+/** How far one "More like this" / "Less like this" moves a kind up or down the week (scores are 0–1). */
+export const TASTE_LEAN = 0.3;
 
 export const posts = new Hono<{ Bindings: Env; Variables: Vars }>();
 posts.use("*", requireUser);
@@ -71,9 +75,13 @@ export async function planAhead(env: Env, opts: { weeks?: number; startWeek?: nu
   const fullClipIds = new Set(fullRows.map((r) => r.id));
   const existing = await activePosts(env);
   const hasActive = new Set(existing.map((p) => p.clip_id));
+  // The weekly mix leans on what she said (owner, 13 Nov 2026): kinds she tapped "More like this" on go
+  // ahead of the rest, "Less like this" kinds behind them (TASTE_LEAN on the 0–1 score).
+  const taste = await loadTaste(env);
+  const lean = (kind: string | null) => (kind && taste.more.includes(`clip:${kind}`) ? TASTE_LEAN : kind && taste.less.includes(`clip:${kind}`) ? -TASTE_LEAN : 0);
   const clips: SchedulableClip[] = rows
     .filter((r) => !(opts.respectHeld && r.held && !hasActive.has(r.id)))
-    .map((r) => ({ id: r.id, asset_id: r.asset_id, score: r.score, door: r.door, full: !!r.full_video, kind: r.clip_type, platforms: (r.full_video ? ["youtube"] : parseJson<Platform[]>(r.platforms, [...PLATFORMS])).filter((p): p is Platform => PLATFORMS.includes(p as Platform)) }));
+    .map((r) => ({ id: r.id, asset_id: r.asset_id, score: r.score + lean(r.clip_type), door: r.door, full: !!r.full_video, kind: r.clip_type, platforms: (r.full_video ? ["youtube"] : parseJson<Platform[]>(r.platforms, [...PLATFORMS])).filter((p): p is Platform => PLATFORMS.includes(p as Platform)) }));
 
   const caps = Object.fromEntries(PLATFORMS.map((p) => [p, Math.min(s.weekly_caps[p] ?? 0, s.hard_cap_per_channel, HARD_CAP_PER_CHANNEL_PER_WEEK)])) as Record<Platform, number>;
   const weeks = Math.max(1, Math.min(opts.weeks ?? PLAN_AHEAD_WEEKS, MAX_PLAN_WEEKS));

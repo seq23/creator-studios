@@ -359,6 +359,19 @@ describe("More like this / Less like this", () => {
     expect((await call("POST", "/api/posts/item/pst_gone/taste", { more: true })).status).toBe(404);
   });
 
+  it("the weekly plan puts a kind she asked for more of ahead of a better-scored one", async () => {
+    const { recordEvent } = await import("@worker/lib/db");
+    await seedClips(2);
+    raw.exec("UPDATE clips SET clip_type = 'moving_photo', score = 0.9 WHERE id = 'clp_0'; UPDATE clips SET clip_type = 'team_working', score = 0.8 WHERE id = 'clp_1'");
+    const firstTikTok = () => (raw.prepare("SELECT clip_id FROM posts WHERE platform = 'tiktok' ORDER BY scheduled_at LIMIT 1").get() as { clip_id: string }).clip_id;
+    await planAhead(env, { weeks: 1, respectHeld: false });
+    expect(firstTikTok()).toBe("clp_0");
+    raw.exec("DELETE FROM posts");
+    await recordEvent(env.DB, "post.taste", null, { kind: "clip:team_working", more: true }, "owner");
+    await planAhead(env, { weeks: 1, respectHeld: false });
+    expect(firstTikTok()).toBe("clp_1");
+  });
+
   it("Less like this on a photo set: the next pack plans no photo sets while other kinds remain", async () => {
     await readyPack();
     const set = raw.prepare("SELECT id FROM social_posts WHERE item_kind = 'carousel' LIMIT 1").get() as { id: string };
