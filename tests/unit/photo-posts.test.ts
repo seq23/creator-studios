@@ -492,3 +492,23 @@ describe("photo sets on Instagram and TikTok", () => {
     expect(sets.map((p) => [p.platform, p.status]).sort()).toEqual([["instagram", "posted"], ["tiktok", "posted"]]);
   });
 });
+
+// Released posts are spread out (14 Nov 2026: Porch & Party's 7 waiting Facebook posts were all
+// released to the same minute when her Page showed up in Buffer).
+describe("posts released after waiting", () => {
+  it("each platform's released posts go out on different days, at the post hour, after the heads-up lead", async () => {
+    const { replanWaiting } = await import("@worker/lib/photoPosts");
+    await readyPack(["main", "main", "main"], "clean");
+    raw.exec("UPDATE social_posts SET status = 'waiting', error = 'connect:' || platform");
+    const before = posts().length;
+    expect(before).toBeGreaterThanOrEqual(4);
+    const n = await replanWaiting(env, NOW);
+    expect(n).toBe(before);
+    const rows = posts();
+    for (const platform of new Set(rows.map((r) => r.platform))) {
+      const days = rows.filter((r) => r.platform === platform).map((r) => r.scheduled_at.slice(0, 10));
+      expect(new Set(days).size, `${platform}: ${days.join(", ")}`).toBe(days.length);
+    }
+    for (const r of rows) expect(Date.parse(r.scheduled_at)).toBeGreaterThanOrEqual(NOW + CFG.headsUpHours * 3_600_000);
+  });
+});
