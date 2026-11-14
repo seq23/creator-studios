@@ -52,10 +52,10 @@ Under **More options**, **Voice over** decides for this batch: on quiet clips (y
 ## See what was tried
 
 ![Step 6](/help/screenshots/steer-a-dump-6.png)
-<!-- route: / -->
-<!-- target: main a.list-row >> nth=0 -->
+<!-- route: /dump/demo_dump_2 -->
+<!-- target: [data-tried] -->
 
-When they are ready, it says what it made (like "4 posts: 2 of the team working, 1 set-up, 1 walk-in"), which videos it couldn't use and why, and anything it couldn't do as asked.
+When they are ready, the batch's own page (the link in the "ready" email) says what it made (like "4 posts: 2 of the team working, 1 set-up, 1 walk-in"), which videos it couldn't use and why, and anything it couldn't do as asked.
 
 ## Did this work?
 
