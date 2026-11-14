@@ -99,6 +99,7 @@ export function fillWeek(input: {
     return !w || !w.has("other");
   };
 
+  const kindOf = new Map(clips.map((c) => [c.id, c.kind ?? null]));
   const slotMap = slotsForWeek(weekStart, timeZone, caps, slots);
   const ordered = orderForWeek(clips.filter(eligibleClip));
   const out: PlannedPost[] = [];
@@ -112,17 +113,29 @@ export function fillWeek(input: {
     let fullThisWeek = inWeek.filter((p) => full.has(p.clip_id)).length;
     // Reels that have never been out on this platform first; rested repeats only after them.
     const fresh = ordered.filter((c) => !everOn.has(`${c.id}|${platform}`));
-    for (const c of [...fresh, ...ordered.filter((c) => everOn.has(`${c.id}|${platform}`))]) {
-      if (room <= 0 || !free.length) break;
-      if (!c.platforms.includes(platform) || onPlatform.has(`${c.id}|${platform}`)) continue;
-      if (full.has(c.id)) {
-        if (platform !== "youtube" || fullThisWeek >= 1) continue; // a full video is YouTube only, one a week
-        fullThisWeek++;
-      }
-      out.push({ clip_id: c.id, platform, scheduled_at: free.shift() as string });
-      onPlatform.add(`${c.id}|${platform}`);
-      room--;
+    // No one kind takes more than about half of a platform's week while another kind is waiting
+    // (owner, 13 Nov 2026); the second pass fills whatever room is left, so no slot is left empty.
+    const kindIn = new Map<string, number>();
+    for (const p of inWeek) {
+      const k = kindOf.get(p.clip_id);
+      if (k) kindIn.set(k, (kindIn.get(k) ?? 0) + 1);
     }
+    const half = Math.ceil(cap / 2);
+    const queue = [...fresh, ...ordered.filter((c) => everOn.has(`${c.id}|${platform}`))];
+    for (const pass of [1, 2])
+      for (const c of queue) {
+        if (pass === 1 && c.kind && (kindIn.get(c.kind) ?? 0) >= half) continue;
+        if (room <= 0 || !free.length) break;
+        if (!c.platforms.includes(platform) || onPlatform.has(`${c.id}|${platform}`)) continue;
+        if (full.has(c.id)) {
+          if (platform !== "youtube" || fullThisWeek >= 1) continue; // a full video is YouTube only, one a week
+          fullThisWeek++;
+        }
+        out.push({ clip_id: c.id, platform, scheduled_at: free.shift() as string });
+        onPlatform.add(`${c.id}|${platform}`);
+        if (c.kind) kindIn.set(c.kind, (kindIn.get(c.kind) ?? 0) + 1);
+        room--;
+      }
   }
   return out.sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at));
 }
