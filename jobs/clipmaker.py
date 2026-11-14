@@ -321,15 +321,20 @@ def plan_typed(looks: list[S.Look], pb: dict[str, Any], target: dict[str, int], 
 
     want = int(target.get("max") or DEFAULT_TARGET["max"])
     niche_first = [t for t in pb.get("order", []) if t in TRY_ORDER and t in (pb.get("niche_first") or [])]
-    order = list(dict.fromkeys([*niche_first, *TRY_ORDER]))
-    dead: set[tuple[str, str]] = set()
-    progress = True
-    rounds = 0
-    while len(plans) < want and progress and rounds < 12:
+    more = [t for t in pb.get("more") or [] if t in TRY_ORDER]
+    less = {t for t in pb.get("less") or [] if t in TRY_ORDER}
+    # Her "More like this" kinds first, then the niche's; her "Less like this" kinds only fill a batch the
+    # others leave short (owner, 13 Nov 2026).
+    order = list(dict.fromkeys([*more, *niche_first, *TRY_ORDER]))
+    for allowed in ([t for t in order if t not in less], order):
+      dead: set[tuple[str, str]] = set()
+      progress = True
+      rounds = 0
+      while len(plans) < want and progress and rounds < 12:
         progress = False
         rounds += 1
         for ev_id, ev in sorted(events.items()):
-            for ctype in order:
+            for ctype in allowed:
                 if len(plans) >= want:
                     break
                 if (ev_id, ctype) in dead:

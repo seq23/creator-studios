@@ -50,6 +50,40 @@ export interface MemorySummary {
   rejection: { rate: number; reviewed: number; window_days: number };
   approach: Approach;
   why: string;
+  /** "More like this" / "Less like this" on a post (owner, 13 Nov 2026): the kinds she asked for more or less of. */
+  taste?: Taste;
+}
+
+/** Kinds are "clip:<clip_type>" or "photo:<item_kind>". */
+export interface Taste {
+  more: string[];
+  less: string[];
+}
+
+export const TASTE_EVENT = "post.taste";
+
+/** Her taps, newest first, as the kinds she wants more and less of: the latest tap per kind wins. Pure. */
+export function tasteFrom(taps: readonly { kind: string; more: boolean }[]): Taste {
+  const seen = new Map<string, boolean>();
+  for (const t of taps) if (t.kind && !seen.has(t.kind)) seen.set(t.kind, t.more);
+  return { more: [...seen].filter(([, m]) => m).map(([k]) => k), less: [...seen].filter(([, m]) => !m).map(([k]) => k) };
+}
+
+/** Her taps in the memory window. */
+export async function loadTaste(env: Pick<Env, "DB">): Promise<Taste> {
+  const since = new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString();
+  const { results } = await env.DB.prepare("SELECT detail FROM events WHERE kind = ? AND created_at >= ? ORDER BY created_at DESC, rowid DESC LIMIT 200").bind(TASTE_EVENT, since).all<{ detail: string }>();
+  const taps = results
+    .map((r) => {
+      try {
+        const d = JSON.parse(r.detail) as { kind?: unknown; more?: unknown };
+        return typeof d.kind === "string" && typeof d.more === "boolean" ? { kind: d.kind, more: d.more } : null;
+      } catch {
+        return null;
+      }
+    })
+    .filter((x): x is { kind: string; more: boolean } => !!x);
+  return tasteFrom(taps);
 }
 
 function clip(s: string, n: number): string {
@@ -169,5 +203,5 @@ export async function loadMemory(env: Pick<Env, "DB">): Promise<MemorySummary> {
     await recordEvent(env.DB, "studio.approach_switched", null, { from: prev, to: m.approach, rate: m.rejection.rate, reviewed: m.rejection.reviewed, why: m.why });
     log.warn("studio.approach_switched", { from: prev, to: m.approach, rate: m.rejection.rate, reviewed: m.rejection.reviewed });
   }
-  return m;
+  return { ...m, taste: await loadTaste(env) };
 }

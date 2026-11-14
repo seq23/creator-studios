@@ -8,6 +8,7 @@ import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { requireUser } from "../lib/auth";
 import { parseJson, recordEvent } from "../lib/db";
+import { TASTE_EVENT } from "../domain/studioMemory";
 import { fail, readJson } from "../lib/http";
 import { log, safeError } from "../lib/log";
 import { weekBounds, zonedToUtc, type PlannedPost, type SchedulableClip } from "../domain/slotting";
@@ -154,6 +155,29 @@ posts.get("/item/:id", async (c) => {
   const item = await postItem(c.env, c.req.param("id"));
   if (!item) return fail(c, 404, "That post is gone. Go back to Posts and look again.");
   return c.json(item);
+});
+
+/**
+ * "More like this" / "Less like this" on any post (owner, 13 Nov 2026). Saved as a tap on the kind of
+ * post (a reel's clip type, or a photo post's kind); the studio memory reads the latest tap per kind
+ * and the next batch makes more of it, or uses it only to fill (worker/domain/studioMemory.ts tasteFrom).
+ */
+posts.post("/item/:id/taste", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { more?: unknown };
+  if (typeof body.more !== "boolean") return fail(c, 400, "Pick More like this or Less like this.");
+  const item = await postItem(c.env, c.req.param("id"));
+  if (!item) return fail(c, 404, "That post is gone. Go back to Posts and look again.");
+  let kind: string | null = null;
+  if (item.source === "clip") {
+    const r = await c.env.DB.prepare("SELECT clip_type FROM clips WHERE id = ?").bind(item.ref_id).first<{ clip_type: string | null }>();
+    kind = r?.clip_type ? `clip:${r.clip_type}` : null;
+  } else {
+    const r = await c.env.DB.prepare("SELECT item_kind FROM social_posts WHERE id = ?").bind(item.id).first<{ item_kind: string }>();
+    kind = r ? `photo:${r.item_kind}` : null;
+  }
+  if (!kind) return fail(c, 409, "This post is an older kind the studio cannot learn from. Try another post.");
+  await recordEvent(c.env.DB, TASTE_EVENT, item.id, { kind, more: body.more }, "owner");
+  return c.json({ ok: true, kind, more: body.more });
 });
 
 /** Posts per page in Calendar → History (day 358). */
