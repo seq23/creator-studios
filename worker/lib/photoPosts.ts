@@ -48,6 +48,13 @@ import {
   type SocialPostView,
 } from "@shared/photoPosts";
 
+/**
+ * A photo post due now goes to Buffer a few minutes ahead: Buffer refuses a time that is not in the
+ * future ("Scheduled time must be in the future": Porch & Party's first Facebook post, 14 Nov 2026).
+ */
+export const BUFFER_LEAD_MS = 5 * 60_000;
+const bufferSoon = (): string => new Date(Date.now() + BUFFER_LEAD_MS).toISOString();
+
 export const photoConfig = (env: Pick<Env, "PHOTO_POSTS">): PhotoPostsConfig => parsePhotoPosts(env.PHOTO_POSTS);
 export const contentRules = (env: Pick<Env, "CONTENT_RULES">): ContentRules => parseRules(env.CONTENT_RULES);
 
@@ -435,7 +442,7 @@ export async function sendPost(env: Env, row: PostRow): Promise<SocialPostStatus
         title: env.APP_NAME,
         mediaUrl: mediaUrl(env, item.media_token, video ? "video" : 0),
         imageUrls: video ? undefined : images.map((_, i) => mediaUrl(env, item.media_token!, i)),
-        scheduledAt: new Date().toISOString(),
+        scheduledAt: bufferSoon(),
       });
       result = { ok: r.ok, id: r.id, url: null, error: r.error };
     } else if (row.platform === "facebook") {
@@ -451,7 +458,7 @@ export async function sendPost(env: Env, row: PostRow): Promise<SocialPostStatus
       if (!channel) return wait(`connect:${row.platform}`);
       // A photo set goes as photos (Instagram carousel, TikTok photo post): at most 10, in order.
       const photoUrls = video ? undefined : images.slice(0, 10).map((_, i) => mediaUrl(env, item.media_token!, i));
-      const r = await buffer.createPost({ channelId: channel.id, platform: row.platform, text, title: video ? env.APP_NAME : row.caption.split("\n")[0].slice(0, 90), mediaUrl: mediaUrl(env, item.media_token, video ? "video" : 0), imageUrls: photoUrls, scheduledAt: new Date().toISOString(), aiGenerated: aiMade });
+      const r = await buffer.createPost({ channelId: channel.id, platform: row.platform, text, title: video ? env.APP_NAME : row.caption.split("\n")[0].slice(0, 90), mediaUrl: mediaUrl(env, item.media_token, video ? "video" : 0), imageUrls: photoUrls, scheduledAt: bufferSoon(), aiGenerated: aiMade });
       result = { ok: r.ok, id: r.id, url: null, error: r.error };
     }
   } catch (e) {

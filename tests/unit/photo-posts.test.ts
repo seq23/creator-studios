@@ -437,6 +437,8 @@ describe("Facebook through Buffer", () => {
     expect((set!.assets as { image: { url: string } }[]).length).toBeGreaterThanOrEqual(2);
     for (const a of set!.assets as { image: { url: string } }[]) expect(a.image.url).toMatch(/^https:\/\/pnp\.example\/media\/p\//);
     expect(set!.metadata).toEqual({ facebook: { type: "post" } });
+    // Buffer refuses a time that is not in the future (14 Nov 2026): every post is handed over ahead of now.
+    for (const c of created) expect(Date.parse(String(c.dueAt))).toBeGreaterThan(Date.now());
     const row = posts().find((p) => p.platform === "facebook" && p.item_kind === "carousel")!;
     expect(row.status).toBe("posted");
   });
@@ -484,6 +486,7 @@ describe("photo sets on Instagram and TikTok", () => {
     const tt = photos.find((c) => c.channelId === "ttch")!;
     expect((ig.assets as unknown[]).length).toBeGreaterThanOrEqual(2);
     expect(ig.metadata).toEqual({ instagram: { type: "carousel", shouldShareToFeed: true } });
+    for (const c of created) expect(Date.parse(String(c.dueAt))).toBeGreaterThan(Date.now());
     expect((tt.metadata as { tiktok: { title: string } }).tiktok.title.length).toBeGreaterThan(0);
     const sets = posts().filter((p) => p.item_kind === "carousel");
     expect(sets.map((p) => [p.platform, p.status]).sort()).toEqual([["instagram", "posted"], ["tiktok", "posted"]]);
