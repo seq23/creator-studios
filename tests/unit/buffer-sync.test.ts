@@ -15,6 +15,7 @@ import {
   readBackDecision,
   shouldCheckBuffer,
   type ExistingPost,
+  REST_WEEKS,
 } from "@worker/domain/sync";
 import { planWeek, weekBounds, zonedToUtc, type SchedulableClip } from "@worker/domain/slotting";
 import { FakeBuffer, platformOf, resetFakeBuffer } from "@worker/services/buffer";
@@ -36,6 +37,23 @@ const asExisting = (ps: { clip_id: string; platform: ExistingPost["platform"]; s
 const count = (ps: { platform: string }[], p: string) => ps.filter((x) => x.platform === p).length;
 
 describe("fillWeek (plan ahead)", () => {
+  // Repeat after a rest (owner, 13 Nov 2026): REST_WEEKS after it went out, a reel may go out on the
+  // same platform again, but never ahead of one that has not been out there yet.
+  it("a reel that went out more than the rest ago fills a slot again, after every fresh reel", () => {
+    const longAgo = new Date(Date.parse(WEEK.start) - (REST_WEEKS * 7 + 1) * 86_400_000).toISOString();
+    const recent = new Date(Date.parse(WEEK.start) - (REST_WEEKS * 7 - 1) * 86_400_000).toISOString();
+    const old = clips(12).map((c) => ({ ...c, id: `old_${c.id}` }));
+    const done = asExisting(old.map((c) => ({ clip_id: c.id, platform: "tiktok" as const, scheduled_at: longAgo })), "posted");
+    const two = clips(2);
+    const out = fill([...two, ...old], done).filter((p) => p.platform === "tiktok");
+    expect(out).toHaveLength(10);
+    expect(out.slice(0, 2).map((p) => p.clip_id).sort()).toEqual(two.map((c) => c.id).sort());
+    expect(out.filter((p) => p.clip_id.startsWith("old_"))).toHaveLength(8);
+    // Inside the rest, the same reels stay out.
+    const notYet = asExisting(old.map((c) => ({ clip_id: c.id, platform: "tiktok" as const, scheduled_at: recent })), "posted");
+    expect(fill([...two, ...old], notYet).filter((p) => p.platform === "tiktok" && p.clip_id.startsWith("old_"))).toEqual([]);
+  });
+
   it("an empty week at launch caps gets 22 posts from 10 unique clips: 10 / 7 / 5", () => {
     const out = fill(clips(12));
     expect(out).toHaveLength(22);
