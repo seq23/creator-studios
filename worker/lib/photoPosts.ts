@@ -547,6 +547,22 @@ export async function replanWaiting(env: Env, now = Date.now()): Promise<number>
   const { results } = await env.DB.prepare("SELECT id, platform, error, pack_id FROM social_posts WHERE status = 'waiting'").all<{ id: string; platform: Social; error: string | null; pack_id: string }>();
   let n = 0;
   const cfg = photoConfig(env);
+  // A released post takes the first free post-hour day for its platform, never "all at once"
+  // (14 Nov 2026: Porch & Party's 7 Facebook posts were all released to the same minute).
+  const tz = await timeZone(env);
+  const { results: busy } = await env.DB.prepare("SELECT platform, scheduled_at FROM social_posts WHERE status IN ('scheduled', 'sending', 'posted') AND scheduled_at >= ?").bind(new Date(now - 86_400_000).toISOString()).all<{ platform: Social; scheduled_at: string }>();
+  const taken = new Set(busy.map((r) => `${r.platform}|${localDate(Date.parse(r.scheduled_at), tz)}`));
+  const nextFree = (platform: Social): string => {
+    const earliest = now + cfg.headsUpHours * 3_600_000;
+    for (let k = 0; k < 120; k++) {
+      const [y, m, d] = localDate(earliest + k * 86_400_000, tz).split("-").map(Number);
+      const at = zonedToUtc(y, m, d, cfg.postHour, 0, tz);
+      if (Date.parse(at) < earliest || taken.has(`${platform}|${localDate(Date.parse(at), tz)}`)) continue;
+      taken.add(`${platform}|${localDate(Date.parse(at), tz)}`);
+      return at;
+    }
+    return new Date(earliest).toISOString();
+  };
   for (const p of results) {
     const why = p.error ?? "";
     let ready = false;
@@ -556,7 +572,7 @@ export async function replanWaiting(env: Env, now = Date.now()): Promise<number>
       ready = !!pk && !photoGate(pk.privacy, contentRules(env)) && !practice(env, "github");
     }
     if (!ready) continue;
-    await env.DB.prepare("UPDATE social_posts SET status = 'scheduled', error = NULL, heads_up_at = NULL, scheduled_at = ? WHERE id = ? AND status = 'waiting'").bind(new Date(now + cfg.headsUpHours * 3_600_000).toISOString(), p.id).run();
+    await env.DB.prepare("UPDATE social_posts SET status = 'scheduled', error = NULL, heads_up_at = NULL, scheduled_at = ? WHERE id = ? AND status = 'waiting'").bind(nextFree(p.platform), p.id).run();
     n++;
   }
   return n;
