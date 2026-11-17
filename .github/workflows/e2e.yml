@@ -23,6 +23,8 @@ on:
       - "vite.config.ts"
       - "package.json"
       - "package-lock.json"
+      - "tests/e2e/**"
+      - "playwright.config.ts"
   workflow_dispatch:
 
 concurrency:
