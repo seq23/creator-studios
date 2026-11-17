@@ -183,6 +183,10 @@ test("open a post of each kind: watch it, read the whole caption, change the wor
   await page.goto("/calendar");
   const list = page.locator("[data-posts-list]");
   const reel = list.locator('.post-row[data-kind="reel"]').last();
+  // She has scrolled down the list to this post. Scroll there on purpose: whether the last reel
+  // already sits on screen depends on the day and hour the plan was made; when it was already
+  // on screen nothing scrolled, there was no position to keep, and the check below read 0.
+  await reel.evaluate((el) => el.scrollIntoView({ block: "center" }));
   await reel.getByRole("button", { name: /^Open/ }).click();
   const sheet = page.getByRole("dialog");
   await expect(sheet).toBeVisible();
