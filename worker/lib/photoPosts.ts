@@ -34,6 +34,7 @@ import { loadTaste } from "../domain/studioMemory";
 import {
   AI_MADE,
   PACK_MAX_PHOTOS,
+  PACK_PLAN,
   ITEM_LABEL,
   parsePhotoPosts,
   SOCIAL_LABEL,
@@ -294,9 +295,12 @@ export async function schedulePack(env: Env, packId: string, now = Date.now()): 
   const kinds = items.map((i) => i.kind);
   const wanted = kinds.filter((k) => !less.has(`photo:${k}`));
   const plan = planPack(now, cfg, tz, wanted.length ? wanted : kinds, taken, weekFull);
+  // A caption per platform AND piece: each piece of a pack on one channel gets its own caption
+  // (18 Nov 2026: one caption per platform sent the same Facebook text three days running).
   const order: Record<Social, number> = { facebook: 0, instagram: 1, tiktok: 2, pinterest: 0 };
+  const piece = (k: ItemKind): number => Math.max(0, PACK_PLAN.findIndex((x) => x.kind === k));
   for (const p of plan) {
-    const caption = captions[order[p.platform] % Math.max(1, captions.length)] ?? "";
+    const caption = captions[(order[p.platform] + piece(p.kind)) % Math.max(1, captions.length)] ?? "";
     await env.DB.prepare("INSERT INTO social_posts (id, pack_id, item_kind, platform, caption, scheduled_at, status) VALUES (?, ?, ?, ?, ?, ?, 'scheduled')").bind(newId("spo"), packId, p.kind, p.platform, caption, p.scheduled_at).run();
   }
   log.info("photos.planned", { posts: plan.length });
