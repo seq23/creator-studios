@@ -139,6 +139,18 @@ describe("auto-post with a heads-up and Skip", () => {
     expect(FakeFacebook.posted.length).toBe(1);
   });
 
+  it("each piece of a pack gets its own caption on every platform: Facebook never sends the same text twice (18 Nov 2026)", async () => {
+    await readyPack(["before", "after"], "clean");
+    const byPlatform = new Map<string, string[]>();
+    for (const p of posts()) byPlatform.set(p.platform, [...(byPlatform.get(p.platform) ?? []), p.caption]);
+    expect(byPlatform.get("facebook")!.length).toBe(3);
+    for (const [, caps] of byPlatform) expect(new Set(caps).size).toBe(caps.length);
+    for (const day of ["2026-10-23", "2026-10-24", "2026-10-25"]) await tick(Date.parse(`${day}T16:05:00.000Z`));
+    const texts = FakeFacebook.posted.map((p) => p.text);
+    expect(texts.length).toBe(3);
+    expect(new Set(texts).size).toBe(3);
+  });
+
   it("a skipped post NEVER goes out (in-app Skip)", async () => {
     await readyPack();
     const fb = posts().find((p) => p.platform === "facebook" && p.item_kind === "reel")!;
