@@ -84,6 +84,7 @@ describe("the daily clean-up on a real studio", () => {
     expect(pageHtml).toContain("Download all");
     expect(pageHtml).toContain("IMG_1.MOV");
     expect(pageHtml).toContain("Keep them");
+    expect(pageHtml).toContain(`Clears ${at(RAW_RETENTION_DAYS).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Chicago" })}`);
     const file = await open(`${link}/file/ast_r1`);
     expect(file.status).toBe(200);
     expect(file.headers.get("content-disposition")).toBe('attachment; filename="IMG_1.MOV"');
@@ -92,7 +93,7 @@ describe("the daily clean-up on a real studio", () => {
     expect((await open(`/originals/${batch}.${"0".repeat(32)}`)).status).toBe(404);
 
     expect((await originalsRetention(h.env, at(RAW_RETENTION_DAYS - 3))).warned3).toBe(1);
-    expect(emails()[1].subject).toMatch(/^Your original files clear in 3 days/);
+    expect(emails()[1].subject).toMatch(/^Last reminder: /);
     expect((await originalsRetention(h.env, at(RAW_RETENTION_DAYS - 1))).cleared_files).toBe(0);
     expect(await stored()).toBe(2);
     const done = await originalsRetention(h.env, at(RAW_RETENTION_DAYS));

@@ -4,7 +4,7 @@
 // Opening it only shows the files (mail scanners open links); Keep them is a button.
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
-import { readOriginalsToken } from "../domain/retention";
+import { clearDate, readOriginalsToken } from "../domain/retention";
 import { signedDownload } from "../services/s3files";
 import { gbWords } from "@shared/bytes";
 import { log } from "../lib/log";
@@ -17,7 +17,7 @@ function page(appName: string, title: string, body: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)} · ${esc(appName)}</title>
 <link rel="stylesheet" href="/studio-theme.css"><style>
 body{margin:0;font-family:var(--font-body,Helvetica,Arial,sans-serif);background:var(--bg,#f5f5f2);color:var(--ink,#1b1d21)}
-main{max-width:480px;margin:0 auto;padding:24px 16px}h1{font-size:26px;margin:0 0 16px}h2{font-size:18px;margin:0 0 8px}p{font-size:18px;line-height:1.5;margin:0 0 14px}
+main{max-width:480px;margin:0 auto;padding:24px 16px}h1{font-family:var(--font-heading,Georgia,"Times New Roman",serif);font-size:26px;margin:0 0 16px}.hint{font-size:15px;opacity:.8}h2{font-size:18px;margin:0 0 8px}p{font-size:18px;line-height:1.5;margin:0 0 14px}
 .card{background:var(--surface,#fff);border-radius:16px;padding:16px;margin:0 0 20px}
 .card a{display:flex;justify-content:space-between;gap:12px;min-height:44px;align-items:center;color:inherit;font-size:16px;border-top:1px solid rgba(0,0,0,.08);text-decoration:none}
 .card a span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.card a span:last-child{flex:none;font-weight:700;text-decoration:underline}
@@ -28,6 +28,11 @@ button{background:var(--ink,#1f2328);color:var(--bg,#fff)}button.alt,a.btn{backg
 
 interface Row {
   dump_id: string;
+  dump_status: string;
+  ready_at: string | null;
+  sent14: string | null;
+  sent3: string | null;
+  open_job: number;
   dump_created_at: string;
   kept: number;
   id: string;
@@ -40,7 +45,10 @@ async function load(env: Env, token: string): Promise<Row[] | null> {
   const batch = await readOriginalsToken(env.SESSION_SECRET, token);
   if (!batch) return null;
   const { results } = await env.DB.prepare(
-    `SELECT d.id AS dump_id, d.created_at AS dump_created_at, d.originals_kept AS kept, a.id, a.file_name, a.size_bytes, a.raw_deleted_at
+    `SELECT d.id AS dump_id, d.status AS dump_status, d.ready_at, d.created_at AS dump_created_at, d.originals_kept AS kept, a.id, a.file_name, a.size_bytes, a.raw_deleted_at,
+       (SELECT sent_at FROM file_notices x WHERE x.dump_id = d.id AND x.stage = '14') AS sent14,
+       (SELECT sent_at FROM file_notices x WHERE x.dump_id = d.id AND x.stage = '3') AS sent3,
+       EXISTS (SELECT 1 FROM jobs j WHERE j.ref_id = d.id AND j.status IN ('queued','dispatched','running')) AS open_job
      FROM file_notices n JOIN dumps d ON d.id = n.dump_id JOIN assets a ON a.dump_id = d.id AND a.upload_status = 'uploaded'
      WHERE n.batch_id = ? ORDER BY d.created_at, a.created_at`,
   )
@@ -49,7 +57,7 @@ async function load(env: Env, token: string): Promise<Row[] | null> {
   return results;
 }
 
-const back = (env: Env) => `<a class="btn" href="${esc(env.PUBLIC_BASE_URL)}">← Go to my studio</a>`;
+const back = (env: Env) => `<a class="btn" href="${esc(env.PUBLIC_BASE_URL)}">Go to my studio</a>`;
 const notFound = (env: Env) => page(env.APP_NAME, "Link not found", `<h1>This link does not work</h1><p>Open your studio to see your dumps.</p>${back(env)}`);
 
 originals.get("/:token", async (c) => {
@@ -64,20 +72,23 @@ originals.get("/:token", async (c) => {
   const cards = [...byDump.values()]
     .map((files) => {
       const day = new Date(files[0].dump_created_at.endsWith("Z") ? files[0].dump_created_at : `${files[0].dump_created_at}Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: tz });
-      return `<div class="card"><h2>Your dump from ${esc(day)}</h2>${files.map((f) => `<a class="dl" href="/originals/${esc(token)}/file/${esc(f.id)}" download="${esc(f.file_name)}"><span>${esc(f.file_name)}</span><span>${esc(gbWords(f.size_bytes))} · Download</span></a>`).join("")}</div>`;
+      const f0 = files[0];
+      const clears = clearDate({ id: f0.dump_id, status: f0.dump_status, ready_at: f0.ready_at, kept: f0.kept, open_job: f0.open_job, sent14: f0.sent14, sent3: f0.sent3 });
+      const when = f0.kept ? "Kept: never cleared." : clears ? `Clears ${clears.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: tz })}.` : "Not cleared while it is still being cut.";
+      return `<div class="card"><h2>Your dump from ${esc(day)}</h2><p class="hint">${esc(when)}</p>${files.map((f) => `<a class="dl" href="/originals/${esc(token)}/file/${esc(f.id)}" download="${esc(f.file_name)}"><span>${esc(f.file_name)}</span><span>${esc(gbWords(f.size_bytes))} · Download</span></a>`).join("")}</div>`;
     })
     .join("");
   if (!live.length) return c.html(page(c.env.APP_NAME, "Already cleared", `<h1>These files were already cleared</h1><p>Your clips, covers and posts are all still in your studio.</p>${back(c.env)}`));
   const keep = kept
     ? `<p><strong>Kept.</strong> These files will not be cleared.</p>`
-    : `<form method="post" action="/originals/${esc(token)}/keep"><button class="alt" type="submit">Keep them (never clear these)</button></form>`;
+    : `<p>Want ${live.length === 1 ? "it" : "them"} to stay in your studio instead?</p><form method="post" action="/originals/${esc(token)}/keep"><button class="alt" type="submit">Keep ${live.length === 1 ? "it" : "them"} in my studio</button></form>`;
   // Download all: one tap starts each file's download in turn (a phone asks once per file).
   const script = `<script>document.getElementById("all").addEventListener("click",function(){var l=document.querySelectorAll("a.dl"),i=0;(function n(){if(i>=l.length)return;l[i++].click();setTimeout(n,1500)})()});</script>`;
   return c.html(
     page(
       c.env.APP_NAME,
       "Your original files",
-      `<h1>Your original files</h1><p>${live.length} ${live.length === 1 ? "file" : "files"}, ${esc(gbWords(live.reduce((s, r) => s + (r.size_bytes ?? 0), 0)))}. Save them to your phone or computer, or keep them in your studio.</p><button id="all" type="button">Download all</button>${keep}${cards}${back(c.env)}${script}`,
+      `<h1>Your original files</h1><p>${live.length} ${live.length === 1 ? "file" : "files"}, ${esc(gbWords(live.reduce((s, r) => s + (r.size_bytes ?? 0), 0)))}. Save ${live.length === 1 ? "it" : "them"} to your phone or computer, or keep ${live.length === 1 ? "it" : "them"} in your studio.</p>${live.length > 1 ? `<button id="all" type="button">Download all</button><p class="hint">On a phone, tap each file below to save it; big videos save best on a computer.</p>` : `<p class="hint">Big videos save best on a computer.</p>`}${cards}${keep}${back(c.env)}${live.length > 1 ? script : ""}`,
     ),
   );
 });
@@ -107,5 +118,13 @@ originals.post("/:token/keep", async (c) => {
   const ids = [...new Set(rows.map((r) => r.dump_id))];
   await c.env.DB.batch(ids.map((id) => c.env.DB.prepare("UPDATE dumps SET originals_kept = 1 WHERE id = ?").bind(id)));
   log.info("originals.kept", { dumps: ids.length });
-  return c.html(page(c.env.APP_NAME, "Kept", `<h1>Done. They are kept.</h1><p>These original files will not be cleared. You can still download them from this link.</p><a class="btn" href="/originals/${esc(c.req.param("token"))}">← Back to the files</a>${back(c.env)}`));
+  const tz = c.env.AUDIENCE_TIMEZONE || "America/New_York";
+  const days = [...new Set(rows.map((r) => new Date(r.dump_created_at.endsWith("Z") ? r.dump_created_at : `${r.dump_created_at}Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: tz })))];
+  return c.html(
+    page(
+      c.env.APP_NAME,
+      "Kept",
+      `<h1>Kept in your studio</h1><p>Your original files from ${esc(days.join(", "))} will stay in your studio and will not be cleared.</p><form method="get" action="/originals/${esc(c.req.param("token"))}"><button type="submit">See my files</button></form>${back(c.env)}`,
+    ),
+  );
 });

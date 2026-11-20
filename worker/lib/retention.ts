@@ -41,24 +41,32 @@ const DUMPS_SQL = `SELECT d.id, d.status, d.ready_at, d.created_at, d.originals_
 const dayWords = (iso: string, tz: string) => new Date(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: tz });
 const dumpWords = (d: DumpFacts, tz: string) => `Your dump from ${new Date(d.created_at.endsWith("Z") ? d.created_at : `${d.created_at}Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: tz })}: ${d.files} ${d.files === 1 ? "file" : "files"}, ${gbWords(d.bytes)}`;
 
+/** "Hi Hadiyah," when the studio knows her name (the other studio emails' frame has no greeting of its own). */
+const greeting = (env: Env) => (env.OWNER_NAME?.trim() ? [`Hi ${env.OWNER_NAME.trim()},`] : []);
+
 /** The warning email (14 or 3 days). Pure apart from the token. */
 export async function warningEmail(env: Env, days: 14 | 3, dumps: (DumpFacts & { clears: string })[], batchId: string, tz: string) {
   const first = dumps.map((d) => d.clears).sort()[0];
   const url = `${env.PUBLIC_BASE_URL}/originals/${await originalsToken(env.SESSION_SECRET, batchId)}`;
   const lines = [
-    `To keep your studio inside its free space, the original videos and photos you dump are cleared ${RAW_RETENTION_DAYS} days after their clips are ready.`,
+    ...greeting(env),
+    days === 14
+      ? `Original videos are big, so your studio clears the ones you upload ${RAW_RETENTION_DAYS} days after their clips are ready, and never before two emails like this one.`
+      : "This is the last reminder before these original files are cleared.",
     ...dumps.map((d) => `${dumpWords(d, tz)}. Clears ${dayWords(d.clears, tz)}.`),
     "Your clips stay. Only the original uploads go.",
-    "Want them? Tap the button to save them to your phone or computer, or to keep them so they are never cleared.",
+    "Want them? Open your files to download them, or to keep them in your studio so they are never cleared.",
   ];
-  const title = days === 14 ? "Your original files clear in 14 days" : "Your original files clear in 3 days";
-  return { subject: `${title} (${dayWords(first, tz)})`, ...emailFrame(title, lines, { label: "Download all or keep them", url }) };
+  const title = `Your original files clear in ${days} days`;
+  const subject = days === 14 ? `${title} (${dayWords(first, tz)})` : `Last reminder: your original files clear ${dayWords(first, tz)}`;
+  return { subject, ...emailFrame(title, lines, { label: "Open my files", url }) };
 }
 
 /** The note after clearing. Pure. */
 export function clearedEmail(env: Env, dumps: DumpFacts[], tz: string) {
   const lines = [
-    "As the emails before said, these original files were cleared today to keep your studio inside its free space:",
+    ...greeting(env),
+    "After the two reminder emails, these original files were cleared today:",
     ...dumps.map((d) => `${dumpWords(d, tz)}.`),
     "Your clips, covers, captions and posts are all still there. Nothing else changed.",
   ];
