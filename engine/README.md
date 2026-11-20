@@ -47,3 +47,35 @@ Studio tier (checked 20 Nov 2026), so they are not used.
 # CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN (usage), CLOUDFLARE_WORKERS_AI_TOKEN (runs the model)
 node engine/imagine.mjs engine/plans/<plan>.json          # OUTPUT <n> images made
 ```
+
+## A fresh session's runbook (from a clean Mac shell)
+
+Everything below runs from a worktree of creator-studios `main`; secrets come only through the Boss
+OS vault; rendered files and verdicts live in `~/Work/porch-and-party/engine-out` (`ENGINE_OUT`).
+
+```bash
+git -C ~/GitHub/creator-studios worktree add ~/GitHub/.wt-engine-run origin/main
+WT=~/GitHub/.wt-engine-run; PLAN=$WT/engine/plans/pnp-2026-11-21.json
+export ENGINE_OUT=~/Work/porch-and-party/engine-out
+cd $WT/engine && npm ci
+
+# 1. new scenes (only after 00:00 UTC = 6 PM CT if today's engine allowance is spent)
+cd ~/GitHub/boss-os && npm run -s vault:run -- zsh -c "CLOUDFLARE_WORKERS_AI_TOKEN=\$T2R_CLOUDFLARE_WORKERS_AI_TOKEN node $WT/engine/imagine.mjs $PLAN"
+
+# 2. render the pieces that changed (nice: the Mac is shared)
+cd $WT/engine && nice -n 15 node render.mjs $PLAN --only=<id>,<id>
+
+# 3. review: a fresh reviewer that is not the builder looks at $ENGINE_OUT/<plan>/<id>/sheet.jpg,
+#    cover.jpg and every slide-N.jpg. A second opinion: node review.mjs $PLAN --only=<id> --again.
+#    The verdict goes in $ENGINE_OUT/<plan>/<id>/review.json:
+#    {"verdict":"PASS","by":"<who reviewed>","looked_at":"<files and frames>","fails":[],"at":"<ISO time>"}
+
+# 4. queue PASS pieces (already-queued ones answer 409 and are skipped)
+cd ~/GitHub/boss-os && npm run -s vault:run -- zsh -c "cd $WT && node scripts/studio.mjs engine-queue sample1 $PLAN --only=<id>"
+
+# 5. clean up
+git -C ~/GitHub/creator-studios worktree remove $WT
+```
+
+If the browser start times out, the Mac is overloaded: the renderer already shares one browser
+with a 10-minute start; wait for the load to drop and run step 2 again.
