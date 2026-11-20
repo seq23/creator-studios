@@ -1,0 +1,1 @@
+{ "kind": "web-app", "not_yet": "this console renders only behind a sign-in and its Worker API, which CI does not have yet (Open Loops row, 20 Nov 2026)" }
