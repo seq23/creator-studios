@@ -75,7 +75,8 @@
           "fy": 0.5
         },
         {
-          "src": "gen:tg-back-porch-table.jpg"
+          "src": "gen:tg-porch-table-v2.jpg",
+          "fy": 0.55
         }
       ],
       "hook": "days to Thanksgiving",
@@ -190,19 +191,21 @@
       ],
       "pics": [
         {
-          "src": "ai:rentals/ai-lawn-cornhole-bags.webp",
-          "label": "Cornhole"
+          "src": "gen:yard-connect-four-nov.jpg",
+          "label": "Giant Connect Four",
+          "fy": 0.5
         },
         {
-          "src": "ai:rentals/ai-yard-games-party.webp",
-          "label": "Or both, side by side"
+          "src": "gen:yard-cornhole-nov.jpg",
+          "label": "Cornhole",
+          "fy": 0.6
         }
       ],
-      "hook": "After-dinner plans:\ngiant yard games",
+      "hook": "After Thanksgiving dinner:\ngiant yard games",
       "captions": {
-        "tiktok": "Keep the cousins busy while the plates get cleared. porchandparty901.com/request #thanksgiving #yardgames",
-        "instagram": "Keep the cousins busy while the plates get cleared. Giant Color Stack and cornhole, delivered. porchandparty901.com/request #thanksgiving #yardgames",
-        "facebook": "Giant Color Stack and cornhole for after dinner, dropped off and picked up. Check your date: porchandparty901.com/request"
+        "tiktok": "Something for the cousins to do while the plates get cleared. porchandparty901.com/request #thanksgiving #yardgames",
+        "instagram": "Something for the cousins to do while the plates get cleared: Giant Connect Four and cornhole, picked up the day before. porchandparty901.com/request #thanksgiving #yardgames",
+        "facebook": "Giant Connect Four and cornhole for after Thanksgiving dinner. Pick them up at Mt. Moriah Station and bring them back after the weekend. Check your date: porchandparty901.com/request"
       }
     },
     {
@@ -275,13 +278,15 @@
       "music": "easy-stroll",
       "pics": [
         {
-          "src": "gen:xmas-door-bare-wreath.jpg"
+          "src": "gen:xmas-porch-haint-one-wreath.jpg",
+          "fy": 0.5
         },
         {
-          "src": "gen:xmas-door-layered.jpg"
+          "src": "gen:xmas-porch-haint-door.jpg",
+          "fy": 0.5
         }
       ],
-      "hook": "Putting up Christmas\nthis weekend?",
+      "hook": "One wreath\nisn't enough.",
       "lines": [
         "One wreath on a bare door",
         "Layer the door,\nthe lights and the steps"
@@ -398,23 +403,24 @@
       "music": "bright-morning",
       "pics": [
         {
-          "src": "ai:porch/ai-christmas-porch.webp",
+          "src": "gen:xmas-brick-porch-garland-v2.jpg",
           "label": "A porch that says come in"
         },
         {
-          "src": "ai:grazing/ai-grazing-table.webp",
+          "src": "gen:grazing-board-december.jpg",
           "label": "A table nobody had to cook"
         },
         {
-          "src": "ai:rentals/ai-cornhole-backyard.webp",
-          "label": "Games for the yard"
+          "src": "gen:yard-connect-four-nov.jpg",
+          "label": "Games for the yard",
+          "fy": 0.5
         }
       ],
-      "hook": "3 ways to host December\nwithout the stress",
+      "hook": "Hosting in December?\n3 ways to skip the stress",
       "captions": {
         "tiktok": "Save this for your December party. porchandparty901.com/request #holidayparty #memphis",
-        "instagram": "Save this for your December party. Pick one, or send us all three. porchandparty901.com/request #holidayparty #memphis",
-        "facebook": "Hosting in December? Three things that do the heavy lifting. Pick one or send us all three: porchandparty901.com/request"
+        "instagram": "Save this for your December party. Pick one, or have us do the porch and the table; the games are ready to pick up. porchandparty901.com/request #holidayparty #memphis",
+        "facebook": "Hosting in December? A porch, a grazing table and yard games do the heavy lifting. We set up the porch and the table; the games are ready to pick up. porchandparty901.com/request"
       }
     },
     {
@@ -429,26 +435,27 @@
       "music": "ready-set",
       "pics": [
         {
-          "src": "ai:grazing/grazing-table-corporate.jpg"
+          "src": "gen:office-games-breakroom.jpg",
+          "fy": 0.45
         },
         {
-          "src": "ai:rentals/ai-yard-games-party.webp"
+          "src": "gen:office-grazing-ready.jpg"
         },
         {
-          "src": "ai:grazing/ai-grazing-candlelit-event.webp"
+          "src": "gen:office-lobby-garland.jpg"
         }
       ],
-      "hook": "Planning the office\nholiday party?",
+      "hook": "Got handed the\noffice holiday party?",
       "lines": [
-        "A grazing table\nthey'll talk about",
         "Games that get\npeople mixing",
+        "A grazing table\nthey'll talk about",
         "All set before\nanyone walks in"
       ],
       "endLine": "Office parties across the Memphis metro.",
       "captions": {
         "tiktok": "Hand off the office party. porchandparty901.com/request #officeparty #memphis",
         "instagram": "Got handed the office party? Hand it off. porchandparty901.com/request #officeparty #memphis",
-        "facebook": "Got handed the office holiday party? Grazing tables, yard games and setup before anyone walks in. Tell us the date: porchandparty901.com/request"
+        "facebook": "Got handed the office holiday party? A grazing table, holiday decor and giant games, set up before anyone walks in. Tell us the date: porchandparty901.com/request"
       }
     },
     {
@@ -462,27 +469,25 @@
       ],
       "pics": [
         {
-          "src": "real:baby-shower-balloon-column.jpg",
-          "label": "Balloon column"
+          "src": "real:baby-shower-dessert-display.jpg",
+          "label": "Dessert table",
+          "fy": 0.45
         },
         {
           "src": "real:baby-shower-gift-table.jpg",
-          "label": "Gift table"
+          "label": "Gift table",
+          "fx": 0.42
         },
         {
           "src": "real:baby-shower-teddy-centerpiece.jpg",
-          "label": "Teddy centerpiece"
-        },
-        {
-          "src": "real:baby-shower-table-setting.jpg",
-          "label": "Every place set"
+          "label": "Teddy centerpieces"
         }
       ],
-      "hook": "A baby shower\nwe set up, start to finish",
+      "hook": "Baby shower,\nset up before\nthe guests arrive",
       "captions": {
-        "tiktok": "Mom-to-be just walked in. porchandparty901.com/request #babyshower #memphis",
-        "instagram": "A baby shower we set up, start to finish, while the hosts got ready. porchandparty901.com/request #babyshower #memphis",
-        "facebook": "A baby shower we set up, start to finish. Planning one this winter? porchandparty901.com/request"
+        "tiktok": "Baby shower, set up start to finish. porchandparty901.com/request #babyshower #memphis",
+        "instagram": "A baby shower we set up, start to finish: the dessert table, the gift table and the centerpieces. Planning one this winter? porchandparty901.com/request #babyshower #memphis",
+        "facebook": "A baby shower we set up, start to finish: dessert table, gift table and centerpieces. Planning one this winter? porchandparty901.com/request"
       }
     },
     {
@@ -497,21 +502,32 @@
       "music": "slow-glow",
       "pics": [
         {
-          "src": "real:rose-petal-candle-hallway.jpeg"
+          "src": "real:hallway-before-empty.jpg",
+          "fx": 0.45
+        },
+        {
+          "src": "real:rose-petal-candle-hallway.jpeg",
+          "fx": 0.62
+        },
+        {
+          "src": "real:rose-petal-heart-bed.jpg",
+          "fx": 0.46,
+          "fy": 0.4
         }
       ],
-      "hook": "Wait for the lights",
+      "hook": "A plain hallway.\nWait for it.",
       "lines": [
-        "The walk in is\nhalf the surprise"
+        "Walking in is\nhalf the surprise",
+        "And this was\nwaiting inside"
       ],
       "captions": {
-        "tiktok": "One of our setups. Have something to say with it? porchandparty901.com/request #surprisesetup #memphis",
-        "instagram": "One of our hallway setups. The walk in is half the surprise. porchandparty901.com/request #surprisesetup #memphis",
-        "facebook": "One of our candlelit hallway setups. Anniversary, apology or big question, tell us the date: porchandparty901.com/request"
+        "tiktok": "Before and after, from one of our room setups. porchandparty901.com/request #surprisesetup #memphis",
+        "instagram": "Before and after, from one of our room setups: petals and candles down the hall, a rose heart on the bed. Walking in is half the surprise. porchandparty901.com/request #surprisesetup #memphis",
+        "facebook": "Before and after, from one of our room setups. Anniversary, birthday or a big apology: tell us the date and we set it up. porchandparty901.com/request"
       }
     },
     {
-      "id": "pnp-1203-cornhole-or-color-stack",
+      "id": "pnp-1203-cornhole-or-connect-four",
       "format": "this-or-that",
       "at": "2026-12-03 18:00",
       "platforms": [
@@ -522,22 +538,24 @@
       "music": "pop-up",
       "pics": [
         {
-          "src": "ai:rentals/ai-cornhole-backyard.webp",
-          "label": "Cornhole"
+          "src": "gen:yard-cornhole-nov.jpg",
+          "label": "Cornhole",
+          "fy": 0.6
         },
         {
-          "src": "ai:rentals/ai-lawn-connect-four-close.webp",
-          "label": "Giant Color Stack"
+          "src": "gen:yard-connect-four-nov.jpg",
+          "label": "Giant Connect Four",
+          "fy": 0.5
         }
       ],
-      "hook": "Cornhole or\nColor Stack?",
+      "hook": "Cornhole or\nGiant Connect Four?",
       "lines": [
         "Which one is\nyour family?"
       ],
       "captions": {
-        "tiktok": "Settle it in the comments. porchandparty901.com/request #yardgames #memphis",
-        "instagram": "Settle it in the comments. Both are ready to rent. porchandparty901.com/request #yardgames #memphis",
-        "facebook": "Cornhole or Giant Color Stack? Settle it in the comments. Both are ready for your next get-together: porchandparty901.com/request"
+        "tiktok": "Cornhole or Giant Connect Four? Settle it in the comments. porchandparty901.com/request #yardgames #memphis",
+        "instagram": "Cornhole or Giant Connect Four? Settle it in the comments. Both are ready to rent. porchandparty901.com/request #yardgames #memphis",
+        "facebook": "Cornhole or Giant Connect Four? Settle it in the comments. Both are ready for your next get-together: porchandparty901.com/request"
       }
     },
     {
@@ -551,20 +569,23 @@
       ],
       "pics": [
         {
-          "src": "gen:xmas-brick-porch-garland.jpg",
-          "label": "Cedar garland, black door"
+          "src": "gen:xmas-brick-porch-garland-v2.jpg",
+          "label": "1 · Cedar garland,\nblack door",
+          "fy": 0.47
         },
         {
-          "src": "ai:porch/collierville-christmas-porch-decorating-front-door.jpg",
-          "label": "Wreath, lanterns, two trees"
+          "src": "gen:xmas-column-porch-dusk.jpg",
+          "label": "2 · White posts,\none rocker",
+          "fy": 0.5
         }
       ],
-      "hook": "Two December porches.\nWhich is more you?",
+      "hook": "Which porch\nis more you?",
       "captions": {
-        "tiktok": "Swipe and pick. porchandparty901.com/request #christmasporch #memphis",
-        "instagram": "Swipe and pick one. Then send us your date. porchandparty901.com/request #christmasporch #memphis",
-        "facebook": "Two Christmas porch ideas. Which one is more you? Want yours done for December? porchandparty901.com/request"
-      }
+        "tiktok": "1 or 2? Tell us in the comments. porchandparty901.com/request #christmasporch #memphis",
+        "instagram": "Two December porches. Comment 1 or 2, then send us your date. porchandparty901.com/request #christmasporch #memphis",
+        "facebook": "Two Christmas porch ideas. Comment 1 or 2. Want yours done for December? porchandparty901.com/request"
+      },
+      "cover": "pair"
     },
     {
       "id": "pnp-1204-porch-lights-tip",
@@ -578,10 +599,15 @@
       "music": "easy-stroll",
       "pics": [
         {
-          "src": "ai:rentals/ai-lawn-cornhole-string-lights.webp"
+          "src": "gen:xmas-porch-haint-door.jpg",
+          "fy": 0.5
+        },
+        {
+          "src": "gen:porch-steps-lights-close.jpg",
+          "fy": 0.6
         }
       ],
-      "hook": "Holiday lights tip",
+      "hook": "Porch lights look cheap?\nIt's the bulb color.",
       "lines": [
         "Warm white,\nnot cool white",
         "Light the door first,\nthen the steps",
@@ -595,12 +621,29 @@
     }
   ],
   "generate": {
+    "grazing-board-december.jpg": "A real photograph of a simple grazing board for a December party on a wooden dining table in a Memphis home, in warm evening lamp light. One long walnut board holds three cheeses cut in wedges (a white brie, an orange cheddar, a blue cheese), a short S-shaped line of overlapping salami slices, two small bunches of red grapes, a small white bowl of pecans, a short row of crackers, and three small sprigs of rosemary tucked at the board's edge. Beside the board, one small white bowl of apricot jam with a wooden spoon. Plenty of bare wood shows between the foods. Behind, out of focus, a dining room with a small lit Christmas tree. Camera at standing eye level from a three-quarter angle, the board running diagonally across the frame between about 30% and 60% down; the upper third is the soft background and the lower third is plain wooden tabletop. 35mm lens, natural colours, slight film grain, slightly imperfect white balance.",
+    "office-games-breakroom.jpg": "A real photograph of an ordinary Memphis office break room set up for a December holiday party, just before anyone arrives, in the early evening. On the plain grey carpet stands a giant four-in-a-row game about four feet tall: a blue-painted wooden game on two splayed A-frame legs. The upright playing board is one continuous flat panel painted the same blue as the legs, with a small drop opening above each column along its top edge, and 7 columns and 6 rows of identical round holes in perfectly even rows and columns. Only the bottom row holds discs: three flat round discs, red, yellow, red, side by side in the middle columns, resting at the very bottom; all the remaining holes above them are empty, and the room shows through them. On the carpet beside the right leg, two short stacks of flat round discs, one red, one yellow. Behind, against the wall, a long table with a plain white tablecloth and a brown kraft-paper runner and a short stack of small white plates at one end, a small lit Christmas tree in the corner, a window with the dusky city outside, plain white walls. Warm light from a floor lamp in the corner and the small lit tree; the room is softly lit. Camera at standing eye level; the game stands a little right of centre, its top about 30% down and its feet about 60% down; the lower third is plain grey carpet. 35mm lens, natural colours, slight film grain, slightly imperfect white balance.",
+    "office-grazing-ready.jpg": "A real photograph of a long folding table in an ordinary Memphis office break room, set for a December holiday party just before anyone arrives, early evening. A plain white tablecloth; on it, laid straight down the length of the table on a runner of brown kraft paper, a grazing spread in loose groups: wedges of three cheeses, folded salami, red grapes, crackers and small sprigs of rosemary, with paper showing between the groups; a short stack of small white plates at the near end. Behind the table, a plain white wall, a window with the dusky city outside, and a small lit Christmas tree in the corner. Warm light from a floor lamp and the tree. Camera at standing eye level from one end of the table, the table running diagonally from the lower right toward the window, the food between about 30% and 60% down; the top third is wall and window; the bottom quarter is the plain white tablecloth edge and grey floor. 35mm lens, natural colours, slight film grain, slightly imperfect white balance.",
+    "office-lobby-garland.jpg": "A real photograph of the small front lobby of an ordinary Memphis office on a December evening, set for the holiday party just before anyone arrives. A plain wooden reception desk with a fresh green garland, small warm-white lights tucked unevenly into it, draped along its front edge; a small lit Christmas tree beside the desk; one upholstered armchair against the wall; a tall plain window on the side wall with the dark street outside; a grey tiled floor. The desktop is bare except for a brass table lamp, which gives warm light with the tree. Camera at standing eye level from the middle of the lobby, the desk across the middle of the frame; the top third is plain painted wall and ceiling; the lower third is plain floor. 35mm lens, natural colours, slight film grain, slightly imperfect white balance.",
+    "porch-steps-lights-close.jpg": {
+      "prompt": "A real photograph of the porch steps of the house in the reference image, taken standing about five feet back from the bottom step, camera at waist height angled slightly down, in the blue hour just after sunset. Three white-painted wooden steps, each with a strand of small warm-white lights along its front edge, fill the frame from about 40% down to the bottom edge, the top step's light strand about 50% down and the bottom step's about 88% down; the middle step's plain white riser fills about 62-72% down. Above them, the plain brown coir doormat on the porch floor and the lower part of the same stained-wood door. Either side of the door, the lower ends of the same lit cedar garland hanging beside the door frame, and the terracotta pots with small spruce trees, the right one a little shorter. The same two brass lanterns with lit white pillar candles sit on the top step, a tall one on the left and a shorter one on the right. A few dry brown oak leaves on the bottom step. 35mm lens, natural colours, slight film grain, slightly imperfect white balance.",
+      "ref": "xmas-porch-haint-door.jpg"
+    },
     "tg-green-door-porch.jpg": "Photo-real vertical photograph, natural light, shot on a full-frame camera: the brick front porch of a Memphis home in late November dressed for Thanksgiving, cream heirloom pumpkins and rust-orange mums in galvanized buckets on the steps, a dried wheat and magnolia-leaf wreath on a deep green front door, a plaid wool throw on a white rocking chair, warm porch lantern glowing at dusk.",
+    "tg-porch-table-v2.jpg": "A real photograph of a wooden farmhouse table set for Thanksgiving dinner on a covered back porch in Memphis, open between square white posts, in late November at dusk. Set for six: three places down each side, each with a plain cream stoneware plate, a linen napkin folded once with one fork laid on it, and a clear water glass; both ends of the table are bare wood. Three wooden cross-back chairs down each side, pushed in. Down the middle, a low loose line of dark-green magnolia leaves with a few small white pumpkins and small amber glass votives, lit. Light comes from the votives and from warm lamplight coming from the right. Between the posts, bare brown trees against a deep blue dusk sky with a little light left low on the horizon. Camera at standing eye level at the end of the table, the table running away into the frame; the top third of the frame is the plain pale blue-green painted porch ceiling, the posts and the sky. 35mm lens, natural colours, slight film grain, slightly imperfect white balance.",
     "tg-table-at-home.jpg": "Photo-real vertical photograph, shot on a full-frame camera, warm evening light: a long Thanksgiving dining table in a Memphis home styled for twelve, a wide wooden grazing board of cheeses, grapes, figs, nuts and crackers down the middle, low magnolia leaves and small white pumpkins, cream linen napkins, amber glass candle holders lit, empty chairs, nobody at the table.",
-    "xmas-brick-porch-garland.jpg": "Photo-real vertical photograph, shot on a full-frame camera at blue hour: a red-brick Memphis front porch dressed for Christmas, a thick fresh cedar and magnolia garland framing a black front door with warm white lights woven through, a full wreath with a deep red velvet bow, two potted spruce trees in black planters, brass lanterns with candles on the steps, soft snow-free December evening.",
+    "xmas-brick-porch-garland-v2.jpg": {
+      "prompt": "Edit this photograph. The garland still goes up and over the door frame, but each side now hangs straight down, fastened along the side of the door frame, and ends at about knee height against the frame, well above the floor. Remove the garland from the floor; the brown coir doormat and the brick around it are clear. Replace the flowered rug at the bottom with plain grey concrete and a few dry brown oak leaves. Make the right-hand potted tree a little shorter and fuller. Make the right-hand lantern a little smaller and shorter than the left one. Keep everything else the same. (If the bulbs still look evenly spaced, a second edit adds: \"The small lights in the garland sit unevenly, some deep in the branches, some closer together.\") Add a slight natural film grain.",
+      "ref": "xmas-brick-porch-garland.jpg"
+    },
+    "xmas-column-porch-dusk.jpg": "A real photograph of the front porch of a white-painted wood house in Memphis on a December evening in the blue hour, from the front walk at standing eye level, a little off to the left. Two square white porch posts, each wrapped in a fresh cedar garland with small warm-white lights tucked unevenly into it. A white beadboard porch ceiling. A dark green front door with one evergreen wreath with a deep red bow. One wooden rocking chair to the right of the door with a red plaid wool blanket over its arm. One large brass lantern with a lit candle on the top step, at the right, beside the rocker. Three wide painted wooden steps with a few dry brown oak leaves, and a small leafless tree with smooth grey bark beside the steps. The ceiling and the tops of the posts fill the top quarter of the frame; the door spans about 30-60% down; plain grey painted porch floorboards fill about 60-73% down; the steps fill the bottom quarter. 35mm lens, natural colours, slight film grain, slightly imperfect white balance.",
+    "xmas-porch-haint-door.jpg": {
+      "prompt": "Edit this photograph. Keep the house, ceiling, door, wreath, doormat, the shape of the steps and the camera exactly the same; the door, its handle and the wreath do not change. Add a fresh cedar garland up and over the door frame, each side hanging straight down beside the frame and ending just below the height of the door handle, with small warm-white lights tucked unevenly into it, some deep in the branches, some closer together; a strand of warm-white lights along the front edge of each step; two brass lanterns with lit white pillar candles on the top step, a tall one on the left and a shorter one on the right; a terracotta pot with a small spruce tree on each side of the door, the right one a little shorter and fuller. The new lights cast a little warm glow on the siding and steps. Add a slight natural film grain.",
+      "ref": "xmas-porch-haint-one-wreath.jpg"
+    },
+    "xmas-porch-haint-one-wreath.jpg": "A real photograph of the front door of a Memphis house on a December evening in the blue hour just after sunset, from the front walk at standing eye level. A deep covered front porch with painted white wood siding and a pale blue-green painted porch ceiling, the soft haint blue of old Southern porches, softly lit by the last blue evening light and a warm glow from the door's small window. A natural stained-wood front door with a small glass window and a simple brass handle on its right side. One full evergreen wreath with a deep red velvet bow on the door; the door frame, the siding and the three white-painted wooden steps are otherwise bare. A plain brown coir doormat. The painted grey porch floor either side of the door is empty boards, and the porch posts are plain white. A few dry brown oak leaves on the bottom step. The pale blue-green ceiling and plain siding above the door fill the top third of the frame as plain painted boards; the door spans about 33-75% down; the three steps fill the bottom quarter. 35mm lens, natural colours, slight film grain, slightly imperfect white balance.",
     "xmas-white-column-porch.jpg": "Photo-real vertical photograph, shot on a full-frame camera in early evening: a Southern porch with white columns in Memphis dressed for Christmas, fresh garland with warm white lights wrapped up the columns, wreaths with red ribbons on the tall windows, two white rocking chairs with red plaid blankets, lanterns glowing on the porch floor, magnolia leaves in the garland.",
-    "xmas-door-bare-wreath.jpg": "Photo-real vertical photograph, shot on a full-frame camera in soft early-evening light: the front door of a red-brick Memphis home in December, a deep navy door with one plain small green wreath and nothing else, bare concrete steps, a single porch light on, quiet and a little plain.",
-    "xmas-door-layered.jpg": "Photo-real vertical photograph, shot on a full-frame camera at blue hour: the same kind of red-brick Memphis front door in December dressed in layers, a full fresh cedar and magnolia garland framing the navy door with warm white lights woven through, a large wreath with a deep red velvet bow, two potted spruce trees on the steps, brass lanterns with lit candles on each step, real photograph, natural textures.",
-    "tg-back-porch-table.jpg": "Photo-real vertical photograph, shot on a full-frame camera in late-afternoon light: a round farmhouse table set for Thanksgiving dinner on a screened back porch in Memphis, cream stoneware plates, linen napkins, small white pumpkins and magnolia leaves down the middle, amber glass votives lit, a pecan pie on a wooden board, empty chairs, autumn trees soft through the screen."
+    "yard-connect-four-nov.jpg": "A real photograph of a giant four-in-a-row yard game standing on dormant straw-tan Bermuda grass in a Memphis backyard in late November at dusk. The game is about four feet tall: a blue-painted wooden game on two splayed A-frame legs. The upright playing board is one continuous flat panel painted the same blue as the legs, with a small drop opening above each column along its top edge, and 7 columns and 6 rows of identical round holes in perfectly even rows and columns. Only the bottom row holds discs: three flat round discs, red, yellow, red, side by side in the three middle columns, resting at the very bottom. All the remaining holes above them are empty, and the yard shows through them. On the grass beside the right leg, two short stacks of flat round discs, one red, one yellow. Behind: a weathered wooden privacy fence with one strand of warm-white string lights, a bare oak tree, scattered brown oak leaves. Soft last daylight lights the front of the game evenly. Camera at chest height, slight three-quarter angle, the whole game in frame and centred left to right: its top edge about 33% down the frame and its feet about 62% down, the board filling a little over half the frame width, open straw-tan grass filling everything below. 35mm lens, natural colours, slight film grain, slightly imperfect white balance.",
+    "yard-cornhole-nov.jpg": "A real photograph of a cornhole game set up on dormant straw-tan grass in a Memphis backyard in late November at dusk. In the foreground, one lightly used natural-pine cornhole board with visible wood grain and a few scuffs and dirt marks on its edges, two feet wide and four feet long, with a four-inch wooden side frame. Its back end stands about one foot off the grass on two folding wooden legs; the board slopes down to its front edge, which rests almost on the grass and points across the lawn toward the far board. One round six-inch hole, centred side to side, about nine inches from the raised back end. One small floppy red canvas bean bag, about the size of a hand, lies flat on the board halfway down. About 27 feet away across the lawn an identical board faces it: its low front edge points toward the near board, it rises away on its own legs, and its hole is near its far raised end. Soft last daylight falls evenly on the near board. Camera at standing eye level, about four feet to the right of the near board and level with its middle, looking down across it at about 45 degrees and along the lawn toward the far board. The near board lies diagonally across the lower right of the frame: its raised back end, with the hole clearly visible as a round opening, at the lower right about 85% down and 85% across; its low front edge toward the upper left, about 58% down and 60% across. The far board sits small in the distance, left of centre, about 35% down, its low front edge facing the near board. Above it, bare trees, a wooden fence with one strand of warm-white string lights, and a strip of deep blue dusk sky at the very top. Open straw-tan grass with scattered brown leaves fills the left half of the frame from 55% to the bottom. 35mm lens, natural colours, slight film grain, slightly imperfect white balance."
   }
 }

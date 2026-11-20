@@ -27,6 +27,8 @@ export interface PlanPiece {
   hook: string;
   lines?: string[];
   count?: number;
+  /** Carousel cover: the first picture full-bleed (default) or the first two side by side, tagged 1 and 2 ("pick one" sets). */
+  cover?: "pair";
   spots?: { fx: number; fy: number; label: string }[];
   endLine?: string;
   captions: Partial<Record<Platform, string>>;
@@ -40,8 +42,8 @@ export interface Plan {
   window: [number, number];
   /** Where the pictures live on the Mac: real (our job photos) and ai (AI-made scenes). Never committed. */
   sources?: Partial<Record<"real" | "ai" | "gen", string>>;
-  /** Prompts for the gen: pictures, by file name (engine/imagine.mjs adds the fixed no-people rules). */
-  generate?: Record<string, string>;
+  /** Prompts for the gen: pictures, by file name (engine/imagine.mjs adds the fixed no-people rules); {prompt, ref} edits another gen picture (FLUX.2). */
+  generate?: Record<string, string | { prompt: string; ref?: string }>;
   /** Text every caption carries: the one next step. */
   cta: string;
   pieces: PlanPiece[];

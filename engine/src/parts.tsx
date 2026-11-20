@@ -138,7 +138,7 @@ export const Wordmark: React.FC<{ brand: Brand; size?: number; color?: string }>
   </div>
 );
 
-/** The last beat of every reel: who we are and the one next step (the only marigold thing). */
+/** The last beat of every reel: who we are and the one next step (the only marigold thing), large enough to read on a phone. */
 export const EndCard: React.FC<{ brand: Brand; line?: string }> = ({ brand, line }) => {
   const { width, height } = useVideoConfig();
   const a = useIn(0, 8);
@@ -146,14 +146,14 @@ export const EndCard: React.FC<{ brand: Brand; line?: string }> = ({ brand, line
   const c = useIn(12, 9);
   const scale = width / 1080;
   return (
-    <AbsoluteFill style={{ backgroundColor: brand.colors.ground, alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 46 * scale, paddingBottom: height * 0.08 }}>
+    <AbsoluteFill style={{ backgroundColor: brand.colors.ground, alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 64 * scale, paddingBottom: height * 0.12 }}>
       <div style={{ opacity: a, transform: `translateY(${(1 - a) * 16}px)` }}>
-        <Wordmark brand={brand} size={104 * scale} />
+        <Wordmark brand={brand} size={108 * scale} />
       </div>
-      <div style={{ opacity: b, fontFamily: BODY, fontWeight: 600, fontSize: 46 * scale, color: brand.colors.inkSoft, textAlign: "center", maxWidth: width * 0.9, lineHeight: 1.25, textWrap: "balance" }}>{line ?? brand.line}</div>
-      <div style={{ opacity: c, transform: `translateY(${(1 - c) * 14}px)`, display: "flex", flexDirection: "column", alignItems: "center", gap: 22 * scale }}>
-        <div style={{ backgroundColor: brand.colors.accent, color: brand.colors.ink, fontFamily: BODY, fontWeight: 800, fontSize: 52 * scale, padding: `${24 * scale}px ${48 * scale}px`, borderRadius: 16 * scale, border: `${3 * scale}px solid ${brand.colors.ink}`, boxShadow: `0 ${5 * scale}px 0 ${brand.colors.ink}` }}>{brand.cta}</div>
-        <div style={{ fontFamily: BODY, fontWeight: 700, fontSize: 40 * scale, color: brand.colors.ink }}>{brand.ctaUrl}</div>
+      <div style={{ opacity: b, fontFamily: BODY, fontWeight: 700, fontSize: 58 * scale, color: brand.colors.ink, textAlign: "center", maxWidth: width * 0.84, lineHeight: 1.22, textWrap: "balance" }}>{line ?? brand.line}</div>
+      <div style={{ opacity: c, transform: `translateY(${(1 - c) * 14}px)`, display: "flex", flexDirection: "column", alignItems: "center", gap: 30 * scale }}>
+        <div style={{ backgroundColor: brand.colors.accent, color: brand.colors.ink, fontFamily: BODY, fontWeight: 800, fontSize: 64 * scale, padding: `${28 * scale}px ${56 * scale}px`, borderRadius: 18 * scale, border: `${3 * scale}px solid ${brand.colors.ink}`, boxShadow: `0 ${6 * scale}px 0 ${brand.colors.ink}` }}>{brand.cta}</div>
+        <div style={{ fontFamily: BODY, fontWeight: 700, fontSize: 56 * scale, color: brand.colors.ink }}>{brand.ctaUrl}</div>
       </div>
     </AbsoluteFill>
   );

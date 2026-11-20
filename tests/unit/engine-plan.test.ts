@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { aiScene, localToUtc, validatePlan, type Plan, type PlanPiece } from "../../engine/src/plan";
 import { FORMATS } from "../../engine/src/library";
 // @ts-expect-error plain .mjs script with no types
-import { ACCOUNT_CEILING, ENGINE_NEURON_CAP, MODELS, fits, usedToday } from "../../engine/imagine.mjs";
+import { ACCOUNT_CEILING, ENGINE_NEURON_CAP, MODELS, accountsFrom, fits, usedToday } from "../../engine/imagine.mjs";
 
 const committed = JSON.parse(readFileSync(path.resolve(__dirname, "..", "..", "engine", "plans", "pnp-2026-11-21.json"), "utf8")) as Plan;
 const BEFORE = Date.parse("2026-11-20T12:00:00.000Z");
@@ -100,5 +100,15 @@ describe("new scenes on Workers AI (engine/imagine.mjs): metered, fail closed", 
     expect(fits({ mine: 100, all: 2000 }, 0, 150)).toBe(true);
     // FLUX.2 klein 9B measured ~1,705 a picture: it never fits the engine's day
     expect(fits({ mine: 0, all: 0 }, 0, MODELS["@cf/black-forest-labs/flux-2-klein-9b"].worst)).toBe(false);
+  });
+  it("falls back to the second, engine-only account, which still stops before 9,000", () => {
+    expect(accountsFrom({ CLOUDFLARE_ACCOUNT_ID: "a", CLOUDFLARE_API_TOKEN: "t" }).map((x: { name: string }) => x.name)).toEqual(["main"]);
+    const both = accountsFrom({ CLOUDFLARE_ACCOUNT_ID: "a", CLOUDFLARE_API_TOKEN: "t", CF2_ACCOUNT_ID: "b", CF2_WORKERS_AI_TOKEN: "u" });
+    expect(both.map((x: { name: string; account: string; cap: number }) => [x.name, x.account, x.cap])).toEqual([["main", "a", ENGINE_NEURON_CAP], ["second", "b", ACCOUNT_CEILING]]);
+    const klein = MODELS["@cf/black-forest-labs/flux-2-klein-9b"].worst;
+    expect(fits({ mine: 0, all: 0 }, 0, klein, both[1].cap)).toBe(true);
+    expect(fits({ mine: 7500, all: 7500 }, 0, klein, both[1].cap)).toBe(false);
+    // the same account twice is never a fallback
+    expect(accountsFrom({ CLOUDFLARE_ACCOUNT_ID: "a", CF2_ACCOUNT_ID: "a", CF2_WORKERS_AI_TOKEN: "u" })).toHaveLength(1);
   });
 });

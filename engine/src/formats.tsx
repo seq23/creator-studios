@@ -28,6 +28,8 @@ export interface PieceProps {
   endLine?: string;
   /** Carousel only: which slide this still is. */
   slide?: number;
+  /** Carousel cover: the first picture full-bleed (default) or the first two side by side, tagged 1 and 2. */
+  cover?: "pair";
 }
 
 const beat = (bpm: number) => Math.round((FPS * 60) / bpm);
@@ -37,7 +39,8 @@ const END = 4; // end card, in beats
 function bodyBeats(p: PieceProps): number {
   switch (p.format) {
     case "wait-for-it":
-      return 12;
+      // one picture: dim, then the lights; a real before → after (+ a second look): 3 + 6 (+ 5)
+      return p.pics.length === 1 ? 12 : 3 + 6 + (p.pics.length > 2 ? 5 : 0);
     case "pov":
       return p.pics.length > 1 ? 12 : 9;
     case "which-one":
@@ -59,7 +62,8 @@ function bodyBeats(p: PieceProps): number {
     case "detail-zoom":
       return 3 + 4 * (p.spots?.length ?? 3) + 3;
     case "this-or-that":
-      return 4 * (p.pics.length / 2) + 4;
+      // per round: each one full-screen (2 beats each), then the two side by side (4)
+      return 8 * (p.pics.length / 2) + 4;
     case "do-dont":
       return 2 + 5 + 5;
     case "office-party":
@@ -86,21 +90,46 @@ const TopWash: React.FC = () => <AbsoluteFill style={{ background: "linear-gradi
 const WaitForIt: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B }) => {
   const f = useCurrentFrame();
   const s = useSafe();
-  const on = 4 * B;
-  const dim = interpolate(f, [on - 2, on + 10], [0.62, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const reveal = p.pics.length > 1;
+  const on = reveal ? 3 * B : 4 * B;
+  const total = bodyBeats(p) * B;
+  const dim = reveal ? 0 : interpolate(f, [on - 2, on + 10], [0.62, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const glow = interpolate(f, [on, on + 6, on + 24], [0, 0.22, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const total = 12 * B;
+  const second = on + 6 * B;
   return (
     <AbsoluteFill>
-      <Photo pic={p.pics[0]} dur={total} dim={dim} zoomFrom={1.02} zoomTo={1.1} />
+      {reveal ? (
+        <>
+          <Sequence durationInFrames={on}>
+            <Photo pic={p.pics[0]} dur={on} zoomFrom={1.02} zoomTo={1.1} />
+          </Sequence>
+          <Sequence from={on} durationInFrames={p.pics[2] ? 6 * B + 8 : undefined}>
+            <Photo pic={p.pics[1]} dur={p.pics[2] ? 6 * B + 8 : total - on} zoomFrom={1.02} zoomTo={1.12} />
+          </Sequence>
+          {p.pics[2] ? (
+            <Sequence from={second}>
+              <Fade len={8}>
+                <Photo pic={p.pics[2]} dur={total - second} zoomFrom={1.12} zoomTo={1.03} />
+              </Fade>
+            </Sequence>
+          ) : null}
+        </>
+      ) : (
+        <Photo pic={p.pics[0]} dur={total} dim={dim} zoomFrom={1.02} zoomTo={1.1} />
+      )}
       <AbsoluteFill style={{ backgroundColor: `rgba(255,214,140,${glow})` }} />
       <TopWash />
       <Sequence durationInFrames={on + 6}>
         <Headline brand={b} text={p.hook} hookFrame0 size={88} />
       </Sequence>
-      <Sequence from={on + 4}>
-        <Line brand={b} text={p.lines[0]} y={s.bottom - 170} size={54} tone="plum" />
+      <Sequence from={on + 4} durationInFrames={p.lines[1] && p.pics[2] ? second - on - 4 : undefined}>
+        <Line brand={b} text={p.lines[0]} y={s.bottom - 170} size={56} tone="plum" />
       </Sequence>
+      {p.lines[1] && p.pics[2] ? (
+        <Sequence from={second + 4}>
+          <Line brand={b} text={p.lines[1]} y={s.bottom - 170} size={56} tone="plum" />
+        </Sequence>
+      ) : null}
     </AbsoluteFill>
   );
 };
@@ -173,14 +202,14 @@ const WhichOne: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B })
       <Sequence durationInFrames={4 * B}>
         <Split a={a} c={c} dur={4 * B} b={b} badges />
       </Sequence>
-      <Sequence from={4 * B} durationInFrames={4 * B}>
-        <Photo pic={a} dur={4 * B} />
-        <Badge brand={b} n="1" x={s.left} y={s.bottom - 160} />
-      </Sequence>
-      <Sequence from={8 * B} durationInFrames={4 * B}>
-        <Photo pic={c} dur={4 * B} />
-        <Badge brand={b} n="2" x={s.left} y={s.bottom - 160} />
-      </Sequence>
+      {[a, c].map((pic, k) => (
+        // each one full-screen, its number and its name together, so the name explains itself
+        <Sequence key={k} from={(4 + 4 * k) * B} durationInFrames={4 * B}>
+          <Photo pic={pic} dur={4 * B} zoomFrom={k ? 1.1 : 1.02} zoomTo={k ? 1.02 : 1.1} />
+          <Badge brand={b} n={String(k + 1)} x={s.left} y={s.bottom - 190} />
+          {pic.label ? <Line brand={b} text={pic.label} x={s.left + 140} y={s.bottom - 176} width={s.inner - 140} size={56} at={3} /> : null}
+        </Sequence>
+      ))}
       <Sequence from={12 * B} durationInFrames={4 * B}>
         <Split a={a} c={c} dur={4 * B} b={b} badges />
         <Line brand={b} text={p.lines[0]} y={s.bottom - 130} size={56} tone="plum" />
@@ -224,7 +253,8 @@ const Numbered: React.FC<{ p: PieceProps; b: Brand; B: number; steps: string[]; 
   return (
     <AbsoluteFill>
       <Sequence durationInFrames={3 * B + 6}>
-        <Photo pic={p.pics[0]} dur={3 * B} dim={0.35} />
+        <Photo pic={p.pics[0]} dur={3 * B} />
+        <TopWash />
         <AbsoluteFill style={{ justifyContent: "center" }}>
           <Headline brand={b} text={p.hook} hookFrame0 size={92} y={s.top + 160} />
         </AbsoluteFill>
@@ -264,7 +294,7 @@ const QuickTip: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B })
       {p.lines.map((l, i) => (
         // one thought on screen at a time: each line replaces the one before
         <Sequence key={i} from={3 * B + i * 3 * B} durationInFrames={i < p.lines.length - 1 ? 3 * B : undefined}>
-          <Line brand={b} text={l} y={s.bottom - 190} size={52} tone="plum" />
+          <Line brand={b} text={l} y={s.bottom - 230} size={62} tone="plum" />
         </Sequence>
       ))}
     </AbsoluteFill>
@@ -342,7 +372,7 @@ const Countdown: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B }
         </div>
       </Sequence>
       <Sequence from={cut}>
-        <Line brand={b} text={p.lines[0]} y={s.top} size={58} at={6} />
+        <Line brand={b} text={p.lines[0]} y={s.height * 0.22} size={58} at={6} />
       </Sequence>
     </AbsoluteFill>
   );
@@ -409,7 +439,7 @@ const DetailZoom: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B 
       ) : null}
       {label >= 0 ? (
         <Sequence from={3 * B + label * each + 10} durationInFrames={each - 10}>
-          <Line brand={b} text={spots[label].label} y={s.bottom - 150} size={52} tone="haint" />
+          <Line brand={b} text={spots[label].label} y={s.bottom - 190} size={60} tone="haint" />
         </Sequence>
       ) : null}
     </AbsoluteFill>
@@ -417,16 +447,31 @@ const DetailZoom: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B 
 };
 
 const ThisOrThat: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B }) => {
+  const s = useSafe();
   const rounds = p.pics.length / 2;
-  const each = 4 * B;
+  const each = 8 * B;
   return (
     <AbsoluteFill>
-      {Array.from({ length: rounds }, (_, r) => (
-        <Sequence key={r} from={r * each} durationInFrames={r === rounds - 1 ? each + 4 * B : each}>
-          <Split a={p.pics[2 * r]} c={p.pics[2 * r + 1]} dur={each} la={p.pics[2 * r].label} lc={p.pics[2 * r + 1].label} b={b} />
-        </Sequence>
-      ))}
-      <Sequence durationInFrames={each}>
+      {Array.from({ length: rounds }, (_, r) => {
+        const [x, y] = [p.pics[2 * r], p.pics[2 * r + 1]];
+        return (
+          <Sequence key={r} from={r * each} durationInFrames={r === rounds - 1 ? each + 4 * B : each}>
+            {[x, y].map((pic, k) => (
+              <Sequence key={k} from={2 * B * k} durationInFrames={2 * B + 4}>
+                <Fade len={k ? 4 : 1}>
+                  <Photo pic={pic} dur={2 * B + 4} zoomFrom={k ? 1.1 : 1.02} zoomTo={k ? 1.02 : 1.1} />
+                  {pic.label ? <Line brand={b} text={pic.label} y={s.bottom - 200} size={60} tone="haint" at={2} /> : null}
+                </Fade>
+              </Sequence>
+            ))}
+            <Sequence from={4 * B}>
+              <Split a={x} c={y} dur={r === rounds - 1 ? 8 * B : 4 * B} la={x.label} lc={y.label} b={b} />
+            </Sequence>
+          </Sequence>
+        );
+      })}
+      <Sequence durationInFrames={4 * B}>
+        <TopWash />
         <Headline brand={b} text={p.hook} hookFrame0 size={76} align="center" />
       </Sequence>
       <Sequence from={rounds * each}>
@@ -443,15 +488,21 @@ const DoDont: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B }) =
   const row = (kind: "check" | "cross", text: string) => (
     <div style={{ position: "absolute", left: s.left, top: s.bottom - 230 * scale, width: s.inner + 60 * scale, display: "flex", alignItems: "center", gap: 20 * scale, backgroundColor: b.colors.ground, borderRadius: 22 * scale, padding: `${22 * scale}px ${28 * scale}px`, boxShadow: "0 12px 30px rgba(0,0,0,.25)" }}>
       <Mark kind={kind} size={74 * scale} color={kind === "cross" ? "#B3261E" : b.colors.ink} at={4} />
-      <div style={{ fontFamily: BODY, fontWeight: 700, fontSize: 48 * scale, color: b.colors.ink, lineHeight: 1.15, textWrap: "balance" }}>{text}</div>
+      <div style={{ fontFamily: BODY, fontWeight: 700, fontSize: 48 * scale, color: b.colors.ink, lineHeight: 1.15, whiteSpace: "pre-line", textWrap: "balance" }}>{text}</div>
     </div>
   );
+  // frame 0 is the pair (the don't over the do) so the cover shows the payoff; then each full-screen
   return (
     <AbsoluteFill>
-      <Sequence durationInFrames={7 * B + 6}>
-        <Photo pic={p.pics[0]} dur={7 * B} dim={0.08} />
-        <TopWash />
-        <Sequence from={2 * B}>{row("cross", p.lines[0])}</Sequence>
+      <Sequence durationInFrames={2 * B + 6}>
+        <Split a={p.pics[0]} c={p.pics[1]} dur={2 * B + 6} b={b} />
+      </Sequence>
+      <Sequence from={2 * B} durationInFrames={5 * B + 6}>
+        <Fade len={6}>
+          <Photo pic={p.pics[0]} dur={5 * B + 6} dim={0.08} />
+          <TopWash />
+          <Sequence from={B}>{row("cross", p.lines[0])}</Sequence>
+        </Fade>
       </Sequence>
       <Sequence from={7 * B}>
         <Fade len={6}>
@@ -479,44 +530,52 @@ export const CarouselSlide: React.FC<PieceProps> = (p) => {
     return (
       <AbsoluteFill style={{ backgroundColor: b.colors.ground, alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 44 * scale }}>
         <Wordmark brand={b} size={84 * scale} />
-        <div style={{ fontFamily: BODY, fontWeight: 600, fontSize: 44 * scale, color: b.colors.inkSoft, textAlign: "center", maxWidth: width * 0.8, lineHeight: 1.3 }}>{p.endLine ?? b.line}</div>
+        <div style={{ fontFamily: BODY, fontWeight: 700, fontSize: 52 * scale, color: b.colors.ink, textAlign: "center", maxWidth: width * 0.84, lineHeight: 1.25, textWrap: "balance" }}>{p.endLine ?? b.line}</div>
         <div style={{ backgroundColor: b.colors.accent, color: b.colors.ink, fontFamily: BODY, fontWeight: 800, fontSize: 48 * scale, padding: `${22 * scale}px ${44 * scale}px`, borderRadius: 16 * scale, border: `${3 * scale}px solid ${b.colors.ink}`, boxShadow: `0 ${5 * scale}px 0 ${b.colors.ink}` }}>{b.cta}</div>
-        <div style={{ fontFamily: BODY, fontWeight: 700, fontSize: 38 * scale, color: b.colors.ink }}>{b.ctaUrl}</div>
+        <div style={{ fontFamily: BODY, fontWeight: 700, fontSize: 50 * scale, color: b.colors.ink }}>{b.ctaUrl}</div>
       </AbsoluteFill>
     );
   }
   if (i === 0) {
-    // The cover: the headline large on plum, the set's pictures fanned below as prints.
+    // The cover: the set's own picture full-bleed (no prints, no collage: brand rule), or the first
+    // two side by side tagged 1 and 2 for a "pick one" set; the headline on a plum box at the top.
     const height = width * 1.25;
-    const fan = p.pics.slice(0, 3);
-    const pw = width * 0.42;
+    const pair = p.cover === "pair" && p.pics.length > 1;
     return (
       <AbsoluteFill style={{ backgroundColor: b.colors.ink }}>
-        <div style={{ position: "absolute", left: 70 * scale, right: 70 * scale, top: 90 * scale, fontFamily: DISPLAY, fontVariationSettings: DISPLAY_VARIATION, fontWeight: 800, fontSize: 92 * scale, lineHeight: 1.02, letterSpacing: "-0.01em", color: b.colors.ground, whiteSpace: "pre-line", textWrap: "balance" }}>{p.hook}</div>
-        {fan.map((pic, k) => {
-          const ph = Math.min(pw * (pic.h / pic.w), pw * 1.3);
-          const cx = width / 2 + (k - (fan.length - 1) / 2) * width * 0.25;
-          return (
-            <div key={k} style={{ position: "absolute", left: cx - pw / 2, top: height * 0.68 - ph / 2 + (k === 1 ? -20 : 10) * scale, width: pw, height: ph, padding: 10 * scale, backgroundColor: b.colors.ground, borderRadius: 8, boxShadow: "0 24px 50px rgba(0,0,0,.5)", transform: `rotate(${(k - (fan.length - 1) / 2) * 5}deg)`, zIndex: k === 1 ? 2 : 1 }}>
-              <Img src={staticFile(pic.src)} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: `${(pic.fx ?? 0.5) * 100}% ${(pic.fy ?? 0.5) * 100}%`, borderRadius: 3 }} />
-            </div>
-          );
-        })}
-        <div style={{ position: "absolute", right: 56 * scale, bottom: 52 * scale, fontFamily: BODY, fontWeight: 800, fontSize: 34 * scale, color: b.colors.ink, backgroundColor: b.colors.tag, borderRadius: 999, padding: `${12 * scale}px ${26 * scale}px`, border: `3px solid ${b.colors.ink}` }}>Swipe ›</div>
-        <div style={{ position: "absolute", left: 70 * scale, bottom: 58 * scale }}>
-          <Wordmark brand={b} size={40 * scale} color={b.colors.ground} />
+        {pair ? (
+          <>
+            {[0, 1].map((k) => (
+              <div key={k} style={{ position: "absolute", top: 0, height, left: k ? width / 2 + 4 * scale : 0, width: width / 2 - 4 * scale, overflow: "hidden" }}>
+                <Img src={staticFile(p.pics[k].src)} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: `${(p.pics[k].fx ?? 0.5) * 100}% ${(p.pics[k].fy ?? 0.5) * 100}%` }} />
+              </div>
+            ))}
+            {[0, 1].map((k) => (
+              <Badge key={k} brand={b} n={String(k + 1)} x={(k ? width / 2 : 0) + width / 4 - 60 * scale} y={height * 0.6} size={120 * scale} />
+            ))}
+          </>
+        ) : (
+          <Photo pic={p.pics[0]} dur={1} still />
+        )}
+        <AbsoluteFill style={{ background: "linear-gradient(180deg, rgba(20,12,18,.35) 0%, rgba(20,12,18,0) 40%)" }} />
+        <div style={{ position: "absolute", left: 56 * scale, right: 56 * scale, top: 56 * scale, display: "flex" }}>
+          <div style={{ backgroundColor: b.colors.ink, color: b.colors.ground, fontFamily: DISPLAY, fontVariationSettings: DISPLAY_VARIATION, fontWeight: 800, fontSize: 80 * scale, lineHeight: 1.04, letterSpacing: "-0.01em", padding: `${22 * scale}px ${30 * scale}px ${26 * scale}px`, borderRadius: 18 * scale, whiteSpace: "pre-line", textWrap: "balance", boxShadow: "0 12px 30px rgba(0,0,0,.25)" }}>{p.hook}</div>
+        </div>
+        <div style={{ position: "absolute", right: 56 * scale, bottom: 52 * scale, fontFamily: BODY, fontWeight: 800, fontSize: 36 * scale, color: b.colors.ink, backgroundColor: b.colors.tag, borderRadius: 999, padding: `${12 * scale}px ${28 * scale}px`, border: `3px solid ${b.colors.ink}` }}>Swipe ›</div>
+        <div style={{ position: "absolute", left: 56 * scale, bottom: 52 * scale, backgroundColor: b.colors.ground, borderRadius: 999, padding: `${10 * scale}px ${24 * scale}px` }}>
+          <Wordmark brand={b} size={40 * scale} />
         </div>
       </AbsoluteFill>
     );
   }
   const pic = p.pics[i - 1];
+  // the label sits about 72% down, inside the left two-thirds (clear of the platforms' buttons and caption)
   return (
     <AbsoluteFill>
       <Photo pic={pic} dur={1} still />
       {pic.label ? (
-        <div style={{ position: "absolute", left: 56 * scale, bottom: 60 * scale, fontFamily: BODY, fontWeight: 700, fontSize: 44 * scale, color: b.colors.ink, backgroundColor: b.colors.ground, borderRadius: 14 * scale, padding: `${14 * scale}px ${26 * scale}px`, boxShadow: "0 8px 24px rgba(0,0,0,.2)" }}>{pic.label}</div>
+        <div style={{ position: "absolute", left: 56 * scale, top: width * 1.25 * 0.66, maxWidth: width * 0.66, fontFamily: BODY, fontWeight: 700, fontSize: 48 * scale, lineHeight: 1.15, color: b.colors.ink, backgroundColor: b.colors.ground, borderRadius: 14 * scale, padding: `${16 * scale}px ${28 * scale}px`, boxShadow: "0 8px 24px rgba(0,0,0,.25)", whiteSpace: "pre-line", textWrap: "balance" }}>{pic.label}</div>
       ) : null}
-      <div style={{ position: "absolute", right: 44 * scale, top: 40 * scale, fontFamily: BODY, fontWeight: 700, fontSize: 28 * scale, color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,.6)" }}>{`${i + 1}/${last + 1}`}</div>
     </AbsoluteFill>
   );
 };
