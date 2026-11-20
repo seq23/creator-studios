@@ -5,7 +5,7 @@ import { cleanVoiceNotes } from "@shared/voiceShots";
 import { Hono, type Context } from "hono";
 import type { Env, Vars } from "../env";
 import { requireUser } from "../lib/auth";
-import { recordEvent, parseJson } from "../lib/db";
+import { recordEvent, parseJson, setHealth } from "../lib/db";
 import { fail, readJson } from "../lib/http";
 import { newId, nowIso } from "../lib/ids";
 import { log } from "../lib/log";
@@ -349,6 +349,54 @@ export async function sendWaitingDumps(env: Env, email: string | null): Promise<
     log.warn("dump.auto_send_failed");
   }
   return sent;
+}
+
+/** A dump whose files all finished uploading is sent on its own once it has sat this long unsent. */
+export const IDLE_SEND_HOURS = 6;
+/** A file still uploading after this long has stopped: the Uploads light says so. */
+export const STALLED_UPLOAD_HOURS = 24;
+
+/**
+ * Finished uploads never sit (20 Nov 2026: Hadiyah's 5.4 GB video finished uploading on 13 Oct but
+ * the dump only ever left 'uploading' when she tapped the button, so it sat unsent for five weeks and
+ * the tidy archived it). Hourly: every dump with at least one finished file, none still uploading,
+ * and no new file for IDLE_SEND_HOURS is sent through the Dump button's own path (sendDump, once
+ * each). A file still uploading after STALLED_UPLOAD_HOURS turns the "Uploads" light yellow, so a
+ * stalled upload is seen within a day. Never touches a file. One OUTPUT line.
+ */
+export async function sendIdleDumps(env: Env, now = new Date()): Promise<{ checked: number; sent: number; stalled: number }> {
+  const idle = new Date(now.getTime() - IDLE_SEND_HOURS * 3600_000).toISOString();
+  const { results } = await env.DB.prepare(
+    // Never one she put away herself (archived_by 'her'); one the tidy archived comes back.
+    `SELECT d.id FROM dumps d WHERE d.status = 'uploading' AND d.waiting_setup_at IS NULL AND (d.archived_by IS NULL OR d.archived_by = 'tidy')
+       AND EXISTS (SELECT 1 FROM assets a WHERE a.dump_id = d.id AND a.upload_status = 'uploaded')
+       AND NOT EXISTS (SELECT 1 FROM assets a WHERE a.dump_id = d.id AND a.upload_status = 'uploading')
+       AND (SELECT MAX(a.created_at) FROM assets a WHERE a.dump_id = d.id) < ?
+     ORDER BY d.created_at LIMIT 20`,
+  )
+    .bind(idle)
+    .all<{ id: string }>();
+  let sent = 0;
+  for (const d of results) {
+    // An archived one comes back into view: it is being cut now.
+    await env.DB.prepare("UPDATE dumps SET archived_at = NULL, archived_by = NULL WHERE id = ? AND archived_at IS NOT NULL").bind(d.id).run();
+    const r = await sendDump(env, d.id, null, true);
+    if (r.ok) {
+      sent++;
+      await recordEvent(env.DB, "dump.auto_sent_idle", d.id, { hours: IDLE_SEND_HOURS });
+    } else log.warn("dump.idle_send_refused", { status: r.status });
+  }
+  const stalledAt = new Date(now.getTime() - STALLED_UPLOAD_HOURS * 3600_000).toISOString();
+  const stalled = (await env.DB.prepare("SELECT COUNT(*) AS n FROM assets a JOIN dumps d ON d.id = a.dump_id WHERE a.upload_status = 'uploading' AND d.status = 'uploading' AND a.created_at < ?").bind(stalledAt).first<{ n: number }>())?.n ?? 0;
+  await setHealth(
+    env.DB,
+    "Uploads",
+    stalled ? "yellow" : "green",
+    stalled ? `${stalled} ${stalled === 1 ? "video stopped" : "videos stopped"} uploading more than a day ago. Open Add to send it again or remove it.` : "Every finished upload was sent",
+    stalled ? "dump-new-footage" : null,
+  );
+  log.info("OUTPUT", { job: "idle_dumps", checked: results.length, sent, stalled });
+  return { checked: results.length, sent, stalled };
 }
 
 async function dumpFullVideo(env: Env, id: string, files: number, email: string | null): Promise<Sent> {
