@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// New photo-real idea scenes for a plan, $0: Cloudflare Workers AI (FLUX.2 [klein] 9B, the newest
-// FLUX on the account's free daily allowance). Each "gen:<file>" picture the plan uses and that is
+// New photo-real idea scenes for a plan, $0: Cloudflare Workers AI on the account's free daily
+// allowance. FLUX.2 [klein] 9B looks best but MEASURED about 1,705 neurons per 768x1344 image
+// (20 Nov 2026: 4 images = 6,818), more than the engine's whole day, so it is never picked by the
+// cap; FLUX.1 [schnell] (priced about 60 a picture) is the default; ENGINE_IMAGE_MODEL picks another. Each "gen:<file>" picture the plan uses and that is
 // not yet in the plan's gen folder is made from its prompt in plan.generate, with the engine's fixed
 // rules appended (no people, no faces, no text, no house numbers, no balloon garlands).
 //
@@ -18,11 +20,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-export const MODEL = "@cf/black-forest-labs/flux-2-klein-9b";
+/** Worst-case neurons per 768x1344 picture: measured where we have it, else from the published price. */
+export const MODELS = {
+  "@cf/black-forest-labs/flux-1-schnell": { worst: 120, form: false },
+  "@cf/black-forest-labs/flux-2-klein-9b": { worst: 1800, form: true },
+};
+export const MODEL = process.env.ENGINE_IMAGE_MODEL || "@cf/black-forest-labs/flux-1-schnell";
 export const ENGINE_NEURON_CAP = 1500;
 export const ACCOUNT_CEILING = 9000;
-/** A worst case per 768x1344 image until a measured figure is in the ledger. */
-const WORST_PER_IMAGE = 150;
+const WORST_PER_IMAGE = MODELS[MODEL]?.worst ?? 2000;
 export const RULES = "No people, no faces, no hands, no text, no lettering, no signs, no house numbers, no logos, no balloon garlands, no pastel balloons.";
 
 export function usageQuery(account, now = new Date()) {
@@ -30,7 +36,7 @@ export function usageQuery(account, now = new Date()) {
   return { query: "query($a:String!,$s:Time!,$u:Time!){viewer{accounts(filter:{accountTag:$a}){aiInferenceAdaptiveGroups(limit:200,filter:{datetime_geq:$s,datetime_lt:$u}){sum{totalNeurons} dimensions{modelId}}}}}", variables: { a: account, s: since, u: now.toISOString() } };
 }
 
-/** Today's neurons: this model's and the whole account's; null when it cannot be read (fail closed). */
+/** Today's neurons: the engine's (every image model it may use) and the whole account's; null when it cannot be read (fail closed). */
 export async function usedToday({ account, token, fetchImpl = fetch, now = new Date() }) {
   try {
     const r = await fetchImpl("https://api.cloudflare.com/client/v4/graphql", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(usageQuery(account, now)) });
@@ -41,7 +47,7 @@ export async function usedToday({ account, token, fetchImpl = fetch, now = new D
     for (const x of rows) {
       const n = Number(x?.sum?.totalNeurons || 0);
       all += n;
-      if (x?.dimensions?.modelId === MODEL) mine += n;
+      if (x?.dimensions?.modelId in MODELS) mine += n;
     }
     return { mine, all };
   } catch {
@@ -72,7 +78,7 @@ async function main() {
   const day = new Date().toISOString().slice(0, 10);
   const ledgerFile = path.join(process.env.ENGINE_OUT || path.join(HERE, "out"), `neurons-${day}.json`);
   mkdirSync(path.dirname(ledgerFile), { recursive: true });
-  const ledger = existsSync(ledgerFile) ? JSON.parse(readFileSync(ledgerFile, "utf8")) : { model: MODEL, calls: 0, worst: 0 };
+  const ledger = existsSync(ledgerFile) ? JSON.parse(readFileSync(ledgerFile, "utf8")) : { calls: 0, worst: 0 };
   let made = 0;
   for (const file of todo) {
     const prompt = plan.generate?.[file];
@@ -91,11 +97,18 @@ async function main() {
       console.log(`NAMED STOP [WORKERS_AI_CAP] this model ${Math.round(Math.max(used.mine, ledger.worst))}/${ENGINE_NEURON_CAP} neurons today, account ${Math.round(used.all)}/${ACCOUNT_CEILING}; the rest tomorrow`);
       process.exit(1);
     }
-    const form = new FormData();
-    form.append("prompt", `${prompt} ${RULES}`);
-    form.append("width", "768");
-    form.append("height", "1344");
-    const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/ai/run/${MODEL}`, { method: "POST", headers: { authorization: `Bearer ${runToken}` }, body: form });
+    let body;
+    const headers = { authorization: `Bearer ${runToken}` };
+    if (MODELS[MODEL]?.form) {
+      body = new FormData();
+      body.append("prompt", `${prompt} ${RULES}`);
+      body.append("width", "768");
+      body.append("height", "1344");
+    } else {
+      body = JSON.stringify({ prompt: `${prompt} ${RULES}`, steps: 6 });
+      headers["content-type"] = "application/json";
+    }
+    const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/ai/run/${MODEL}`, { method: "POST", headers, body });
     const j = await r.json().catch(() => ({}));
     ledger.calls++;
     ledger.worst += WORST_PER_IMAGE;

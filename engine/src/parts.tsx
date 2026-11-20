@@ -1,4 +1,4 @@
-// Shared pieces every format is built from: the brand fonts, a photo that fills or sits as a print,
+// Shared pieces every format is built from: the brand fonts, a full-bleed moving photo,
 // headline boxes, the wordmark and the end card. Motion is short and calm (ship-ready D: no bouncy
 // or elastic easing); the hook is already readable on frame 0 so the first frame works as a cover.
 import React from "react";
@@ -42,56 +42,26 @@ export function useSafe() {
   return { width, height, top: height * SAFE.top, bottom: height * (1 - SAFE.bottom), left: width * SAFE.left, right: width * (1 - SAFE.right), inner: width * (1 - SAFE.left - SAFE.right) };
 }
 
-/** True when a picture is wider than the frame can fill without cropping most of it away. */
-export const isWide = (p: Pic, width: number, height: number) => p.w / p.h > (width / height) * 1.6;
-
 /**
- * A photo filling the frame with a slow push (from `zoomFrom` to `zoomTo` over `dur` frames).
- * A wide photo is shown whole as a print on the brand's plum ground (a faint, blurred wash of the
- * photo behind it) rather than cropped to a sliver or blown up past its resolution.
+ * A photo, always full-bleed (cropped to the frame on its subject, fx/fy), always moving: a push in
+ * (zoomTo > zoomFrom) or a pull back, plus a slow drift sideways, never a frozen frame. The move is
+ * at least 6% and about 1.5% a second (ship-ready review 20 Nov 2026: no 2+ seconds of a still
+ * frame; no small print on a blurred copy of itself).
  */
-export const Photo: React.FC<{ pic: Pic; dur: number; zoomFrom?: number; zoomTo?: number; dim?: number; print?: boolean; tilt?: number; ground?: string; printY?: number; printMax?: number }> = ({ pic, dur, zoomFrom = 1.04, zoomTo = 1.12, dim = 0, print, tilt = -1.2, ground = "#2A1A28", printY = 0.56, printMax = 0.42 }) => {
+export const Photo: React.FC<{ pic: Pic; dur: number; zoomFrom?: number; zoomTo?: number; dim?: number; still?: boolean }> = ({ pic, dur, zoomFrom = 1.02, zoomTo = 1.1, dim = 0, still }) => {
   const f = useCurrentFrame();
-  const { width, height } = useVideoConfig();
-  const z = interpolate(f, [0, dur], [zoomFrom, zoomTo], { extrapolateRight: "clamp" });
+  const { fps } = useVideoConfig();
+  const span = Math.max(0.06, Math.min(0.12, (dur / fps) * 0.015));
+  const inward = zoomTo >= zoomFrom;
+  const t = still ? 0 : interpolate(f, [0, Math.max(1, dur)], [0, 1], { extrapolateRight: "clamp" });
+  const z = 1.04 + (inward ? t : 1 - t) * span;
+  // sideways drift, kept inside the zoom's overflow so an edge never shows
+  const drift = (inward ? -1 : 1) * (t - 0.5) * 2 * ((z - 1) / 2) * 0.6 * 100;
   const fx = (pic.fx ?? 0.5) * 100;
   const fy = (pic.fy ?? 0.5) * 100;
-  const asPrint = print ?? isWide(pic, width, height);
-  if (!asPrint) {
-    return (
-      <AbsoluteFill style={{ overflow: "hidden", backgroundColor: "#000" }}>
-        <Img src={staticFile(pic.src)} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: `${fx}% ${fy}%`, transform: `scale(${z})`, transformOrigin: `${fx}% ${fy}%`, filter: dim ? `brightness(${1 - dim})` : undefined }} />
-      </AbsoluteFill>
-    );
-  }
-  // The print: as wide as the safe frame allows, never taller than printMax (42%) of it, keeping its shape.
-  let pw = width * 0.86;
-  let ph = pw * (pic.h / pic.w);
-  if (ph > height * printMax) {
-    ph = height * printMax;
-    pw = ph * (pic.w / pic.h);
-  }
   return (
-    <AbsoluteFill style={{ overflow: "hidden", backgroundColor: ground }}>
-      <Img src={staticFile(pic.src)} style={{ position: "absolute", inset: -60, width: width + 120, height: height + 120, objectFit: "cover", opacity: 0.22, filter: "blur(30px) saturate(1.1)" }} />
-      <div
-        style={{
-          position: "absolute",
-          left: (width - pw) / 2,
-          top: height * printY - ph / 2,
-          width: pw,
-          height: ph,
-          padding: 14,
-          backgroundColor: "#FBF6EE",
-          borderRadius: 10,
-          boxShadow: "0 30px 70px rgba(0,0,0,.45)",
-          transform: `rotate(${tilt}deg) scale(${0.97 + (z - zoomFrom) * 0.5})`,
-        }}
-      >
-        <div style={{ width: "100%", height: "100%", overflow: "hidden", borderRadius: 4 }}>
-          <Img src={staticFile(pic.src)} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: `${fx}% ${fy}%`, filter: dim ? `brightness(${1 - dim})` : undefined }} />
-        </div>
-      </div>
+    <AbsoluteFill style={{ overflow: "hidden", backgroundColor: "#000" }}>
+      <Img src={staticFile(pic.src)} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: `${fx}% ${fy}%`, transform: `scale(${z}) translateX(${drift / z}%)`, filter: dim ? `brightness(${1 - dim})` : undefined }} />
     </AbsoluteFill>
   );
 };
@@ -124,6 +94,7 @@ export const Headline: React.FC<{ brand: Brand; text: string; size?: number; ton
           textAlign: align,
           maxWidth: "100%",
           whiteSpace: "pre-line",
+          textWrap: "balance",
         }}
       >
         {text}
@@ -150,6 +121,7 @@ export const Line: React.FC<{ brand: Brand; text: string; size?: number; tone?: 
           borderRadius: size * 0.3,
           boxShadow: "0 8px 24px rgba(0,0,0,.16)",
           whiteSpace: "pre-line",
+          textWrap: "balance",
         }}
       >
         {text}

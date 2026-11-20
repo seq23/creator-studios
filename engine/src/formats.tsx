@@ -144,12 +144,12 @@ const Split: React.FC<{ a: Pic; c: Pic; dur: number; la?: string; lc?: string; b
     <AbsoluteFill>
       <div style={{ position: "absolute", left: 0, top: 0, width, height: half - 4, overflow: "hidden" }}>
         <AbsoluteFill style={{ width, height: half }}>
-          <Photo pic={a} dur={dur} print={false} />
+          <Photo pic={a} dur={dur} />
         </AbsoluteFill>
       </div>
       <div style={{ position: "absolute", left: 0, top: half + 4, width, height: half - 4, overflow: "hidden" }}>
         <AbsoluteFill style={{ width, height: half }}>
-          <Photo pic={c} dur={dur} print={false} zoomFrom={1.1} zoomTo={1.03} />
+          <Photo pic={c} dur={dur} zoomFrom={1.1} zoomTo={1.03} />
         </AbsoluteFill>
       </div>
       <div style={{ position: "absolute", left: 0, top: half - 4, width, height: 8, backgroundColor: b.colors.ground }} />
@@ -200,9 +200,13 @@ const RateIt: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B }) =
     <AbsoluteFill>
       {p.pics.map((pic, i) => (
         <Sequence key={i} from={i === 0 ? 0 : 3 * B + i * each} durationInFrames={i === 0 ? 3 * B + each + 8 : each + 8}>
-          <Fade len={i === 0 ? 1 : 8}>
-            <Photo pic={pic} dur={each + 3 * B} />
-          </Fade>
+          {i === 0 ? (
+            <Photo pic={pic} dur={3 * B + each + 8} />
+          ) : (
+            <Fade len={8}>
+              <Photo pic={pic} dur={each + 8} zoomFrom={1.1} zoomTo={1.03} />
+            </Fade>
+          )}
         </Sequence>
       ))}
       <TopWash />
@@ -275,7 +279,16 @@ const Checklist: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B }
   const panelIn = useIn(3 * B, 9);
   return (
     <AbsoluteFill>
-      <Photo pic={p.pics[0]} dur={total} dim={0.18} printY={0.77} printMax={0.3} />
+      <Sequence durationInFrames={p.pics[1] ? 6 * B + 8 : total}>
+        <Photo pic={p.pics[0]} dur={p.pics[1] ? 6 * B + 8 : total} dim={0.2} />
+      </Sequence>
+      {p.pics[1] ? (
+        <Sequence from={6 * B}>
+          <Fade len={8}>
+            <Photo pic={p.pics[1]} dur={total - 6 * B} dim={0.2} zoomFrom={1.1} zoomTo={1.03} />
+          </Fade>
+        </Sequence>
+      ) : null}
       <TopWash />
       <Headline brand={b} text={p.hook} hookFrame0 size={78} />
       <div style={{ position: "absolute", left: s.left, top: s.top + 360 * scale, width: s.inner + 60 * scale, backgroundColor: b.colors.ground, borderRadius: 26 * scale, padding: `${34 * scale}px ${36 * scale}px`, boxShadow: "0 20px 50px rgba(0,0,0,.28)", opacity: panelIn, transform: `translateY(${(1 - panelIn) * 24}px)`, display: "flex", flexDirection: "column", gap: 26 * scale }}>
@@ -304,24 +317,32 @@ const Countdown: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B }
   const s = useSafe();
   const { width } = useVideoConfig();
   const n = p.count ?? 7;
-  // The true number from frame 0 (it is the cover); it lands with a short settle, never counts from a wrong one.
-  const settle = interpolate(f, [0, 10], [1.06, 1], { extrapolateRight: "clamp" });
+  // Frame 0 is a picture with the true number and the hook on it (the cover); the number only settles.
+  const settle = interpolate(f, [0, 10], [1.05, 1], { extrapolateRight: "clamp" });
   const total = bodyBeats(p) * B;
+  const cut = 5 * B;
   const scale = width / 1080;
   return (
     <AbsoluteFill>
-      <Sequence durationInFrames={4 * B + 8}>
-        <AbsoluteFill style={{ backgroundColor: b.colors.ink, alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 * scale }}>
-          <div style={{ fontFamily: DISPLAY, fontVariationSettings: DISPLAY_VARIATION, fontWeight: 800, fontSize: 470 * scale, lineHeight: 0.9, color: b.colors.ground, transform: `scale(${settle})` }}>{n}</div>
-          <div style={{ fontFamily: BODY, fontWeight: 800, fontSize: 64 * scale, color: b.colors.tag, letterSpacing: ".02em", textAlign: "center", maxWidth: width * 0.8, whiteSpace: "pre-line" }}>{p.hook}</div>
-        </AbsoluteFill>
+      <Sequence durationInFrames={p.pics[1] ? cut + 8 : total}>
+        <Photo pic={p.pics[0]} dur={p.pics[1] ? cut + 8 : total} />
       </Sequence>
-      <Sequence from={4 * B}>
-        <Fade len={8}>
-          <Photo pic={p.pics[0]} dur={total - 4 * B} />
-          <TopWash />
-          <Line brand={b} text={p.lines[0]} y={s.top} size={58} at={4} />
-        </Fade>
+      {p.pics[1] ? (
+        <Sequence from={cut}>
+          <Fade len={8}>
+            <Photo pic={p.pics[1]} dur={total - cut} zoomFrom={1.1} zoomTo={1.03} />
+          </Fade>
+        </Sequence>
+      ) : null}
+      <TopWash />
+      <Sequence durationInFrames={cut + 4}>
+        <div style={{ position: "absolute", left: s.left, top: s.top, display: "flex", alignItems: "center", gap: 26 * scale, backgroundColor: b.colors.ground, color: b.colors.ink, borderRadius: 26 * scale, padding: `${18 * scale}px ${40 * scale}px ${18 * scale}px ${30 * scale}px`, boxShadow: "0 12px 34px rgba(0,0,0,.22)", transform: `scale(${settle})`, transformOrigin: "left top" }}>
+          <div style={{ fontFamily: BODY, fontWeight: 900, fontSize: 210 * scale, lineHeight: 1, fontVariantNumeric: "lining-nums" }}>{n}</div>
+          <div style={{ fontFamily: DISPLAY, fontVariationSettings: DISPLAY_VARIATION, fontWeight: 800, fontSize: 66 * scale, lineHeight: 1.04, whiteSpace: "pre-line", maxWidth: s.inner * 0.62 }}>{p.hook}</div>
+        </div>
+      </Sequence>
+      <Sequence from={cut}>
+        <Line brand={b} text={p.lines[0]} y={s.top} size={58} at={6} />
       </Sequence>
     </AbsoluteFill>
   );
@@ -378,7 +399,7 @@ const DetailZoom: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B 
   return (
     <AbsoluteFill>
       <AbsoluteFill style={{ transform: `scale(${cur.z})`, transformOrigin: `${cur.x * 100}% ${cur.y * 100}%` }}>
-        <Photo pic={pic} dur={1} zoomFrom={1} zoomTo={1} print={false} />
+        <Photo pic={pic} dur={1} still />
       </AbsoluteFill>
       {f < 3 * B + 4 ? (
         <>
@@ -491,7 +512,7 @@ export const CarouselSlide: React.FC<PieceProps> = (p) => {
   const pic = p.pics[i - 1];
   return (
     <AbsoluteFill>
-      <Photo pic={pic} dur={1} zoomFrom={1} zoomTo={1} printY={0.47} />
+      <Photo pic={pic} dur={1} still />
       {pic.label ? (
         <div style={{ position: "absolute", left: 56 * scale, bottom: 60 * scale, fontFamily: BODY, fontWeight: 700, fontSize: 44 * scale, color: b.colors.ink, backgroundColor: b.colors.ground, borderRadius: 14 * scale, padding: `${14 * scale}px ${26 * scale}px`, boxShadow: "0 8px 24px rgba(0,0,0,.2)" }}>{pic.label}</div>
       ) : null}

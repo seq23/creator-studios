@@ -50,7 +50,7 @@
           "label": "Baby shower"
         }
       ],
-      "hook": "Real setups.\nReal Memphis nights.",
+      "hook": "Real setups.\nAll in Memphis.",
       "captions": {
         "tiktok": "Every one of these started with a date and a place. Tell us yours at porchandparty901.com/request #memphis #surprisesetup",
         "instagram": "Every one of these started with a date and a place. Yours could be next. porchandparty901.com/request #memphis #surprisesetup",
@@ -72,6 +72,9 @@
         {
           "src": "gen:tg-green-door-porch.jpg",
           "fy": 0.5
+        },
+        {
+          "src": "gen:tg-table-at-home.jpg"
         }
       ],
       "hook": "days to Thanksgiving",
@@ -129,10 +132,10 @@
           "src": "real:baby-shower-dessert-display.jpg"
         },
         {
-          "src": "real:hotel-birthday-28-balloons-2.png"
+          "src": "real:baby-shower-gift-table.jpg"
         },
         {
-          "src": "real:hotel-birthday-feliz-cumpleanos-4.png"
+          "src": "real:baby-shower-teddy-centerpiece.jpg"
         }
       ],
       "hook": "Party this week\nand no time to decorate?",

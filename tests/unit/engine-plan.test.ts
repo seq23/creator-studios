@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { aiScene, localToUtc, validatePlan, type Plan, type PlanPiece } from "../../engine/src/plan";
 import { FORMATS } from "../../engine/src/library";
 // @ts-expect-error plain .mjs script with no types
-import { ACCOUNT_CEILING, ENGINE_NEURON_CAP, fits, usedToday } from "../../engine/imagine.mjs";
+import { ACCOUNT_CEILING, ENGINE_NEURON_CAP, MODELS, fits, usedToday } from "../../engine/imagine.mjs";
 
 const committed = JSON.parse(readFileSync(path.resolve(__dirname, "..", "..", "engine", "plans", "pnp-2026-11-21.json"), "utf8")) as Plan;
 const BEFORE = Date.parse("2026-11-20T12:00:00.000Z");
@@ -65,6 +65,14 @@ describe("hard rules", () => {
     const b = base({ id: "piece-b", at: "2026-11-22 18:30" });
     expect(validatePlan(plan([a, b]), BEFORE).join()).toMatch(/repeats ai:porch\/x.webp/);
   });
+  it("one real setup at most once a week across pieces (other shots of it count)", () => {
+    const a = base({ id: "piece-a", at: "2026-11-21 18:30", pics: [{ src: "real:hotel-28-balloons-1.png" }] });
+    const c = base({ id: "piece-c", at: "2026-11-22 18:30" });
+    const near = base({ id: "piece-b", at: "2026-11-23 18:30", pics: [{ src: "real:hotel-28-balloons-2.png" }] });
+    const week = base({ id: "piece-b", at: "2026-11-28 18:30", pics: [{ src: "real:hotel-28-balloons-2.png" }] });
+    expect(validatePlan(plan([a, c, near]), BEFORE).join()).toMatch(/real setup "hotel-28-balloons" was in piece-a/);
+    expect(validatePlan(plan([a, c, week]), BEFORE)).toEqual([]);
+  });
   it("marks a piece with any AI picture as an AI scene (TikTok's switch), a real-only piece not", () => {
     expect(aiScene(base())).toBe(true);
     expect(aiScene(base({ pics: [{ src: "real:a.jpg" }] }))).toBe(false);
@@ -90,5 +98,7 @@ describe("new scenes on Workers AI (engine/imagine.mjs): metered, fail closed", 
     expect(fits({ mine: 0, all: 0 }, 1400, 150)).toBe(false); // this run's own calls count before analytics catches up
     expect(fits({ mine: 100, all: ACCOUNT_CEILING - 100 }, 0, 150)).toBe(false);
     expect(fits({ mine: 100, all: 2000 }, 0, 150)).toBe(true);
+    // FLUX.2 klein 9B measured ~1,705 a picture: it never fits the engine's day
+    expect(fits({ mine: 0, all: 0 }, 0, MODELS["@cf/black-forest-labs/flux-2-klein-9b"].worst)).toBe(false);
   });
 });

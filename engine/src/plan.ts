@@ -120,5 +120,18 @@ export function validatePlan(plan: Plan, now: number): string[] {
     const shared = sorted[i].pics.find((x) => prev.has(x.src));
     if (shared) out.push(`${sorted[i].id}: repeats ${shared.src} from the piece before it`);
   }
+  // One real setup at most once a week across pieces (review 20 Nov 2026: the same hotel balloons in
+  // three pieces Sat to Sat). A setup is the file name without its trailing shot number.
+  const setup = (src: string) => src.slice(5).replace(/\.[a-z]+$/i, "").replace(/-\d+$/, "");
+  const lastSeen = new Map<string, { id: string; t: number }>();
+  for (const p of sorted) {
+    const t = Date.parse(localToUtc(p.at, plan.tz));
+    const keys = new Set(p.pics.filter((x) => x.src.startsWith("real:")).map((x) => setup(x.src)));
+    for (const k of keys) {
+      const seen = lastSeen.get(k);
+      if (seen && t - seen.t < 7 * 86_400_000) out.push(`${p.id}: real setup "${k}" was in ${seen.id} less than a week before`);
+      lastSeen.set(k, { id: p.id, t });
+    }
+  }
   return out;
 }
