@@ -70,7 +70,7 @@ async function main() {
   const wanted = [...new Set(plan.pieces.flatMap((p) => p.pics.map((x) => x.src)).filter((s) => s.startsWith("gen:")).map((s) => s.slice(4)))];
   const todo = wanted.filter((f) => !existsSync(path.join(dir, f)));
   const day = new Date().toISOString().slice(0, 10);
-  const ledgerFile = path.join(HERE, "out", `neurons-${day}.json`);
+  const ledgerFile = path.join(process.env.ENGINE_OUT || path.join(HERE, "out"), `neurons-${day}.json`);
   mkdirSync(path.dirname(ledgerFile), { recursive: true });
   const ledger = existsSync(ledgerFile) ? JSON.parse(readFileSync(ledgerFile, "utf8")) : { model: MODEL, calls: 0, worst: 0 };
   let made = 0;

@@ -42,7 +42,7 @@ const only = arg("only")?.split(",").filter(Boolean);
 const pieces = plan.pieces.filter((p) => !only || only.includes(p.id));
 const extraSizes = (arg("sizes") ?? "").split(",").filter(Boolean);
 const planName = path.basename(planPath, ".json");
-const outRoot = path.join(HERE, "out", planName);
+const outRoot = path.join(process.env.ENGINE_OUT || path.join(HERE, "out"), planName);
 const pub = path.join(HERE, "public");
 mkdirSync(path.join(pub, "in"), { recursive: true });
 mkdirSync(path.join(pub, "music"), { recursive: true });

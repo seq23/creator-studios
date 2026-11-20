@@ -655,7 +655,7 @@ async function engineQueue(slug, planFile) {
   const plan = JSON.parse(readFileSync(planFile, "utf8"));
   if (plan.studio !== slug) throw new Error(`this plan is for ${plan.studio}, not ${slug}`);
   const only = process.argv.find((x) => x.startsWith("--only="))?.slice(7).split(",").filter(Boolean);
-  const outRoot = path.join(ROOT, "engine", "out", path.basename(planFile, ".json"));
+  const outRoot = path.join(process.env.ENGINE_OUT || path.join(ROOT, "engine", "out"), path.basename(planFile, ".json"));
   let queued = 0;
   let passed = 0;
   for (const piece of plan.pieces.filter((p) => !only || only.includes(p.id))) {

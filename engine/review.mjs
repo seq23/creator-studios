@@ -25,7 +25,7 @@ if (!planPath) {
 const plan = JSON.parse(readFileSync(planPath, "utf8"));
 const only = arg("only")?.split(",").filter(Boolean);
 const again = process.argv.includes("--again");
-const outRoot = path.join(HERE, "out", path.basename(planPath, ".json"));
+const outRoot = path.join(process.env.ENGINE_OUT || path.join(HERE, "out"), path.basename(planPath, ".json"));
 
 const BRAND_NOTE = `Porch & Party (Memphis, porchandparty901.com): porch decorating, celebration setups (birthdays, anniversaries, showers, hotel-room surprises), grazing tables, giant yard game rentals. Idea: "Memphis porches & parties, set up for you." Voice: a friendly Memphis neighbour, plain words. Palette: Cotton #FBF6EE ground, Porch-step plum #2A1A28 ink, Marigold #F2B01E ONLY on the one call-to-action button, Haint blue #CFE8E6 for the 901 plaque and tags. Fonts: Fraunces (soft, heavy) for headings and the wordmark, Figtree for body. Logo: "Porch & Party" wordmark with "901" on a haint-blue plaque. Do not: pastel balloon-garland look, script fonts, stock-photo feel, customer faces or names, house numbers, prices, "insured"/"licensed"/guarantees, "Book now".`;
 
