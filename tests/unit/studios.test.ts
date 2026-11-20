@@ -176,6 +176,25 @@ describe("guard (b): studio A's D1 and R2 are never studio B's", () => {
     w.find((s: { slug: string }) => s.slug === "sample1").worker = w.find((s: { slug: string }) => s.slug === "hadiyah").worker;
     expect(checkIsolation(w, cfg()).problems.join("\n")).toMatch(/Worker hadiyahstudio is shared by hadiyah and sample1/);
   });
+
+  it("a studio whose bucket is on another account (r2.s3) binds no R2, names exactly its own bucket, and reads its S3 keys from its own files", () => {
+    const h = reg.studios.find((s: { slug: string }) => s.slug === "hadiyah");
+    expect(h.r2.s3).toBe(true);
+    const env = cfg().env.hadiyah;
+    expect(env.r2_buckets).toEqual([]);
+    expect(env.vars.FILES_S3_BUCKET).toBe(h.r2.bucket);
+    for (const k of ["FILES_S3_ENDPOINT", "FILES_S3_ACCESS_KEY_ID", "FILES_S3_SECRET_ACCESS_KEY"]) expect(secretPlan(h)[k]).toBe(`studio-file:${k}`);
+    // negative proof: pointed at another studio's bucket, given a binding back, or missing a key file
+    const c = cfg();
+    c.env.hadiyah.vars.FILES_S3_BUCKET = "creator-studios-sample1-files";
+    expect(checkIsolation(reg.studios, c).problems.join("\n")).toMatch(/env\.hadiyah: an r2\.s3 studio binds no R2 and sets FILES_S3_BUCKET to its own/);
+    const c2 = cfg();
+    c2.env.hadiyah.r2_buckets = [{ binding: "FILES", bucket_name: h.r2.bucket }];
+    expect(checkIsolation(reg.studios, c2).problems).toHaveLength(1);
+    const w = clone(reg.studios);
+    delete w.find((s: { slug: string }) => s.slug === "hadiyah").hostSecrets.FILES_S3_SECRET_ACCESS_KEY;
+    expect(checkIsolation(w, cfg()).problems.join("\n")).toMatch(/r2\.s3 needs hostSecrets\.FILES_S3_SECRET_ACCESS_KEY/);
+  });
 });
 
 describe("the owner email and the platform sender are never committed config", () => {

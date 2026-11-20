@@ -116,7 +116,7 @@ export interface ReviewClip extends ClipRow {
   pending_look_name: string | null;
   /** The plain sentence when the last re-render failed. */
   rerender_error: string | null;
-  /** False once the original upload was cleared (7 days): its look can no longer change. */
+  /** False once the original upload was cleared (worker/lib/retention.ts): its look can no longer change. */
   source_available: boolean;
   /** Made in another editor (her own edit uploaded back, or a connected editor). */
   edited_with: string | null;
@@ -844,7 +844,7 @@ export function lookChangeRefusal(clip: LookChangeState | null, look: unknown, s
   if (!isLookId(look)) return { status: 422, error: "Pick one of the looks in the list." };
   if (clip.in_buffer) return { status: 409, error: "This clip is already loaded into Buffer. Remove it from the Calendar first, then change its look." };
   if (clip.pending_look) return { status: 409, error: "This clip is already getting a new look. It will be ready in about a minute." };
-  if (clip.raw_deleted_at) return { status: 409, error: "The original video for this clip was cleared after 7 days, so its look can't change. Dump that video again to get new looks." };
+  if (clip.raw_deleted_at) return { status: 409, error: "The original video for this clip was cleared to save space, so its look can't change. Dump that video again to get new looks." };
   // Change music keeps the look on purpose (sameLookOk); a Change look to the same look is refused.
   if (!sameLookOk && clip.look === look && (!isGridLook(look) || sameLayout)) return { status: 409, error: "It already has that look. Pick a different one." };
   return null;
@@ -855,7 +855,7 @@ export function againRefusal(clip: Omit<LookChangeState, "look"> & { look?: stri
   if (!clip || clip.status === "deleted") return { status: 404, error: "That clip is gone." };
   if (clip.in_buffer) return { status: 409, error: "This clip is already loaded into Buffer. Remove it from the Calendar first, then try another version." };
   if (clip.pending_look) return { status: 409, error: "A new version of this clip is already on its way. It will be ready in a few minutes." };
-  if (clip.raw_deleted_at) return { status: 409, error: "The original video for this clip was cleared after 7 days, so it can't be cut again. Dump that video again to get new versions." };
+  if (clip.raw_deleted_at) return { status: 409, error: "The original video for this clip was cleared to save space, so it can't be cut again. Dump that video again to get new versions." };
   return null;
 }
 

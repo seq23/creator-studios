@@ -6,7 +6,7 @@ last_checked: 2026-09-26
 keywords: storage, space, full, gb, red storage, yellow storage, upload failed
 ---
 
-Your free storage is 10 GB. Every day the dashboard clears files by its rules (posted clips after 30 days, your originals after 7 days, unreviewed clips after 60 days with a warning first). If it is still over 9 GB it clears the oldest originals, rejected clips and posted clips early; it never touches a clip waiting to post, a media kit clip, or a clip it has not warned you about.
+Your free storage is 10 GB. Every day the dashboard clears files by its rules (posted clips after 30 days, your originals 30 days after they are cut, with an email 14 and 3 days before, unreviewed clips after 60 days with a warning first). If it is still over 9 GB it clears the oldest originals, rejected clips and posted clips early; it never touches a clip waiting to post, a media kit clip, or a clip it has not warned you about.
 
 ## The Storage light
 

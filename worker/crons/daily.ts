@@ -1,5 +1,5 @@
-// Daily lane: supply monitor ("Time to dump" email), retention (raw originals after 7 days,
-// public links 30 days after posting; rejected clips are never cleared, they wait in the bin), the day-358 storage rules
+// Daily lane: supply monitor ("Time to dump" email), her originals' clean-up (worker/lib/retention.ts:
+// RAW_RETENTION_DAYS after their clips are ready, emailed 14 and 3 days ahead), retention (public links 30 days after posting; rejected clips are never cleared, they wait in the bin), the day-358 storage rules
 // (posted clip files after 30 days unless in the kit, drafts after 60 days with the Home warning
 // first, the hard budget), the Storage light from every file, tidy (archive, never delete),
 // health recheck, the Voice · ElevenLabs light.
@@ -13,11 +13,18 @@ import { serviceHealthRows } from "./buffer-sync";
 import { recheckElevenLabs } from "../lib/premiumVoice";
 import { fullVideoRetention } from "../lib/fullVideo";
 import { clipFileRules, enforceBudget, measureStorage, storageHealth, tidyDaily } from "../lib/storage";
-import { CLIP_RETENTION_AFTER_POST_DAYS, RAW_RETENTION_DAYS, TIME_TO_DUMP_REPEAT_DAYS } from "@shared/constants";
+import { CLIP_RETENTION_AFTER_POST_DAYS, TIME_TO_DUMP_REPEAT_DAYS } from "@shared/constants";
+import { originalsRetention, RETENTION_LIGHT } from "../lib/retention";
 
 export async function dailyMaintenance(env: Env): Promise<void> {
   await supplyMonitor(env);
   await retention(env);
+  // Her originals: warned by email, then cleared (never a kept dump or one still being cut). A crash
+  // turns its light red so it is seen on the health board, and the rest of the lane still runs.
+  await originalsRetention(env).catch(async (e) => {
+    log.error("file_retention.failed", { err: e instanceof Error ? e.name : "error" });
+    await setHealth(env.DB, RETENTION_LIGHT, "red", "The daily file clean-up stopped with an error. Nothing was cleared; it tries again tomorrow.", "storage-and-tidy");
+  });
   // Full videos for YouTube: gone 7 days after posting, or 14 days unapproved (warned on Home first).
   await fullVideoRetention(env);
   // Day 358 (docs/reviews/2026-09-26-day-358.md): measure every file, clear what the rules say
@@ -70,16 +77,6 @@ async function supplyMonitor(env: Env) {
 
 async function retention(env: Env) {
   const now = Date.now();
-  const rawCutoff = new Date(now - RAW_RETENTION_DAYS * 86400_000).toISOString();
-  const { results: raws } = await env.DB.prepare(
-    "SELECT a.id, a.r2_key FROM assets a JOIN dumps d ON d.id = a.dump_id WHERE a.raw_deleted_at IS NULL AND a.upload_status = 'uploaded' AND d.status IN ('ready','reviewed') AND d.ready_at < ? LIMIT 50",
-  )
-    .bind(rawCutoff)
-    .all<{ id: string; r2_key: string }>();
-  for (const a of raws) {
-    await env.FILES.delete(a.r2_key);
-    await env.DB.prepare("UPDATE assets SET raw_deleted_at = ? WHERE id = ?").bind(new Date().toISOString(), a.id).run();
-  }
 
   // Rejected clips are never cleared here (owner's ruling, 13 Nov 2026): they wait in the Rejected
   // bin until she taps "Delete for good" or "Empty the bin" (worker/routes/bin.ts).
@@ -105,7 +102,7 @@ async function retention(env: Env) {
     // keep the file for stats; the public media link expires (section 13)
     await env.DB.prepare("UPDATE clips SET media_token = NULL WHERE id = ?").bind(cl.id).run();
   }
-  log.info("retention", { raws: raws.length, expired_links: posted.length - kept, kit_kept: kept });
+  log.info("retention", { expired_links: posted.length - kept, kit_kept: kept });
 }
 
 /** Clip ids in a kit's showcase (draft JSON, published content JSON, or a pre-versions kit's featured list). */

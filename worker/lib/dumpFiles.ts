@@ -45,7 +45,7 @@ export interface DumpFile {
   camera: boolean | null;
   taken_at: string | null;
   used_by: DumpFileUse[];
-  /** The day the original is cleared (7 days after the clips were ready); null before that is known. */
+  /** The day the original is cleared (RAW_RETENTION_DAYS after the clips were ready); null before that is known or when she kept the dump. */
   clears_on: string | null;
   cleared: boolean;
 }
@@ -65,7 +65,7 @@ export function clearsOn(readyAt: string | null): string | null {
 }
 
 export async function dumpFiles(env: Env, dumpId: string): Promise<DumpFilesView | null> {
-  const dump = await env.DB.prepare("SELECT id, created_at, status, ready_at, clip_counts FROM dumps WHERE id = ?").bind(dumpId).first<{ id: string; created_at: string; status: string; ready_at: string | null; clip_counts: string | null }>();
+  const dump = await env.DB.prepare("SELECT id, created_at, status, ready_at, clip_counts, originals_kept FROM dumps WHERE id = ?").bind(dumpId).first<{ id: string; created_at: string; status: string; ready_at: string | null; clip_counts: string | null; originals_kept: number }>();
   if (!dump) return null;
   const { results: assets } = await env.DB.prepare(
     "SELECT id, file_name, mime_type, size_bytes, role, exif_camera, taken_at, raw_deleted_at FROM assets WHERE dump_id = ? AND upload_status = 'uploaded' ORDER BY created_at",
@@ -89,7 +89,7 @@ export async function dumpFiles(env: Env, dumpId: string): Promise<DumpFilesView
       uses.set(id, list);
     }
   }
-  const clear = clearsOn(dump.ready_at);
+  const clear = dump.originals_kept ? null : clearsOn(dump.ready_at);
   const files: DumpFile[] = assets.map((a) => ({
     id: a.id,
     file_name: a.file_name,

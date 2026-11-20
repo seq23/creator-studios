@@ -22,7 +22,9 @@
     "id": "961a728b-2eae-48f0-803b-928302e03da7"
   },
   "r2": {
-    "bucket": "creator-studios-hadiyah-files"
+    "bucket": "creator-studios-hadiyah-files",
+    "s3": true,
+    "_s3": "Owner, 20 Nov 2026: her files live on the host's second Cloudflare account (same bucket name), reached over the S3 API (worker/services/s3files.ts) with keys scoped to this one bucket, from the 0600 files <secrets dir>/hadiyah/FILES_S3_*."
   },
   "githubRepo": "seq23/creator-studios",
   "hostSecrets": {
@@ -39,7 +41,10 @@
     "HF_TOKEN": "studio-file?:HF_TOKEN",
     "_hostKeys": "Owner decisions 7 Oct 2026: AI writing (OpenRouter), studio email (Resend), web research (Firecrawl) and brand contacts (Hunter) run on the host's personal accounts, from the 0600 files <secrets dir>/hadiyah/<NAME>; used only when Hadiyah has not saved her own on Setup (worker/lib/hostKeys.ts).",
     "_optional": "file? = set when the env var or 0600 secret file exists (README Secrets), otherwise a named stop: Google sign-in runs in practice mode until then.",
-    "_hf": "Realistic motion for photo videos (owner's word 22 Oct 2026): a free Hugging Face token from the 0600 file <secrets dir>/hadiyah/HF_TOKEN; without it the slow zoom is used and Setup shows Connect Hugging Face."
+    "_hf": "Realistic motion for photo videos (owner's word 22 Oct 2026): a free Hugging Face token from the 0600 file <secrets dir>/hadiyah/HF_TOKEN; without it the slow zoom is used and Setup shows Connect Hugging Face.",
+    "FILES_S3_ENDPOINT": "studio-file:FILES_S3_ENDPOINT",
+    "FILES_S3_ACCESS_KEY_ID": "studio-file:FILES_S3_ACCESS_KEY_ID",
+    "FILES_S3_SECRET_ACCESS_KEY": "studio-file:FILES_S3_SECRET_ACCESS_KEY"
   },
   "jobSecretOnHostRepo": true,
   "photoPosts": {

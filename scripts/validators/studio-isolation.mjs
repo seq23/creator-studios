@@ -34,7 +34,11 @@ export function checkIsolation(studios, cfg) {
     const db = env.d1_databases ?? [];
     const r2 = env.r2_buckets ?? [];
     if (db.length !== 1 || db[0].binding !== "DB" || db[0].database_name !== s.d1.name || (s.d1.id && db[0].database_id !== s.d1.id)) problems.push(`env.${s.slug}: DB must bind exactly its own D1 ${s.d1.name}`);
-    if (r2.length !== 1 || r2[0].binding !== "FILES" || r2[0].bucket_name !== s.r2.bucket) problems.push(`env.${s.slug}: FILES must bind exactly its own R2 ${s.r2.bucket}`);
+    if (s.r2.s3) {
+      // Its bucket is on another account, over S3: no binding at all, and the Worker is told exactly its own bucket.
+      if (r2.length !== 0 || env.vars?.FILES_S3_BUCKET !== s.r2.bucket) problems.push(`env.${s.slug}: an r2.s3 studio binds no R2 and sets FILES_S3_BUCKET to its own ${s.r2.bucket}`);
+      for (const k of ["FILES_S3_ENDPOINT", "FILES_S3_ACCESS_KEY_ID", "FILES_S3_SECRET_ACCESS_KEY"]) if (s.hostSecrets?.[k] !== `studio-file:${k}`) problems.push(`studios/${s.slug}.json: r2.s3 needs hostSecrets.${k} = "studio-file:${k}" (its own 0600 file)`);
+    } else if (r2.length !== 1 || r2[0].binding !== "FILES" || r2[0].bucket_name !== s.r2.bucket) problems.push(`env.${s.slug}: FILES must bind exactly its own R2 ${s.r2.bucket}`);
     if (env.name !== s.worker) problems.push(`env.${s.slug}: Worker name ${env.name}, registry says ${s.worker}`);
     if (env.vars?.STUDIO_SLUG !== s.slug) problems.push(`env.${s.slug}: STUDIO_SLUG is ${env.vars?.STUDIO_SLUG}`);
     if (env.vars?.PUBLIC_BASE_URL !== s.url) problems.push(`env.${s.slug}: PUBLIC_BASE_URL is ${env.vars?.PUBLIC_BASE_URL}, registry says ${s.url}`);

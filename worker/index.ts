@@ -39,6 +39,7 @@ import { kitPage } from "./routes/kitpage";
 import { legal } from "./routes/legal";
 import { photos } from "./routes/photos";
 import { skipPage } from "./routes/skip";
+import { originals } from "./routes/originals";
 import { whatsNew } from "./routes/whatsNew";
 import { ops } from "./routes/ops";
 import { runCron } from "./crons/index";
@@ -89,6 +90,7 @@ app.route("/api/photos", photos);
 app.route("/api/bin", bin);
 app.route("/api/whats-new", whatsNew);
 app.route("/skip", skipPage);
+app.route("/originals", originals);
 app.route("/kit", kitPage);
 app.route("/", legal);
 

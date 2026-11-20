@@ -28,6 +28,10 @@ describe("What I dumped", () => {
     expect(h.all<{ uses_ai_images: number }>("SELECT uses_ai_images FROM clips WHERE dump_id = 'dmp_f'").every((c) => c.uses_ai_images === 1)).toBe(true);
     const ready = h.one<{ ready_at: string }>("SELECT ready_at FROM dumps WHERE id = 'dmp_f'").ready_at;
     expect(photo.clears_on).toBe(clearsOn(ready));
+    // A dump she kept (Keep them, worker/routes/originals.ts) shows no clear date.
+    h.db.raw.exec("UPDATE dumps SET originals_kept = 1 WHERE id = 'dmp_f'");
+    expect((await h.call("GET", "/api/dumps/dmp_f/files")).json.files.every((f: { clears_on: string | null }) => f.clears_on === null)).toBe(true);
+    h.db.raw.exec("UPDATE dumps SET originals_kept = 0 WHERE id = 'dmp_f'");
     // Each file opens on her own screens, while it is kept.
     const view = await h.request("GET", photo.view_url);
     expect(view.status).toBe(200);
@@ -46,6 +50,7 @@ describe("What I dumped", () => {
     expect(roleLabel("hero")).toMatch(/ends clips/);
     expect(roleLabel("odd_stage")).toBe("odd stage");
     expect(clearsOn(null)).toBeNull();
-    expect(clearsOn("2026-10-22T15:00:00.000Z")).toBe("2026-10-30");
+    // RAW_RETENTION_DAYS (30) after the clips were ready, shown as the day after.
+    expect(clearsOn("2026-10-22T15:00:00.000Z")).toBe("2026-11-22");
   });
 });

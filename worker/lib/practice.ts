@@ -7,6 +7,7 @@
 // onto the env names the rest of the Worker already reads (RESEND_API_KEY, YOUTUBE_API_KEY,
 // GOOGLE_CLIENT_*, META_APP_*, GITHUB_DISPATCH_TOKEN + GITHUB_REPO, OPENROUTER_ / FIRECRAWL_ / HUNTER_API_KEY) and lists the services still in
 // practice in env.PRACTICE. Nothing here logs a key.
+import { filesFor } from "../services/s3files";
 import { parsePhotoPosts } from "@shared/photoPosts";
 import type { Env } from "../env";
 import { fakeServices } from "../env";
@@ -101,6 +102,8 @@ const ENV_BACKED = new Set<SetupServiceId>(SETUP_STEPS.filter((s) => s.secrets.l
 export async function hydrate(env: Env): Promise<Env> {
   // A client studio loses the host fallback secrets here, before anything else reads the env.
   const out: Env = hostBase(env);
+  // A studio whose bucket is on another Cloudflare account reaches it over S3 (worker/services/s3files.ts).
+  if (env.FILES_S3_BUCKET) out.FILES = filesFor(env);
   let rows: Row[] = [];
   try {
     rows = (await env.DB.prepare("SELECT service, status, secret_enc, meta FROM connections").all<Row>()).results ?? [];

@@ -165,12 +165,7 @@
           "migrations_dir": "migrations"
         }
       ],
-      "r2_buckets": [
-        {
-          "binding": "FILES",
-          "bucket_name": "creator-studios-hadiyah-files"
-        }
-      ],
+      "r2_buckets": [],
       "ai": {
         "binding": "AI"
       },
@@ -201,6 +196,7 @@
         "STUDIO_AI_BUDGET": "3000",
         "SPONSOR_KIND": "experience",
         "WHATS_NEW": "{\"id\":\"2026-10-photo-posts\",\"title\":\"New in your studio\",\"lines\":[\"You can now add photos, not just videos.\",\"One photo becomes a few posts: a short moving video, a photo set and captions.\",\"They post to Facebook, Instagram, TikTok and Pinterest on their own.\",\"You get an email the day before. Tap Skip to stop one.\"]}",
+        "FILES_S3_BUCKET": "creator-studios-hadiyah-files",
         "ENV_NAME": "production",
         "AUTH_MODE": "code"
       }

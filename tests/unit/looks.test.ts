@@ -288,7 +288,7 @@ describe("re-rendering one clip", () => {
     expect(lookChangeRefusal(ok, "sparkles", false)?.status).toBe(422);
     expect(lookChangeRefusal({ ...ok, in_buffer: true }, "karaoke", false)?.error).toMatch(/Buffer/);
     expect(lookChangeRefusal({ ...ok, pending_look: "cinematic" }, "karaoke", false)?.error).toMatch(/about a minute/);
-    expect(lookChangeRefusal({ ...ok, raw_deleted_at: "2026-09-18" }, "karaoke", false)?.error).toMatch(/cleared after 7 days/);
+    expect(lookChangeRefusal({ ...ok, raw_deleted_at: "2026-09-18" }, "karaoke", false)?.error).toMatch(/cleared to save space/);
     expect(lookChangeRefusal(ok, "clean", false)?.error).toMatch(/already has that look/);
     // the same grid with different cells is a real change
     expect(lookChangeRefusal({ ...ok, look: "grid_four" }, "grid_four", false)).toBeNull();
