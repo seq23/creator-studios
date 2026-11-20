@@ -9,7 +9,7 @@ export type Platform = "tiktok" | "instagram" | "facebook";
 export const PLATFORMS: Platform[] = ["tiktok", "instagram", "facebook"];
 
 export interface PlanPic {
-  /** "real:<file>" = our own job photo (may be shown as our work); "ai:<path>" = an AI-made scene. */
+  /** "real:<file>" = our own job photo (may be shown as our work); "ai:<path>" = an existing AI scene; "gen:<file>" = a scene engine/imagine.mjs makes from plan.generate. */
   src: string;
   fx?: number;
   fy?: number;
@@ -39,7 +39,9 @@ export interface Plan {
   /** Local hours a post may go out, [from, to) (Memphis evening for P&P). */
   window: [number, number];
   /** Where the pictures live on the Mac: real (our job photos) and ai (AI-made scenes). Never committed. */
-  sources?: Partial<Record<"real" | "ai", string>>;
+  sources?: Partial<Record<"real" | "ai" | "gen", string>>;
+  /** Prompts for the gen: pictures, by file name (engine/imagine.mjs adds the fixed no-people rules). */
+  generate?: Record<string, string>;
   /** Text every caption carries: the one next step. */
   cta: string;
   pieces: PlanPiece[];
@@ -50,7 +52,7 @@ export const PIECE_KEY = /^[a-z0-9][a-z0-9-]{2,63}$/;
 const PRICE = /\$\s?\d|\b\d+\s?(dollars|bucks)\b/i;
 
 /** A photo-real AI scene is in the piece: TikTok's own AI switch is set (risk R-END-03 filler exception). */
-export const aiScene = (p: PlanPiece): boolean => p.pics.some((x) => x.src.startsWith("ai:"));
+export const aiScene = (p: PlanPiece): boolean => p.pics.some((x) => !x.src.startsWith("real:"));
 
 /** "YYYY-MM-DD HH:mm" in `tz` → UTC ISO. */
 export function localToUtc(local: string, tz: string): string {
@@ -83,7 +85,8 @@ export function validatePlan(plan: Plan, now: number): string[] {
     const lines = p.lines ?? [];
     if (lines.length < f.lines[0] || lines.length > f.lines[1]) out.push(`${at} ${f.id} takes ${f.lines[0]}–${f.lines[1]} lines`);
     if (f.realOnly && aiScene(p)) out.push(`${at} ${f.id} shows our own work: real photos only`);
-    if (p.pics.some((x) => !/^(real|ai):[\w./-]+$/.test(x.src))) out.push(`${at} every picture is real:<file> or ai:<path>`);
+    if (p.pics.some((x) => !/^(real|ai|gen):[\w./-]+$/.test(x.src))) out.push(`${at} every picture is real:<file>, ai:<path> or gen:<file>`);
+    for (const x of p.pics) if (x.src.startsWith("gen:") && !plan.generate?.[x.src.slice(4)]) out.push(`${at} ${x.src} has no prompt in generate`);
     if (new Set(p.pics.map((x) => x.src)).size !== p.pics.length) out.push(`${at} a picture repeats inside the piece`);
     if (f.kind === "reel" && !p.music) out.push(`${at} a reel never goes out silent`);
     if (p.format === "detail-zoom" && (p.spots?.length ?? 0) < 2) out.push(`${at} detail-zoom needs at least 2 spots`);
