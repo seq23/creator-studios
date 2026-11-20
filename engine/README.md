@@ -71,8 +71,10 @@ cd $WT/engine && npm ci
 # 1. new scenes: prompts reviewed first (image-prompts.md, above); main account, then the second one
 cd ~/GitHub/boss-os && npm run -s vault:run -- zsh -c "CLOUDFLARE_WORKERS_AI_TOKEN=\$T2R_CLOUDFLARE_WORKERS_AI_TOKEN ENGINE_IMAGE_MODEL=@cf/black-forest-labs/flux-2-klein-9b node $WT/engine/imagine.mjs $PLAN"
 
-# 2. render the pieces that changed (nice: the Mac is shared)
-cd $WT/engine && nice -n 15 node render.mjs $PLAN --only=<id>,<id>
+# 2. render the pieces that changed: a HEAVY job (at most 2 of Codex builds, renders and the audio fill at
+#    once; wait while `pgrep -f 'codex exec|engine/render.mjs|audio/fill.py' | wc -l` is 2 or more).
+#    Run it by its engine/render.mjs path so that count sees it; nice, the Mac is shared.
+cd $WT/engine && nice -n 15 node $WT/engine/render.mjs $PLAN --only=<id>,<id>
 
 # 3. review: a fresh reviewer that is not the builder looks at $ENGINE_OUT/<plan>/<id>/sheet.jpg,
 #    cover.jpg and every slide-N.jpg. A second opinion: node review.mjs $PLAN --only=<id> --again.

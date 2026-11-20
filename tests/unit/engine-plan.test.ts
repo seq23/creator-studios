@@ -27,16 +27,25 @@ const base = (over: Partial<PlanPiece> = {}): PlanPiece => ({
 });
 const plan = (pieces: PlanPiece[]): Plan => ({ studio: "sample1", brand: "pnp", tz: "America/Chicago", window: [17, 21], cta: "porchandparty901.com/request", pieces });
 
+// Three pieces failed their second review on 20 Nov 2026 and were dropped from the plan, not forced
+// (engine/README.md): the countdown and wait-for-it reels (22 Nov, 2 Dec) and the 1 Dec baby-shower set.
+const DROPPED_FORMATS = new Set(["countdown", "wait-for-it"]);
 describe("the committed plan", () => {
-  it("passes every check, uses all 15 formats, and starts Sat 21 Nov in the Memphis evening", () => {
+  it("passes every check, uses every format but the two dropped ones, and starts Sat 21 Nov in the Memphis evening", () => {
     expect(validatePlan(committed, BEFORE)).toEqual([]);
-    expect(new Set(committed.pieces.map((p) => p.format))).toEqual(new Set(FORMATS.map((f) => f.id)));
+    expect(new Set(committed.pieces.map((p) => p.format))).toEqual(new Set(FORMATS.map((f) => f.id).filter((f) => !DROPPED_FORMATS.has(f))));
     const first = [...committed.pieces].sort((a, b) => a.at.localeCompare(b.at))[0];
     expect(localToUtc(first.at, committed.tz)).toBe("2026-11-22T00:30:00.000Z");
   });
-  it("covers two weeks with one reel a day", () => {
-    const reelDays = new Set(committed.pieces.filter((p) => p.format !== "carousel").map((p) => p.at.slice(0, 10)));
-    expect(reelDays.size).toBe(14);
+  it("covers two weeks with one reel a day, except the two days whose reel was dropped", () => {
+    const reelDays = [...new Set(committed.pieces.filter((p) => p.format !== "carousel").map((p) => p.at.slice(0, 10)))].sort();
+    const want = Array.from({ length: 14 }, (_, i) => new Date(Date.UTC(2026, 10, 21 + i)).toISOString().slice(0, 10)).filter((d) => d !== "2026-11-22" && d !== "2026-12-02");
+    expect(reelDays).toEqual(want);
+  });
+  it("every picture to be made is used by a piece or is another picture's reference", () => {
+    const used = new Set(committed.pieces.flatMap((p) => p.pics.map((x) => x.src)).filter((s) => s.startsWith("gen:")).map((s) => s.slice(4)));
+    const refs = new Set(Object.values(committed.generate ?? {}).flatMap((e) => (typeof e === "object" && e.ref ? [e.ref] : [])));
+    expect(Object.keys(committed.generate ?? {}).filter((f) => !used.has(f) && !refs.has(f))).toEqual([]);
   });
 });
 
