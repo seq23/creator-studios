@@ -22,7 +22,7 @@ import { photoPostsTick, photoStopLights } from "../lib/photoPosts";
 import { wordsPass } from "../lib/wordsPass";
 import { finishPendingCuts, retryWaitingCuts } from "../jobs/cut";
 import { ensureFirstResearch } from "../lib/setupWait";
-import { sendWaitingDumps } from "../routes/dumps";
+import { sendIdleDumps, sendWaitingDumps } from "../routes/dumps";
 import { autoRedoSweep } from "../lib/autoRedo";
 import { redoBadVoiceOvers } from "../lib/autoVoice";
 
@@ -69,6 +69,8 @@ export async function runCron(env: Env, cron: string): Promise<void> {
       // (each at most once). A brief that replaced an earlier one is told to her once.
       await ensureFirstResearch(env);
       await sendWaitingDumps(env, null);
+      // A dump whose files all finished uploading is sent even if the button was never tapped; a stalled upload is flagged.
+      await sendIdleDumps(env).catch(() => log.warn("cron.idle_dumps_failed"));
       await briefInUseNotice(env).catch(() => log.warn("cron.brief_notice_failed"));
       // Studio fix: clips that came back with no words of their own get them (worker/lib/wordsPass.ts).
       await wordsPass(env).catch(() => log.warn("cron.words_failed"));
