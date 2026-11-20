@@ -262,6 +262,25 @@ export async function finishPack(env: Env, packId: string, items: MadeItem[], pr
   await schedulePack(env, packId, now);
 }
 
+const weekKey = (platform: string, at: string, tz: string): string => `${platform}|${weekBounds(new Date(at), tz).start}`;
+
+/**
+ * Posts per channel per week (the hard cap of 10, a locked decision): photo posts and clip posts
+ * together, from a week before `now` on, keyed by platform and the week's start.
+ */
+async function channelWeekLoad(env: Env, tz: string, now: number): Promise<Map<string, number>> {
+  const since = new Date(now - 7 * 86_400_000).toISOString();
+  const { results: photo } = await env.DB.prepare("SELECT platform, scheduled_at FROM social_posts WHERE status IN ('scheduled', 'waiting', 'sending', 'posted') AND scheduled_at >= ?").bind(since).all<{ platform: string; scheduled_at: string }>();
+  const { results: clip } = await env.DB.prepare("SELECT platform, scheduled_at FROM posts WHERE status IN ('planned', 'in_buffer', 'posted') AND scheduled_at >= ?").bind(since).all<{ platform: string; scheduled_at: string }>();
+  const load = new Map<string, number>();
+  for (const r of [...photo, ...clip]) {
+    if (!(SOCIALS as readonly string[]).includes(r.platform)) continue;
+    const k = weekKey(r.platform, r.scheduled_at, tz);
+    load.set(k, (load.get(k) ?? 0) + 1);
+  }
+  return load;
+}
+
 /** Plan the pack's posts (once): auto-post with a heads-up first, Skip any time before. */
 export async function schedulePack(env: Env, packId: string, now = Date.now()): Promise<number> {
   const cfg = photoConfig(env);
@@ -274,22 +293,8 @@ export async function schedulePack(env: Env, packId: string, now = Date.now()): 
   const tz = await timeZone(env);
   const { results: future } = await env.DB.prepare("SELECT platform, scheduled_at FROM social_posts WHERE status IN ('scheduled', 'waiting', 'sending', 'posted') AND scheduled_at >= ?").bind(new Date(now - 7 * 86_400_000).toISOString()).all<{ platform: Social; scheduled_at: string }>();
   const taken = new Set(future.map((r) => `${r.platform}|${localDate(Date.parse(r.scheduled_at), tz)}`));
-  const weekCounts = new Map<string, number>();
-  const weekFull = (platform: Social, at: string): boolean => {
-    const w = weekBounds(new Date(at), tz);
-    const k = `${platform}|${w.start}`;
-    if (!weekCounts.has(k)) weekCounts.set(k, 0);
-    const photo = future.filter((r) => r.platform === platform && r.scheduled_at >= w.start && r.scheduled_at < w.end).length;
-    return photo + (weekCounts.get(k) ?? 0) >= WEEKLY_CAP;
-  };
-  // Clip posts on the same channels count toward the same cap.
-  const { results: clipPosts } = await env.DB.prepare("SELECT platform, scheduled_at FROM posts WHERE status IN ('planned', 'in_buffer', 'posted') AND scheduled_at >= ?").bind(new Date(now - 7 * 86_400_000).toISOString()).all<{ platform: string; scheduled_at: string }>();
-  for (const cp of clipPosts) {
-    if (!(SOCIALS as readonly string[]).includes(cp.platform)) continue;
-    const w = weekBounds(new Date(cp.scheduled_at), tz);
-    const k = `${cp.platform}|${w.start}`;
-    weekCounts.set(k, (weekCounts.get(k) ?? 0) + 1);
-  }
+  const load = await channelWeekLoad(env, tz, now);
+  const weekFull = (platform: Social, at: string): boolean => (load.get(weekKey(platform, at, tz)) ?? 0) >= WEEKLY_CAP;
   // "Less like this" on a kind of photo post (owner, 13 Nov 2026): that kind is left out while another remains.
   const less = new Set((await loadTaste(env)).less);
   const kinds = items.map((i) => i.kind);
@@ -305,6 +310,87 @@ export async function schedulePack(env: Env, packId: string, now = Date.now()): 
   }
   log.info("photos.planned", { posts: plan.length });
   return plan.length;
+}
+
+// ------------------------------------------------------------------ the content engine
+
+/** What the engine (engine/, on the host's Mac) hands the studio for one finished, reviewed piece. */
+export interface EnginePackInput {
+  key: string;
+  note: string;
+  format: string;
+  /** The fresh reviewer's verdict on the real rendered frames; only PASS is taken. */
+  review: { verdict: string; by: string; looked_at: string; at: string };
+  /** A photo-real AI scene: TikTok's own AI switch is set (risk R-END-03, P&P filler exception). */
+  ai_scene: boolean;
+  items: MadeItem[];
+  posts: { platform: Social; item_kind: ItemKind; caption: string; scheduled_at: string }[];
+}
+
+export const ENGINE_PREFIX = "engine/";
+const ENGINE_KEY = /^[a-z0-9][a-z0-9-]{2,63}$/;
+
+/**
+ * Queue one engine piece as a ready photo pack with its own posts at the engine's times. Refused
+ * whole (nothing written) unless: it passed review, every file is already in storage under engine/,
+ * every caption keeps the studio's content rules, every time is at least 10 minutes away, and no
+ * channel goes over the weekly cap. A piece already queued is never queued twice (its key).
+ */
+export async function importEnginePack(env: Env, input: EnginePackInput, now = Date.now()): Promise<{ ok: true; pack_id: string; posts: number } | { ok: false; status: 400 | 409 | 422; error: string }> {
+  const bad = (error: string, status: 400 | 409 | 422 = 422) => ({ ok: false as const, status, error });
+  if (!ENGINE_KEY.test(String(input.key ?? ""))) return bad("The piece needs a key of lowercase letters, digits and dashes.", 400);
+  if (input.review?.verdict !== "PASS" || !input.review.by || !input.review.looked_at) return bad("Nothing is queued that did not pass review.");
+  const cfg = photoConfig(env);
+  if (!cfg.on) return bad("Photo posts are not part of this studio.");
+  const packId = `pck_eng_${input.key}`;
+  if (await env.DB.prepare("SELECT id FROM photo_packs WHERE id = ?").bind(packId).first()) return bad("This piece is already queued.", 409);
+  const items = Array.isArray(input.items) ? input.items : [];
+  if (!items.length) return bad("The piece has nothing to post.", 400);
+  for (const it of items) {
+    if (!(PACK_PLAN.some((x) => x.kind === it.kind))) return bad(`Unknown piece kind ${String(it.kind)}.`, 400);
+    const keys = [it.r2_key, it.cover_r2_key, ...(it.images ?? [])].filter((k): k is string => !!k);
+    if (it.kind === "carousel" ? !it.images?.length : !it.r2_key) return bad(`The ${it.kind} has no file.`, 400);
+    for (const k of keys) {
+      if (!k.startsWith(`${ENGINE_PREFIX}${input.key}/`)) return bad("Engine files live under engine/<key>/.", 400);
+      if (!(await env.FILES.head(k))) return bad("A file of this piece is not in storage yet.", 400);
+    }
+  }
+  const posts = Array.isArray(input.posts) ? input.posts : [];
+  if (!posts.length) return bad("The piece has no posts.", 400);
+  const rules = contentRules(env);
+  const tz = await timeZone(env);
+  const load = await channelWeekLoad(env, tz, now);
+  for (const p of posts) {
+    if (!cfg.platforms.includes(p.platform)) return bad(`${String(p.platform)} is not one of this studio's platforms.`, 400);
+    if (!items.some((it) => it.kind === p.item_kind)) return bad("A post points at a piece that is not there.", 400);
+    const at = Date.parse(p.scheduled_at);
+    if (!Number.isFinite(at) || at < now + 10 * 60_000) return bad("Every post needs a time at least 10 minutes from now.");
+    const problems = textProblems(p.caption, rules);
+    if (problems.length) return bad(problems[0]);
+    const k = weekKey(p.platform, new Date(at).toISOString(), tz);
+    load.set(k, (load.get(k) ?? 0) + 1);
+    if ((load.get(k) ?? 0) > WEEKLY_CAP) return bad(`${SOCIAL_LABEL[p.platform]} would go over ${WEEKLY_CAP} posts that week.`);
+  }
+  const review = JSON.stringify({ verdict: "PASS", by: String(input.review.by).slice(0, 80), looked_at: String(input.review.looked_at).slice(0, 400), at: String(input.review.at ?? nowIso()).slice(0, 40) });
+  const stmts = [
+    env.DB.prepare("INSERT INTO photo_packs (id, status, note, privacy, privacy_detail, captions, ready_at, made_by, format, review) VALUES (?, 'ready', ?, 'clean', '{}', '[]', ?, 'engine', ?, ?)").bind(packId, String(input.note ?? "").slice(0, 2000), nowIso(), String(input.format ?? "").slice(0, 40), review),
+    ...items.map((it) => env.DB.prepare("INSERT INTO pack_items (id, pack_id, kind, r2_key, cover_r2_key, images, media_token, ai_made) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(newId("pki"), packId, it.kind, it.r2_key, it.cover_r2_key, JSON.stringify(it.images ?? []), mediaToken(), input.ai_scene ? 1 : 0)),
+    ...posts.map((p) => env.DB.prepare("INSERT INTO social_posts (id, pack_id, item_kind, platform, caption, scheduled_at, status) VALUES (?, ?, ?, ?, ?, ?, 'scheduled')").bind(newId("spo"), packId, p.item_kind, p.platform, p.caption.trim(), new Date(Date.parse(p.scheduled_at)).toISOString())),
+  ];
+  await env.DB.batch(stmts);
+  log.info("photos.engine_queued", { posts: posts.length });
+  return { ok: true, pack_id: packId, posts: posts.length };
+}
+
+/**
+ * How a post is labelled. The studio's own pieces: "Made with AI" on Facebook, the platform flag on
+ * Instagram and TikTok (risk R-END-03). Engine pieces (R-END-03's P&P filler exception, 19 Nov 2026):
+ * no caption line ever, TikTok's own AI switch on a photo-real AI scene.
+ */
+export function labelFor(madeBy: string, platform: Social, caption: string, aiMade: boolean): { text: string; aiFlag: boolean } {
+  if (madeBy === "engine") return { text: caption, aiFlag: aiMade && platform === "tiktok" };
+  const flagged = platform === "instagram" || platform === "tiktok"; // Buffer carries the platform AI flag
+  return { text: flagged ? caption : withAiLabel(caption, aiMade), aiFlag: flagged && aiMade };
 }
 
 // ------------------------------------------------------------------ Skip
@@ -418,9 +504,11 @@ export async function sendPost(env: Env, row: PostRow): Promise<SocialPostStatus
     await env.DB.prepare("UPDATE social_posts SET status = 'waiting', error = ? WHERE id = ?").bind(why, row.id).run();
     return "waiting";
   };
-  const pack = await env.DB.prepare("SELECT privacy FROM photo_packs WHERE id = ?").bind(row.pack_id).first<{ privacy: string }>();
+  const pack = await env.DB.prepare("SELECT privacy, made_by, review FROM photo_packs WHERE id = ?").bind(row.pack_id).first<{ privacy: string; made_by: string; review: string | null }>();
   const item = await env.DB.prepare("SELECT id, kind, r2_key, cover_r2_key, images, media_token, ai_made FROM pack_items WHERE pack_id = ? AND kind = ?").bind(row.pack_id, row.item_kind).first<ItemRow>();
   if (!pack || !item?.media_token) return hold("its pictures are gone.");
+  // An engine piece goes out only with the PASS it was queued with (checked again here, at posting).
+  if (pack.made_by === "engine" && parseJson<{ verdict?: string }>(pack.review, {}).verdict !== "PASS") return hold("it has not passed review.");
   const problems = textProblems(row.caption, rules);
   if (problems.length) return hold(problems[0]);
   const gate = photoGate(pack.privacy, rules);
@@ -430,9 +518,7 @@ export async function sendPost(env: Env, row: PostRow): Promise<SocialPostStatus
   if (video ? !item.r2_key : !images.length) return wait("photo-maker");
   if (!(await platformReady(env, row.platform))) return wait(`connect:${row.platform}`);
 
-  const aiMade = !!item.ai_made;
-  const flagged = row.platform === "instagram" || row.platform === "tiktok"; // Buffer carries the platform AI flag
-  const text = flagged ? row.caption : withAiLabel(row.caption, aiMade);
+  const { text, aiFlag } = labelFor(pack.made_by, row.platform, row.caption, !!item.ai_made);
   let result: { ok: boolean; id: string | null; url: string | null; error: string | null };
   try {
     if (row.platform === "facebook" && !facebookConnected(env)) {
@@ -462,7 +548,7 @@ export async function sendPost(env: Env, row: PostRow): Promise<SocialPostStatus
       if (!channel) return wait(`connect:${row.platform}`);
       // A photo set goes as photos (Instagram carousel, TikTok photo post): at most 10, in order.
       const photoUrls = video ? undefined : images.slice(0, 10).map((_, i) => mediaUrl(env, item.media_token!, i));
-      const r = await buffer.createPost({ channelId: channel.id, platform: row.platform, text, title: video ? env.APP_NAME : row.caption.split("\n")[0].slice(0, 90), mediaUrl: mediaUrl(env, item.media_token, video ? "video" : 0), imageUrls: photoUrls, scheduledAt: bufferSoon(), aiGenerated: aiMade });
+      const r = await buffer.createPost({ channelId: channel.id, platform: row.platform, text, title: video ? env.APP_NAME : row.caption.split("\n")[0].slice(0, 90), mediaUrl: mediaUrl(env, item.media_token, video ? "video" : 0), imageUrls: photoUrls, scheduledAt: bufferSoon(), aiGenerated: aiFlag });
       result = { ok: r.ok, id: r.id, url: null, error: r.error };
     }
   } catch (e) {
