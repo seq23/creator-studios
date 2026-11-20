@@ -49,6 +49,13 @@ paste-ready command, and nothing else waits on it (the feature runs in practice 
      runner (Setup → Clip cutting). Until then the photo set posts as the uploads are (JPG/PNG), the
      videos wait, and a studio with face/address rules (Porch & Party) holds every post until the
      check has run.
+5. **Files on another Cloudflare account (`r2.s3`, Hadiyah)**. Its keys live only in the host's
+   vault (`CS_HADIYAH_CF2_R2_*`, `CF2_ACCOUNT_ID`). If a key is missing on the Worker every request
+   fails with `FILES_S3_SECRETS_MISSING`; put the 0600 files back and run
+   `npm run studio:secrets hadiyah` (README "Hadiyah: whose account runs what").
+6. **File clean-up paused** (light "File clean-up", yellow, guide `setup-email`). Her originals are
+   cleared only after the 14- and 3-day emails reached her; with no studio email nothing is cleared.
+   Fix: Setup → Email (or the host's `RESEND_API_KEY` file + `npm run studio:secrets <slug>`).
 
 ## The studios
 

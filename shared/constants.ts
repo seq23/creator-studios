@@ -28,8 +28,18 @@ export const TIME_TO_DUMP_REPEAT_DAYS = 3;
 /** Recycle door: never repost the same source to the same platform inside this window. */
 export const DEFAULT_RECYCLE_COOLDOWN_DAYS = 90;
 
-/** Raw originals are deleted this long after processing; clips kept until posted + this. */
-export const RAW_RETENTION_DAYS = 7;
+/**
+ * Her original files (the videos and photos she dumps) are cleared this many days after their clips
+ * are ready (owner, 20 Nov 2026: clean up creator files after N days and tell the creator). The ONE
+ * value; she is emailed 14 and 3 days ahead with a one-tap Download all, and a note when it is done;
+ * a dump she kept, or one still being cut, is never cleared (worker/lib/retention.ts).
+ */
+export const RAW_RETENTION_DAYS = 30;
+/** The warning emails go out this many days before the clear date (largest first). */
+export const RAW_WARN_DAYS = [14, 3] as const;
+/** Plain words for the rule, used in every message that names it. */
+export const RAW_CLEARED_WORDS = `cleared ${RAW_RETENTION_DAYS} days after its clips were ready`;
+/** Posted clips' public links expire this long after posting. */
 export const CLIP_RETENTION_AFTER_POST_DAYS = 30;
 
 /**

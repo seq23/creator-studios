@@ -22,7 +22,7 @@ Your free storage is 10 GB. The dashboard keeps it under that by clearing files 
 <!-- route: /settings -->
 <!-- target: .storage-kinds -->
 
-Each kind of file says how long it is kept. Posted clips: 30 days after posting (the cover, numbers and post link stay). Your original videos: 7 days after they are cut. Clips in your media kit and approved clips waiting to post: always kept.
+Each kind of file says how long it is kept. Posted clips: 30 days after posting (the cover, numbers and post link stay). Your original videos: 30 days after they are cut, with an email 14 and 3 days before (Download all, or Keep them). Media-kit clips and approved clips waiting to post: always kept.
 
 ## Clips you never reviewed
 

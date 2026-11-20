@@ -117,7 +117,9 @@ export function envBlock(s, themes) {
     routes: [s.hostname, ...(s.previousHostnames ?? [])].map((pattern) => ({ pattern, custom_domain: true })),
     assets: { directory: "./dist/client", binding: "ASSETS", not_found_handling: "single-page-application", run_worker_first: RUN_WORKER_FIRST },
     d1_databases: [{ binding: "DB", database_name: s.d1.name, database_id: s.d1.id ?? "00000000-0000-0000-0000-000000000000", migrations_dir: "migrations" }],
-    r2_buckets: [{ binding: "FILES", bucket_name: s.r2.bucket }],
+    // r2.s3: the bucket is on another Cloudflare account (owner, 20 Nov 2026), reached over S3 by
+    // worker/services/s3files.ts; an explicit [] so wrangler does not inherit the dev bucket.
+    r2_buckets: s.r2.s3 ? [] : [{ binding: "FILES", bucket_name: s.r2.bucket }],
     // Cloudflare Workers AI, spent only within this studio's aiBudget (worker/lib/freeAi.ts).
     ai: { binding: "AI" },
     triggers: { crons: cronsFor(s) },
@@ -156,6 +158,7 @@ export function envBlock(s, themes) {
       // Get it sponsored: "event" for a business studio, "experience" for a creator (shared/sponsored.ts).
       SPONSOR_KIND: s.sponsorKind === "event" ? "event" : "experience",
       ...(s.whatsNew ? { WHATS_NEW: JSON.stringify(s.whatsNew) } : {}),
+      ...(s.r2.s3 ? { FILES_S3_BUCKET: s.r2.bucket } : {}),
       ENV_NAME: "production",
       AUTH_MODE: "code",
     },
@@ -335,8 +338,11 @@ function provisionStorage(s) {
     db = JSON.parse(wrangler(["d1", "list", "--json"], { quiet: true }).out.replace(/^[^[]*/, "")).find((d) => d.name === s.d1.name);
   }
   if (!db?.uuid) throw new Error(`D1 ${s.d1.name} was not created`);
-  const buckets = wrangler(["r2", "bucket", "list"], { quiet: true }).out;
-  if (!new RegExp(`name:\\s+${s.r2.bucket}\\b`).test(buckets)) wrangler(["r2", "bucket", "create", s.r2.bucket]);
+  // A bucket on another account (r2.s3) is made there by its owner; only a bound bucket is made here.
+  if (!s.r2.s3) {
+    const buckets = wrangler(["r2", "bucket", "list"], { quiet: true }).out;
+    if (!new RegExp(`name:\\s+${s.r2.bucket}\\b`).test(buckets)) wrangler(["r2", "bucket", "create", s.r2.bucket]);
+  }
   if (s.d1.id !== db.uuid) {
     const raw = JSON.parse(readFileSync(regPath(s.slug), "utf8"));
     raw.d1.id = db.uuid;

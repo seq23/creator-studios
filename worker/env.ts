@@ -1,6 +1,13 @@
 export interface Env {
   DB: D1Database;
+  /** The studio's files: its R2 binding, or (registry r2.s3) its bucket on another account through worker/services/s3files.ts, swapped in by hydrate(). */
   FILES: R2Bucket;
+  /** Set when the studio's bucket is on another Cloudflare account (registry r2.s3): its name there. Secrets below. */
+  FILES_S3_BUCKET?: string;
+  /** https://<account id>.r2.cloudflarestorage.com of that account (a Worker secret: the account id stays out of the public repo). */
+  FILES_S3_ENDPOINT?: string;
+  FILES_S3_ACCESS_KEY_ID?: string;
+  FILES_S3_SECRET_ACCESS_KEY?: string;
   ASSETS: Fetcher;
 
   APP_NAME: string;

@@ -128,7 +128,7 @@ export function redoDecision(c: HeldClip): RedoDecision {
   const fixedSince = heldAt < def.check;
   if (!def.redoOnHold && !fixedSince) return no("it waits for a better check before it is tried again", cause);
   if (c.not_hers) return no("one of its videos looks like someone else's", cause);
-  if (c.raw_cleared) return no("its original video was cleared after 7 days", cause);
+  if (c.raw_cleared) return no("its original video was cleared to save space", cause);
   const done = c.auto_redo_check === def.check ? c.auto_redo_count : 0;
   if (done >= MAX_AUTO_REDOS) return no(`it was already redone ${done} times on its own`, cause);
   const attempt = done + 1;

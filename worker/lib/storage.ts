@@ -15,6 +15,7 @@ import { getSetting, recordEvent, setHealth, setSetting } from "./db";
 import { nowIso } from "./ids";
 import { log } from "./log";
 import { gbWords } from "@shared/bytes";
+import { RAW_RETENTION_DAYS, RAW_WARN_DAYS } from "@shared/constants";
 import { budgetPlan, briefArchiveDue, clipFileAction, dealArchiveDue, dumpArchiveDue, STORAGE, storageLight, TIDY, voiceArchiveDue, type BudgetCandidate } from "../domain/tidy";
 
 export interface StorageKind {
@@ -89,7 +90,7 @@ export async function storageReport(env: Env): Promise<StorageReport> {
     { key: "clips_drafts", label: "Clips waiting for review", bytes: l.drafts.b, count: l.drafts.n, rule: "Cleared 60 days after they were made, with a warning on Home a week before. Tap Keep to keep them." },
     { key: "clips_waiting", label: "Approved, not posted yet", bytes: l.waiting.b, count: l.waiting.n, rule: "Always kept." },
     { key: "clips_rejected", label: "Rejected clips", bytes: l.rejected.b, count: l.rejected.n, rule: "Kept in the Rejected bin until you delete them. Cleared early only if storage is still over the limit." },
-    { key: "raw", label: "Your original videos", bytes: l.raw.b, count: l.raw.n, rule: "Cleared 7 days after they are cut into clips." },
+    { key: "raw", label: "Your original videos", bytes: l.raw.b, count: l.raw.n, rule: `Cleared ${RAW_RETENTION_DAYS} days after they are cut into clips, with an email ${RAW_WARN_DAYS.join(" and ")} days before (Download all, or Keep them). A dump you keep is never cleared.` },
     { key: "full_videos", label: "Full videos for YouTube", bytes: l.full.b, count: l.full.n, rule: "Cleared 7 days after posting, or 14 days if never approved (warned on Home first)." },
     { key: "voice", label: "Voice overs", bytes: l.voice.b, count: l.voice.n, rule: "Kept with their clip." },
     { key: "music", label: "My music", bytes: l.music.b, count: l.music.n, rule: "Kept until you remove a song." },
@@ -246,7 +247,8 @@ export async function enforceBudget(env: Env, now = new Date()): Promise<{ clear
   const kit = await kitClipIds(env);
   const weekAgo = new Date(now.getTime() - 7 * 86400_000).toISOString();
   const { results: raws } = await env.DB.prepare(
-    "SELECT a.id, a.size_bytes AS bytes, COALESCE(d.ready_at, d.created_at) AS at FROM assets a JOIN dumps d ON d.id = a.dump_id WHERE a.raw_deleted_at IS NULL AND a.upload_status = 'uploaded' AND d.status IN ('ready','reviewed') AND d.kind = 'clips'",
+    // Only originals she was already warned about (the 3-day email went: worker/lib/retention.ts), never a kept dump.
+    "SELECT a.id, a.size_bytes AS bytes, COALESCE(d.ready_at, d.created_at) AS at FROM assets a JOIN dumps d ON d.id = a.dump_id WHERE a.raw_deleted_at IS NULL AND a.upload_status = 'uploaded' AND d.status IN ('ready','reviewed') AND d.kind = 'clips' AND d.originals_kept = 0 AND EXISTS (SELECT 1 FROM file_notices n WHERE n.dump_id = d.id AND n.stage = '3')",
   ).all<{ id: string; bytes: number; at: string }>();
   const { results: rejected } = await env.DB.prepare("SELECT id, COALESCE(file_bytes,0) AS bytes, COALESCE(reviewed_at, created_at) AS at FROM clips WHERE status = 'rejected' AND full_video = 0").all<{ id: string; bytes: number; at: string }>();
   const { results: posted } = await env.DB.prepare(

@@ -59,7 +59,8 @@ Evidence was read from the Sheila repo's docs, the secret NAMES bound on the `sh
 
 | Service | Hadiyah | Evidence from Sheila Studio |
 | --- | --- | --- |
-| Hosting: Worker, D1, R2 | Host's Cloudflare account | `sheilastudio` runs on the host's account; studio brief: hosted on the owner's Cloudflare |
+| Hosting: Worker, D1 | Host's Cloudflare account | `sheilastudio` runs on the host's account; studio brief: hosted on the owner's Cloudflare |
+| Files (R2 bucket `creator-studios-hadiyah-files`) | **Host's second Cloudflare account (owner, 20 Nov 2026)**: registry `r2.s3`, so the Worker binds no R2 and reaches the bucket over the S3 API (`worker/services/s3files.ts`, swapped in by `hydrate()`), with keys scoped to that one bucket from the 0600 files `<secrets dir>/hadiyah/FILES_S3_ENDPOINT`, `FILES_S3_ACCESS_KEY_ID`, `FILES_S3_SECRET_ACCESS_KEY` (`npm run studio:secrets hadiyah`). Download links are signed S3 links. | Moved 20 Nov 2026: every object copied and checked (count, size, multipart ETag) before the switch |
 | Job runner: GitHub Actions + `GITHUB_DISPATCH_TOKEN` | Host's | Worker secret on `sheilastudio`; Sheila RUNBOOK: "GITHUB_DISPATCH_TOKEN … is Sequoia's own GitHub token"; jobs run in the host's repo |
 | YouTube numbers key `YOUTUBE_API_KEY` | Host's (Sheila's key, same key; secret file `YOUTUBE_API_KEY`) | Worker secret on `sheilastudio`; Sheila `docs/YOUTUBE.md`: the Google project is "registered under the owner's account … the owner chose to keep it there" |
 | Google sign-in app `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Host's Google project, a web client of Hadiyah's own Worker | Worker secrets on `sheilastudio`; Sheila RUNBOOK: each Worker has its own web client in the owner's project. Not yet created for Hadiyah: a NAMED STOP (RUNBOOK) |
