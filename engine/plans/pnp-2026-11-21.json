@@ -75,7 +75,7 @@
           "fy": 0.5
         },
         {
-          "src": "gen:tg-table-at-home.jpg"
+          "src": "gen:tg-back-porch-table.jpg"
         }
       ],
       "hook": "days to Thanksgiving",
@@ -190,10 +190,6 @@
       ],
       "pics": [
         {
-          "src": "ai:rentals/ai-connect-four-backyard.webp",
-          "label": "Giant Color Stack"
-        },
-        {
           "src": "ai:rentals/ai-lawn-cornhole-bags.webp",
           "label": "Cornhole"
         },
@@ -279,16 +275,16 @@
       "music": "easy-stroll",
       "pics": [
         {
-          "src": "ai:porch/ai-spring-porch.webp"
+          "src": "gen:xmas-door-bare-wreath.jpg"
         },
         {
-          "src": "ai:porch/ai-christmas-porch.webp"
+          "src": "gen:xmas-door-layered.jpg"
         }
       ],
       "hook": "Putting up Christmas\nthis weekend?",
       "lines": [
         "One wreath on a bare door",
-        "Layer the door, the lights\nand the steps"
+        "Layer the door,\nthe lights and the steps"
       ],
       "captions": {
         "tiktok": "One wreath reads as an afterthought. Frame the whole door. porchandparty901.com/request #christmasporch #memphis",
@@ -602,6 +598,9 @@
     "tg-green-door-porch.jpg": "Photo-real vertical photograph, natural light, shot on a full-frame camera: the brick front porch of a Memphis home in late November dressed for Thanksgiving, cream heirloom pumpkins and rust-orange mums in galvanized buckets on the steps, a dried wheat and magnolia-leaf wreath on a deep green front door, a plaid wool throw on a white rocking chair, warm porch lantern glowing at dusk.",
     "tg-table-at-home.jpg": "Photo-real vertical photograph, shot on a full-frame camera, warm evening light: a long Thanksgiving dining table in a Memphis home styled for twelve, a wide wooden grazing board of cheeses, grapes, figs, nuts and crackers down the middle, low magnolia leaves and small white pumpkins, cream linen napkins, amber glass candle holders lit, empty chairs, nobody at the table.",
     "xmas-brick-porch-garland.jpg": "Photo-real vertical photograph, shot on a full-frame camera at blue hour: a red-brick Memphis front porch dressed for Christmas, a thick fresh cedar and magnolia garland framing a black front door with warm white lights woven through, a full wreath with a deep red velvet bow, two potted spruce trees in black planters, brass lanterns with candles on the steps, soft snow-free December evening.",
-    "xmas-white-column-porch.jpg": "Photo-real vertical photograph, shot on a full-frame camera in early evening: a Southern porch with white columns in Memphis dressed for Christmas, fresh garland with warm white lights wrapped up the columns, wreaths with red ribbons on the tall windows, two white rocking chairs with red plaid blankets, lanterns glowing on the porch floor, magnolia leaves in the garland."
+    "xmas-white-column-porch.jpg": "Photo-real vertical photograph, shot on a full-frame camera in early evening: a Southern porch with white columns in Memphis dressed for Christmas, fresh garland with warm white lights wrapped up the columns, wreaths with red ribbons on the tall windows, two white rocking chairs with red plaid blankets, lanterns glowing on the porch floor, magnolia leaves in the garland.",
+    "xmas-door-bare-wreath.jpg": "Photo-real vertical photograph, shot on a full-frame camera in soft early-evening light: the front door of a red-brick Memphis home in December, a deep navy door with one plain small green wreath and nothing else, bare concrete steps, a single porch light on, quiet and a little plain.",
+    "xmas-door-layered.jpg": "Photo-real vertical photograph, shot on a full-frame camera at blue hour: the same kind of red-brick Memphis front door in December dressed in layers, a full fresh cedar and magnolia garland framing the navy door with warm white lights woven through, a large wreath with a deep red velvet bow, two potted spruce trees on the steps, brass lanterns with lit candles on each step, real photograph, natural textures.",
+    "tg-back-porch-table.jpg": "Photo-real vertical photograph, shot on a full-frame camera in late-afternoon light: a round farmhouse table set for Thanksgiving dinner on a screened back porch in Memphis, cream stoneware plates, linen napkins, small white pumpkins and magnolia leaves down the middle, amber glass votives lit, a pecan pie on a wooden board, empty chairs, autumn trees soft through the screen."
   }
 }

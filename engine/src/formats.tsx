@@ -443,7 +443,7 @@ const DoDont: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B }) =
   const row = (kind: "check" | "cross", text: string) => (
     <div style={{ position: "absolute", left: s.left, top: s.bottom - 230 * scale, width: s.inner + 60 * scale, display: "flex", alignItems: "center", gap: 20 * scale, backgroundColor: b.colors.ground, borderRadius: 22 * scale, padding: `${22 * scale}px ${28 * scale}px`, boxShadow: "0 12px 30px rgba(0,0,0,.25)" }}>
       <Mark kind={kind} size={74 * scale} color={kind === "cross" ? "#B3261E" : b.colors.ink} at={4} />
-      <div style={{ fontFamily: BODY, fontWeight: 700, fontSize: 48 * scale, color: b.colors.ink, lineHeight: 1.15 }}>{text}</div>
+      <div style={{ fontFamily: BODY, fontWeight: 700, fontSize: 48 * scale, color: b.colors.ink, lineHeight: 1.15, textWrap: "balance" }}>{text}</div>
     </div>
   );
   return (

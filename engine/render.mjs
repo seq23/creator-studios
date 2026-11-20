@@ -88,7 +88,7 @@ console.log(`bundling ${prepared.length} piece(s)…`);
 const serveUrl = await bundle({ entryPoint: path.join(HERE, "src/index.ts"), publicDir: pub });
 // One browser for the whole plan (a browser per call timed out on a busy Mac), and a long frame timeout.
 const browser = await openBrowser("chrome");
-const shared = { puppeteerInstance: browser, timeoutInMilliseconds: 120_000 };
+const shared = { puppeteerInstance: browser, timeoutInMilliseconds: 600_000 };
 
 const ff = (args) => execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", ...args]);
 let done = 0;
