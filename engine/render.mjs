@@ -14,7 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { bundle } from "@remotion/bundler";
-import { renderMedia, renderStill, selectComposition } from "@remotion/renderer";
+import { openBrowser, renderMedia, renderStill, selectComposition } from "@remotion/renderer";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.dirname(HERE);
@@ -86,6 +86,9 @@ function propsFor(p, size) {
 const prepared = pieces.map((p) => ({ p, props: propsFor(p, p.format === "carousel" ? "feed" : "reel") }));
 console.log(`bundling ${prepared.length} piece(s)…`);
 const serveUrl = await bundle({ entryPoint: path.join(HERE, "src/index.ts"), publicDir: pub });
+// One browser for the whole plan (a browser per call timed out on a busy Mac), and a long frame timeout.
+const browser = await openBrowser("chrome");
+const shared = { puppeteerInstance: browser, timeoutInMilliseconds: 120_000 };
 
 const ff = (args) => execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", ...args]);
 let done = 0;
@@ -97,16 +100,16 @@ for (const { p, props } of prepared) {
     const slides = p.pics.length + 2;
     for (let i = 0; i < slides; i++) {
       const inputProps = { ...props, slide: i };
-      const comp = await selectComposition({ serveUrl, id: "Piece", inputProps });
+      const comp = await selectComposition({ serveUrl, ...shared, id: "Piece", inputProps });
       const file = `slide-${i + 1}.jpg`;
-      await renderStill({ composition: comp, serveUrl, inputProps, output: path.join(dir, file), imageFormat: "jpeg", jpegQuality: 92 });
+      await renderStill({ composition: comp, serveUrl, ...shared, inputProps, output: path.join(dir, file), imageFormat: "jpeg", jpegQuality: 92 });
       files.push(file);
     }
     ff(["-i", path.join(dir, "slide-%d.jpg"), "-vf", `scale=432:540,tile=${Math.min(slides, 4)}x${Math.ceil(slides / 4)}:padding=6:color=white`, "-frames:v", "1", path.join(dir, "sheet.jpg")]);
   } else {
-    const comp = await selectComposition({ serveUrl, id: "Piece", inputProps: props });
-    await renderMedia({ composition: comp, serveUrl, codec: "h264", crf: 18, pixelFormat: "yuv420p", audioCodec: "aac", inputProps: props, outputLocation: path.join(dir, "reel.mp4") });
-    await renderStill({ composition: comp, serveUrl, inputProps: props, frame: 0, output: path.join(dir, "cover.jpg"), imageFormat: "jpeg", jpegQuality: 90 });
+    const comp = await selectComposition({ serveUrl, ...shared, id: "Piece", inputProps: props });
+    await renderMedia({ composition: comp, serveUrl, ...shared, codec: "h264", crf: 18, pixelFormat: "yuv420p", audioCodec: "aac", inputProps: props, outputLocation: path.join(dir, "reel.mp4") });
+    await renderStill({ composition: comp, serveUrl, ...shared, inputProps: props, frame: 0, output: path.join(dir, "cover.jpg"), imageFormat: "jpeg", jpegQuality: 90 });
     files.push("reel.mp4", "cover.jpg");
     const secs = comp.durationInFrames / comp.fps;
     const cols = 5;
@@ -114,8 +117,8 @@ for (const { p, props } of prepared) {
     ff(["-i", path.join(dir, "reel.mp4"), "-vf", `fps=1,scale=324:576,tile=${cols}x${Math.ceil(n / cols)}:padding=6:color=white`, "-frames:v", "1", path.join(dir, "sheet.jpg")]);
     for (const size of extraSizes) {
       const sp = { ...props, size };
-      const c2 = await selectComposition({ serveUrl, id: "Piece", inputProps: sp });
-      await renderMedia({ composition: c2, serveUrl, codec: "h264", crf: 20, pixelFormat: "yuv420p", audioCodec: "aac", inputProps: sp, outputLocation: path.join(dir, `${size}.mp4`) });
+      const c2 = await selectComposition({ serveUrl, ...shared, id: "Piece", inputProps: sp });
+      await renderMedia({ composition: c2, serveUrl, ...shared, codec: "h264", crf: 20, pixelFormat: "yuv420p", audioCodec: "aac", inputProps: sp, outputLocation: path.join(dir, `${size}.mp4`) });
       files.push(`${size}.mp4`);
     }
     writeFileSync(path.join(dir, "duration.txt"), `${secs.toFixed(2)}\n`);
@@ -124,6 +127,7 @@ for (const { p, props } of prepared) {
   done++;
   console.log(`  ✓ ${p.id} (${p.format})`);
 }
+await browser.close({ silent: true });
 console.log(`OUTPUT ${done} pieces rendered → ${outRoot}`);
 if (!done) {
   console.log("NAMED STOP [NOTHING_RENDERED]");

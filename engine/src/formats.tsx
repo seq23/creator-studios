@@ -303,7 +303,7 @@ const Checklist: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B }
 const ChecklistRow: React.FC<{ b: Brand; text: string; at: number; scale: number }> = ({ b, text, at, scale }) => {
   const p = useIn(at, 7);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 22 * scale, opacity: 0.35 + 0.65 * p }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 22 * scale, opacity: 0.6 + 0.4 * p }}>
       <div style={{ width: 66 * scale, height: 66 * scale, borderRadius: 12 * scale, border: `4px solid ${b.colors.ink}`, backgroundColor: b.colors.tag, display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
         <Mark kind="check" size={50 * scale} color={b.colors.ink} at={at} />
       </div>

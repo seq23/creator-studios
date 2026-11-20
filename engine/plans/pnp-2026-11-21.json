@@ -46,8 +46,9 @@
           "label": "Feliz cumpleaños"
         },
         {
-          "src": "real:baby-shower-backdrop.jpg",
-          "label": "Baby shower"
+          "src": "real:baby-shower-balloon-column.jpg",
+          "label": "Baby shower",
+          "fx": 1.0
         }
       ],
       "hook": "Real setups.\nAll in Memphis.",
@@ -79,12 +80,12 @@
       ],
       "hook": "days to Thanksgiving",
       "lines": [
-        "Is the porch ready\nfor the family?"
+        "Is the table ready\nfor the family?"
       ],
       "captions": {
-        "tiktok": "The porch is the first thing they see. There's still time. porchandparty901.com/request #thanksgiving #memphis",
-        "instagram": "The porch is the first thing the family sees. There's still time to have it done. porchandparty901.com/request #thanksgiving #memphis",
-        "facebook": "Four days. If the family is coming to you this year, the porch is the first thing they'll see. There's still time: porchandparty901.com/request"
+        "tiktok": "The porch they walk up to, the table they gather at. There's still time. porchandparty901.com/request #thanksgiving #memphis",
+        "instagram": "The porch is the first thing the family sees, the table is where they stay. There's still time to have both done. porchandparty901.com/request #thanksgiving #memphis",
+        "facebook": "Four days. If the family is coming to you this year, the porch is the first thing they'll see and the table is where they'll stay. There's still time: porchandparty901.com/request"
       }
     },
     {
