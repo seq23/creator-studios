@@ -20,6 +20,10 @@
 //               `node scripts/studio.mjs rewrite-words <slug> <dumpId> [--numbers=78,79] [--rerender] [--rerender-only]`
 //   words       the hourly words pass now (clips waiting for their words; each tried once an hour).
 //               `node scripts/studio.mjs words <slug>`
+//   engine-file one finished file from the content engine (engine/) into storage under engine/<key>/,
+//               signed over "ops:file:<path>:<sha-256 of the bytes>".
+//   engine-pack one reviewed engine piece queued as a ready photo pack with its own posts
+//               (worker/lib/photoPosts.ts importEnginePack). Both: `node scripts/studio.mjs engine-queue <slug> <plan>`
 import { Hono, type Context } from "hono";
 import type { Env, Vars } from "../env";
 import { verifyJobMessage } from "../lib/crypto";
@@ -34,6 +38,7 @@ import { PROFILE_IN_USE } from "../lib/profileInUse";
 import { monthlyNicheRefresh } from "../lib/niche";
 import { rewriteDumpWords } from "../lib/rewriteWords";
 import { OPS_WORDS_BUDGET_MS, wordsPass } from "../lib/wordsPass";
+import { ENGINE_PREFIX, importEnginePack, type EnginePackInput } from "../lib/photoPosts";
 
 export const ops = new Hono<{ Bindings: Env; Variables: Vars }>();
 
@@ -128,4 +133,32 @@ ops.post("/finish-cut", async (c) => {
     await work(); // no execution context (unit tests)
   }
   return c.json({ ok: true, was: dump.status, clips: Number(n?.n ?? 0), visible: Number(n?.visible ?? 0) });
+});
+
+/** The engine's finished files: video (MP4), cover and slides (JPEG), 60 MB at most each. */
+const ENGINE_FILE = /^engine\/[a-z0-9][a-z0-9-]{2,63}\/[a-z0-9][a-z0-9.-]{0,60}\.(mp4|jpg)$/;
+const ENGINE_MAX_BYTES = 60 * 1024 * 1024;
+
+ops.put("/engine-file/*", async (c) => {
+  const key = decodeURIComponent(new URL(c.req.url).pathname.replace(/^.*\/engine-file\//, ""));
+  if (!ENGINE_FILE.test(key) || !key.startsWith(ENGINE_PREFIX)) return fail(c, 400, "Not an engine file path.");
+  const bytes = new Uint8Array(await c.req.arrayBuffer());
+  if (!bytes.byteLength || bytes.byteLength > ENGINE_MAX_BYTES) return fail(c, 400, "Empty or too big.");
+  const sha = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((x) => x.toString(16).padStart(2, "0")).join("");
+  const ok = c.env.JOB_SHARED_SECRET ? await verifyJobMessage(c.env.JOB_SHARED_SECRET, `ops:file:${key}:${sha}`, c.req.header("x-ops-timestamp") ?? null, c.req.header("x-ops-signature") ?? null) : false;
+  if (!ok) {
+    log.warn("ops.refused", {});
+    return fail(c, 401, "Bad signature.");
+  }
+  await c.env.FILES.put(key, bytes, { httpMetadata: { contentType: key.endsWith(".mp4") ? "video/mp4" : "image/jpeg" } });
+  return c.json({ ok: true, bytes: bytes.byteLength });
+});
+
+ops.post("/engine-pack", async (c) => {
+  const text = await signedBody(c);
+  if (text === null) return fail(c, 401, "Bad signature.");
+  const r = await importEnginePack(c.env, parseJson<EnginePackInput>(text, {} as EnginePackInput));
+  if (!r.ok) return fail(c, r.status, r.error);
+  await recordEvent(c.env.DB, "photos.engine_queued", r.pack_id, { posts: r.posts }, OPS_ACTOR);
+  return c.json(r);
 });

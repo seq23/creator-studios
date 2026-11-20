@@ -9,7 +9,8 @@
       "file": "jobs/music/bright-morning.mp3",
       "source": "scripts/make-music.py (original, generated in this repository)",
       "licence": "CC0 1.0 Universal (public domain dedication)",
-      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "bpm": 104
     },
     {
       "id": "easy-stroll",
@@ -19,7 +20,8 @@
       "file": "jobs/music/easy-stroll.mp3",
       "source": "scripts/make-music.py (original, generated in this repository)",
       "licence": "CC0 1.0 Universal (public domain dedication)",
-      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "bpm": 92
     },
     {
       "id": "pop-up",
@@ -29,7 +31,8 @@
       "file": "jobs/music/pop-up.mp3",
       "source": "scripts/make-music.py (original, generated in this repository)",
       "licence": "CC0 1.0 Universal (public domain dedication)",
-      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "bpm": 118
     },
     {
       "id": "slow-glow",
@@ -39,7 +42,8 @@
       "file": "jobs/music/slow-glow.mp3",
       "source": "scripts/make-music.py (original, generated in this repository)",
       "licence": "CC0 1.0 Universal (public domain dedication)",
-      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "bpm": 84
     },
     {
       "id": "ready-set",
@@ -49,7 +53,8 @@
       "file": "jobs/music/ready-set.mp3",
       "source": "scripts/make-music.py (original, generated in this repository)",
       "licence": "CC0 1.0 Universal (public domain dedication)",
-      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "bpm": 112
     },
     {
       "id": "golden-hour",
@@ -59,7 +64,8 @@
       "file": "jobs/music/golden-hour.mp3",
       "source": "scripts/make-music.py (original, generated in this repository)",
       "licence": "CC0 1.0 Universal (public domain dedication)",
-      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "bpm": 98
     },
     {
       "id": "sunday-best",
@@ -69,7 +75,8 @@
       "file": "jobs/music/sunday-best.mp3",
       "source": "scripts/make-music.py (original, generated in this repository)",
       "licence": "CC0 1.0 Universal (public domain dedication)",
-      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "bpm": 108
     },
     {
       "id": "big-reveal",
@@ -79,7 +86,8 @@
       "file": "jobs/music/big-reveal.mp3",
       "source": "scripts/make-music.py (original, generated in this repository)",
       "licence": "CC0 1.0 Universal (public domain dedication)",
-      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+      "licence_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "bpm": 96
     }
   ]
 }

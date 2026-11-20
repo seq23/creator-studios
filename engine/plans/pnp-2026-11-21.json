@@ -1,0 +1,606 @@
+{
+  "_why": "Porch & Party's first two weeks from the content engine (porch-and-party brain, FILLER CONTENT TO 31 DEC and CONTENT ENGINE, 19 Nov 2026): one reel a day to TikTok, Instagram and the Facebook Page from Sat 21 Nov, photo sets about three a week, Memphis evening. real: = the owner's own job photos, shown as our work; ai: = the site's AI scenes and gen: = new scenes made free on Workers AI (engine/imagine.mjs), both never captioned as a job we did and never labelled in the caption (TikTok's own AI switch is set). Mix: real work 6, holiday ideas 6, engagement 3, tips 3, how it works 1, office parties 1. No prices, no voice, music + on-screen words, the request link in every caption.",
+  "studio": "sample1",
+  "brand": "pnp",
+  "tz": "America/Chicago",
+  "window": [
+    17,
+    21
+  ],
+  "cta": "porchandparty901.com/request",
+  "sources": {
+    "real": "~/Work/porch-and-party/real-work-photos",
+    "ai": "~/GitHub/p-n-p/assets/img",
+    "gen": "~/Work/porch-and-party/engine-images"
+  },
+  "pieces": [
+    {
+      "id": "pnp-1121-real-setups",
+      "format": "real-montage",
+      "at": "2026-11-21 18:30",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "music": "sunday-best",
+      "pics": [
+        {
+          "src": "real:anniversary-fireplace.jpeg",
+          "fy": 0.45
+        },
+        {
+          "src": "real:birthday-32-bedroom.jpeg",
+          "label": "32nd birthday"
+        },
+        {
+          "src": "real:rose-petal-candle-hallway.jpeg",
+          "label": "Rose-petal hallway"
+        },
+        {
+          "src": "real:hotel-birthday-28-balloons-1.png",
+          "label": "28th birthday, hotel room"
+        },
+        {
+          "src": "real:hotel-birthday-feliz-cumpleanos-2.png",
+          "label": "Feliz cumpleaños"
+        },
+        {
+          "src": "real:baby-shower-balloon-column.jpg",
+          "label": "Baby shower",
+          "fx": 1.0
+        }
+      ],
+      "hook": "Real setups.\nAll in Memphis.",
+      "captions": {
+        "tiktok": "Every one of these started with a date and a place. Tell us yours at porchandparty901.com/request #memphis #surprisesetup",
+        "instagram": "Every one of these started with a date and a place. Yours could be next. porchandparty901.com/request #memphis #surprisesetup",
+        "facebook": "A few of our recent setups around Memphis. Every one started with someone sending us a date and a place. Tell us yours: porchandparty901.com/request"
+      }
+    },
+    {
+      "id": "pnp-1122-thanksgiving-countdown",
+      "format": "countdown",
+      "at": "2026-11-22 18:00",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "music": "ready-set",
+      "count": 4,
+      "pics": [
+        {
+          "src": "gen:tg-green-door-porch.jpg",
+          "fy": 0.5
+        },
+        {
+          "src": "gen:tg-back-porch-table.jpg"
+        }
+      ],
+      "hook": "days to Thanksgiving",
+      "lines": [
+        "Is the table ready\nfor the family?"
+      ],
+      "captions": {
+        "tiktok": "The porch they walk up to, the table they gather at. There's still time. porchandparty901.com/request #thanksgiving #memphis",
+        "instagram": "The porch is the first thing the family sees, the table is where they stay. There's still time to have both done. porchandparty901.com/request #thanksgiving #memphis",
+        "facebook": "Four days. If the family is coming to you this year, the porch is the first thing they'll see and the table is where they'll stay. There's still time: porchandparty901.com/request"
+      }
+    },
+    {
+      "id": "pnp-1122-thanksgiving-three-ways",
+      "format": "carousel",
+      "at": "2026-11-22 19:45",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "pics": [
+        {
+          "src": "ai:porch/memphis-fall-front-porch-decorating-germantown.jpg",
+          "label": "The porch they walk up to"
+        },
+        {
+          "src": "ai:grazing/ai-grazing-table.webp",
+          "label": "The table they gather at"
+        },
+        {
+          "src": "ai:rentals/ai-lawn-cornhole-string-lights.webp",
+          "label": "The yard after dinner"
+        }
+      ],
+      "hook": "Thanksgiving at home,\nthree ways",
+      "captions": {
+        "tiktok": "Porch, table, yard. Pick one or let us do all three. porchandparty901.com/request #thanksgiving #memphis",
+        "instagram": "Save this for Thursday. Porch, table, yard: pick one or hand us all three. porchandparty901.com/request #thanksgiving #memphis",
+        "facebook": "Hosting Thanksgiving? Three places guests notice first. Pick one or hand us all three: porchandparty901.com/request"
+      }
+    },
+    {
+      "id": "pnp-1123-how-it-works",
+      "format": "how-it-works",
+      "at": "2026-11-23 18:30",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "music": "bright-morning",
+      "pics": [
+        {
+          "src": "real:baby-shower-dessert-display.jpg"
+        },
+        {
+          "src": "real:baby-shower-gift-table.jpg"
+        },
+        {
+          "src": "real:baby-shower-teddy-centerpiece.jpg"
+        }
+      ],
+      "hook": "Party this week\nand no time to decorate?",
+      "lines": [
+        "Send us the date\nand the place",
+        "We bring everything\nand set it up",
+        "You take the credit"
+      ],
+      "captions": {
+        "tiktok": "One short form. We handle the rest. porchandparty901.com/request #memphis #partysetup",
+        "instagram": "One short form, then it's off your list. These are our own setups. porchandparty901.com/request #memphis #partysetup",
+        "facebook": "How it works: send us the date and the place, we bring everything and set it up, and you take the credit. Start here: porchandparty901.com/request"
+      }
+    },
+    {
+      "id": "pnp-1124-hosting-checklist",
+      "format": "checklist",
+      "at": "2026-11-24 18:30",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "music": "golden-hour",
+      "pics": [
+        {
+          "src": "ai:grazing/ai-grazing-candlelit-event.webp"
+        }
+      ],
+      "hook": "Hosting Thursday?\nDo these by Wednesday",
+      "lines": [
+        "Front door lights on",
+        "One spot cleared for coats",
+        "The table set the night before",
+        "Games ready for after dinner"
+      ],
+      "captions": {
+        "tiktok": "Save this for Wednesday night. Want the table or the games off your plate? porchandparty901.com/request #thanksgiving #hostingtips",
+        "instagram": "Save this for Wednesday night. Want the table or the games off your plate? Send it our way. porchandparty901.com/request #thanksgiving #hostingtips",
+        "facebook": "Hosting Thursday? A short list for Wednesday night. If the table or the games are still undone, we can help: porchandparty901.com/request"
+      }
+    },
+    {
+      "id": "pnp-1124-yard-games",
+      "format": "carousel",
+      "at": "2026-11-24 19:45",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "pics": [
+        {
+          "src": "ai:rentals/ai-lawn-cornhole-bags.webp",
+          "label": "Cornhole"
+        },
+        {
+          "src": "ai:rentals/ai-yard-games-party.webp",
+          "label": "Or both, side by side"
+        }
+      ],
+      "hook": "After-dinner plans:\ngiant yard games",
+      "captions": {
+        "tiktok": "Keep the cousins busy while the plates get cleared. porchandparty901.com/request #thanksgiving #yardgames",
+        "instagram": "Keep the cousins busy while the plates get cleared. Giant Color Stack and cornhole, delivered. porchandparty901.com/request #thanksgiving #yardgames",
+        "facebook": "Giant Color Stack and cornhole for after dinner, dropped off and picked up. Check your date: porchandparty901.com/request"
+      }
+    },
+    {
+      "id": "pnp-1125-porch-one-or-two",
+      "format": "which-one",
+      "at": "2026-11-25 18:00",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "music": "pop-up",
+      "pics": [
+        {
+          "src": "ai:porch/ai-fall-porch.webp",
+          "fy": 0.55
+        },
+        {
+          "src": "ai:porch/memphis-fall-front-porch-decorating-germantown.jpg",
+          "fy": 0.55
+        }
+      ],
+      "hook": "Thanksgiving porch:\n1 or 2?",
+      "lines": [
+        "Comment 1 or 2"
+      ],
+      "captions": {
+        "tiktok": "Brick steps or the big pumpkin pile? Tell us below. porchandparty901.com/request #fallporch #memphis",
+        "instagram": "Brick steps or the big pumpkin pile? Tell us in the comments. porchandparty901.com/request #fallporch #memphis",
+        "facebook": "Two fall porch looks. Which one is more you, 1 or 2? Want yours done before the holidays: porchandparty901.com/request"
+      }
+    },
+    {
+      "id": "pnp-1126-thanksgiving-table",
+      "format": "pov",
+      "at": "2026-11-26 17:30",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "music": "slow-glow",
+      "pics": [
+        {
+          "src": "gen:tg-table-at-home.jpg"
+        },
+        {
+          "src": "ai:grazing/ai-grazing-shower-table.webp"
+        }
+      ],
+      "hook": "POV: you didn't cook\nand the table still steals the show",
+      "lines": [
+        "Grazing tables,\nstyled at your place"
+      ],
+      "captions": {
+        "tiktok": "Happy Thanksgiving, Memphis. Save this for the next gathering. porchandparty901.com/request #thanksgiving #grazingtable",
+        "instagram": "Happy Thanksgiving, Memphis. For the next one, let the table be our job. porchandparty901.com/request #thanksgiving #grazingtable",
+        "facebook": "Happy Thanksgiving from Porch & Party. For your next gathering, the table can be our job: porchandparty901.com/request"
+      }
+    },
+    {
+      "id": "pnp-1127-christmas-door",
+      "format": "do-dont",
+      "at": "2026-11-27 18:30",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "music": "easy-stroll",
+      "pics": [
+        {
+          "src": "gen:xmas-door-bare-wreath.jpg"
+        },
+        {
+          "src": "gen:xmas-door-layered.jpg"
+        }
+      ],
+      "hook": "Putting up Christmas\nthis weekend?",
+      "lines": [
+        "One wreath on a bare door",
+        "Layer the door,\nthe lights and the steps"
+      ],
+      "captions": {
+        "tiktok": "One wreath reads as an afterthought. Frame the whole door. porchandparty901.com/request #christmasporch #memphis",
+        "instagram": "One wreath on its own reads as an afterthought. Frame the whole door instead. porchandparty901.com/request #christmasporch #memphis",
+        "facebook": "Decorating this weekend? Frame the whole door: garland, lights, then the steps. Or hand it to us: porchandparty901.com/request"
+      }
+    },
+    {
+      "id": "pnp-1128-the-details",
+      "format": "detail-zoom",
+      "at": "2026-11-28 18:30",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "music": "golden-hour",
+      "pics": [
+        {
+          "src": "real:anniversary-fireplace.jpeg"
+        }
+      ],
+      "spots": [
+        {
+          "fx": 0.5,
+          "fy": 0.66,
+          "label": "Lit letters"
+        },
+        {
+          "fx": 0.2,
+          "fy": 0.86,
+          "label": "Candlelight, low and warm"
+        },
+        {
+          "fx": 0.72,
+          "fy": 0.93,
+          "label": "Petals to the hearth"
+        }
+      ],
+      "hook": "The details\nmake the night",
+      "captions": {
+        "tiktok": "An anniversary we set up. The small things are the whole thing. porchandparty901.com/request #anniversary #memphis",
+        "instagram": "An anniversary we set up. The small things are the whole thing. porchandparty901.com/request #anniversary #memphis",
+        "facebook": "One of our anniversary setups, up close. Planning one? porchandparty901.com/request"
+      }
+    },
+    {
+      "id": "pnp-1128-hotel-birthday",
+      "format": "carousel",
+      "at": "2026-11-28 19:45",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "pics": [
+        {
+          "src": "real:hotel-birthday-feliz-cumpleanos-1.png",
+          "label": "Balloons over the headboard"
+        },
+        {
+          "src": "real:hotel-birthday-feliz-cumpleanos-3.png",
+          "label": "Petals on the bed"
+        },
+        {
+          "src": "real:hotel-birthday-28-balloons-2.png",
+          "label": "The big number"
+        }
+      ],
+      "hook": "One hotel room,\none surprise birthday",
+      "captions": {
+        "tiktok": "A surprise we set up before she walked in. porchandparty901.com/request #birthdaysurprise #memphis",
+        "instagram": "A hotel-room surprise we set up before she walked in. porchandparty901.com/request #birthdaysurprise #memphis",
+        "facebook": "A hotel-room birthday surprise we set up before she walked in. Planning one? porchandparty901.com/request"
+      }
+    },
+    {
+      "id": "pnp-1129-rate-christmas-porch",
+      "format": "rate-it",
+      "at": "2026-11-29 18:00",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "music": "big-reveal",
+      "pics": [
+        {
+          "src": "gen:xmas-white-column-porch.jpg"
+        }
+      ],
+      "hook": "Rate this Christmas porch,\n1 to 10",
+      "lines": [
+        "Be honest. 1 to 10?"
+      ],
+      "captions": {
+        "tiktok": "Too much or just right? Numbers in the comments. porchandparty901.com/request #christmasporch #memphis",
+        "instagram": "Too much or just right? Numbers in the comments. porchandparty901.com/request #christmasporch #memphis",
+        "facebook": "A Christmas porch idea. Rate it 1 to 10 in the comments. Want yours done for December? porchandparty901.com/request"
+      }
+    },
+    {
+      "id": "pnp-1130-host-without-cooking",
+      "format": "three-ideas",
+      "at": "2026-11-30 18:30",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "music": "bright-morning",
+      "pics": [
+        {
+          "src": "ai:porch/ai-christmas-porch.webp",
+          "label": "A porch that says come in"
+        },
+        {
+          "src": "ai:grazing/ai-grazing-table.webp",
+          "label": "A table nobody had to cook"
+        },
+        {
+          "src": "ai:rentals/ai-cornhole-backyard.webp",
+          "label": "Games for the yard"
+        }
+      ],
+      "hook": "3 ways to host December\nwithout the stress",
+      "captions": {
+        "tiktok": "Save this for your December party. porchandparty901.com/request #holidayparty #memphis",
+        "instagram": "Save this for your December party. Pick one, or send us all three. porchandparty901.com/request #holidayparty #memphis",
+        "facebook": "Hosting in December? Three things that do the heavy lifting. Pick one or send us all three: porchandparty901.com/request"
+      }
+    },
+    {
+      "id": "pnp-1201-office-party",
+      "format": "office-party",
+      "at": "2026-12-01 18:30",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "music": "ready-set",
+      "pics": [
+        {
+          "src": "ai:grazing/grazing-table-corporate.jpg"
+        },
+        {
+          "src": "ai:rentals/ai-yard-games-party.webp"
+        },
+        {
+          "src": "ai:grazing/ai-grazing-candlelit-event.webp"
+        }
+      ],
+      "hook": "Planning the office\nholiday party?",
+      "lines": [
+        "A grazing table\nthey'll talk about",
+        "Games that get\npeople mixing",
+        "All set before\nanyone walks in"
+      ],
+      "endLine": "Office parties across the Memphis metro.",
+      "captions": {
+        "tiktok": "Hand off the office party. porchandparty901.com/request #officeparty #memphis",
+        "instagram": "Got handed the office party? Hand it off. porchandparty901.com/request #officeparty #memphis",
+        "facebook": "Got handed the office holiday party? Grazing tables, yard games and setup before anyone walks in. Tell us the date: porchandparty901.com/request"
+      }
+    },
+    {
+      "id": "pnp-1201-baby-shower",
+      "format": "carousel",
+      "at": "2026-12-01 19:45",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "pics": [
+        {
+          "src": "real:baby-shower-balloon-column.jpg",
+          "label": "Balloon column"
+        },
+        {
+          "src": "real:baby-shower-gift-table.jpg",
+          "label": "Gift table"
+        },
+        {
+          "src": "real:baby-shower-teddy-centerpiece.jpg",
+          "label": "Teddy centerpiece"
+        },
+        {
+          "src": "real:baby-shower-table-setting.jpg",
+          "label": "Every place set"
+        }
+      ],
+      "hook": "A baby shower\nwe set up, start to finish",
+      "captions": {
+        "tiktok": "Mom-to-be just walked in. porchandparty901.com/request #babyshower #memphis",
+        "instagram": "A baby shower we set up, start to finish, while the hosts got ready. porchandparty901.com/request #babyshower #memphis",
+        "facebook": "A baby shower we set up, start to finish. Planning one this winter? porchandparty901.com/request"
+      }
+    },
+    {
+      "id": "pnp-1202-lights-on",
+      "format": "wait-for-it",
+      "at": "2026-12-02 18:30",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "music": "slow-glow",
+      "pics": [
+        {
+          "src": "real:rose-petal-candle-hallway.jpeg"
+        }
+      ],
+      "hook": "Wait for the lights",
+      "lines": [
+        "The walk in is\nhalf the surprise"
+      ],
+      "captions": {
+        "tiktok": "One of our setups. Have something to say with it? porchandparty901.com/request #surprisesetup #memphis",
+        "instagram": "One of our hallway setups. The walk in is half the surprise. porchandparty901.com/request #surprisesetup #memphis",
+        "facebook": "One of our candlelit hallway setups. Anniversary, apology or big question, tell us the date: porchandparty901.com/request"
+      }
+    },
+    {
+      "id": "pnp-1203-cornhole-or-color-stack",
+      "format": "this-or-that",
+      "at": "2026-12-03 18:00",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "music": "pop-up",
+      "pics": [
+        {
+          "src": "ai:rentals/ai-cornhole-backyard.webp",
+          "label": "Cornhole"
+        },
+        {
+          "src": "ai:rentals/ai-lawn-connect-four-close.webp",
+          "label": "Giant Color Stack"
+        }
+      ],
+      "hook": "Cornhole or\nColor Stack?",
+      "lines": [
+        "Which one is\nyour family?"
+      ],
+      "captions": {
+        "tiktok": "Settle it in the comments. porchandparty901.com/request #yardgames #memphis",
+        "instagram": "Settle it in the comments. Both are ready to rent. porchandparty901.com/request #yardgames #memphis",
+        "facebook": "Cornhole or Giant Color Stack? Settle it in the comments. Both are ready for your next get-together: porchandparty901.com/request"
+      }
+    },
+    {
+      "id": "pnp-1203-december-porches",
+      "format": "carousel",
+      "at": "2026-12-03 19:45",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "pics": [
+        {
+          "src": "gen:xmas-brick-porch-garland.jpg",
+          "label": "Cedar garland, black door"
+        },
+        {
+          "src": "ai:porch/collierville-christmas-porch-decorating-front-door.jpg",
+          "label": "Wreath, lanterns, two trees"
+        }
+      ],
+      "hook": "Two December porches.\nWhich is more you?",
+      "captions": {
+        "tiktok": "Swipe and pick. porchandparty901.com/request #christmasporch #memphis",
+        "instagram": "Swipe and pick one. Then send us your date. porchandparty901.com/request #christmasporch #memphis",
+        "facebook": "Two Christmas porch ideas. Which one is more you? Want yours done for December? porchandparty901.com/request"
+      }
+    },
+    {
+      "id": "pnp-1204-porch-lights-tip",
+      "format": "quick-tip",
+      "at": "2026-12-04 18:30",
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "music": "easy-stroll",
+      "pics": [
+        {
+          "src": "ai:rentals/ai-lawn-cornhole-string-lights.webp"
+        }
+      ],
+      "hook": "Holiday lights tip",
+      "lines": [
+        "Warm white,\nnot cool white",
+        "Light the door first,\nthen the steps",
+        "Put them on a timer"
+      ],
+      "captions": {
+        "tiktok": "Warm white wins every time. porchandparty901.com/request #holidaylights #memphis",
+        "instagram": "Warm white wins every time. Save this for setup day. porchandparty901.com/request #holidaylights #memphis",
+        "facebook": "A small one for setup day: warm white lights, door first, and a timer so nobody has to remember. Or let us hang them: porchandparty901.com/request"
+      }
+    }
+  ],
+  "generate": {
+    "tg-green-door-porch.jpg": "Photo-real vertical photograph, natural light, shot on a full-frame camera: the brick front porch of a Memphis home in late November dressed for Thanksgiving, cream heirloom pumpkins and rust-orange mums in galvanized buckets on the steps, a dried wheat and magnolia-leaf wreath on a deep green front door, a plaid wool throw on a white rocking chair, warm porch lantern glowing at dusk.",
+    "tg-table-at-home.jpg": "Photo-real vertical photograph, shot on a full-frame camera, warm evening light: a long Thanksgiving dining table in a Memphis home styled for twelve, a wide wooden grazing board of cheeses, grapes, figs, nuts and crackers down the middle, low magnolia leaves and small white pumpkins, cream linen napkins, amber glass candle holders lit, empty chairs, nobody at the table.",
+    "xmas-brick-porch-garland.jpg": "Photo-real vertical photograph, shot on a full-frame camera at blue hour: a red-brick Memphis front porch dressed for Christmas, a thick fresh cedar and magnolia garland framing a black front door with warm white lights woven through, a full wreath with a deep red velvet bow, two potted spruce trees in black planters, brass lanterns with candles on the steps, soft snow-free December evening.",
+    "xmas-white-column-porch.jpg": "Photo-real vertical photograph, shot on a full-frame camera in early evening: a Southern porch with white columns in Memphis dressed for Christmas, fresh garland with warm white lights wrapped up the columns, wreaths with red ribbons on the tall windows, two white rocking chairs with red plaid blankets, lanterns glowing on the porch floor, magnolia leaves in the garland.",
+    "xmas-door-bare-wreath.jpg": "Photo-real vertical photograph, shot on a full-frame camera in soft early-evening light: the front door of a red-brick Memphis home in December, a deep navy door with one plain small green wreath and nothing else, bare concrete steps, a single porch light on, quiet and a little plain.",
+    "xmas-door-layered.jpg": "Photo-real vertical photograph, shot on a full-frame camera at blue hour: the same kind of red-brick Memphis front door in December dressed in layers, a full fresh cedar and magnolia garland framing the navy door with warm white lights woven through, a large wreath with a deep red velvet bow, two potted spruce trees on the steps, brass lanterns with lit candles on each step, real photograph, natural textures.",
+    "tg-back-porch-table.jpg": "Photo-real vertical photograph, shot on a full-frame camera in late-afternoon light: a round farmhouse table set for Thanksgiving dinner on a screened back porch in Memphis, cream stoneware plates, linen napkins, small white pumpkins and magnolia leaves down the middle, amber glass votives lit, a pecan pie on a wooden board, empty chairs, autumn trees soft through the screen."
+  }
+}

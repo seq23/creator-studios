@@ -16,3 +16,8 @@ __pycache__/
 *.pyc
 .DS_Store
 .sample-media/
+
+# content engine (engine/README.md): rendered output and pictures copied from the Mac
+engine/out/
+engine/public/in/
+engine/public/music/

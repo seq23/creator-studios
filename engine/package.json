@@ -1,0 +1,23 @@
+{
+  "name": "creator-studios-engine",
+  "private": true,
+  "type": "module",
+  "description": "The content engine: proven short-form formats rendered on the host's Mac (Remotion), reviewed on real frames, then queued into a studio's photo posts. README.md.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "studio": "remotion studio src/index.ts",
+    "render": "node render.mjs"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.538",
+    "@remotion/cli": "4.0.538",
+    "@remotion/renderer": "4.0.538",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "remotion": "4.0.538"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.12",
+    "typescript": "5.9.2"
+  }
+}

@@ -622,19 +622,85 @@ async function finishCutCmd(slug, dumpId) {
   await opsCall(slug, "finish-cut", { dump_id: dumpId });
 }
 
-/** One signed ops call, with the studio's JOB_SHARED_SECRET from its 0600 file (never printed). */
-async function opsCall(slug, action, payload) {
-  const { s } = studioBySlug(slug);
+/** The studio's job secret from its 0600 file (never printed). */
+function jobSecret(slug) {
   const file = path.join(secretsDir(), slug, "JOB_SHARED_SECRET");
   if (!existsSync(file)) throw new Error(`no ${file}: the studio's job secret is needed to sign`);
-  const secret = readFileSync(file, "utf8").trim();
-  const body = JSON.stringify(payload);
+  return readFileSync(file, "utf8").trim();
+}
+
+/** One signed ops request: the signature covers "ops:<message>" with a timestamp (worker/routes/ops.ts). */
+async function opsFetch(slug, route, { method = "POST", body, message }) {
+  const { s } = studioBySlug(slug);
   const ts = Math.floor(Date.now() / 1000);
-  const sig = createHmac("sha256", secret).update(`${ts}.ops:${body}`).digest("hex");
-  const res = await fetch(`${s.url}/api/ops/${action}`, { method: "POST", headers: { "content-type": "application/json", "x-ops-timestamp": String(ts), "x-ops-signature": sig }, body });
-  const out = await res.json().catch(() => ({}));
-  console.log(`${res.status} ${JSON.stringify(out)}`);
-  if (!res.ok) process.exit(1);
+  const sig = createHmac("sha256", jobSecret(slug)).update(`${ts}.ops:${message ?? body}`).digest("hex");
+  const res = await fetch(`${s.url}/api/ops/${route}`, { method, headers: { "content-type": typeof body === "string" ? "application/json" : "application/octet-stream", "x-ops-timestamp": String(ts), "x-ops-signature": sig }, body });
+  return { status: res.status, ok: res.ok, out: await res.json().catch(() => ({})) };
+}
+
+/** One signed ops call; prints the answer and exits non-zero when refused. */
+async function opsCall(slug, action, payload) {
+  const r = await opsFetch(slug, action, { body: JSON.stringify(payload) });
+  console.log(`${r.status} ${JSON.stringify(r.out)}`);
+  if (!r.ok) process.exit(1);
+}
+
+/**
+ * Queue a rendered, reviewed content plan into a studio (engine/README.md): for each piece whose
+ * engine/out/<plan>/<id>/review.json says PASS, upload its files (engine-file) and queue it as a
+ * ready photo pack with its posts at the plan's times (engine-pack). A piece without a PASS is never
+ * sent. Already-queued pieces are left as they are. Rule 0: prints OUTPUT <n> pieces queued.
+ */
+async function engineQueue(slug, planFile) {
+  const plan = JSON.parse(readFileSync(planFile, "utf8"));
+  if (plan.studio !== slug) throw new Error(`this plan is for ${plan.studio}, not ${slug}`);
+  const only = process.argv.find((x) => x.startsWith("--only="))?.slice(7).split(",").filter(Boolean);
+  const outRoot = path.join(process.env.ENGINE_OUT || path.join(ROOT, "engine", "out"), path.basename(planFile, ".json"));
+  let queued = 0;
+  let passed = 0;
+  for (const piece of plan.pieces.filter((p) => !only || only.includes(p.id))) {
+    const dir = path.join(outRoot, piece.id);
+    const review = existsSync(path.join(dir, "review.json")) ? JSON.parse(readFileSync(path.join(dir, "review.json"), "utf8")) : null;
+    if (review?.verdict !== "PASS") {
+      console.log(`  - ${piece.id}: not queued (${review ? "failed review" : "not reviewed"})`);
+      continue;
+    }
+    passed++;
+    const manifest = JSON.parse(readFileSync(path.join(dir, "manifest.json"), "utf8"));
+    const keys = {};
+    for (const f of manifest.files.filter((x) => /\.(mp4|jpg)$/.test(x) && (x === "reel.mp4" || x === "cover.jpg" || x.startsWith("slide-")))) {
+      const bytes = readFileSync(path.join(dir, f));
+      const key = `engine/${piece.id}/${f}`;
+      const sha = createHash("sha256").update(bytes).digest("hex");
+      const r = await opsFetch(slug, `engine-file/${key}`, { method: "PUT", body: bytes, message: `file:${key}:${sha}` });
+      if (!r.ok) throw new Error(`${key}: ${r.status} ${JSON.stringify(r.out)}`);
+      keys[f] = key;
+    }
+    const carousel = piece.format === "carousel";
+    const kind = carousel ? "carousel" : "reel";
+    const slides = Object.keys(keys).filter((f) => f.startsWith("slide-")).sort((a, b) => parseInt(a.slice(6)) - parseInt(b.slice(6)));
+    const input = {
+      key: piece.id,
+      note: piece.hook.replace(/\s+/g, " ").slice(0, 200),
+      format: piece.format,
+      review: { verdict: "PASS", by: review.by, looked_at: review.looked_at, at: review.at },
+      ai_scene: manifest.ai_scene,
+      items: [{ kind, r2_key: carousel ? null : keys["reel.mp4"], cover_r2_key: carousel ? keys[slides[0]] : keys["cover.jpg"], images: carousel ? slides.map((f) => keys[f]) : [] }],
+      posts: piece.platforms.map((platform) => ({ platform, item_kind: kind, caption: piece.captions[platform], scheduled_at: manifest.at_utc })),
+    };
+    const r = await opsFetch(slug, "engine-pack", { body: JSON.stringify(input) });
+    if (r.status === 409) console.log(`  = ${piece.id}: already queued`);
+    else if (!r.ok) throw new Error(`${piece.id}: ${r.status} ${JSON.stringify(r.out)}`);
+    else {
+      queued++;
+      console.log(`  ✓ ${piece.id}: ${r.out.posts} posts at ${piece.at} (${plan.tz})`);
+    }
+  }
+  console.log(`OUTPUT ${queued} pieces queued (${passed} passed review)`);
+  if (!queued && !passed) {
+    console.log("NAMED STOP [NOTHING_PASSED] no piece of this plan passed review: run engine/review.mjs");
+    process.exit(1);
+  }
 }
 
 const [cmd, arg] = process.argv.slice(2);
@@ -672,14 +738,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       return opsCall(arg, "rewrite-words", { dump_id: process.argv[4], ...(nums?.length ? { numbers: nums } : {}), ...(process.argv.includes("--rerender") ? { rerender: true } : {}), ...(process.argv.includes("--rerender-only") ? { rerender_only: true } : {}) });
     },
     words: () => opsCall(arg, "words", {}),
+    "engine-queue": () => engineQueue(arg, process.argv[4]),
     storage: () => {
       provisionStorage(studioBySlug(arg).s);
       gen();
     },
   };
   const fn = commands[cmd];
-  if (!fn || (["create", "deploy", "secrets", "invite", "storage", "start-over", "finish-cut", "niche", "rewrite-words", "words"].includes(cmd) && !arg)) {
-    console.log("usage: node scripts/studio.mjs gen|check|list | create <slug> | deploy <slug>|--all | secrets <slug>|--all [--refresh] [--only=NAME,…] | invite <slug> | start-over <slug> <dumpId> [--service=…] [--shape=…] | finish-cut <slug> <dumpId> | rewrite-words <slug> <dumpId> [--numbers=…] [--rerender] [--rerender-only] | words <slug> | niche <slug>");
+  if (!fn || (["create", "deploy", "secrets", "invite", "storage", "start-over", "finish-cut", "niche", "rewrite-words", "words", "engine-queue"].includes(cmd) && !arg)) {
+    console.log("usage: node scripts/studio.mjs gen|check|list | create <slug> | deploy <slug>|--all | secrets <slug>|--all [--refresh] [--only=NAME,…] | invite <slug> | start-over <slug> <dumpId> [--service=…] [--shape=…] | finish-cut <slug> <dumpId> | rewrite-words <slug> <dumpId> [--numbers=…] [--rerender] [--rerender-only] | words <slug> | niche <slug> | engine-queue <slug> <plan.json> [--only=id,…]");
     process.exit(2);
   }
   Promise.resolve(fn()).catch((e) => {
