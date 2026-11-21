@@ -28,7 +28,7 @@ Open **How to set up free Cloudflare R2** and follow it: a free Cloudflare accou
 
 ![Step 3](/help/screenshots/own-storage-3.png)
 <!-- route: /settings#own-storage -->
-<!-- target: .own-storage details ol -->
+<!-- target: .own-storage > p.hint -->
 
 In R2, open **Manage API tokens** and create a token with **Object Read & Write** on your new bucket only. Copy the **Access Key ID** and **Secret Access Key** (the secret shows once), and your **Account ID** from the R2 page.
 

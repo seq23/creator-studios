@@ -58,7 +58,7 @@ export function StorageSection({ owner }: { owner: boolean }) {
 
   if (!s.data) return <Skeleton lines={3} />;
   const d = s.data;
-  const pct = Math.min(100, Math.round((d.used_bytes / d.limit_bytes) * 100));
+  const pct = d.limit_bytes > 0 ? Math.min(100, Math.round((d.used_bytes / d.limit_bytes) * 100)) : 0;
   const t = d.rules.tidy;
   const f = d.rules.files;
   return (

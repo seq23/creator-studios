@@ -125,7 +125,8 @@ describe("a dump takes photos and videos together, full quality, and reads the c
     expect(new Uint8Array(await stored!.arrayBuffer())).toEqual(heic);
   });
   it("no size limit on a dump's files beyond what storage allows (a 4 GB video starts)", async () => {
-    const h = await harness();
+    // in her own storage; the host's shared share refuses past its cap (tests/unit/host-storage.test.ts)
+    const h = await harness({ FILES_PLACE: "own" });
     h.db.raw.exec("INSERT INTO dumps (id, door, notes, status) VALUES ('dmp_big', 'new', '', 'uploading')");
     expect((await h.call("POST", "/api/uploads/start", { kind: "video", parentId: "dmp_big", fileName: "long.mov", size: 4 * 1024 ** 3, mimeType: "video/quicktime" })).status).toBe(200);
     expect((await h.call("POST", "/api/uploads/start", { kind: "video", parentId: "dmp_big", fileName: "huge.jpg", size: 90 * 1024 ** 2, mimeType: "image/jpeg" })).status).toBe(200);
