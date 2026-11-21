@@ -148,7 +148,7 @@ type Section = { items: { key: string }[]; total: number };
 beforeEach(() => {
   db = sqliteD1();
   r2 = memoryR2();
-  env = { DB: db.DB, FILES: r2.FILES, OWNER_EMAIL: "owner@example.com", SESSION_SECRET: "s", SECRETS_KEY: "YcLVEjArFviauClfN6thsYumeyr3wqfUT9D2VnMNTm0=", APP_NAME: "Sample Studio", FAKE_SERVICES: "1", AUTH_MODE: "code", PUBLIC_BASE_URL: BASE, GITHUB_REPO: "example/studio-jobs" } as unknown as Env;
+  env = { DB: db.DB, FILES: r2.FILES, OWNER_EMAIL: "owner@example.com", SESSION_SECRET: "s", SECRETS_KEY: "YcLVEjArFviauClfN6thsYumeyr3wqfUT9D2VnMNTm0=", APP_NAME: "Sample Studio", FAKE_SERVICES: "1", AUTH_MODE: "code", PUBLIC_BASE_URL: BASE, GITHUB_REPO: "example/studio-jobs", FILES_PLACE: "own" } as unknown as Env; // her own storage's free 10 GB (the host's shared share: tests/unit/host-storage.test.ts)
   db.raw.exec(yearSql(NOW).sql);
 });
 

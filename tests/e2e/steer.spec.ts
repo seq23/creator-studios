@@ -167,15 +167,15 @@ test("Review: Change music and Try another version re-render just that clip", as
   const wav = Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WAVEfmt "), Buffer.alloc(3000)]);
   const start = await page.request.post("/api/uploads/start", { data: { kind: "music", fileName: "steer-song.wav", size: wav.length, mimeType: "audio/wav" } });
   const up = await start.json();
-  const part = await page.request.put(`/api/uploads/${up.id}/parts/1?key=${encodeURIComponent(up.key)}&uploadId=${encodeURIComponent(up.uploadId)}`, { data: wav });
-  await page.request.post(`/api/uploads/${up.id}/complete`, { data: { key: up.key, uploadId: up.uploadId, parts: [await part.json()] } });
+  const part = await page.request.put(`/api/uploads/${up.id}/parts/1?key=${encodeURIComponent(up.key)}&uploadId=${encodeURIComponent(up.uploadId)}&ticket=${encodeURIComponent(up.ticket)}`, { data: wav });
+  await page.request.post(`/api/uploads/${up.id}/complete`, { data: { key: up.key, uploadId: up.uploadId, ticket: up.ticket, parts: [await part.json()] } });
   expect((await page.request.post("/api/editing/music", { data: { id: up.id, key: up.key, fileName: "steer-song.wav" } })).ok()).toBe(true);
 
   const { id: dumpId } = await (await page.request.post("/api/dumps", { data: { door: "new", notes: "" } })).json();
   const s2 = await page.request.post("/api/uploads/start", { data: { kind: "video", parentId: dumpId, fileName: "r.mp4", size: 90_000, mimeType: "video/mp4", contentHash: `steer-${Date.now()}-${Math.random()}` } });
   const u2 = await s2.json();
-  const p2 = await page.request.put(`/api/uploads/${u2.id}/parts/1?key=${encodeURIComponent(u2.key)}&uploadId=${encodeURIComponent(u2.uploadId)}`, { data: video() });
-  await page.request.post(`/api/uploads/${u2.id}/complete`, { data: { key: u2.key, uploadId: u2.uploadId, parts: [await p2.json()] } });
+  const p2 = await page.request.put(`/api/uploads/${u2.id}/parts/1?key=${encodeURIComponent(u2.key)}&uploadId=${encodeURIComponent(u2.uploadId)}&ticket=${encodeURIComponent(u2.ticket)}`, { data: video() });
+  await page.request.post(`/api/uploads/${u2.id}/complete`, { data: { key: u2.key, uploadId: u2.uploadId, ticket: u2.ticket, parts: [await p2.json()] } });
   await page.request.patch(`/api/dumps/${dumpId}`, { data: { steer: { music: "none", count: 3 } } });
   await page.request.post(`/api/dumps/${dumpId}/dump`);
   await runCut(page.request, dumpId);

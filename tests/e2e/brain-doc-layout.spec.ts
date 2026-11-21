@@ -8,9 +8,9 @@ const NAME = "Porch-and-Party-brand-guide-with-a-long-name.md";
 
 async function uploadDoc(api: APIRequestContext): Promise<string> {
   const bytes = Buffer.from("# Brand guide\nWarm, friendly, Memphis porches.\n".repeat(60));
-  const start = (await (await api.post("/api/uploads/start", { data: { kind: "brand_doc", parentId: null, fileName: NAME, size: bytes.length, mimeType: "text/markdown" } })).json()) as { id: string; key: string; uploadId: string };
-  const part = await (await api.put(`/api/uploads/${start.id}/parts/1?key=${encodeURIComponent(start.key)}&uploadId=${encodeURIComponent(start.uploadId)}`, { data: bytes })).json();
-  const done = await api.post(`/api/uploads/${start.id}/complete`, { data: { key: start.key, uploadId: start.uploadId, parts: [part] } });
+  const start = (await (await api.post("/api/uploads/start", { data: { kind: "brand_doc", parentId: null, fileName: NAME, size: bytes.length, mimeType: "text/markdown" } })).json()) as { id: string; key: string; uploadId: string; ticket: string };
+  const part = await (await api.put(`/api/uploads/${start.id}/parts/1?key=${encodeURIComponent(start.key)}&uploadId=${encodeURIComponent(start.uploadId)}&ticket=${encodeURIComponent(start.ticket)}`, { data: bytes })).json();
+  const done = await api.post(`/api/uploads/${start.id}/complete`, { data: { key: start.key, uploadId: start.uploadId, ticket: start.ticket, parts: [part] } });
   expect(done.ok(), await done.text()).toBe(true);
   return start.id;
 }

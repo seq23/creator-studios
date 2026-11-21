@@ -23,7 +23,7 @@ export const DUMP_PAGE = 20;
 import { dispatchJob } from "../services/github";
 import { pendingRefusal, spaceLine } from "../domain/fullVideo";
 import { PLAN_AHEAD_WEEKS } from "./posts";
-import { storageUsed } from "../lib/storage";
+import { storageReport } from "../lib/storage";
 import { notesWithStartOver, startOverPlan } from "../domain/startOver";
 import { answerQuestion, cleanLooksLike, cleanOverride, questionsFor, type PlanOverride, type QuestionVideo } from "@shared/looksLike";
 import { servicesOf } from "@shared/services";
@@ -142,13 +142,13 @@ dumps.post("/", async (c) => {
   return c.json({ id });
 });
 
-/** Before Dump on the full-video door: this video's size and the free space left of 10 GB. */
+/** Before Dump on the full-video door: this video's size and the free space left of the studio's storage. */
 dumps.get("/:id/space", async (c) => {
   const up = await c.env.DB.prepare("SELECT COALESCE(SUM(size_bytes), 0) AS n FROM assets WHERE dump_id = ? AND upload_status = 'uploaded'").bind(c.req.param("id")).first<{ n: number }>();
   // The upload is already in storage: what is left after it is kept is what counts.
-  const used = await storageUsed(c.env);
-  const s = spaceLine(up?.n ?? 0, Math.max(0, used - (up?.n ?? 0)));
-  return c.json({ upload_bytes: up?.n ?? 0, used_bytes: used, ...s });
+  const r = await storageReport(c.env);
+  const s = spaceLine(up?.n ?? 0, Math.max(0, r.used_bytes - (up?.n ?? 0)), r.limit_bytes);
+  return c.json({ upload_bytes: up?.n ?? 0, used_bytes: r.used_bytes, ...s });
 });
 
 dumps.get("/:id", async (c) => {
@@ -405,8 +405,9 @@ async function dumpFullVideo(env: Env, id: string, files: number, email: string 
   const refusal = pendingRefusal(pending?.n ?? 0, PLAN_AHEAD_WEEKS);
   if (refusal) return { ok: false, status: 409, error: refusal, fix_guide: "dump-new-footage" };
   const up = await env.DB.prepare("SELECT COALESCE(SUM(size_bytes), 0) AS n FROM assets WHERE dump_id = ? AND upload_status = 'uploaded'").bind(id).first<{ n: number }>();
-  const space = spaceLine(up?.n ?? 0, Math.max(0, (await storageUsed(env)) - (up?.n ?? 0)));
-  if (!space.fits) return { ok: false, status: 409, error: `${space.line}. Delete a few old videos first, or use a smaller export.`, fix_guide: "dump-new-footage" };
+  const store = await storageReport(env);
+  const space = spaceLine(up?.n ?? 0, Math.max(0, store.used_bytes - (up?.n ?? 0)), store.limit_bytes);
+  if (!space.fits) return { ok: false, status: 409, error: `${space.line}. Delete a few old videos first, use a smaller export, or add your own storage in Settings → Storage.`, fix_guide: store.place === "own" ? "dump-new-footage" : "own-storage" };
   if (!(await claim(env, id))) return { ok: false, status: 409, error: "This dump was already sent." };
   const r = await dispatchJob(env, "fullvideo", id);
   if (!r.dispatched) {

@@ -60,7 +60,7 @@ Evidence was read from the Sheila repo's docs, the secret NAMES bound on the `sh
 | Service | Hadiyah | Evidence from Sheila Studio |
 | --- | --- | --- |
 | Hosting: Worker, D1 | Host's Cloudflare account | `sheilastudio` runs on the host's account; studio brief: hosted on the owner's Cloudflare |
-| Files (R2 bucket `creator-studios-hadiyah-files`) | **Host's second Cloudflare account (owner, 20 Nov 2026)**: registry `r2.s3`, so the Worker binds no R2 and reaches the bucket over the S3 API (`worker/services/s3files.ts`, swapped in by `hydrate()`), with keys scoped to that one bucket from the 0600 files `<secrets dir>/hadiyah/FILES_S3_ENDPOINT`, `FILES_S3_ACCESS_KEY_ID`, `FILES_S3_SECRET_ACCESS_KEY` (`npm run studio:secrets hadiyah`). Download links are signed S3 links. | Moved 20 Nov 2026: every object copied and checked (count, size, multipart ETag) before the switch |
+| Files | **Her own storage (owner, 21 Nov 2026: "i dont want her stuff stored there")**: registry `hostStorageGb: 0`, so until she adds her own bucket on Settings → Storage → Use your own storage, every upload and new file is refused with a pointer there and nothing is written to the host (`HostReadOnly`, worker/services/s3files.ts). The old bucket `creator-studios-hadiyah-files` on the host's second Cloudflare account (`r2.s3`, keys from the 0600 files `<secrets dir>/hadiyah/FILES_S3_*`) is only read, and the host empties it by hand. | Moved 20 Nov 2026 to the second account; host storage ended 21 Nov 2026 |
 | Job runner: GitHub Actions + `GITHUB_DISPATCH_TOKEN` | Host's | Worker secret on `sheilastudio`; Sheila RUNBOOK: "GITHUB_DISPATCH_TOKEN … is Sequoia's own GitHub token"; jobs run in the host's repo |
 | YouTube numbers key `YOUTUBE_API_KEY` | Host's (Sheila's key, same key; secret file `YOUTUBE_API_KEY`) | Worker secret on `sheilastudio`; Sheila `docs/YOUTUBE.md`: the Google project is "registered under the owner's account … the owner chose to keep it there" |
 | Google sign-in app `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Host's Google project, a web client of Hadiyah's own Worker | Worker secrets on `sheilastudio`; Sheila RUNBOOK: each Worker has its own web client in the owner's project. Not yet created for Hadiyah: a NAMED STOP (RUNBOOK) |
@@ -73,6 +73,28 @@ Evidence was read from the Sheila repo's docs, the secret NAMES bound on the `sh
 | YouTube channel (Connect YouTube, full videos) | **Hadiyah's own** | Sheila signs in with her own Google account in the app; named by the host |
 | ElevenLabs, connected editors | **Hadiyah's own** | Pasted in Sheila's app (Settings → Connect accounts) |
 | Instagram sign-in app (`META_APP_*`) | Not set (as Sheila); Setup if she wants it | No `META_APP_*` secret on `sheilastudio` |
+
+## Storage: the host's shared share, or the creator's own
+
+Owner, 21 Nov 2026: "keep my storage way below free max" and "it needs to rotate out often". Each
+registry entry has `hostStorageGb` (var `HOST_STORAGE_GB`): its share of the host's R2, at most 1.5 GB,
+all studios together under 4 GB (`tests/unit/host-storage.test.ts`); 0 = none (Hadiyah). On the host's
+storage, originals clear 7 days after their clips are made or 14 days after upload, whichever comes
+first (one heads-up email 3 days before when the studio has email), and an upload past the share is
+refused with a pointer to **Settings → Storage → Use your own storage**. There a creator pastes her
+own S3-compatible bucket (Cloudflare R2, free to 10 GB; account id or S3 address, bucket, access key,
+secret). **Test connection** writes, reads and deletes a probe; **Save** checks again and stores it
+encrypted in the Setup key store (connection `storage`). `hydrate()` then sends every new file there
+(`StudioFiles`: writes to hers, reads and deletes still reach what is left on the host's; in her bucket
+only `raw/` and `clips/` are ever counted or deleted; a bucket she switched from or removed stays
+readable and is never written or cleared), and her originals follow the 30-day, two-email, Keep rule.
+The share holds: the size declared at upload start is signed (a ticket every part and the finish carry),
+parts are held to that size and to the part size, a file that comes out bigger is deleted, and job
+outputs count at once (a job may not start writing once the share is full). A dump kept before the
+shared rule clears only after its 3-day email has stood; with no studio email it stays (Storage light).
+Settings we cannot read are "unknown": nothing is marked gone. Jobs still reach storage only through the Worker.
+Code: `worker/domain/tidy.ts` (HOST_STORAGE), `worker/lib/storage.ts`, `worker/lib/retention.ts`,
+`worker/services/s3files.ts`, `app/components/StorageSection.tsx`; guide `help/guides/own-storage.md`.
 
 ## Platform sender (the only shared piece)
 

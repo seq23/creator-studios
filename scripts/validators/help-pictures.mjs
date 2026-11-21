@@ -110,7 +110,17 @@ export default async function ({ root }) {
       }
     }
   }
-  for (const f of onDisk) if (!used.has(f)) problems.push(`help/screenshots/${f} is not used by any guide step`);
+  // A dark-mode copy (<slug>-<n>[-phone]-dark.png) is used when its light picture is; both sizes or neither.
+  for (const f of onDisk) {
+    const light = f.replace(/-dark\.png$/, ".png");
+    if (light !== f) {
+      if (!used.has(light)) problems.push(`help/screenshots/${f} is a dark copy of ${light}, which no guide step uses`);
+      const twin = light.endsWith("-phone.png") ? light.replace(/-phone\.png$/, "-dark.png") : light.replace(/\.png$/, "-phone-dark.png");
+      if (!onDisk.has(twin)) problems.push(`help/screenshots/${f} has no ${twin} (dark pictures come in both sizes)`);
+      continue;
+    }
+    if (!used.has(f)) problems.push(`help/screenshots/${f} is not used by any guide step`);
+  }
 
   // Every screen's "Help for this screen" link resolves (literal slugs, including both sides of a ternary).
   const pagesDir = path.join(root, "app", "pages");

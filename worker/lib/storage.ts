@@ -8,15 +8,22 @@
 //                  what no row owns as "other"
 //   clipFileRules  posted clip files after 30 days (not kit clips), drafts after 60 days with the
 //                  Home warning first
-//   enforceBudget  over 90% of 10 GB: the same kinds of file, earlier, least harm first
+//   enforceBudget  over 90% of the ceiling: the same kinds of file, earlier, least harm first
+//   uploadRefusal  an upload that would not fit (or a studio with nowhere to put it): the calm words
 //   tidyDaily      archive what is finished (never deletes)
+//
+// The ceiling (owner, 21 Nov 2026): a studio on the host's storage has its registry share of it
+// (HOST_STORAGE in worker/domain/tidy.ts: at most 1.5 GB, all studios under 4 GB); a studio with its
+// own storage (Settings → Storage) has its own free 10 GB; a studio with neither (Hadiyah) has none
+// and every upload points her to Use your own storage.
 import type { Env } from "../env";
-import { getSetting, recordEvent, setHealth, setSetting } from "./db";
+import { getSetting, parseJson, recordEvent, setHealth, setSetting } from "./db";
 import { nowIso } from "./ids";
 import { log } from "./log";
 import { gbWords } from "@shared/bytes";
 import { RAW_RETENTION_DAYS, RAW_WARN_DAYS } from "@shared/constants";
-import { budgetPlan, briefArchiveDue, clipFileAction, dealArchiveDue, dumpArchiveDue, STORAGE, storageLight, TIDY, voiceArchiveDue, type BudgetCandidate } from "../domain/tidy";
+import { budgetPlan, briefArchiveDue, clipFileAction, dealArchiveDue, dumpArchiveDue, filesPlace, HOST_STORAGE, STORAGE, storageLight, storageLimitBytes, TIDY, voiceArchiveDue, type BudgetCandidate, type FilesPlace } from "../domain/tidy";
+import { layersOf, mayClear, OWN_STORAGE_NEEDED_WORDS } from "../services/s3files";
 
 export interface StorageKind {
   key: "clips_posted" | "clips_waiting" | "clips_drafts" | "clips_rejected" | "full_videos" | "raw" | "voice" | "music" | "docs" | "other";
@@ -27,6 +34,12 @@ export interface StorageKind {
 }
 
 export interface StorageReport {
+  /** where new files go: her own storage, the studio host's shared storage, or nowhere yet */
+  place: FilesPlace;
+  /** her own storage, when added: the bucket and the address's host (never a key) */
+  own: { bucket: string; host: string; since: string | null } | null;
+  /** with her own storage: what is still on the host's shared storage (clears by the shared rules) */
+  host_left_bytes: number;
   used_bytes: number;
   limit_bytes: number;
   budget_bytes: number;
@@ -41,7 +54,25 @@ export interface StorageReport {
 interface Measured {
   listed_bytes: number;
   other_bytes: number;
+  /** per place: what her own bucket and the host's hold */
+  own_bytes?: number;
+  host_bytes?: number;
+  old_bytes?: number;
   measured_at: string;
+}
+
+/** Her own storage as the meter shows it: bucket, address host, since when. Null when none is saved. */
+export async function ownStorageView(env: Env): Promise<{ bucket: string; host: string; since: string | null } | null> {
+  const row = await env.DB.prepare("SELECT meta, updated_at FROM connections WHERE service = 'storage' AND secret_enc IS NOT NULL AND status != 'disconnected'").first<{ meta: string; updated_at: string }>().catch(() => null);
+  if (!row) return null;
+  const m = parseJson<{ bucket?: string; host?: string; saved_at?: string }>(row.meta, {});
+  return { bucket: m.bucket ?? "", host: m.host ?? "", since: m.saved_at ?? row.updated_at ?? null };
+}
+
+/** Each kind of original's rule, in her words, for where it lives. Pure. */
+export function rawRuleWords(place: FilesPlace): string {
+  if (place === "own") return `In your own storage: cleared ${RAW_RETENTION_DAYS} days after they are cut into clips, with an email ${RAW_WARN_DAYS.join(" and ")} days before (Download all, or Keep them). A dump you keep is never cleared.`;
+  return `On the studio's shared storage: cleared ${HOST_STORAGE.rawAfterClipsDays} days after their clips are made, or ${HOST_STORAGE.rawAfterUploadDays} days after upload, whichever comes first, with an email ${HOST_STORAGE.warnDays} days before when studio email is set up. To keep originals longer, use your own storage.`;
 }
 
 const LEDGER_SQL = `SELECT
@@ -80,58 +111,82 @@ export async function tidyOn(env: Env): Promise<boolean> {
 
 /** What the files take, by kind, with each kind's rule in her words. */
 export async function storageReport(env: Env): Promise<StorageReport> {
+  const place = filesPlace(env);
+  const limit = storageLimitBytes(place, env);
   const l = await ledger(env);
   const m = await getSetting<Measured | null>(env.DB, "storage_report", null);
   const other = m?.other_bytes ?? 0;
   const used = ledgerTotal(l) + other;
-  const light = storageLight(used);
+  const light = limit > 0 ? storageLight(used, limit) : "yellow";
   const kinds: StorageKind[] = [
     { key: "clips_posted", label: "Posted clips", bytes: l.posted.b, count: l.posted.n, rule: "Cleared 30 days after posting (the cover, numbers and post link stay). Clips in your media kit are kept." },
     { key: "clips_drafts", label: "Clips waiting for review", bytes: l.drafts.b, count: l.drafts.n, rule: "Cleared 60 days after they were made, with a warning on Home a week before. Tap Keep to keep them." },
     { key: "clips_waiting", label: "Approved, not posted yet", bytes: l.waiting.b, count: l.waiting.n, rule: "Always kept." },
     { key: "clips_rejected", label: "Rejected clips", bytes: l.rejected.b, count: l.rejected.n, rule: "Kept in the Rejected bin until you delete them. Cleared early only if storage is still over the limit." },
-    { key: "raw", label: "Your original videos", bytes: l.raw.b, count: l.raw.n, rule: `Cleared ${RAW_RETENTION_DAYS} days after they are cut into clips, with an email ${RAW_WARN_DAYS.join(" and ")} days before (Download all, or Keep them). A dump you keep is never cleared.` },
+    { key: "raw", label: "Your original videos", bytes: l.raw.b, count: l.raw.n, rule: rawRuleWords(place) },
     { key: "full_videos", label: "Full videos for YouTube", bytes: l.full.b, count: l.full.n, rule: "Cleared 7 days after posting, or 14 days if never approved (warned on Home first)." },
     { key: "voice", label: "Voice overs", bytes: l.voice.b, count: l.voice.n, rule: "Kept with their clip." },
     { key: "music", label: "My music", bytes: l.music.b, count: l.music.n, rule: "Kept until you remove a song." },
     { key: "docs", label: "Brand docs", bytes: l.docs.b, count: l.docs.n, rule: "Kept until you remove them." },
     { key: "other", label: "Other files", bytes: other, count: 0, rule: "Pictures, your voice sample and edits you uploaded." },
   ];
-  const free = Math.max(0, STORAGE.limitBytes - used);
+  const free = Math.max(0, limit - used);
+  const line =
+    place === "none"
+      ? "No storage yet: add your own to upload"
+      : place === "own"
+        ? `${gbWords(used)} of your free 10 GB used · ${gbWords(free)} free`
+        : `${gbWords(used)} of ${gbWords(limit)} shared storage used · ${gbWords(free)} free`;
   return {
+    place,
+    own: place === "own" ? await ownStorageView(env) : null,
+    host_left_bytes: place === "own" ? (m?.host_bytes ?? 0) : 0,
     used_bytes: used,
-    limit_bytes: STORAGE.limitBytes,
-    budget_bytes: STORAGE.budgetBytes,
+    limit_bytes: limit,
+    budget_bytes: Math.floor(limit * STORAGE.redAt),
     free_bytes: free,
     light,
-    line: `${gbWords(used)} of 10 GB used · ${gbWords(free)} free`,
+    line,
     kinds: kinds.sort((a, b) => b.bytes - a.bytes),
     measured_at: m?.measured_at ?? null,
     tidy_on: await tidyOn(env),
   };
 }
 
-/** Storage in use (bytes): the report's total. Used before a dump (free space) and by the light. */
-export async function storageUsed(env: Env): Promise<number> {
-  return (await storageReport(env)).used_bytes;
-}
-
 /**
  * List the bucket (the truth), fill the file sizes rows don't have yet, and keep what no row owns
  * as "other". At 1,000 objects a page, 10 GB of clips is a handful of list calls.
  */
-export async function measureStorage(env: Env): Promise<{ listed: number; filled: number }> {
+export async function measureStorage(env: Env, now = new Date()): Promise<{ listed: number; filled: number; gone: number }> {
   const sizes = new Map<string, number>();
   let listed = 0;
-  let cursor: string | undefined;
-  for (let i = 0; i < 200; i++) {
-    const page = await env.FILES.list({ cursor, limit: 1000 });
-    for (const o of page.objects) {
-      sizes.set(o.key, o.size);
-      listed += o.size;
+  const byPlace = { own: 0, host: 0, old: 0 };
+  // Every place her files live is listed on its own; in her bucket (and ones she used before) only
+  // the studio's own folders (OWN_PREFIXES), never anything else she keeps there.
+  let complete = env.FILES_UNSURE !== "1";
+  for (const layer of layersOf(env.FILES)) {
+    for (const prefix of layer.prefixes ?? [undefined]) {
+      let cursor: string | undefined;
+      let done = false;
+      try {
+        for (let i = 0; i < 200; i++) {
+          const page = await layer.files.list({ cursor, limit: 1000, ...(prefix ? { prefix } : {}) });
+          for (const o of page.objects) {
+            if (!sizes.has(o.key)) listed += o.size;
+            sizes.set(o.key, o.size);
+            byPlace[layer.place] += o.size;
+          }
+          if (!page.truncated) {
+            done = true;
+            break;
+          }
+          cursor = page.cursor;
+        }
+      } catch (e) {
+        log.warn("storage.list_failed", { place: layer.place, name: (e as Error).name });
+      }
+      complete &&= done;
     }
-    if (!page.truncated) break;
-    cursor = page.cursor;
   }
   let filled = 0;
   const { results: clips } = await env.DB.prepare("SELECT id, r2_key, cover_r2_key FROM clips WHERE file_bytes IS NULL AND status != 'deleted' AND file_deleted_at IS NULL LIMIT 2000").all<{ id: string; r2_key: string; cover_r2_key: string | null }>();
@@ -148,10 +203,71 @@ export async function measureStorage(env: Env): Promise<{ listed: number; filled
   }
   for (let i = 0; i < stmts.length; i += 50) await env.DB.batch(stmts.slice(i, i + 50));
   filled = stmts.length;
+  // The bucket is the truth: an original that is in no place any more (cleared by hand, or a bucket
+  // emptied) stops counting, so the meter and the clean-up emails never speak of files that are gone.
+  // Only after every place listed in full (a list that failed, or settings we could not read, is
+  // "unknown", never "gone"), and never an upload from the last day.
+  let gone = 0;
+  if (complete) {
+    const dayAgo = new Date(now.getTime() - 86400_000).toISOString();
+    const { results: raws } = await env.DB.prepare("SELECT id, r2_key FROM assets WHERE upload_status = 'uploaded' AND raw_deleted_at IS NULL AND created_at < ? LIMIT 5000").bind(dayAgo).all<{ id: string; r2_key: string }>();
+    const missing = raws.filter((a) => !sizes.has(a.r2_key));
+    const at = nowIso();
+    for (let i = 0; i < missing.length; i += 50) await env.DB.batch(missing.slice(i, i + 50).map((a) => env.DB.prepare("UPDATE assets SET raw_deleted_at = ? WHERE id = ? AND raw_deleted_at IS NULL").bind(at, a.id)));
+    gone = missing.length;
+    if (gone) await recordEvent(env.DB, "storage.originals_gone", null, { files: gone });
+  }
   const other = Math.max(0, listed - ledgerTotal(await ledger(env)));
-  await setSetting(env.DB, "storage_report", { listed_bytes: listed, other_bytes: other, measured_at: nowIso() } satisfies Measured);
-  log.info("storage.measured", { listed_mb: Math.round(listed / 1024 ** 2), filled, other_mb: Math.round(other / 1024 ** 2) });
-  return { listed, filled };
+  await setSetting(env.DB, "storage_report", { listed_bytes: listed, other_bytes: other, own_bytes: byPlace.own, host_bytes: byPlace.host, old_bytes: byPlace.old, measured_at: nowIso() } satisfies Measured);
+  log.info("storage.measured", { listed_mb: Math.round(listed / 1024 ** 2), own_mb: Math.round(byPlace.own / 1024 ** 2), host_mb: Math.round(byPlace.host / 1024 ** 2), filled, gone, complete });
+  return { listed, filled, gone };
+}
+
+/**
+ * A file just written (an upload that is not an original, a job's output such as a clip) counts at
+ * once: added to "other" until the daily measure sets the exact figure from the bucket.
+ */
+export async function countNewFile(env: Env, bytes: number): Promise<void> {
+  if (!(bytes > 0)) return;
+  const m = await getSetting<Measured | null>(env.DB, "storage_report", null);
+  await setSetting(env.DB, "storage_report", { listed_bytes: (m?.listed_bytes ?? 0) + bytes, other_bytes: (m?.other_bytes ?? 0) + bytes, own_bytes: m?.own_bytes, host_bytes: m?.host_bytes, old_bytes: m?.old_bytes, measured_at: m?.measured_at ?? nowIso() } satisfies Measured);
+}
+
+/** A job may not start writing on the host's shared storage once the studio's share is full. Null = fine. */
+export async function jobOutputRefusal(env: Env): Promise<string | null> {
+  if (filesPlace(env) !== "host") return null;
+  const r = await storageReport(env);
+  return r.used_bytes >= r.limit_bytes ? `SHARE_FULL: ${gbWords(r.used_bytes)} of ${gbWords(r.limit_bytes)} shared storage is used` : null;
+}
+
+/**
+ * Before an upload starts (worker/routes/uploads.ts): null when it fits, else the calm words.
+ * Nowhere to put it (no own storage, no host share), or past the host share counting the uploads
+ * still in flight, points her to Use your own storage. Her own storage is never refused here: her
+ * bucket's own limits apply.
+ */
+export async function uploadRefusal(env: Env, bytes: number): Promise<{ status: 409; error: string; fix_guide: string } | null> {
+  const place = filesPlace(env);
+  if (place === "own") return null;
+  if (place === "none") return { status: 409, error: OWN_STORAGE_NEEDED_WORDS, fix_guide: "own-storage" };
+  const r = await storageReport(env);
+  const dayAgo = new Date(Date.now() - 86400_000).toISOString();
+  const inFlight = await env.DB.prepare(
+    `SELECT (SELECT COALESCE(SUM(size_bytes),0) FROM assets WHERE upload_status = 'uploading' AND created_at > ?1)
+          + (SELECT COALESCE(SUM(size_bytes),0) FROM pack_photos WHERE upload_status = 'uploading' AND created_at > ?1)
+          + (SELECT COALESCE(SUM(size_bytes),0) FROM past_videos WHERE upload_status = 'uploading' AND created_at > ?1) AS n`,
+  )
+    .bind(dayAgo)
+    .first<{ n: number }>()
+    .catch(() => ({ n: 0 }));
+  const after = r.used_bytes + Number(inFlight?.n ?? 0) + bytes;
+  if (after <= r.limit_bytes) return null;
+  const left = Math.max(0, r.limit_bytes - r.used_bytes - Number(inFlight?.n ?? 0));
+  return {
+    status: 409,
+    error: `This file (${gbWords(bytes)}) would not fit: your studio's shared storage is ${gbWords(r.limit_bytes)} and ${gbWords(left)} is free. Originals clear ${HOST_STORAGE.rawAfterClipsDays} days after their clips are made. To upload more now, add your own storage in Settings → Storage (Cloudflare R2 is free up to 10 GB).`,
+    fix_guide: "own-storage",
+  };
 }
 
 // ---------------------------------------------------------------- file rules
@@ -242,14 +358,21 @@ async function clearMixes(env: Env, clipId: string): Promise<void> {
  * approved clip waiting to post, a kit clip or a draft (drafts only ever go by their warned rule).
  */
 export async function enforceBudget(env: Env, now = new Date()): Promise<{ cleared: number; enough: boolean; used: number }> {
-  const used = await storageUsed(env);
-  if (used <= STORAGE.budgetBytes) return { cleared: 0, enough: true, used };
+  const r = await storageReport(env);
+  const used = r.used_bytes;
+  // Nowhere of her own and no host share: nothing here to hold under a ceiling (and nothing to delete).
+  if (r.place === "none" || used <= r.budget_bytes) return { cleared: 0, enough: true, used };
   const kit = await kitClipIds(env);
   const weekAgo = new Date(now.getTime() - 7 * 86400_000).toISOString();
   const { results: raws } = await env.DB.prepare(
-    // Only originals she was already warned about (the 3-day email went: worker/lib/retention.ts), never a kept dump.
-    "SELECT a.id, a.size_bytes AS bytes, COALESCE(d.ready_at, d.created_at) AS at FROM assets a JOIN dumps d ON d.id = a.dump_id WHERE a.raw_deleted_at IS NULL AND a.upload_status = 'uploaded' AND d.status IN ('ready','reviewed') AND d.kind = 'clips' AND d.originals_kept = 0 AND EXISTS (SELECT 1 FROM file_notices n WHERE n.dump_id = d.id AND n.stage = '3')",
-  ).all<{ id: string; bytes: number; at: string }>();
+    r.place === "own"
+      ? // Her own storage: only originals she was already warned about (the 3-day email went: worker/lib/retention.ts), never a kept dump.
+        "SELECT a.id, a.size_bytes AS bytes, COALESCE(d.ready_at, d.created_at) AS at FROM assets a JOIN dumps d ON d.id = a.dump_id WHERE a.raw_deleted_at IS NULL AND a.upload_status = 'uploaded' AND d.status IN ('ready','reviewed') AND d.kind = 'clips' AND d.originals_kept = 0 AND EXISTS (SELECT 1 FROM file_notices n WHERE n.dump_id = d.id AND n.stage = '3')"
+      : // The host's shared storage: any original already cut into clips (the shared rule clears them within
+        // days anyway), except a dump she kept before, until its heads-up email has stood its full days.
+        `SELECT a.id, a.r2_key AS key, a.size_bytes AS bytes, COALESCE(d.ready_at, d.created_at) AS at FROM assets a JOIN dumps d ON d.id = a.dump_id WHERE a.raw_deleted_at IS NULL AND a.upload_status = 'uploaded' AND d.status IN ('ready','reviewed') AND d.kind = 'clips' AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.ref_id = d.id AND j.status IN ('queued','dispatched','running'))
+           AND (d.originals_kept = 0 OR EXISTS (SELECT 1 FROM file_notices n WHERE n.dump_id = d.id AND n.stage = '3' AND n.sent_at <= '${new Date(now.getTime() - HOST_STORAGE.warnDays * 86400_000).toISOString()}'))`,
+  ).all<{ id: string; key?: string; bytes: number; at: string }>();
   const { results: rejected } = await env.DB.prepare("SELECT id, COALESCE(file_bytes,0) AS bytes, COALESCE(reviewed_at, created_at) AS at FROM clips WHERE status = 'rejected' AND full_video = 0").all<{ id: string; bytes: number; at: string }>();
   const { results: posted } = await env.DB.prepare(
     `SELECT c.id, COALESCE(c.file_bytes,0) AS bytes, (SELECT MAX(p.posted_at) FROM posts p WHERE p.clip_id = c.id AND p.status = 'posted') AS at
@@ -259,12 +382,14 @@ export async function enforceBudget(env: Env, now = new Date()): Promise<{ clear
   )
     .bind(weekAgo)
     .all<{ id: string; bytes: number; at: string }>();
+  const clearable: typeof raws = [];
+  for (const x of raws) if (!x.key || (await mayClear(env.FILES, x.key))) clearable.push(x);
   const candidates: BudgetCandidate[] = [
-    ...raws.map((x) => ({ kind: "raw" as const, ...x })),
+    ...clearable.map(({ key: _key, ...x }) => ({ kind: "raw" as const, ...x })),
     ...rejected.map((x) => ({ kind: "rejected_clip" as const, ...x })),
     ...posted.filter((x) => !kit.has(x.id)).map((x) => ({ kind: "posted_clip" as const, ...x })),
   ];
-  const plan = budgetPlan(used, candidates);
+  const plan = budgetPlan(used, candidates, r.budget_bytes);
   const at = nowIso();
   for (const c of plan.clear) {
     if (c.kind === "raw") {
@@ -284,15 +409,29 @@ export async function enforceBudget(env: Env, now = new Date()): Promise<{ clear
     }
   }
   if (plan.clear.length) await recordEvent(env.DB, "storage.budget", null, { cleared: plan.clear.length, mb: Math.round((used - plan.after) / 1024 ** 2), enough: plan.enough });
-  log.info("storage.budget", { over_mb: Math.round((used - STORAGE.budgetBytes) / 1024 ** 2), cleared: plan.clear.length, enough: plan.enough });
+  log.info("storage.budget", { place: r.place, over_mb: Math.round((used - r.budget_bytes) / 1024 ** 2), cleared: plan.clear.length, enough: plan.enough });
   return { cleared: plan.clear.length, enough: plan.enough, used: plan.after };
 }
 
 /** The Storage light from the full report: yellow at 70%, red at 90% (the budget could not get under it). */
 export async function storageHealth(env: Env): Promise<StorageReport> {
   const r = await storageReport(env);
-  const note = r.light === "green" ? r.line : r.light === "yellow" ? `${r.line}. Filling up: see what takes the space in Settings` : `${r.line}. Almost full: new videos may not upload`;
-  await setHealth(env.DB, "Storage", r.light, note, r.light === "green" ? null : "storage-almost-full");
+  if (r.place === "none") {
+    await setHealth(env.DB, "Storage", "yellow", "No storage yet. Add your own in Settings → Storage to upload videos and photos", "own-storage");
+    return r;
+  }
+  if (env.FILES_UNSURE === "1") {
+    await setHealth(env.DB, "Storage", "yellow", `${r.line}. Your storage settings could not be read, so nothing in your storage is counted as gone. Save them again in Settings → Storage`, "own-storage");
+    return r;
+  }
+  const held = await getSetting<{ kept_waiting?: number }>(env.DB, "retention_held", {});
+  if (r.light === "green" && (held.kept_waiting ?? 0) > 0) {
+    const n = held.kept_waiting!;
+    await setHealth(env.DB, "Storage", "yellow", `${r.line}. ${n} ${n === 1 ? "upload you kept stays" : "uploads you kept stay"} on the shared storage until studio email is set up, so you get the heads-up before they clear`, "setup-email");
+    return r;
+  }
+  const note = r.light === "green" ? r.line : r.light === "yellow" ? `${r.line}. Filling up: see what takes the space in Settings` : `${r.line}. ${r.used_bytes >= r.limit_bytes && r.limit_bytes > 0 ? "Full: new uploads wait" : "Almost full: new videos may not upload"}${r.place === "host" ? ". Add your own storage in Settings → Storage" : ""}`;
+  await setHealth(env.DB, "Storage", r.light, note, r.light === "green" ? null : r.place === "host" ? "own-storage" : "storage-almost-full");
   return r;
 }
 

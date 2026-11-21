@@ -100,9 +100,9 @@ describe("a dump takes photos and videos together, full quality, and reads the c
   async function upload(h: Awaited<ReturnType<typeof harness>>, dumpId: string, name: string, mime: string, bytes: Uint8Array) {
     const start = await h.call("POST", "/api/uploads/start", { kind: "video", parentId: dumpId, fileName: name, size: bytes.length, mimeType: mime });
     expect(start.status, name).toBe(200);
-    const part = await h.request("PUT", `/api/uploads/${start.json.id}/parts/1?key=${encodeURIComponent(start.json.key)}&uploadId=${encodeURIComponent(start.json.uploadId)}`, bytes, { "content-type": "application/octet-stream" });
+    const part = await h.request("PUT", `/api/uploads/${start.json.id}/parts/1?key=${encodeURIComponent(start.json.key)}&uploadId=${encodeURIComponent(start.json.uploadId)}&ticket=${encodeURIComponent(start.json.ticket)}`, bytes, { "content-type": "application/octet-stream" });
     const etag = (await part.json()) as { partNumber: number; etag: string };
-    expect((await h.call("POST", `/api/uploads/${start.json.id}/complete`, { key: start.json.key, uploadId: start.json.uploadId, parts: [etag] })).status).toBe(200);
+    expect((await h.call("POST", `/api/uploads/${start.json.id}/complete`, { key: start.json.key, uploadId: start.json.uploadId, ticket: start.json.ticket, parts: [etag] })).status).toBe(200);
     return start.json.id as string;
   }
   it("a camera photo, an AI picture (no camera), an iPhone HEIC with no type, and a video, in one dump", async () => {
@@ -125,7 +125,8 @@ describe("a dump takes photos and videos together, full quality, and reads the c
     expect(new Uint8Array(await stored!.arrayBuffer())).toEqual(heic);
   });
   it("no size limit on a dump's files beyond what storage allows (a 4 GB video starts)", async () => {
-    const h = await harness();
+    // in her own storage; the host's shared share refuses past its cap (tests/unit/host-storage.test.ts)
+    const h = await harness({ FILES_PLACE: "own" });
     h.db.raw.exec("INSERT INTO dumps (id, door, notes, status) VALUES ('dmp_big', 'new', '', 'uploading')");
     expect((await h.call("POST", "/api/uploads/start", { kind: "video", parentId: "dmp_big", fileName: "long.mov", size: 4 * 1024 ** 3, mimeType: "video/quicktime" })).status).toBe(200);
     expect((await h.call("POST", "/api/uploads/start", { kind: "video", parentId: "dmp_big", fileName: "huge.jpg", size: 90 * 1024 ** 2, mimeType: "image/jpeg" })).status).toBe(200);

@@ -46,8 +46,8 @@ async function dumpOf(request: APIRequestContext): Promise<string> {
   const { id: dumpId } = await (await request.post("/api/dumps", { data: { door: "new", notes: "" } })).json();
   const s = await request.post("/api/uploads/start", { data: { kind: "video", parentId: dumpId, fileName: "av.mp4", size: 90_000, mimeType: "video/mp4", contentHash: `av-${Date.now()}-${Math.random()}` } });
   const u = await s.json();
-  const p = await request.put(`/api/uploads/${u.id}/parts/1?key=${encodeURIComponent(u.key)}&uploadId=${encodeURIComponent(u.uploadId)}`, { data: video() });
-  await request.post(`/api/uploads/${u.id}/complete`, { data: { key: u.key, uploadId: u.uploadId, parts: [await p.json()] } });
+  const p = await request.put(`/api/uploads/${u.id}/parts/1?key=${encodeURIComponent(u.key)}&uploadId=${encodeURIComponent(u.uploadId)}&ticket=${encodeURIComponent(u.ticket)}`, { data: video() });
+  await request.post(`/api/uploads/${u.id}/complete`, { data: { key: u.key, uploadId: u.uploadId, ticket: u.ticket, parts: [await p.json()] } });
   await request.patch(`/api/dumps/${dumpId}`, { data: { steer: { count: 5 } } });
   expect((await request.post(`/api/dumps/${dumpId}/dump`)).ok()).toBe(true);
   await runJob(request, (r) => r === dumpId);
@@ -165,8 +165,8 @@ test("Dump: the Voice over chip (not all or none) and Review: Add voice over on 
   const { id: dumpId } = await (await page.request.post("/api/dumps", { data: { door: "new", notes: "" } })).json();
   const s = await page.request.post("/api/uploads/start", { data: { kind: "video", parentId: dumpId, fileName: "pick.mp4", size: 90_000, mimeType: "video/mp4", contentHash: `pick-${Date.now()}-${Math.random()}` } });
   const u = await s.json();
-  const p = await page.request.put(`/api/uploads/${u.id}/parts/1?key=${encodeURIComponent(u.key)}&uploadId=${encodeURIComponent(u.uploadId)}`, { data: video() });
-  await page.request.post(`/api/uploads/${u.id}/complete`, { data: { key: u.key, uploadId: u.uploadId, parts: [await p.json()] } });
+  const p = await page.request.put(`/api/uploads/${u.id}/parts/1?key=${encodeURIComponent(u.key)}&uploadId=${encodeURIComponent(u.uploadId)}&ticket=${encodeURIComponent(u.ticket)}`, { data: video() });
+  await page.request.post(`/api/uploads/${u.id}/complete`, { data: { key: u.key, uploadId: u.uploadId, ticket: u.ticket, parts: [await p.json()] } });
   await page.request.patch(`/api/dumps/${dumpId}`, { data: { steer: { count: 5, voice: "pick" } } });
   expect((await page.request.post(`/api/dumps/${dumpId}/dump`)).ok()).toBe(true);
   await runJob(page.request, (r) => r === dumpId);

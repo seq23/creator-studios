@@ -155,6 +155,8 @@ export function envBlock(s, themes) {
       AUTO_REDO_FROM: s.autoRedoFrom ?? "",
       // This studio's share of the account's free 10,000 Workers AI neurons a day ("0" = never call).
       STUDIO_AI_BUDGET: String(s.aiBudget ?? 0),
+      // This studio's share of the host's storage in GB ("0" = none: her own storage only; worker/domain/tidy.ts hostCapBytes).
+      HOST_STORAGE_GB: String(s.hostStorageGb ?? 0),
       // Get it sponsored: "event" for a business studio, "experience" for a creator (shared/sponsored.ts).
       SPONSOR_KIND: s.sponsorKind === "event" ? "event" : "experience",
       ...(s.whatsNew ? { WHATS_NEW: JSON.stringify(s.whatsNew) } : {}),
