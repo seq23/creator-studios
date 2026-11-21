@@ -32,7 +32,16 @@ export interface PlanPiece {
   spots?: { fx: number; fy: number; label: string }[];
   endLine?: string;
   captions: Partial<Record<Platform, string>>;
+  /** Which service the piece sells (the weekly mix below). A piece that shows several takes its lead one. */
+  service: Service;
 }
+
+/** The services a piece can sell. Owner's ruling 20 Nov 2026 (porch-and-party brain, Settled decisions): every
+ *  week shows the full range: at least one romantic setup (proposal, anniversary, romantic hotel room), one
+ *  celebration (baby shower, birthday, bridal, gender reveal), one other party or event (office party,
+ *  grazing, game rentals), and porch decor in at most 2 of every 7 pieces. */
+export const SERVICES = ["romantic", "celebration", "event", "porch"] as const;
+export type Service = (typeof SERVICES)[number];
 
 export interface Plan {
   studio: string;
@@ -114,6 +123,23 @@ export function validatePlan(plan: Plan, now: number): string[] {
       const slot = `${pl}|${f.kind}|${p.at.slice(0, 10)}`;
       if (slots.has(slot)) out.push(`${at} two ${f.kind}s on ${pl} the same day`);
       slots.add(slot);
+    }
+  }
+  // The weekly service mix (owner's ruling 20 Nov 2026), over 7-day weeks from the first piece; the last,
+  // shorter week is held to the same floor.
+  for (const p of plan.pieces) if (!SERVICES.includes(p.service)) out.push(`${p.id}: service must be one of ${SERVICES.join(", ")}`);
+  if (sorted.length) {
+    const start = Date.parse(localToUtc(sorted[0].at.slice(0, 10) + " 00:00", plan.tz));
+    const weeks = new Map<number, PlanPiece[]>();
+    for (const p of sorted) {
+      const w = Math.floor((Date.parse(localToUtc(p.at, plan.tz)) - start) / (7 * 86_400_000));
+      weeks.set(w, [...(weeks.get(w) ?? []), p]);
+    }
+    for (const ps of weeks.values()) {
+      const label = `week of ${ps[0].at.slice(0, 10)}`;
+      for (const need of ["romantic", "celebration", "event"] as const) if (!ps.some((p) => p.service === need)) out.push(`${label}: no ${need} piece (every week shows the full range)`);
+      const porch = ps.filter((p) => p.service === "porch").length;
+      if (porch * 7 > ps.length * 2) out.push(`${label}: ${porch} porch pieces of ${ps.length} (porch is at most 2 of every 7)`);
     }
   }
   // No picture in two neighbouring pieces (ship-ready B).
