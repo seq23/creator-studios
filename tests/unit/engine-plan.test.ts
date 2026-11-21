@@ -41,11 +41,18 @@ describe("the committed plan", () => {
     const first = [...committed.pieces].sort((a, b) => a.at.localeCompare(b.at))[0];
     expect(localToUtc(first.at, committed.tz)).toBe("2026-11-22T00:30:00.000Z");
   });
-  it("runs through 31 Dec and leads with her real photos: more than half of all pictures", () => {
+  it("runs through 30 Dec", () => {
     const last = [...committed.pieces].sort((a, b) => b.at.localeCompare(a.at))[0];
     expect(last.at.slice(0, 10)).toBe("2026-12-30");
-    const pics = committed.pieces.flatMap((p) => p.pics);
-    expect(pics.filter((x) => x.src.startsWith("real:")).length * 2).toBeGreaterThan(pics.length);
+  });
+  it("an AI picture is an idea, never a job: only her real photos say we set it up", () => {
+    const say = (where: Partial<PlanPiece>) => validatePlan(full([base(where)]), BEFORE).join();
+    expect(say({ captions: { tiktok: "An idea for a porch. porchandparty901.com/request" } })).toBe("");
+    expect(say({ hook: "A room we set up" })).toMatch(/AI picture but says "A room we set up"/);
+    expect(say({ captions: { tiktok: "From a baby shower we did. porchandparty901.com/request" } })).toMatch(/we did/);
+    expect(say({ pics: [{ src: "real:a.jpg" }], hook: "A room we set up" })).toBe("");
+    // an offer of the service is not a claim of a past job
+    expect(say({ captions: { tiktok: "We set up the porch and the table; let the table be our job. porchandparty901.com/request" } })).toBe("");
   });
   it("every picture to be made is used by a piece or is another picture's reference", () => {
     const used = new Set(committed.pieces.flatMap((p) => p.pics.map((x) => x.src)).filter((s) => s.startsWith("gen:")).map((s) => s.slice(4)));

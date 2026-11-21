@@ -14,8 +14,6 @@ export interface PlanPic {
   fx?: number;
   fy?: number;
   label?: string;
-  /** "width": show the whole width on the cotton ground (engine/src/parts.tsx Photo). */
-  fit?: "width";
 }
 
 export interface PlanPiece {
@@ -67,6 +65,8 @@ export const PIECE_KEY = /^[a-z0-9][a-z0-9-]{2,63}$/;
 const PRICE = /\$\s?\d|\b\d+\s?(dollars|bucks)\b/i;
 
 /** A photo-real AI scene is in the piece: TikTok's own AI switch is set (risk R-END-03 filler exception). */
+/** Words that present a picture as a job we did. */
+export const JOB_CLAIM = /\b(?:a|an|one|the|this|that)\s[\w’' -]{0,30}?\bwe (?:set (?:it |this |them )?up|did|made|decorated|styled)\b|\bwe did (?:this|it)\b|\bour client\b|\bthis job\b|\breal setups?\b/i;
 export const aiScene = (p: PlanPiece): boolean => p.pics.some((x) => !x.src.startsWith("real:"));
 
 /** "YYYY-MM-DD HH:mm" in `tz` → UTC ISO. */
@@ -100,6 +100,12 @@ export function validatePlan(plan: Plan, now: number): string[] {
     const lines = p.lines ?? [];
     if (lines.length < f.lines[0] || lines.length > f.lines[1]) out.push(`${at} ${f.id} takes ${f.lines[0]}–${f.lines[1]} lines`);
     if (f.realOnly && aiScene(p)) out.push(`${at} ${f.id} shows our own work: real photos only`);
+    // her ruling 20 Nov 2026: an AI picture is an idea, never a job; only her real photos carry "we set up"
+    if (aiScene(p)) {
+      const said = [p.hook, ...(p.lines ?? []), ...p.pics.map((x) => x.label ?? ""), ...Object.values(p.captions ?? {})].join(" \n ");
+      const claim = said.match(JOB_CLAIM);
+      if (claim) out.push(`${at} shows an AI picture but says "${claim[0]}": caption it as an idea, never as our job`);
+    }
     if (p.pics.some((x) => !/^(real|ai|gen):[\w./-]+$/.test(x.src))) out.push(`${at} every picture is real:<file>, ai:<path> or gen:<file>`);
     for (const x of p.pics) if (x.src.startsWith("gen:") && !plan.generate?.[x.src.slice(4)]) out.push(`${at} ${x.src} has no prompt in generate`);
     if (new Set(p.pics.map((x) => x.src)).size !== p.pics.length) out.push(`${at} a picture repeats inside the piece`);

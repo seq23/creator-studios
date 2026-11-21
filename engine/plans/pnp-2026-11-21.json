@@ -477,6 +477,59 @@
         "instagram",
         "facebook"
       ],
+      "id": "pnp-1210-floor-picnic-idea",
+      "service": "romantic",
+      "format": "pov",
+      "at": "2026-12-10 18:30",
+      "music": "slow-glow",
+      "pics": [
+        {
+          "src": "gen:idea-living-room-picnic.jpg"
+        }
+      ],
+      "hook": "POV: date night,\nbut on the living room floor",
+      "lines": [
+        "No reservation needed"
+      ],
+      "captions": {
+        "tiktok": "An idea for date night at home. Want one like it set up? porchandparty901.com/request #datenight #memphis",
+        "instagram": "An idea for date night at home: a floor picnic for two with petals and tea lights. Want one like it set up? porchandparty901.com/request #datenight #memphis",
+        "facebook": "An idea for date night at home: a floor picnic for two. Want one like it set up? porchandparty901.com/request"
+      }
+    },
+    {
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "id": "pnp-1211-gender-reveal-idea",
+      "service": "celebration",
+      "format": "quick-tip",
+      "at": "2026-12-11 18:30",
+      "music": "easy-stroll",
+      "pics": [
+        {
+          "src": "gen:idea-gender-reveal-corner.jpg"
+        }
+      ],
+      "hook": "Gender reveal at home?\nKeep it to one corner",
+      "lines": [
+        "One balloon cluster,\nnot an arch",
+        "The box on a low table"
+      ],
+      "captions": {
+        "tiktok": "An idea for a gender reveal corner at home. Want one set up? porchandparty901.com/request #genderreveal #memphis",
+        "instagram": "What a gender reveal corner can look like: one balloon cluster and the box on a low table. Want one like it set up? porchandparty901.com/request #genderreveal #memphis",
+        "facebook": "An idea for a gender reveal at home: keep it to one corner. Want one like it set up? porchandparty901.com/request"
+      }
+    },
+    {
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
       "id": "pnp-1215-office-games",
       "service": "event",
       "format": "pov",
@@ -503,29 +556,24 @@
         "instagram",
         "facebook"
       ],
-      "id": "pnp-1220-shower-rate",
-      "service": "celebration",
-      "format": "rate-it",
-      "at": "2026-12-20 18:30",
-      "music": "pop-up",
+      "id": "pnp-1216-hotel-proposal-idea",
+      "service": "romantic",
+      "format": "pov",
+      "at": "2026-12-16 18:30",
+      "music": "slow-glow",
       "pics": [
         {
-          "src": "real:baby-shower-balloon-column.jpg",
-          "fit": "width"
-        },
-        {
-          "src": "real:baby-shower-gift-table.jpg",
-          "fit": "width"
+          "src": "gen:idea-hotel-proposal-suite.jpg"
         }
       ],
-      "hook": "A baby shower we set up.\nRate it, 1 to 10",
+      "hook": "POV: you’re proposing\nin a hotel suite tonight",
       "lines": [
-        "Your number\nin the comments"
+        "Petals from the door\nto the window"
       ],
       "captions": {
-        "tiktok": "A baby shower we set up. Rate it 1 to 10. porchandparty901.com/request #babyshower #memphis",
-        "instagram": "A baby shower we set up: the balloon column and the gift table. Rate it 1 to 10 in the comments. porchandparty901.com/request #babyshower #memphis",
-        "facebook": "A baby shower we set up. Rate it 1 to 10, and if one is coming up in your family, send us the date: porchandparty901.com/request"
+        "tiktok": "An idea for a hotel proposal. Want one like it set up? porchandparty901.com/request #proposal #memphis",
+        "instagram": "An idea for a hotel proposal: petals from the door to the window, roses and tea lights. Want one like it set up? porchandparty901.com/request #proposal #memphis",
+        "facebook": "An idea for a hotel proposal in Memphis. Want one like it set up? Send us the date: porchandparty901.com/request"
       }
     },
     {
@@ -534,26 +582,82 @@
         "instagram",
         "facebook"
       ],
-      "id": "pnp-1222-family-table",
+      "id": "pnp-1218-bridal-shower-idea",
+      "service": "celebration",
+      "format": "quick-tip",
+      "at": "2026-12-18 18:30",
+      "music": "bright-morning",
+      "pics": [
+        {
+          "src": "gen:idea-bridal-shower-brunch.jpg"
+        }
+      ],
+      "hook": "Bridal shower brunch?\nStart with the table",
+      "lines": [
+        "One long runner\nof garden roses",
+        "Balloons on one chair,\nnot everywhere"
+      ],
+      "captions": {
+        "tiktok": "An idea for a bridal shower brunch table. porchandparty901.com/request #bridalshower #memphis",
+        "instagram": "An idea for a bridal shower brunch: one long runner of garden roses, and balloons on one chair, not everywhere. Want one like it set up? porchandparty901.com/request #bridalshower #memphis",
+        "facebook": "An idea for a bridal shower brunch table. Want one like it set up? porchandparty901.com/request"
+      }
+    },
+    {
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "id": "pnp-1221-birthday-dinner-idea",
+      "service": "celebration",
+      "format": "quick-tip",
+      "at": "2026-12-21 18:30",
+      "music": "golden-hour",
+      "pics": [
+        {
+          "src": "gen:idea-birthday-dinner-black-gold.jpg"
+        }
+      ],
+      "hook": "Birthday dinner at home?\nPick two colours",
+      "lines": [
+        "Black and gold,\nthen stop",
+        "Balloons on one chair,\nnot the whole room"
+      ],
+      "captions": {
+        "tiktok": "An idea for a birthday dinner at home in black and gold. porchandparty901.com/request #birthdaydinner #memphis",
+        "instagram": "An idea for a grown-up birthday dinner at home: two colours, low flowers, balloons on one chair. Want one like it set up? porchandparty901.com/request #birthdaydinner #memphis",
+        "facebook": "An idea for a birthday dinner at home, in black and gold. Want one like it set up? porchandparty901.com/request"
+      }
+    },
+    {
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "id": "pnp-1222-family-games",
       "service": "event",
       "format": "quick-tip",
       "at": "2026-12-22 18:30",
       "music": "easy-stroll",
       "pics": [
         {
-          "src": "ai:grazing/ai-grazing-shower-table.webp",
-          "fit": "width"
+          "src": "gen:yard-connect-four-nov-v3.jpg"
+        },
+        {
+          "src": "gen:yard-cornhole-one.jpg"
         }
       ],
-      "hook": "Family in town\nthis week?",
+      "hook": "Family in town?\nPut the games out back",
       "lines": [
-        "Let the table\nbe the easy part",
-        "Styled at your place,\nready when they land"
+        "Giant Connect Four\nand cornhole",
+        "Delivered and set up"
       ],
       "captions": {
-        "tiktok": "A grazing table idea for the family this week. porchandparty901.com/request #grazingtable #memphis",
-        "instagram": "A grazing table idea for when the family is in town: styled at your place before they arrive. porchandparty901.com/request #grazingtable #memphis",
-        "facebook": "Family in town this week? A grazing table, styled at your place before they arrive: porchandparty901.com/request"
+        "tiktok": "Giant yard games for when the family is in town. porchandparty901.com/request #yardgames #memphis",
+        "instagram": "Family in town for the holidays? Giant Connect Four and cornhole, delivered and set up. porchandparty901.com/request #yardgames #memphis",
+        "facebook": "Family in town for the holidays? We rent giant Connect Four and cornhole, delivered and set up: porchandparty901.com/request"
       }
     },
     {
@@ -562,28 +666,25 @@
         "instagram",
         "facebook"
       ],
-      "id": "pnp-1226-hotel-rate",
-      "service": "celebration",
-      "format": "rate-it",
-      "at": "2026-12-26 18:30",
+      "id": "pnp-1223-hotel-anniversary-idea",
+      "service": "romantic",
+      "format": "pov",
+      "at": "2026-12-23 18:30",
       "music": "golden-hour",
       "pics": [
         {
-          "src": "real:hotel-birthday-feliz-cumpleanos-4.png"
-        },
-        {
-          "src": "real:hotel-birthday-feliz-cumpleanos-3.png"
+          "src": "gen:idea-hotel-anniversary-champagne.jpg"
         }
       ],
-      "hook": "A hotel birthday\nwe set up. Rate it, 1 to 10",
-      "captions": {
-        "tiktok": "A hotel room birthday we set up. Rate it 1 to 10. porchandparty901.com/request #birthdaysurprise #memphis",
-        "instagram": "A hotel room birthday we set up around check-in. Rate it 1 to 10 in the comments. porchandparty901.com/request #birthdaysurprise #memphis",
-        "facebook": "A hotel room birthday we set up around check-in. January birthday coming? Send us the date: porchandparty901.com/request"
-      },
+      "hook": "POV: your anniversary,\nin emerald and gold",
       "lines": [
-        "Your number\nin the comments"
-      ]
+        "Green and gold,\nnot just red"
+      ],
+      "captions": {
+        "tiktok": "An idea for a hotel anniversary in emerald and gold. porchandparty901.com/request #anniversary #memphis",
+        "instagram": "An idea for a hotel anniversary in emerald and gold, for when red feels done. Want one like it set up? porchandparty901.com/request #anniversary #memphis",
+        "facebook": "An idea for a hotel anniversary, in emerald and gold. Want one like it set up? porchandparty901.com/request"
+      }
     },
     {
       "platforms": [
@@ -591,25 +692,51 @@
         "instagram",
         "facebook"
       ],
-      "id": "pnp-1228-no-fuss",
+      "id": "pnp-1227-first-birthday-idea",
+      "service": "celebration",
+      "format": "quick-tip",
+      "at": "2026-12-27 18:30",
+      "music": "sunday-best",
+      "pics": [
+        {
+          "src": "gen:idea-first-birthday-corner.jpg"
+        }
+      ],
+      "hook": "First birthday?\nSet one corner, not the house",
+      "lines": [
+        "The high chair\nis the stage",
+        "One balloon cluster\nin warm colours"
+      ],
+      "captions": {
+        "tiktok": "An idea for a first birthday corner. porchandparty901.com/request #firstbirthday #memphis",
+        "instagram": "An idea for a first birthday: one corner, the high chair as the stage, one balloon cluster in warm colours. Want one like it set up? porchandparty901.com/request #firstbirthday #memphis",
+        "facebook": "An idea for a first birthday at home: one corner, not the whole house. Want one like it set up? porchandparty901.com/request"
+      }
+    },
+    {
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "id": "pnp-1228-nye-for-two-idea",
       "service": "romantic",
       "format": "pov",
       "at": "2026-12-28 18:30",
-      "music": "slow-glow",
+      "music": "golden-hour",
       "pics": [
         {
-          "src": "real:anniversary-fireplace.jpeg",
-          "fit": "width"
+          "src": "gen:idea-new-years-eve-for-two.jpg"
         }
       ],
-      "hook": "POV: you said “nothing big\nthis year”",
+      "hook": "POV: New Year’s Eve,\njust the two of you",
       "lines": [
-        "They didn’t listen."
+        "The room is ready\nbefore you are"
       ],
       "captions": {
-        "tiktok": "An anniversary we set up. porchandparty901.com/request #anniversary #memphis",
-        "instagram": "An anniversary we set up. For the one who said not to make a fuss. porchandparty901.com/request #anniversary #memphis",
-        "facebook": "An anniversary we set up, for the one who said not to make a fuss. Send us the date: porchandparty901.com/request"
+        "tiktok": "An idea for New Year's Eve for two. Want one like it set up? porchandparty901.com/request #newyearseve #memphis",
+        "instagram": "An idea for New Year's Eve for two: a table by the window, petals and tea lights. Want one like it set up? porchandparty901.com/request #newyearseve #memphis",
+        "facebook": "An idea for New Year's Eve for two. Want one like it set up? Send us the date: porchandparty901.com/request"
       }
     },
     {
@@ -690,6 +817,14 @@
     "yard-connect-four-nov-v3.jpg": {
       "prompt": "Edit this photograph. On the blue game board only: paint over the row of small holes along the board's top edge, the first row of large round holes just below it, and the whole rightmost column of large round holes, with the same weathered, scuffed blue paint as the rest of the board, so those holes are gone and that part of the board is plain blue wood. The board keeps its size and position and now shows 7 columns and 6 rows of open round holes. Take every red and yellow disc off the board; all the remaining holes are empty and the yard shows through them. Keep the yard, fence, string lights, trees, the game's blue legs and bottom rail, the disc stacks on the grass and the camera exactly the same. Add a slight natural film grain.",
       "ref": "yard-connect-four-nov.jpg"
-    }
+    },
+    "idea-gender-reveal-corner.jpg": "A real photograph of one corner of a bright Memphis living room set up for a gender reveal party in the afternoon. A cluster of seven large chrome balloons in deep teal, ivory and gold, tied with long ribbons to a small weight on the floor beside a low white side table. On the table: one closed plain kraft-paper gift box tied with a wide cream satin ribbon, a clear glass vase of white hydrangeas, and a short stack of gold-rimmed dessert plates. A woven jute rug, a grey sofa arm at the left edge, a window with sheer white curtains. Camera at standing eye level, the table and box sits in the lower middle of the frame, with open space above it; the top quarter is plain wall and curtain. 35mm lens. Photographed with a phone in ordinary light, natural colours, slightly imperfect white balance, slight grain, a little lived-in. Every surface, box, bottle and napkin is plain and unmarked. The balloons are smooth round chrome orbs in one loose cluster. The room is empty. Every candle is a flameless LED tea light with a steady warm glow.",
+    "idea-hotel-proposal-suite.jpg": "A real photograph of a modern hotel suite at night, set up for a marriage proposal. A loose path of deep red rose petals runs from the near carpet to a low round coffee table in front of a tall window with city lights outside. A ring of flameless LED tea lights glows warm around the table. On the table: a bouquet of red roses wrapped in brown paper and two empty champagne flutes. A cluster of five chrome balloons in burgundy and gold is tied to the arm of a grey armchair, the ribbons hanging straight. No bed in the frame. Camera at standing eye level from the doorway, the table sits in the lower middle of the frame, with open space above it; the top third is window and dark city lights. 35mm lens. Photographed with a phone in ordinary light, natural colours, slightly imperfect white balance, slight grain, a little lived-in. Every surface, box, bottle and napkin is plain and unmarked. The balloons are smooth round chrome orbs in one loose cluster. The room is empty. Every candle is a flameless LED tea light with a steady warm glow.",
+    "idea-bridal-shower-brunch.jpg": "A real photograph of a long brunch table on a covered back patio in Memphis, set for a bridal shower late in the morning. A white linen tablecloth set for six; down the middle, one low runner of white and peach garden roses with eucalyptus; at each place a white plate with a folded ivory napkin and one clear stemmed glass. A cluster of five chrome balloons in emerald green and gold tied to the back of the far chair only, ribbons hanging straight. A red brick wall and unlit string lights behind. Camera at seated eye level from the near end, the table running away from the camera, the flowers sits in the lower middle of the frame, with open space above it; the top quarter is brick wall. 35mm lens. Photographed with a phone in ordinary light, natural colours, slightly imperfect white balance, slight grain, a little lived-in. Every surface, box, bottle and napkin is plain and unmarked. The balloons are smooth round chrome orbs in one loose cluster. The room is empty. Every candle is a flameless LED tea light with a steady warm glow.",
+    "idea-hotel-anniversary-champagne.jpg": "A real photograph of a hotel room at night set up for an anniversary in emerald and gold. On a white king bed, a wide loose band of deep red and ivory rose petals across the foot of the bed, with flameless LED tea lights on the carpet along the bed’s base; two white pillows each tied with a thin gold satin ribbon bow. A cluster of five chrome balloons in emerald green and gold tied to the arm of a velvet armchair by the window, ribbons hanging straight. A small round table beside the chair holds an ice bucket with a bottle wrapped in a white napkin and two glasses. Camera at standing eye level from beside the armchair, looking across the bed, the bed in the lower middle of the frame with open space above it; the top quarter is padded headboard and wall. 35mm lens. Photographed with a phone in ordinary light, natural colours, slightly imperfect white balance, slight grain, a little lived-in. Every surface, box, bottle and napkin is plain and unmarked. The balloons are smooth round chrome orbs in one loose cluster. The room is empty. Every candle is a flameless LED tea light with a steady warm glow.",
+    "idea-first-birthday-corner.jpg": "A real photograph of one corner of a family dining room set up for a baby's first birthday in the afternoon. A natural wooden high chair, empty, pulled up to the end of a wooden table; on the table beside it a low white cake stand with one small plain white buttercream cake with no topper and no candle, a short stack of small plates and a little vase of yellow ranunculus. A cluster of six chrome balloons in marigold, cream and terracotta tied to the back of the high chair, the ribbons hanging straight. Window light from the left, a plain cream wall. Camera at standing eye level, the high chair and cake sits in the lower middle of the frame, with open space above it; the top quarter is plain wall. 35mm lens. Photographed with a phone in ordinary light, natural colours, slightly imperfect white balance, slight grain, a little lived-in. Every surface, box, bottle and napkin is plain and unmarked. The balloons are smooth round chrome orbs in one loose cluster. The room is empty. Every candle is a flameless LED tea light with a steady warm glow.",
+    "idea-living-room-picnic.jpg": "A real photograph of a Memphis living room at night set up for a romantic floor picnic for two. On the rug in front of a dark grey sofa: a low wooden tray table holding a round wooden board with three wedges of cheese and one bunch of red grapes, two stemmed glasses and a bottle wrapped in a white napkin; two big floor cushions in deep red and cream on either side; a loose scatter of red rose petals on the rug around the table, and flameless LED tea lights in small clear glass holders along the edge of the rug. A cluster of four chrome balloons in burgundy and gold tied to the sofa arm, ribbons hanging straight. A floor lamp turned low in the corner, a dark window behind. Camera at seated eye level from the near side of the rug, the tray table sits in the lower middle of the frame, with open space above it; the top quarter is sofa and dark wall. 35mm lens. Photographed with a phone in ordinary light, natural colours, slightly imperfect white balance, slight grain, a little lived-in. Every surface, box, bottle and napkin is plain and unmarked. The balloons are smooth round chrome orbs in one loose cluster. The room is empty. Every candle is a flameless LED tea light with a steady warm glow.",
+    "idea-birthday-dinner-black-gold.jpg": "A real photograph of a dining table at home set for a grown-up birthday dinner for six in black and gold, early evening. A black linen tablecloth; down the middle a low runner of white roses and dark greenery with flameless LED pillar candles in glass hurricanes; at each place one matte black plate, a white linen napkin, one gold fork and knife, and one clear stemmed glass. A cluster of five chrome balloons in black and gold tied to the back of the head chair, ribbons hanging straight. A plain white wall with one framed landscape print, a window at dusk. Camera at standing eye level from the near corner of the table, the table running away diagonally, the flowers sits in the lower middle of the frame, with open space above it; the top quarter is wall. 35mm lens. Photographed with a phone in ordinary light, natural colours, slightly imperfect white balance, slight grain, a little lived-in. Every surface, box, bottle and napkin is plain and unmarked. The balloons are smooth round chrome orbs in one loose cluster. The room is empty. Every candle is a flameless LED tea light with a steady warm glow.",
+    "idea-new-years-eve-for-two.jpg": "A real photograph of a hotel room by a tall window on New Year's Eve, set up for two. A small round table by the window holds an ice bucket with a bottle wrapped in a white napkin, two champagne flutes and a little plate of chocolate-dipped strawberries, with a light scatter of small gold sequin confetti on the table around the flutes; around the table on the carpet, a loose ring of red and white rose petals and flameless LED tea lights. A cluster of five chrome balloons in silver and gold tied to the arm of an armchair, ribbons hanging straight. Through the window, the city at night with lit high-rise windows and soft blurred lights. The bed is out of frame. Camera at standing eye level from the middle of the room, the table sits in the lower middle of the frame, with open space above it; the top third is window and night sky. 35mm lens. Photographed with a phone in ordinary light, natural colours, slightly imperfect white balance, slight grain, a little lived-in. Every surface, box, bottle and napkin is plain and unmarked. The balloons are smooth round chrome orbs in one loose cluster. The room is empty. Every candle is a flameless LED tea light with a steady warm glow."
   }
 }

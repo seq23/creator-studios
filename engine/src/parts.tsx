@@ -3,10 +3,7 @@
 // or elastic easing); the hook is already readable on frame 0 so the first frame works as a cover.
 import React from "react";
 import { AbsoluteFill, continueRender, delayRender, Easing, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
-import { BODY, BRANDS, DISPLAY, DISPLAY_VARIATION, SAFE, type Brand } from "./brand";
-
-/** The ground a full-width photo sits on (the brand's cotton). */
-const COTTON = BRANDS.pnp.colors.ground;
+import { BODY, DISPLAY, DISPLAY_VARIATION, SAFE, type Brand } from "./brand";
 
 export interface Pic {
   /** Path under engine/public (render.mjs copies each source there). */
@@ -18,9 +15,6 @@ export interface Pic {
   fy?: number;
   /** A short label some formats show ("Baby shower"). */
   label?: string;
-  /** "width": the whole width of the picture shows, on the cotton ground, instead of a cover crop: for a real
-   *  photo whose own words or subject run edge to edge (ANNIVERSARY letters, a birthday banner). */
-  fit?: "width";
 }
 
 const handle = delayRender("brand fonts");
@@ -67,7 +61,7 @@ export function useSafe() {
  */
 export const Photo: React.FC<{ pic: Pic; dur: number; zoomFrom?: number; zoomTo?: number; dim?: number; still?: boolean }> = ({ pic, dur, zoomFrom = 1.02, zoomTo = 1.1, dim = 0, still }) => {
   const f = useCurrentFrame();
-  const { fps, width, height } = useVideoConfig();
+  const { fps } = useVideoConfig();
   // a move a viewer sees at one frame a second: at least 10%, about 3% a second, at most 22% (review 20 Nov
   // 2026: "one still held for 6 seconds with no visible push-in")
   const span = Math.max(0.1, Math.min(0.22, (dur / fps) * 0.03));
@@ -76,19 +70,6 @@ export const Photo: React.FC<{ pic: Pic; dur: number; zoomFrom?: number; zoomTo?
   const fx = (pic.fx ?? 0.5) * 100;
   const fy = (pic.fy ?? 0.5) * 100;
   const filter = dim ? `brightness(${1 - dim})` : undefined;
-  if (pic.fit === "width") {
-    // the whole width on the cotton ground, centred a little below the middle (the hook sits above it on
-    // cotton), pushing in gently on its subject; the edges stay in frame for the first two thirds of the move
-    const h = (width * pic.h) / pic.w;
-    // below the hook band (the hook sits on cotton, never on the picture), never past the bottom
-    const top = Math.max(0, Math.min(height - h, Math.max((height - h) / 2 + height * 0.04, height * 0.26)));
-    const z = 1 + (inward ? t : 1 - t) * Math.min(span, 0.08);
-    return (
-      <AbsoluteFill style={{ overflow: "hidden", backgroundColor: COTTON }}>
-        <Img src={staticFile(pic.src)} style={{ position: "absolute", left: 0, top, width, height: h, transformOrigin: `${fx}% ${fy}%`, transform: `scale(${z})`, filter }} />
-      </AbsoluteFill>
-    );
-  }
   const z = 1.04 + (inward ? t : 1 - t) * span;
   // sideways drift, kept inside the zoom's overflow so an edge never shows
   const drift = (inward ? -1 : 1) * (t - 0.5) * 2 * ((z - 1) / 2) * 0.6 * 100;
@@ -191,7 +172,7 @@ export const EndCard: React.FC<{ brand: Brand; line?: string }> = ({ brand, line
       <div style={{ opacity: a, transform: `translateY(${(1 - a) * 16}px)` }}>
         <Wordmark brand={brand} size={124 * scale} />
       </div>
-      <div style={{ opacity: b, fontFamily: BODY, fontWeight: 700, fontSize: 66 * scale, color: brand.colors.ink, textAlign: "center", maxWidth: width * 0.84, lineHeight: 1.22, textWrap: "balance" }}>{line ?? brand.line}</div>
+      <div style={{ opacity: b, fontFamily: BODY, fontWeight: 700, fontSize: 66 * scale, color: brand.colors.ink, textAlign: "center", maxWidth: width * 0.84, lineHeight: 1.22, whiteSpace: "pre-line" }}>{line ?? brand.line}</div>
       <div style={{ opacity: c, transform: `translateY(${(1 - c) * 14}px)`, display: "flex", flexDirection: "column", alignItems: "center", gap: 30 * scale }}>
         <div style={{ backgroundColor: brand.colors.accent, color: brand.colors.ink, fontFamily: BODY, fontWeight: 800, fontSize: 70 * scale, padding: `${30 * scale}px ${60 * scale}px`, borderRadius: 18 * scale, border: `${3 * scale}px solid ${brand.colors.ink}`, boxShadow: `0 ${6 * scale}px 0 ${brand.colors.ink}` }}>{brand.cta}</div>
         <div style={{ fontFamily: BODY, fontWeight: 800, fontSize: 62 * scale, color: brand.colors.ink }}>{brand.ctaUrl}</div>
