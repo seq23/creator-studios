@@ -18,8 +18,8 @@ async function uploadPast(h: Awaited<ReturnType<typeof harness>>, name: string) 
   const bytes = new Uint8Array(400).fill(7);
   const start = await h.call("POST", "/api/uploads/start", { kind: "past_video", fileName: name, size: bytes.length, mimeType: "video/mp4" });
   expect(start.status, JSON.stringify(start.json)).toBe(200);
-  const part = await h.request("PUT", `/api/uploads/${start.json.id}/parts/1?key=${encodeURIComponent(start.json.key)}&uploadId=${encodeURIComponent(start.json.uploadId)}`, bytes, { "content-type": "application/octet-stream" });
-  expect((await h.call("POST", `/api/uploads/${start.json.id}/complete`, { key: start.json.key, uploadId: start.json.uploadId, parts: [await part.json()] })).status).toBe(200);
+  const part = await h.request("PUT", `/api/uploads/${start.json.id}/parts/1?key=${encodeURIComponent(start.json.key)}&uploadId=${encodeURIComponent(start.json.uploadId)}&ticket=${encodeURIComponent(start.json.ticket)}`, bytes, { "content-type": "application/octet-stream" });
+  expect((await h.call("POST", `/api/uploads/${start.json.id}/complete`, { key: start.json.key, uploadId: start.json.uploadId, ticket: start.json.ticket, parts: [await part.json()] })).status).toBe(200);
   return start.json as { id: string; key: string };
 }
 

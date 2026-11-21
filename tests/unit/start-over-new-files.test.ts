@@ -29,8 +29,8 @@ describe("Start over with new files, end to end on the routes", () => {
     const bytes = new Uint8Array(600).fill(3);
     const start = await h.call("POST", "/api/uploads/start", { kind: "video", parentId: "dmp_f", fileName: "IMG_1.MOV", size: bytes.length, mimeType: "video/quicktime" });
     expect(start.status).toBe(200);
-    const part = await h.request("PUT", `/api/uploads/${start.json.id}/parts/1?key=${encodeURIComponent(start.json.key)}&uploadId=${encodeURIComponent(start.json.uploadId)}`, bytes, { "content-type": "application/octet-stream" });
-    expect((await h.call("POST", `/api/uploads/${start.json.id}/complete`, { key: start.json.key, uploadId: start.json.uploadId, parts: [await part.json()] })).status).toBe(200);
+    const part = await h.request("PUT", `/api/uploads/${start.json.id}/parts/1?key=${encodeURIComponent(start.json.key)}&uploadId=${encodeURIComponent(start.json.uploadId)}&ticket=${encodeURIComponent(start.json.ticket)}`, bytes, { "content-type": "application/octet-stream" });
+    expect((await h.call("POST", `/api/uploads/${start.json.id}/complete`, { key: start.json.key, uploadId: start.json.uploadId, ticket: start.json.ticket, parts: [await part.json()] })).status).toBe(200);
 
     expect((await h.call("DELETE", "/api/dumps/dmp_f/assets/ast_old")).status).toBe(200);
     expect(h.one<{ upload_status: string; raw_deleted_at: string | null }>("SELECT upload_status, raw_deleted_at FROM assets WHERE id = 'ast_old'")).toMatchObject({ upload_status: "aborted" });

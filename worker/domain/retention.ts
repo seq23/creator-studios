@@ -11,8 +11,10 @@
 // On the host's SHARED storage the rule is shorter (owner, 21 Nov 2026: "it needs to rotate out
 // often"; HOST_STORAGE in worker/domain/tidy.ts): cleared 7 days after the clips are made or 14 days
 // after upload, whichever comes first, never while a cut is running; one heads-up email 3 days
-// before when the studio has email (the clear waits a day for it at least), and Keep does not apply
-// there (her own storage is how she keeps originals). The 30-day rule above is for her own storage.
+// before when the studio has email, and the clear always waits the full 3 days after it. Keep is
+// not offered there any more (her own storage is how she keeps originals); a dump she kept BEFORE
+// that is cleared only after that email went and stood its 3 days, never silently without email.
+// The 30-day rule above is for her own storage.
 import { RAW_RETENTION_DAYS, RAW_WARN_DAYS } from "@shared/constants";
 import { HOST_STORAGE } from "./tidy";
 import { hmacHex, timingSafeEqual } from "../lib/crypto";
@@ -51,11 +53,12 @@ function sharedDue(d: RetentionDump): number | null {
 }
 
 /** The day this dump's originals clear, given the notices so far (never before each warning has stood its days). Null = never (kept, still open, not ready). */
-export function clearDate(d: RetentionDump, rule: RetentionRule = "own", canWarn = true): Date | null {
+export function clearDate(d: RetentionDump, rule: RetentionRule = "own", canWarn = true, now = new Date()): Date | null {
   if (rule === "shared") {
     const due = d.open_job ? null : sharedDue(d);
     if (due === null) return null;
-    return new Date(canWarn && d.sent3 ? Math.max(due, t(d.sent3) + DAY) : due);
+    if (!canWarn) return d.kept ? null : new Date(due);
+    return new Date(d.sent3 ? Math.max(due, t(d.sent3) + HOST_STORAGE.warnDays * DAY) : Math.max(due, now.getTime() + HOST_STORAGE.warnDays * DAY));
   }
   if (d.kept || d.open_job || !d.ready_at || !["ready", "reviewed"].includes(d.status)) return null;
   let due = t(d.ready_at) + RAW_RETENTION_DAYS * DAY;
@@ -75,9 +78,14 @@ export function retentionStep(d: RetentionDump, now: Date, rule: RetentionRule =
     const due = sharedDue(d);
     if (due === null) return { do: "none", why: "not_ready" };
     const n = now.getTime();
-    if (!canWarn) return n >= due ? { do: "clear" } : { do: "none", why: "not_yet" };
-    if (!d.sent3) return due - n <= HOST_STORAGE.warnDays * DAY ? { do: "warn3", clears: new Date(Math.max(due, n + DAY)).toISOString() } : { do: "none", why: "not_yet" };
-    return n >= clearDate(d, rule, canWarn)!.getTime() ? { do: "clear" } : { do: "none", why: "warned" };
+    const warn = HOST_STORAGE.warnDays * DAY;
+    if (!canWarn) {
+      // A dump she kept is never cleared without the email first: it stays, and the Storage light says so.
+      if (d.kept) return { do: "none", why: "kept_no_email" };
+      return n >= due ? { do: "clear" } : { do: "none", why: "not_yet" };
+    }
+    if (!d.sent3) return due - n <= warn ? { do: "warn3", clears: new Date(Math.max(due, n + warn)).toISOString() } : { do: "none", why: "not_yet" };
+    return n >= clearDate(d, rule, canWarn, now)!.getTime() ? { do: "clear" } : { do: "none", why: "warned" };
   }
   if (d.kept) return { do: "none", why: "kept" };
   if (d.open_job || !["ready", "reviewed"].includes(d.status)) return { do: "none", why: "open" };

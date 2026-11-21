@@ -39,9 +39,9 @@ async function upload(request: APIRequestContext, kind: "video" | "photo", paren
   const start = await request.post("/api/uploads/start", { data: { kind, parentId, fileName, size: bytes.length, mimeType, contentHash: `e2e-${Date.now()}-${Math.random()}` } });
   expect(start.ok(), await start.text()).toBe(true);
   const up = await start.json();
-  const part = await request.put(`/api/uploads/${up.id}/parts/1?key=${encodeURIComponent(up.key)}&uploadId=${encodeURIComponent(up.uploadId)}`, { data: bytes });
+  const part = await request.put(`/api/uploads/${up.id}/parts/1?key=${encodeURIComponent(up.key)}&uploadId=${encodeURIComponent(up.uploadId)}&ticket=${encodeURIComponent(up.ticket)}`, { data: bytes });
   expect(part.ok()).toBe(true);
-  expect((await request.post(`/api/uploads/${up.id}/complete`, { data: { key: up.key, uploadId: up.uploadId, parts: [await part.json()] } })).ok()).toBe(true);
+  expect((await request.post(`/api/uploads/${up.id}/complete`, { data: { key: up.key, uploadId: up.uploadId, ticket: up.ticket, parts: [await part.json()] } })).ok()).toBe(true);
 }
 
 /** A real dump through the fake cutter: clips with a playable file and a cover. */

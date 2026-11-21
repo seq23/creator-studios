@@ -11,10 +11,10 @@ Your studio can keep your files in storage you own. Some studios have no shared 
 ## Open Settings → Storage
 
 ![Step 1](/help/screenshots/own-storage-1.png)
-<!-- route: /settings#own-storage -->
-<!-- target: #own-storage -->
+<!-- route: /settings#storage -->
+<!-- target: #storage .storage-head -->
 
-Scroll to **Use your own storage**. The meter above it says where your files go now, and how long originals are kept there.
+The Storage meter says how full your storage is and where your files go now. **Use your own storage** is just below it.
 
 ## Make a free R2 bucket
 
@@ -28,7 +28,8 @@ Open **How to set up free Cloudflare R2** and follow it: a free Cloudflare accou
 
 ![Step 3](/help/screenshots/own-storage-3.png)
 <!-- route: /settings#own-storage -->
-<!-- target: .own-storage > p.hint -->
+<!-- click: .own-storage details summary -->
+<!-- target: .own-storage details ol -->
 
 In R2, open **Manage API tokens** and create a token with **Object Read & Write** on your new bucket only. Copy the **Access Key ID** and **Secret Access Key** (the secret shows once), and your **Account ID** from the R2 page.
 
@@ -38,7 +39,7 @@ In R2, open **Manage API tokens** and create a token with **Object Read & Write*
 <!-- route: /settings#own-storage -->
 <!-- target: .own-storage form.setup-form -->
 
-Paste the Account ID, bucket name and both keys, then **Test connection**: the studio writes a small test file, reads it back and deletes it. Then **Save**. New uploads, clips and voice overs go to your bucket from then on.
+Tap **Add my own storage** if the boxes are not open yet. Paste the Account ID, bucket name and both keys, then **Test connection**: the studio writes a small test file, reads it back and deletes it. Then **Save**. New uploads, clips and voice overs go to your bucket from then on.
 
 ## Did this work?
 

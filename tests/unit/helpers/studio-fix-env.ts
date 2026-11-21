@@ -59,7 +59,7 @@ export async function harness(extra: Partial<Env> = {}, opts: { brief?: boolean 
   const one = <T>(sql: string, ...args: (string | number | null)[]) => db.raw.prepare(sql).get(...args) as T;
   const all = <T>(sql: string, ...args: (string | number | null)[]) => db.raw.prepare(sql).all(...args) as T[];
   const request = async (method: string, p: string, body?: unknown, headers: Record<string, string> = {}) =>
-    app.request(`${BASE_URL}${p}`, { method, headers: { "content-type": "application/json", cookie: await ownerCookie(env), ...headers }, body: body === undefined ? undefined : body instanceof Uint8Array ? body : JSON.stringify(body) }, env);
+    app.request(`${BASE_URL}${p}`, { method, headers: { "content-type": "application/json", cookie: await ownerCookie(env), ...(body instanceof Uint8Array ? { "content-length": String(body.byteLength) } : {}), ...headers }, body: body === undefined ? undefined : body instanceof Uint8Array ? body : JSON.stringify(body) }, env);
   const call = async (method: string, p: string, body?: unknown) => {
     const res = await request(method, p, body);
     return { status: res.status, json: (await res.json().catch(() => ({}))) as Record<string, any> };

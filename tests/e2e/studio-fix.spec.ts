@@ -28,8 +28,8 @@ async function upload(request: APIRequestContext, dumpId: string, name: string, 
   const start = await request.post("/api/uploads/start", { data: { kind: "video", parentId: dumpId, fileName: name, size: bytes.length, mimeType: mime, contentHash: `e2e-${Date.now()}-${Math.random()}` } });
   expect(start.ok(), await start.text()).toBe(true);
   const up = await start.json();
-  const part = await request.put(`/api/uploads/${up.id}/parts/1?key=${encodeURIComponent(up.key)}&uploadId=${encodeURIComponent(up.uploadId)}`, { data: bytes });
-  expect((await request.post(`/api/uploads/${up.id}/complete`, { data: { key: up.key, uploadId: up.uploadId, parts: [await part.json()] } })).ok()).toBe(true);
+  const part = await request.put(`/api/uploads/${up.id}/parts/1?key=${encodeURIComponent(up.key)}&uploadId=${encodeURIComponent(up.uploadId)}&ticket=${encodeURIComponent(up.ticket)}`, { data: bytes });
+  expect((await request.post(`/api/uploads/${up.id}/complete`, { data: { key: up.key, uploadId: up.uploadId, ticket: up.ticket, parts: [await part.json()] } })).ok()).toBe(true);
 }
 
 /** One video and one photo (no camera details: an AI picture) in one dump, cut by the fake engine. */

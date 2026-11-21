@@ -18,7 +18,11 @@ import { originalsRetention } from "@worker/lib/retention";
 import { enforceBudget, measureStorage, storageReport, uploadRefusal } from "@worker/lib/storage";
 import { hydrate } from "@worker/lib/practice";
 import { saveConnection } from "@worker/lib/connections";
-import { HostReadOnly, LayeredFiles, OWN_STORAGE_NEEDED_WORDS, OwnStorageNeeded, ownStorageConfig, probeFiles, S3Files, signedDownload } from "@worker/services/s3files";
+import { mayClear, OWN_STORAGE_NEEDED_WORDS, OwnStorageNeeded, ownStorageConfig, probeFiles, S3Files, signedDownload, StudioFiles } from "@worker/services/s3files";
+import { archive } from "@worker/routes/archive";
+import { readFileSync as readSql } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
+import { UPLOAD_PART_SIZE } from "@shared/constants";
 import { checkOwnStorage } from "@worker/routes/archive";
 import { SETUP_STEPS } from "@shared/setup";
 import { originals } from "@worker/routes/originals";
@@ -63,7 +67,7 @@ describe("a studio with no host share and no storage of its own (Hadiyah)", () =
     const h = await harness({ HOST_STORAGE_GB: "0" });
     const e = await hydrate(h.env);
     expect(e.FILES_PLACE).toBe("none");
-    expect(e.FILES).toBeInstanceOf(HostReadOnly);
+    expect(e.FILES).toBeInstanceOf(StudioFiles);
     await expect(e.FILES.put("raw/x/y", "bytes")).rejects.toBeInstanceOf(OwnStorageNeeded);
     await expect(e.FILES.createMultipartUpload("raw/x/y")).rejects.toBeInstanceOf(OwnStorageNeeded);
     // reads and deletes still reach what is already there
@@ -136,7 +140,22 @@ describe("originals on the shared storage rotate out (pure rule)", () => {
     const sent3 = at(4).toISOString();
     expect(retentionStep(dump({ sent3 }), at(6.9), "shared").do).toBe("none");
     expect(retentionStep(dump({ sent3 }), at(7), "shared")).toEqual({ do: "clear" });
-    expect(retentionStep(dump({ sent3, kept: 1 }), at(7), "shared")).toEqual({ do: "clear" });
+  });
+
+  it("the heads-up always stands its full 3 days: one that went late moves the clear, never a 1-day warning", () => {
+    const late = at(6).toISOString();
+    expect(clearDate(dump({ sent3: late }), "shared")!.toISOString()).toBe(at(9).toISOString());
+    expect(retentionStep(dump({ sent3: late }), at(8.9), "shared").do).toBe("none");
+    expect(retentionStep(dump({ sent3: late }), at(9), "shared")).toEqual({ do: "clear" });
+    expect(retentionStep(dump(), at(30), "shared")).toEqual({ do: "warn3", clears: at(33).toISOString() });
+  });
+
+  it("a dump she kept before this rule: cleared only after the heads-up stood 3 days; with no email never, it stays", () => {
+    expect(retentionStep(dump({ kept: 1 }), at(40), "shared")).toEqual({ do: "warn3", clears: at(43).toISOString() });
+    expect(retentionStep(dump({ kept: 1, sent3: at(40).toISOString() }), at(42.9), "shared").do).toBe("none");
+    expect(retentionStep(dump({ kept: 1, sent3: at(40).toISOString() }), at(43), "shared")).toEqual({ do: "clear" });
+    expect(retentionStep(dump({ kept: 1 }), at(400), "shared", false)).toEqual({ do: "none", why: "kept_no_email" });
+    expect(clearDate(dump({ kept: 1 }), "shared", false)).toBeNull();
   });
 
   it("14 days after upload when the clips never came (failed or stuck), whichever comes first", () => {
@@ -152,8 +171,7 @@ describe("originals on the shared storage rotate out (pure rule)", () => {
   it("never while a cut is running; with no studio email it clears on the day (no pause on the shared storage)", () => {
     expect(retentionStep(dump({ open_job: 1 }), at(40), "shared")).toEqual({ do: "none", why: "open" });
     expect(retentionStep(dump(), at(7), "shared", false)).toEqual({ do: "clear" });
-    // a warning that goes out late still stands a day before the clear
-    expect(retentionStep(dump(), at(30), "shared")).toEqual({ do: "warn3", clears: at(31).toISOString() });
+
   });
 });
 
@@ -193,39 +211,51 @@ describe("Use your own storage", () => {
     expect(ownStorageConfig({ endpoint: `https://${id}.r2.cloudflarestorage.com/my-files`, bucket: "", ...keys })).toMatchObject({ ok: true, cfg: { bucket: "my-files" } });
     expect(ownStorageConfig({ endpoint: "s3.us-west-004.backblazeb2.com", bucket: "my-files", ...keys })).toMatchObject({ ok: true, cfg: { endpoint: "https://s3.us-west-004.backblazeb2.com", region: "us-west-004" } });
     expect(ownStorageConfig({ endpoint: "http://example.com", bucket: "b1", ...keys }).ok).toBe(false);
+    // only Cloudflare R2 and the known S3 services: never an address the Worker would sign to anywhere else
+    for (const bad of ["https://example.com", "https://169.254.169.254", "https://localhost", "https://r2.cloudflarestorage.com.evil.example", "https://evil.example/0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com"]) expect(ownStorageConfig({ endpoint: bad, bucket: "my-files", ...keys }).ok, bad).toBe(false);
+    for (const good of ["https://s3.us-east-1.amazonaws.com", "https://s3.amazonaws.com", "https://s3.eu-central-1.wasabisys.com", `https://${id}.eu.r2.cloudflarestorage.com`]) expect(ownStorageConfig({ endpoint: good, bucket: "my-files", ...keys }).ok, good).toBe(true);
     expect(ownStorageConfig({ endpoint: id, bucket: "My Files", ...keys }).ok).toBe(false);
     expect(ownStorageConfig({ endpoint: id, bucket: "my-files", access_key_id: "AKID" }).ok).toBe(false);
   });
 
   it("Test connection writes, reads back and deletes a probe, leaving nothing; a refused key says so in plain words", async () => {
     const s3 = fakeS3();
-    const good = await checkOwnStorage({ endpoint: "https://acct.r2.cloudflarestorage.com", bucket: "her-bucket", access_key_id: "AKID", secret_access_key: "SECRET" }, s3.fetcher);
+    const good = await checkOwnStorage({ endpoint: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com", bucket: "her-bucket", access_key_id: "AKID", secret_access_key: "SECRET" }, s3.fetcher);
     expect(good.ok).toBe(true);
     expect([...s3.objects.keys()]).toEqual([]);
     expect(s3.seen.map((r) => r.method)).toEqual(expect.arrayContaining(["PUT", "GET", "DELETE"]));
-    const wrongBucket = await checkOwnStorage({ endpoint: "https://acct.r2.cloudflarestorage.com", bucket: "not-hers", access_key_id: "AKID", secret_access_key: "SECRET" }, fakeS3().fetcher);
+    const wrongBucket = await checkOwnStorage({ endpoint: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com", bucket: "not-hers", access_key_id: "AKID", secret_access_key: "SECRET" }, fakeS3().fetcher);
     expect(wrongBucket).toMatchObject({ ok: false, error: expect.stringMatching(/bucket was not found/) });
-    const broken = await probeFiles(new S3Files({ endpoint: "https://acct.r2.cloudflarestorage.com", bucket: "her-bucket", accessKeyId: "A", secretAccessKey: "S" }, fakeS3({ failPut: true }).fetcher) as unknown as R2Bucket);
+    // a redirect is never followed: the signed request goes only to the address she saved
+    const redirecting = (async () => new Response(null, { status: 301, headers: { location: "https://elsewhere.example/" } })) as typeof fetch;
+    const seenInit: RequestInit[] = [];
+    const watch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      seenInit.push({ redirect: (input instanceof Request ? input.redirect : init?.redirect) as RequestInit["redirect"] });
+      return redirecting(input, init);
+    }) as typeof fetch;
+    expect(await checkOwnStorage({ endpoint: "0123456789abcdef0123456789abcdef", bucket: "her-bucket", access_key_id: "A", secret_access_key: "S" }, watch)).toMatchObject({ ok: false });
+    expect(seenInit[0].redirect).toBe("manual");
+    const broken = await probeFiles(new S3Files({ endpoint: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com", bucket: "her-bucket", accessKeyId: "A", secretAccessKey: "S" }, fakeS3({ failPut: true }).fetcher) as unknown as R2Bucket);
     expect(broken).toMatchObject({ ok: false, step: "write" });
   });
 
   it("saved encrypted, hydrate sends new files to her bucket and still reads what was on the host's", async () => {
     const h = await harness({ HOST_STORAGE_GB: "0" });
-    const fields = { endpoint: "https://acct.r2.cloudflarestorage.com", bucket: "her-bucket", access_key_id: "AKID", secret_access_key: "SECRET" };
-    await saveConnection(h.env, "storage", JSON.stringify(fields), "ok", { bucket: "her-bucket", host: "acct.r2.cloudflarestorage.com", saved_at: "2026-11-21T00:00:00.000Z" });
+    const fields = { endpoint: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com", bucket: "her-bucket", access_key_id: "AKID", secret_access_key: "SECRET" };
+    await saveConnection(h.env, "storage", JSON.stringify({ current: fields, previous: [] }), "ok", { bucket: "her-bucket", host: "0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com", saved_at: "2026-11-21T00:00:00.000Z" });
     const row = h.one<{ secret_enc: string }>("SELECT secret_enc FROM connections WHERE service = 'storage'");
     expect(row.secret_enc).not.toContain("SECRET");
     const e = await hydrate(h.env);
     expect(e.FILES_PLACE).toBe("own");
-    expect(e.FILES).toBeInstanceOf(LayeredFiles);
-    expect((await storageReport(e)).own).toEqual({ bucket: "her-bucket", host: "acct.r2.cloudflarestorage.com", since: "2026-11-21T00:00:00.000Z" });
+    expect(e.FILES).toBeInstanceOf(StudioFiles);
+    expect((await storageReport(e)).own).toEqual({ bucket: "her-bucket", host: "0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com", since: "2026-11-21T00:00:00.000Z" });
   });
 
   it("the layers: writes go to hers, reads fall back to the host's, deletes reach both, the meter lists each", async () => {
     const hers = memoryR2().FILES;
     const host = memoryR2().FILES;
     await host.put("raw/old/a", new Uint8Array(30));
-    const files = new LayeredFiles(hers, host) as unknown as R2Bucket;
+    const files = new StudioFiles({ write: hers, own: true, host, readOnly: [] }) as unknown as R2Bucket;
     await files.put("raw/new/b", new Uint8Array(20));
     expect(await hers.head("raw/new/b")).not.toBeNull();
     expect(await host.head("raw/new/b")).toBeNull();
@@ -253,15 +283,203 @@ describe("the bucket is the truth (measure)", () => {
     ]);
     h.db.raw.exec("UPDATE assets SET created_at = '2026-11-01T00:00:00.000Z'");
     await h.r2.FILES.delete("raw/dmp_m/ast_m1");
-    const broken = { ...h.env, FILES: new LayeredFiles(h.r2.FILES, { list: () => Promise.reject(new Error("down")) } as unknown as R2Bucket) as unknown as R2Bucket };
+    const broken = { ...h.env, FILES: new StudioFiles({ write: { list: () => Promise.reject(new Error("down")) } as unknown as R2Bucket, own: true, host: h.r2.FILES, readOnly: [] }) as unknown as R2Bucket };
     expect((await measureStorage(broken, new Date("2026-11-21T00:00:00.000Z"))).gone).toBe(0);
     expect((await measureStorage(h.env, new Date("2026-11-21T00:00:00.000Z"))).gone).toBe(1);
     expect(h.all<{ id: string }>("SELECT id FROM assets WHERE raw_deleted_at IS NOT NULL").map((a) => a.id)).toEqual(["ast_m1"]);
   });
 });
 
-it("HostReadOnly signs downloads through the host's bucket when it is S3", async () => {
-  const s3 = new S3Files({ endpoint: "https://acct.r2.cloudflarestorage.com", bucket: "her-bucket", accessKeyId: "A", secretAccessKey: "S" }, fakeS3().fetcher) as unknown as R2Bucket;
-  expect(await signedDownload(new HostReadOnly(s3) as unknown as R2Bucket, "raw/a", 60)).toMatch(/X-Amz-Signature=/);
+it("with nowhere to write, downloads are still signed through the host's bucket when it is S3", async () => {
+  const fake = fakeS3();
+  const s3 = new S3Files({ endpoint: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com", bucket: "her-bucket", accessKeyId: "A", secretAccessKey: "S" }, fake.fetcher) as unknown as R2Bucket;
+  await s3.put("raw/a", "x");
+  expect(await signedDownload(new StudioFiles({ write: null, own: false, host: s3, readOnly: [] }) as unknown as R2Bucket, "raw/a", 60)).toMatch(/X-Amz-Signature=/);
   expect(({} as Env).FILES_PLACE).toBeUndefined();
+});
+
+// ---------------------------------------------------------------- review round 1 (21 Nov 2026)
+
+import { vi, afterEach } from "vitest";
+import { ownerCookie } from "./helpers/owner-session";
+import { countNewFile, jobOutputRefusal, storageHealth, enforceBudget as budget } from "@worker/lib/storage";
+import { decryptSecret } from "@worker/lib/crypto";
+import { partRefusal, readUploadTicket, uploadTicket } from "@worker/routes/uploads";
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe("the share cannot be beaten by the upload itself", () => {
+  const begin = async (h: Awaited<ReturnType<typeof harness>>, size: number) => {
+    h.db.raw.exec("INSERT OR IGNORE INTO dumps (id, door, notes, status) VALUES ('dmp_u', 'new', '', 'uploading')");
+    const s = await h.call("POST", "/api/uploads/start", { kind: "video", parentId: "dmp_u", fileName: "IMG.MOV", size, mimeType: "video/quicktime" });
+    expect(s.status).toBe(200);
+    return s.json as { id: string; key: string; uploadId: string; ticket: string };
+  };
+  const put = (h: Awaited<ReturnType<typeof harness>>, u: { id: string; key: string; uploadId: string }, n: number, body: Uint8Array, ticket: string, headers: Record<string, string> = {}) =>
+    h.request("PUT", `/api/uploads/${u.id}/parts/${n}?key=${encodeURIComponent(u.key)}&uploadId=${encodeURIComponent(u.uploadId)}&ticket=${encodeURIComponent(ticket)}`, body, { "content-type": "application/octet-stream", ...headers });
+
+  it("a part past the declared size, a part bigger than a part, or a ticket not signed for it is refused", async () => {
+    const h = await harness({ HOST_STORAGE_GB: "0.25", FILES_PLACE: "host" });
+    const u = await begin(h, 50);
+    expect((await put(h, u, 2, new Uint8Array(10), u.ticket)).status).toBe(413);
+    expect((await put(h, u, 1, new Uint8Array(10), u.ticket, { "content-length": String(UPLOAD_PART_SIZE + 1) })).status).toBe(413);
+    const forged = `${10 * GB}.${u.ticket.split(".")[1]}`;
+    expect((await put(h, u, 1, new Uint8Array(10), forged)).status).toBe(409);
+    expect((await put(h, u, 1, new Uint8Array(10), "")).status).toBe(409);
+    expect((await put(h, u, 1, new Uint8Array(10), u.ticket)).status).toBe(200);
+    // pure: the job route has no declared size, but its pieces are held to the part size too
+    expect(partRefusal(9999, null, String(UPLOAD_PART_SIZE))).toBeNull();
+    expect(partRefusal(1, null, String(UPLOAD_PART_SIZE + 1))).not.toBeNull();
+    expect(partRefusal(1, null, undefined)).not.toBeNull();
+    expect(await readUploadTicket("s", "k", "u", await uploadTicket("s", "k", "u", 5))).toBe(5);
+    expect(await readUploadTicket("s", "k", "other", await uploadTicket("s", "k", "u", 5))).toBeNull();
+  });
+
+  it("a file that comes out bigger than declared is deleted and refused, and its row never counts as uploaded", async () => {
+    const h = await harness({ HOST_STORAGE_GB: "0.25", FILES_PLACE: "host" });
+    const u = await begin(h, 50);
+    const part = await put(h, u, 1, new Uint8Array(100), u.ticket);
+    expect(part.status).toBe(200);
+    const done = await h.call("POST", `/api/uploads/${u.id}/complete`, { key: u.key, uploadId: u.uploadId, ticket: u.ticket, parts: [await part.json()] });
+    expect(done.status).toBe(409);
+    expect(await h.r2.FILES.head(u.key)).toBeNull();
+    expect(h.one<{ s: string }>("SELECT upload_status AS s FROM assets WHERE id = ?", u.id).s).toBe("aborted");
+  });
+
+  it("job outputs and clips count against the share at once, and a job may not start writing once it is full", async () => {
+    const h = await harness({ HOST_STORAGE_GB: "0.25", FILES_PLACE: "host" });
+    const before = (await storageReport(h.env)).used_bytes;
+    await countNewFile(h.env, 100 * 1024 ** 2);
+    expect((await storageReport(h.env)).used_bytes).toBe(before + 100 * 1024 ** 2);
+    expect(await jobOutputRefusal(h.env)).toBeNull();
+    await countNewFile(h.env, 200 * 1024 ** 2);
+    expect(await jobOutputRefusal(h.env)).toMatch(/^SHARE_FULL/);
+    expect(await jobOutputRefusal({ ...h.env, FILES_PLACE: "own" })).toBeNull();
+    // and a browser upload that is not an original counts the same way
+    expect((await uploadRefusal(h.env, 1)) !== null).toBe(true);
+  });
+});
+
+describe("kept originals on the shared storage, on a real studio", () => {
+  const kept = async (extra = {}) => {
+    const h = await harness({ FILES_PLACE: "host", ...extra });
+    await h.dumpWith("dmp_k", [{ id: "ast_k1", name: "IMG_1.MOV", mime: "video/quicktime" }]);
+    h.db.raw.exec("UPDATE dumps SET status = 'ready', kind = 'clips', ready_at = '2026-10-01T00:00:00.000Z', originals_kept = 1 WHERE id = 'dmp_k'; UPDATE assets SET created_at = '2026-09-30T00:00:00.000Z'");
+    return h;
+  };
+  const day = (d: number) => new Date(Date.parse("2026-11-22T12:00:00.000Z") + d * DAY);
+
+  it("with studio email: the heads-up first, cleared only after its full 3 days", async () => {
+    const h = await kept();
+    expect(await originalsRetention(h.env, day(0))).toMatchObject({ warned3: 1, cleared_files: 0 });
+    expect(await originalsRetention(h.env, day(2.9))).toMatchObject({ cleared_files: 0 });
+    expect(await h.r2.FILES.head("raw/dmp_k/ast_k1")).not.toBeNull();
+    expect(await originalsRetention(h.env, day(3))).toMatchObject({ cleared_files: 1 });
+  });
+
+  it("with no studio email: never cleared, by the rule or the budget, and the Storage light says so", async () => {
+    const h = await kept({ FAKE_SERVICES: "0", PRACTICE: ["resend"], HOST_STORAGE_GB: "0.25" });
+    h.db.raw.exec(`UPDATE assets SET size_bytes = ${250 * 1024 ** 2}`);
+    expect(await originalsRetention(h.env, day(400))).toMatchObject({ cleared_files: 0, kept_waiting: 1 });
+    expect((await budget(h.env, day(400))).cleared).toBe(0);
+    expect(await h.r2.FILES.head("raw/dmp_k/ast_k1")).not.toBeNull();
+    // the meter is over 90% here, so the light is red; with room it is the yellow "kept" note
+    h.db.raw.exec("UPDATE assets SET size_bytes = 1");
+    await storageHealth(h.env);
+    expect(h.one<{ light: string; note: string; fix_guide: string }>("SELECT light, note, fix_guide FROM health WHERE name = 'Storage'")).toMatchObject({ light: "yellow", fix_guide: "setup-email", note: expect.stringMatching(/1 upload you kept stays/) });
+  });
+});
+
+describe("her own bucket stays safe", () => {
+  it("only the studio's folders (raw/, clips/) are counted or deleted in her bucket; a bucket she used before is never written or deleted", async () => {
+    const hers = memoryR2().FILES;
+    const old = memoryR2().FILES;
+    const host = memoryR2().FILES;
+    await hers.put("photos/her-wedding.jpg", new Uint8Array(500));
+    await hers.put("raw/d/a", new Uint8Array(10));
+    await old.put("raw/d/before", new Uint8Array(20));
+    const files = new StudioFiles({ write: hers, own: true, host, readOnly: [old] }) as unknown as R2Bucket;
+    await files.delete(["photos/her-wedding.jpg", "raw/d/before"]);
+    expect(await hers.head("photos/her-wedding.jpg")).not.toBeNull();
+    expect(await old.head("raw/d/before")).not.toBeNull();
+    expect((await files.get("raw/d/before"))!.size).toBe(20);
+    expect(await mayClear(files, "raw/d/before")).toBe(false);
+    expect(await mayClear(files, "raw/d/a")).toBe(true);
+    const h = await harness({ FILES_PLACE: "own" });
+    const r = await measureStorage({ ...h.env, FILES: files });
+    expect(r.listed).toBe(10 + 20);
+  });
+
+  it("an original that lives only in a bucket she used before is never cleared or marked gone", async () => {
+    const h = await harness({ FILES_PLACE: "host" });
+    const old = memoryR2().FILES;
+    await h.dumpWith("dmp_o", [{ id: "ast_o1", name: "IMG_1.MOV", mime: "video/quicktime" }]);
+    await old.put("raw/dmp_o/ast_o1", new Uint8Array(100));
+    await h.r2.FILES.delete("raw/dmp_o/ast_o1");
+    h.db.raw.exec("UPDATE dumps SET status = 'ready', kind = 'clips', ready_at = '2026-10-01T00:00:00.000Z' WHERE id = 'dmp_o'; UPDATE assets SET created_at = '2026-09-30T00:00:00.000Z'; INSERT INTO file_notices (dump_id, stage, batch_id, sent_at) VALUES ('dmp_o', '3', 'fnb_cccccccc', '2026-10-02T00:00:00.000Z')");
+    const env = { ...h.env, FILES: new StudioFiles({ write: h.r2.FILES, own: false, host: h.r2.FILES, readOnly: [old] }) as unknown as R2Bucket };
+    expect(await originalsRetention(env, new Date("2026-11-22T00:00:00.000Z"))).toMatchObject({ cleared_files: 0, held_files: 1 });
+    expect((await measureStorage(env, new Date("2026-11-22T00:00:00.000Z"))).gone).toBe(0);
+    expect(h.one<{ d: string | null }>("SELECT raw_deleted_at AS d FROM assets WHERE id = 'ast_o1'").d).toBeNull();
+  });
+
+  it("storage settings that cannot be read are 'unknown': nothing is marked gone, and the light asks her to save them again", async () => {
+    const h = await harness({ HOST_STORAGE_GB: "1" });
+    await h.dumpWith("dmp_x", [{ id: "ast_x1", name: "IMG_1.MOV", mime: "video/quicktime" }]);
+    h.db.raw.exec("UPDATE assets SET created_at = '2026-11-01T00:00:00.000Z'");
+    await h.r2.FILES.delete("raw/dmp_x/ast_x1");
+    h.db.raw.prepare("INSERT INTO connections (service, status, secret_enc, meta) VALUES ('storage', 'ok', 'not-a-cipher', '{}')").run();
+    const e = await hydrate(h.env);
+    expect(e.FILES_UNSURE).toBe("1");
+    expect((await measureStorage(e, new Date("2026-11-21T00:00:00.000Z"))).gone).toBe(0);
+    await storageHealth(e);
+    expect(h.one<{ fix_guide: string }>("SELECT fix_guide FROM health WHERE name = 'Storage'").fix_guide).toBe("own-storage");
+    // negative proof: readable settings and the same missing file is marked gone
+    expect((await measureStorage(await hydrate({ ...h.env, DB: h.env.DB }), new Date("2026-11-21T00:00:00.000Z"))).gone).toBe(0);
+    h.db.raw.exec("DELETE FROM connections WHERE service = 'storage'");
+    expect((await measureStorage(await hydrate(h.env), new Date("2026-11-21T00:00:00.000Z"))).gone).toBe(1);
+  });
+
+  it("switching or removing her storage keeps the old buckets readable (Settings → Storage, through the real routes)", async () => {
+    const fake = fakeS3();
+    vi.stubGlobal("fetch", fake.fetcher);
+    const h = await harness({ HOST_STORAGE_GB: "1" });
+    const app = new Hono().route("/api/archive", archive as unknown as Hono);
+    const call = async (p: string, body?: unknown) => app.request(`${BASE_URL}${p}`, { method: "POST", headers: { "content-type": "application/json", cookie: await ownerCookie(h.env) }, body: body === undefined ? undefined : JSON.stringify(body) }, h.env);
+    const a = { endpoint: "0123456789abcdef0123456789abcdef", bucket: "her-bucket", access_key_id: "A1", secret_access_key: "S1" };
+    const b = { endpoint: "fedcba9876543210fedcba9876543210", bucket: "her-bucket", access_key_id: "A2", secret_access_key: "S2" };
+    expect((await call("/api/archive/storage/own", a)).status).toBe(200);
+    expect((await call("/api/archive/storage/own", b)).status).toBe(200);
+    const saved = async () => JSON.parse(await decryptSecret(h.env.SECRETS_KEY, h.one<{ s: string }>("SELECT secret_enc AS s FROM connections WHERE service = 'storage'").s));
+    expect((await saved()).current.access_key_id).toBe("A2");
+    expect((await saved()).previous.map((p: { access_key_id: string }) => p.access_key_id)).toEqual(["A1"]);
+    let e = await hydrate(h.env);
+    expect(e.FILES_PLACE).toBe("own");
+    expect((e.FILES as unknown as StudioFiles).o.readOnly).toHaveLength(1);
+    expect((await call("/api/archive/storage/own/remove")).status).toBe(200);
+    e = await hydrate(h.env);
+    expect(e.FILES_PLACE).toBe("host");
+    expect((e.FILES as unknown as StudioFiles).o.readOnly).toHaveLength(2);
+    expect((await saved()).current).toBeNull();
+    // Measure now is still there
+    expect((await call("/api/archive/storage/measure")).status).toBe(200);
+  });
+});
+
+describe("migration 0045 keeps every connection", () => {
+  it("every row from before survives byte for byte, and storage and higgsfield save after", () => {
+    const db = new DatabaseSync(":memory:");
+    const dir = path.join(root, "migrations");
+    const files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
+    for (const f of files.filter((f) => f < "0045")) db.exec(readSql(path.join(dir, f), "utf8"));
+    const old = ["buffer", "openrouter", "firecrawl", "resend", "hunter", "meta", "google", "tiktok", "github", "elevenlabs", "opusclip", "vizard", "klap", "submagic", "descript", "youtube", "youtube_api", "google_app", "meta_app", "facebook", "pinterest", "huggingface"];
+    const ins = db.prepare("INSERT INTO connections (service, status, secret_enc, meta, last_ok_at, last_error, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    old.forEach((s, i) => ins.run(s, i % 2 ? "ok" : "error", `enc-${s}`, `{"n":${i}}`, i % 3 ? null : "2026-11-01T00:00:00.000Z", i % 2 ? null : "refused", `2026-11-0${(i % 9) + 1}T00:00:00.000Z`));
+    const before = db.prepare("SELECT * FROM connections ORDER BY service").all();
+    for (const f of files.filter((f) => f >= "0045")) db.exec(readSql(path.join(dir, f), "utf8"));
+    expect(db.prepare("SELECT * FROM connections ORDER BY service").all()).toEqual(before);
+    ins.run("storage", "ok", "x", "{}", null, null, "2026-11-21T00:00:00.000Z");
+    ins.run("higgsfield", "ok", "x", "{}", null, null, "2026-11-21T00:00:00.000Z");
+    expect(() => ins.run("nonsense", "ok", "x", "{}", null, null, "2026-11-21T00:00:00.000Z")).toThrow(/CHECK/);
+  });
 });

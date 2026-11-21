@@ -9,7 +9,7 @@
 //   PATCH /api/archive/tidy              { on: boolean }
 //   POST /api/archive/storage/own/test   Use your own storage: Test connection (write, read, delete a probe; nothing saved)
 //   POST /api/archive/storage/own        the same check, then saved encrypted (connections "storage"); new files go there
-//   POST /api/archive/storage/own/remove back to the studio's shared storage (or none); her bucket is left as it is
+//   POST /api/archive/storage/own/remove back to the studio's shared storage (or none); her bucket stays readable, never written or cleared
 import { Hono, type Context } from "hono";
 import type { Env, Vars } from "../env";
 import { requireOwner, requireUser } from "../lib/auth";
@@ -19,7 +19,9 @@ import { nowIso } from "../lib/ids";
 import { log } from "../lib/log";
 import { measureStorage, storageHealth, storageReport } from "../lib/storage";
 import { FILES, HOST_STORAGE, STORAGE, TIDY } from "../domain/tidy";
-import { disconnect, saveConnection } from "../lib/connections";
+import { saveConnection } from "../lib/connections";
+import { decryptSecret } from "../lib/crypto";
+import { readOwnStorage, type OwnStorageSaved } from "../lib/practice";
 import { ownStorageConfig, probeFiles, S3Files, type OwnStorageFields } from "../services/s3files";
 
 export const archive = new Hono<{ Bindings: Env; Variables: Vars }>();
@@ -54,19 +56,48 @@ archive.post("/storage/own/test", requireOwner, async (c) => {
   return r.ok ? c.json({ ok: true, line: "Connected: a test file was written, read back and deleted." }) : c.json({ ok: false, error: r.error }, 422);
 });
 
+/** What is saved now (current + the buckets she used before); empty when nothing is. */
+async function savedStorage(env: Env): Promise<OwnStorageSaved> {
+  const row = await env.DB.prepare("SELECT secret_enc FROM connections WHERE service = 'storage'").first<{ secret_enc: string | null }>();
+  if (!row?.secret_enc) return { current: null, previous: [] };
+  return readOwnStorage(await decryptSecret(env.SECRETS_KEY, row.secret_enc));
+}
+
+const same = (a: OwnStorageFields, b: OwnStorageFields) => a.endpoint === b.endpoint && a.bucket === b.bucket;
+
+/** A bucket she leaves stays readable (her old files still open): it joins previous once. */
+function retire(saved: OwnStorageSaved, next: OwnStorageFields | null): OwnStorageSaved {
+  const previous = saved.current && !(next && same(saved.current, next)) ? [...saved.previous.filter((p) => !same(p, saved.current!)), saved.current] : saved.previous;
+  return { current: next, previous: previous.filter((p) => !(next && same(p, next))).slice(-5) };
+}
+
 archive.post("/storage/own", requireOwner, async (c) => {
   const r = await checkOwnStorage(await readJson<OwnStorageFields>(c));
   if (!r.ok) return c.json({ ok: false, error: r.error }, 422);
   const { endpoint, bucket, accessKeyId, secretAccessKey } = r.cfg;
   const at = nowIso();
-  await saveConnection(c.env, "storage", JSON.stringify({ endpoint, bucket, access_key_id: accessKeyId, secret_access_key: secretAccessKey } satisfies OwnStorageFields), "ok", { bucket, host: new URL(endpoint).host, saved_at: at });
-  await recordEvent(c.env.DB, "storage.own_saved", null, { host: new URL(endpoint).host }, c.get("user").email);
+  let saved: OwnStorageSaved;
+  try {
+    saved = await savedStorage(c.env);
+  } catch {
+    return fail(c, 409, "Your saved storage settings could not be read, so nothing was changed. Try again in a minute.", "own-storage");
+  }
+  const next = retire(saved, { endpoint, bucket, access_key_id: accessKeyId, secret_access_key: secretAccessKey });
+  await saveConnection(c.env, "storage", JSON.stringify(next), "ok", { bucket, host: new URL(endpoint).host, saved_at: at });
+  await recordEvent(c.env.DB, "storage.own_saved", null, { host: new URL(endpoint).host, before: next.previous.length }, c.get("user").email);
   log.info("storage.own_saved");
   return c.json({ ok: true, line: `Saved. New uploads and clips now go to ${bucket}.` });
 });
 
 archive.post("/storage/own/remove", requireOwner, async (c) => {
-  await disconnect(c.env, "storage");
+  let saved: OwnStorageSaved;
+  try {
+    saved = await savedStorage(c.env);
+  } catch {
+    return fail(c, 409, "Your saved storage settings could not be read, so nothing was changed. Try again in a minute.", "own-storage");
+  }
+  if (!saved.current) return c.json({ ok: true });
+  await saveConnection(c.env, "storage", JSON.stringify(retire(saved, null)), "ok", { removed_at: nowIso() });
   await recordEvent(c.env.DB, "storage.own_removed", null, {}, c.get("user").email);
   log.info("storage.own_removed");
   return c.json({ ok: true });

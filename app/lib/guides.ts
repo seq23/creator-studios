@@ -56,11 +56,12 @@ export function allGuides(): { entry: IndexGuide; parsed: ParsedGuide | null }[]
 }
 
 /** Bundled URL for a screenshot path like /help/screenshots/pitch-a-brand-2.png, or null if not made yet. */
-export function shotUrl(path: string | null, phone = false): string | null {
+export function shotUrl(path: string | null, phone = false, dark = false): string | null {
   if (!path) return null;
   // A Look's own picture (public/looks/<id>.webp, made by the cut self-test): one image for both sizes.
-  if (/^\/looks\/[a-z_]+\.webp$/.test(path)) return path;
-  const p = phone ? path.replace(/\.png$/, "-phone.png") : path;
+  if (/^\/looks\/[a-z_]+\.webp$/.test(path)) return dark ? null : path;
+  // The dark-mode copy (<slug>-<n>[-phone]-dark.png) exists only for the guides the job shot in dark mode.
+  const p = path.replace(/\.png$/, `${phone ? "-phone" : ""}${dark ? "-dark" : ""}.png`);
   return SHOTS[p] ?? null;
 }
 

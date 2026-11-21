@@ -119,7 +119,8 @@ export class S3Files {
   }
 
   private send(url: string, init: RequestInit = {}): Promise<Response> {
-    return this.aws.fetch(url, { ...init, headers: { ...UNSIGNED, ...(init.headers as Record<string, string> | undefined) } });
+    // Never follow a redirect: a signed request goes only to the address she saved (a 3xx is an error).
+    return this.aws.fetch(url, { ...init, redirect: "manual", headers: { ...UNSIGNED, ...(init.headers as Record<string, string> | undefined) } });
   }
 
   async head(key: string): Promise<R2Object | null> {
@@ -252,6 +253,14 @@ export class OwnStorageNeeded extends Error {
   }
 }
 
+/** The storage addresses the Worker will sign requests to: Cloudflare R2 and the well-known S3 services, nothing else. */
+const ALLOWED_HOSTS = [
+  /^[a-f0-9]{32}(\.(eu|fedramp))?\.r2\.cloudflarestorage\.com$/,
+  /^s3(\.dualstack)?([.-][a-z]{2}(-[a-z]+)+-\d+)?\.amazonaws\.com$/,
+  /^s3\.[a-z]{2}-[a-z]+-\d+\.backblazeb2\.com$/,
+  /^s3(\.[a-z]{2}-[a-z]+-\d+)?\.wasabisys\.com$/,
+];
+
 /** What she pastes on Settings → Storage. */
 export interface OwnStorageFields {
   endpoint: string;
@@ -286,6 +295,7 @@ export function ownStorageConfig(f: Partial<OwnStorageFields>): { ok: true; cfg:
     else if (path && path !== bucket) return { ok: false, error: "Paste the address without a folder on the end." };
     endpoint = `https://${u.host}`;
   }
+  if (!ALLOWED_HOSTS.some((re) => re.test(new URL(endpoint).hostname))) return { ok: false, error: "Use Cloudflare R2 (your account ID), or the S3 address of Amazon S3, Backblaze B2 or Wasabi." };
   if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket)) return { ok: false, error: "Type the bucket name exactly as it shows in your storage (lowercase letters, numbers and dashes)." };
   if (!accessKeyId || !secretAccessKey) return { ok: false, error: "Paste both the Access Key ID and the Secret Access Key." };
   const region = /(?:^|\.)s3[.-]([a-z]{2}-[a-z]+-\d+)\./.exec(new URL(endpoint).host)?.[1] ?? "auto";
@@ -328,76 +338,90 @@ export async function probeFiles(files: R2Bucket, now = Date.now()): Promise<{ o
   return { ok: true };
 }
 
+/** The only folders the studio counts and clears in HER bucket (anything else there is hers, never touched). */
+export const OWN_PREFIXES = ["raw/", "clips/"] as const;
+const inOwnFolders = (k: string) => OWN_PREFIXES.some((p) => k.startsWith(p));
+
 /**
- * Her own storage first, the host's for what is still there: new files go to hers; a read or a
- * delete also reaches the host's copy, so files from before she switched still open and still clear
- * on the host's rules. Listing (the meter) asks each layer on its own (layersOf).
+ * A studio's files across every place they may live (owner, 21 Nov 2026):
+ *   write     where new files go: her own bucket, the host's storage, or null (no host share and
+ *             none of her own: every write is refused with OwnStorageNeeded, nothing lands on the host)
+ *   host      the host's storage: read, and cleared by its rules
+ *   readOnly  buckets she used before (removed or switched): read, never written or deleted
+ * Reads try write, then host, then readOnly. Deletes reach the host always and her own bucket only
+ * inside OWN_PREFIXES; never a readOnly bucket.
  */
-export class LayeredFiles {
-  constructor(
-    readonly primary: R2Bucket,
-    readonly fallback: R2Bucket,
-  ) {}
+export class StudioFiles {
+  constructor(readonly o: { write: R2Bucket | null; own: boolean; host: R2Bucket; readOnly: R2Bucket[] }) {}
+  private readers(): R2Bucket[] {
+    return [...(this.o.own && this.o.write ? [this.o.write] : []), this.o.host, ...this.o.readOnly];
+  }
   async head(key: string): Promise<R2Object | null> {
-    return (await this.primary.head(key)) ?? (await this.fallback.head(key).catch(() => null));
+    for (const [i, b] of this.readers().entries()) {
+      const r = i === 0 ? await b.head(key) : await b.head(key).catch(() => null);
+      if (r) return r;
+    }
+    return null;
   }
   async get(key: string, options?: R2GetOptions): Promise<R2ObjectBody | null> {
-    return (await this.primary.get(key, options)) ?? ((await this.fallback.get(key, options).catch(() => null)) as R2ObjectBody | null);
+    for (const [i, b] of this.readers().entries()) {
+      const r = (i === 0 ? await b.get(key, options) : await b.get(key, options).catch(() => null)) as R2ObjectBody | null;
+      if (r) return r;
+    }
+    return null;
   }
   put(key: string, value: Body, options?: R2PutOptions): Promise<R2Object> {
-    return this.primary.put(key, value as never, options) as Promise<R2Object>;
-  }
-  async delete(keys: string | string[]): Promise<void> {
-    await this.primary.delete(keys);
-    await this.fallback.delete(keys);
-  }
-  list(options?: R2ListOptions): Promise<R2Objects> {
-    return this.primary.list(options);
+    return this.o.write ? (this.o.write.put(key, value as never, options) as Promise<R2Object>) : Promise.reject(new OwnStorageNeeded());
   }
   createMultipartUpload(key: string, options?: R2MultipartOptions): Promise<R2MultipartUpload> {
-    return this.primary.createMultipartUpload(key, options);
+    return this.o.write ? this.o.write.createMultipartUpload(key, options) : Promise.reject(new OwnStorageNeeded());
   }
   resumeMultipartUpload(key: string, uploadId: string): R2MultipartUpload {
-    return this.primary.resumeMultipartUpload(key, uploadId);
+    return (this.o.write ?? this.o.host).resumeMultipartUpload(key, uploadId);
+  }
+  async delete(keys: string | string[]): Promise<void> {
+    const list = Array.isArray(keys) ? keys : [keys];
+    if (this.o.own && this.o.write) {
+      const mine = list.filter(inOwnFolders);
+      if (mine.length) await this.o.write.delete(mine);
+    }
+    await this.o.host.delete(list);
+  }
+  list(options?: R2ListOptions): Promise<R2Objects> {
+    return (this.o.write ?? this.o.host).list(options);
   }
   async signedUrl(key: string, seconds: number, fileName?: string): Promise<string | null> {
-    return (await this.primary.head(key)) ? signedDownload(this.primary, key, seconds, fileName) : signedDownload(this.fallback, key, seconds, fileName);
+    for (const b of this.readers()) if (await b.head(key).catch(() => null)) return signedDownload(b, key, seconds, fileName);
+    return null;
   }
 }
 
-/** The host's files for a studio that may not store on the host: reads, lists and deletes only. */
-export class HostReadOnly {
-  constructor(readonly host: R2Bucket) {}
-  head(key: string) {
-    return this.host.head(key);
-  }
-  get(key: string, options?: R2GetOptions) {
-    return this.host.get(key, options);
-  }
-  delete(keys: string | string[]) {
-    return this.host.delete(keys);
-  }
-  list(options?: R2ListOptions) {
-    return this.host.list(options);
-  }
-  resumeMultipartUpload(key: string, uploadId: string) {
-    return this.host.resumeMultipartUpload(key, uploadId);
-  }
-  put(): Promise<R2Object> {
-    return Promise.reject(new OwnStorageNeeded());
-  }
-  createMultipartUpload(): Promise<R2MultipartUpload> {
-    return Promise.reject(new OwnStorageNeeded());
-  }
-  signedUrl(key: string, seconds: number, fileName?: string) {
-    return signedDownload(this.host, key, seconds, fileName);
-  }
-}
-
-/** Where each part of the studio's files lives, for the meter: her own bucket and/or the host's. */
-export function layersOf(files: R2Bucket): { place: "own" | "host"; files: R2Bucket }[] {
+/**
+ * Whether the clean-up may clear this file: yes on the host's storage or in her bucket's studio
+ * folders; never when it sits only in a bucket she used before (hers, read-only). A file found
+ * nowhere is fine to mark cleared (nothing is lost).
+ */
+export async function mayClear(files: R2Bucket, key: string): Promise<boolean> {
   const f = files as unknown;
-  if (f instanceof LayeredFiles) return [{ place: "own", files: f.primary }, { place: "host", files: f.fallback }];
-  if (f instanceof HostReadOnly) return [{ place: "host", files: f.host }];
-  return [{ place: "host", files }];
+  if (!(f instanceof StudioFiles)) return true;
+  if (f.o.own && f.o.write && inOwnFolders(key)) {
+    // her bucket did not answer: unknown, so not cleared today
+    const h = await f.o.write.head(key).catch(() => undefined);
+    if (h === undefined) return false;
+    if (h) return true;
+  }
+  if (await f.o.host.head(key).catch(() => null)) return true;
+  for (const b of f.o.readOnly) if (await b.head(key).catch(() => null)) return false;
+  return true;
+}
+
+/** Each place the studio's files live, for the meter and "the bucket is the truth": her bucket and old ones only in OWN_PREFIXES. */
+export function layersOf(files: R2Bucket): { place: "own" | "host" | "old"; files: R2Bucket; prefixes: readonly string[] | null }[] {
+  const f = files as unknown;
+  if (!(f instanceof StudioFiles)) return [{ place: "host", files, prefixes: null }];
+  return [
+    ...(f.o.own && f.o.write ? [{ place: "own" as const, files: f.o.write, prefixes: OWN_PREFIXES }] : []),
+    { place: "host" as const, files: f.o.host, prefixes: null },
+    ...f.o.readOnly.map((b) => ({ place: "old" as const, files: b, prefixes: OWN_PREFIXES })),
+  ];
 }

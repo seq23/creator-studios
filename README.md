@@ -85,8 +85,14 @@ refused with a pointer to **Settings → Storage → Use your own storage**. The
 own S3-compatible bucket (Cloudflare R2, free to 10 GB; account id or S3 address, bucket, access key,
 secret). **Test connection** writes, reads and deletes a probe; **Save** checks again and stores it
 encrypted in the Setup key store (connection `storage`). `hydrate()` then sends every new file there
-(`LayeredFiles`: writes to hers, reads and deletes still reach what is left on the host's), and her
-originals follow the 30-day, two-email, Keep rule. Jobs still reach storage only through the Worker.
+(`StudioFiles`: writes to hers, reads and deletes still reach what is left on the host's; in her bucket
+only `raw/` and `clips/` are ever counted or deleted; a bucket she switched from or removed stays
+readable and is never written or cleared), and her originals follow the 30-day, two-email, Keep rule.
+The share holds: the size declared at upload start is signed (a ticket every part and the finish carry),
+parts are held to that size and to the part size, a file that comes out bigger is deleted, and job
+outputs count at once (a job may not start writing once the share is full). A dump kept before the
+shared rule clears only after its 3-day email has stood; with no studio email it stays (Storage light).
+Settings we cannot read are "unknown": nothing is marked gone. Jobs still reach storage only through the Worker.
 Code: `worker/domain/tidy.ts` (HOST_STORAGE), `worker/lib/storage.ts`, `worker/lib/retention.ts`,
 `worker/services/s3files.ts`, `app/components/StorageSection.tsx`; guide `help/guides/own-storage.md`.
 

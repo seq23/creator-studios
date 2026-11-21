@@ -122,6 +122,8 @@ export interface Env {
   HOST_STORAGE_GB?: string;
   /** Set by hydrate(): where new files go (own storage, the host's, or none yet). */
   FILES_PLACE?: "own" | "host" | "none";
+  /** Set by hydrate() when her storage settings could not be read: nothing is counted as gone until they can. */
+  FILES_UNSURE?: string;
   /** studios/<slug>.json "contentRules" as JSON (shared/contentRules.ts parseRules); missing = no rules. */
   CONTENT_RULES?: string;
   /** studios/<slug>.json "sound" as JSON: camera sound and voice defaults (shared/sound.ts soundSettings). */

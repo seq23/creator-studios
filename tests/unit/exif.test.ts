@@ -100,9 +100,9 @@ describe("a dump takes photos and videos together, full quality, and reads the c
   async function upload(h: Awaited<ReturnType<typeof harness>>, dumpId: string, name: string, mime: string, bytes: Uint8Array) {
     const start = await h.call("POST", "/api/uploads/start", { kind: "video", parentId: dumpId, fileName: name, size: bytes.length, mimeType: mime });
     expect(start.status, name).toBe(200);
-    const part = await h.request("PUT", `/api/uploads/${start.json.id}/parts/1?key=${encodeURIComponent(start.json.key)}&uploadId=${encodeURIComponent(start.json.uploadId)}`, bytes, { "content-type": "application/octet-stream" });
+    const part = await h.request("PUT", `/api/uploads/${start.json.id}/parts/1?key=${encodeURIComponent(start.json.key)}&uploadId=${encodeURIComponent(start.json.uploadId)}&ticket=${encodeURIComponent(start.json.ticket)}`, bytes, { "content-type": "application/octet-stream" });
     const etag = (await part.json()) as { partNumber: number; etag: string };
-    expect((await h.call("POST", `/api/uploads/${start.json.id}/complete`, { key: start.json.key, uploadId: start.json.uploadId, parts: [etag] })).status).toBe(200);
+    expect((await h.call("POST", `/api/uploads/${start.json.id}/complete`, { key: start.json.key, uploadId: start.json.uploadId, ticket: start.json.ticket, parts: [etag] })).status).toBe(200);
     return start.json.id as string;
   }
   it("a camera photo, an AI picture (no camera), an iPhone HEIC with no type, and a video, in one dump", async () => {

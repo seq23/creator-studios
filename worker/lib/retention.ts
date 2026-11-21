@@ -19,7 +19,7 @@
 // nothing here: the host empties that bucket by hand, and measureStorage stops counting what is gone.
 import type { Env } from "../env";
 import { fakeServices } from "../env";
-import { setHealth } from "./db";
+import { setHealth, setSetting } from "./db";
 import { newId } from "./ids";
 import { log } from "./log";
 import { practice } from "./practice";
@@ -28,6 +28,7 @@ import { emailFrame, sendEmail } from "../services/email";
 import { originalsToken, retentionStep, type RetentionDump, type RetentionRule } from "../domain/retention";
 import { filesPlace, HOST_STORAGE } from "../domain/tidy";
 import { ownStorageView } from "./storage";
+import { mayClear } from "../services/s3files";
 import { gbWords } from "@shared/bytes";
 import { RAW_RETENTION_DAYS } from "@shared/constants";
 
@@ -113,19 +114,23 @@ export interface RetentionResult {
   cleared_files: number;
   cleared_bytes: number;
   paused: boolean;
+  /** dumps she kept before the shared storage rotated, waiting because studio email is not set up */
+  kept_waiting: number;
+  /** originals left alone: only in a bucket she used before, or her bucket did not answer */
+  held_files: number;
 }
 
 export async function originalsRetention(env: Env, now = new Date()): Promise<RetentionResult> {
   const rule = await ruleFor(env);
   if (!rule) {
     // No storage of her own and no share of the host's: nothing of hers is kept here to clear.
-    const out: RetentionResult = { checked: 0, warned14: 0, warned3: 0, cleared_dumps: 0, cleared_files: 0, cleared_bytes: 0, paused: false };
+    const out: RetentionResult = { checked: 0, warned14: 0, warned3: 0, cleared_dumps: 0, cleared_files: 0, cleared_bytes: 0, paused: false, kept_waiting: 0, held_files: 0 };
     await setHealth(env.DB, RETENTION_LIGHT, "green", "Your files go in your own storage once you add it (Settings → Storage). Nothing to clear here.");
     log.info("OUTPUT", { job: "file_retention", place: "none", ...out });
     return out;
   }
   const { results } = await env.DB.prepare(DUMPS_SQL).all<DumpFacts>();
-  const out: RetentionResult = { checked: results.length, warned14: 0, warned3: 0, cleared_dumps: 0, cleared_files: 0, cleared_bytes: 0, paused: false };
+  const out: RetentionResult = { checked: results.length, warned14: 0, warned3: 0, cleared_dumps: 0, cleared_files: 0, cleared_bytes: 0, paused: false, kept_waiting: 0, held_files: 0 };
   const settings = await readSettings(env);
   const tz = settings.audience_timezone || env.AUDIENCE_TIMEZONE || "America/New_York";
   // Named stop (her own storage only): with no studio email her warnings cannot reach her, so nothing of hers is cleared.
@@ -150,7 +155,11 @@ export async function originalsRetention(env: Env, now = new Date()): Promise<Re
   const clear = due.filter((x) => x.s.do === "clear").map((x) => x.d);
   const cleared: DumpFacts[] = [];
   for (const d of clear) {
-    const { results: assets } = await env.DB.prepare("SELECT id, r2_key, size_bytes FROM assets WHERE dump_id = ? AND upload_status = 'uploaded' AND raw_deleted_at IS NULL").bind(d.id).all<{ id: string; r2_key: string; size_bytes: number }>();
+    const { results: found } = await env.DB.prepare("SELECT id, r2_key, size_bytes FROM assets WHERE dump_id = ? AND upload_status = 'uploaded' AND raw_deleted_at IS NULL").bind(d.id).all<{ id: string; r2_key: string; size_bytes: number }>();
+    // Never a file that sits only in a bucket she used before (hers, read-only), nor one in her bucket that did not answer.
+    const assets: typeof found = [];
+    for (const a of found) if (await mayClear(env.FILES, a.r2_key)) assets.push(a);
+    out.held_files += found.length - assets.length;
     if (!assets.length) continue;
     await env.FILES.delete(assets.map((a) => a.r2_key));
     await env.DB.batch(assets.map((a) => env.DB.prepare("UPDATE assets SET raw_deleted_at = ? WHERE id = ?").bind(at, a.id)));
@@ -166,6 +175,9 @@ export async function originalsRetention(env: Env, now = new Date()): Promise<Re
     await env.DB.batch(cleared.map((d) => env.DB.prepare("INSERT OR IGNORE INTO file_notices (dump_id, stage, batch_id, sent_at) VALUES (?, 'done', ?, ?)").bind(d.id, batchId, at)));
   }
   const kept = steps.filter((x) => x.s.do === "none" && x.s.why === "kept").length;
+  // Kept dumps on the shared storage with no studio email: they stay, and the Storage light says so (storageHealth).
+  out.kept_waiting = steps.filter((x) => x.s.do === "none" && x.s.why === "kept_no_email").length;
+  await setSetting(env.DB, "retention_held", { kept_waiting: out.kept_waiting, at: now.toISOString() });
   if (out.paused) {
     await setHealth(env.DB, RETENTION_LIGHT, "yellow", `Paused: ${ownDue.length} ${ownDue.length === 1 ? "dump's" : "dumps'"} originals are due, but studio email is not set up, so no warning can reach you. Nothing in your own storage is cleared until it is.${out.cleared_files ? ` Cleared from shared storage today: ${out.cleared_files} ${out.cleared_files === 1 ? "file" : "files"}.` : ""}`, "setup-email");
     log.info("OUTPUT", { job: "file_retention", ...out });

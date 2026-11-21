@@ -3,7 +3,8 @@
 // resumes: the client keeps the uploadId + finished part etags, and can ask which parts R2
 // already has. Raw files are keyed raw/<dumpId>/<assetId>; nothing about the file name
 // appears in the key or in logs.
-import { storageReport, uploadRefusal } from "../lib/storage";
+import { countNewFile, storageReport, uploadRefusal } from "../lib/storage";
+import { hmacHex, timingSafeEqual } from "../lib/crypto";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { requireUser } from "../lib/auth";
@@ -152,8 +153,36 @@ uploads.post("/start", async (c) => {
   // voice_sample, kit_photo, music and edit rows are written by their own routes on complete; a photo is its pack's row above.
 
   log.info("upload.start", { kind, parts: Math.ceil(body.size / UPLOAD_PART_SIZE) });
-  return c.json({ id, key, uploadId: mp.uploadId, partSize: UPLOAD_PART_SIZE });
+  return c.json({ id, key, uploadId: mp.uploadId, partSize: UPLOAD_PART_SIZE, ticket: await uploadTicket(c.env.SESSION_SECRET, key, mp.uploadId, body.size) });
 });
+
+/**
+ * The size she declared at start, signed (owner, 21 Nov 2026: the storage share is checked against
+ * it, so it must hold): every part and the complete carry it back. Pure apart from the HMAC.
+ */
+export async function uploadTicket(secret: string, key: string, uploadId: string, size: number): Promise<string> {
+  return `${size}.${(await hmacHex(secret, `upload:${key}:${uploadId}:${size}`)).slice(0, 32)}`;
+}
+
+/** The declared size a ticket names, or null when it was not signed for this upload. */
+export async function readUploadTicket(secret: string, key: string, uploadId: string, ticket: string | undefined | null): Promise<number | null> {
+  const [raw, sig] = String(ticket ?? "").split(".");
+  const size = Number(raw);
+  if (!sig || !Number.isInteger(size) || size <= 0) return null;
+  return timingSafeEqual(sig, (await hmacHex(secret, `upload:${key}:${uploadId}:${size}`)).slice(0, 32)) ? size : null;
+}
+
+/**
+ * A part must be one the declared size needs (n at most ceil(size / partSize)) and no bigger than a
+ * part (Content-Length, which the runtime holds the body to). Null = fine, else the refusal.
+ */
+export function partRefusal(n: number, declared: number | null, contentLength: string | undefined): string | null {
+  const len = Number(contentLength);
+  if (!contentLength || !Number.isInteger(len) || len <= 0) return "Each piece needs its size.";
+  if (len > UPLOAD_PART_SIZE) return "That piece is bigger than a piece may be.";
+  if (declared !== null && n > Math.ceil(declared / UPLOAD_PART_SIZE)) return "That piece is past the end of the file you started.";
+  return null;
+}
 
 /** Upload one part. Body is the raw bytes. Returns the etag the client must keep. */
 uploads.put("/:id/parts/:n", async (c) => {
@@ -161,6 +190,10 @@ uploads.put("/:id/parts/:n", async (c) => {
   const uploadId = c.req.query("uploadId");
   const n = Number(c.req.param("n"));
   if (!key || !uploadId || !Number.isInteger(n) || n < 1 || n > 10_000) return fail(c, 400, "Bad part request.");
+  const declared = await readUploadTicket(c.env.SESSION_SECRET, key, uploadId, c.req.query("ticket"));
+  if (declared === null) return fail(c, 409, "This upload was started before an update. Add the file again.", "dump-new-footage");
+  const bad = partRefusal(n, declared, c.req.header("content-length"));
+  if (bad) return fail(c, 413, bad, "dump-new-footage");
   if (!c.req.raw.body) return fail(c, 400, "Empty part.");
   const part = await putPart(c.env.FILES, key, uploadId, n, c.req.raw.body);
   if (!part) return fail(c, 502, "That piece did not upload. It will retry.");
@@ -194,11 +227,22 @@ export async function completeParts(files: R2Bucket, key: string, uploadId: stri
 
 /** Complete: R2 assembles the object; the row flips to uploaded. */
 uploads.post("/:id/complete", async (c) => {
-  const body = await readJson<{ key: string; uploadId: string; parts: { partNumber: number; etag: string }[] }>(c);
+  const body = await readJson<{ key: string; uploadId: string; ticket?: string; parts: { partNumber: number; etag: string }[] }>(c);
   if (!body?.key || !body.uploadId || !Array.isArray(body.parts) || body.parts.length === 0) return fail(c, 400, "Missing upload parts.");
+  const declared = await readUploadTicket(c.env.SESSION_SECRET, body.key, body.uploadId, body.ticket);
+  if (declared === null) return fail(c, 409, "This upload was started before an update. Add the file again.", "dump-new-footage");
   const size = await completeParts(c.env.FILES, body.key, body.uploadId, body.parts);
   if (size === null) return fail(c, 502, "The upload could not be finished. Try again; your finished pieces are kept.");
-  await c.env.DB.prepare("UPDATE assets SET upload_status = 'uploaded', size_bytes = ?, upload_id = NULL WHERE id = ?").bind(size, c.req.param("id")).run();
+  if (size > declared) {
+    // Bigger than she said at start (the size the storage share was checked against): it does not stay.
+    await c.env.FILES.delete(body.key);
+    for (const t of ["assets", "pack_photos", "past_videos"]) await c.env.DB.prepare(`UPDATE ${t} SET upload_status = 'aborted', upload_id = NULL WHERE id = ?`).bind(c.req.param("id")).run();
+    log.warn("upload.oversize", { over_mb: Math.round((size - declared) / 1024 ** 2) });
+    return fail(c, 409, "That file came out bigger than when it started, so it was not kept. Add it again.", "dump-new-footage");
+  }
+  const raw = await c.env.DB.prepare("UPDATE assets SET upload_status = 'uploaded', size_bytes = ?, upload_id = NULL WHERE id = ?").bind(size, c.req.param("id")).run();
+  // Counted against the storage at once (originals are counted by their row; anything else until the daily measure).
+  if (!raw.meta.changes) await countNewFile(c.env, size);
   await readCamera(c.env, c.req.param("id"));
   await c.env.DB.prepare("UPDATE pack_photos SET upload_status = 'uploaded', size_bytes = ?, upload_id = NULL WHERE id = ?").bind(size, c.req.param("id")).run();
   await c.env.DB.prepare("UPDATE past_videos SET upload_status = 'uploaded', size_bytes = ?, upload_id = NULL WHERE id = ?").bind(size, c.req.param("id")).run();
