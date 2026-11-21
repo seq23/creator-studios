@@ -206,6 +206,8 @@ beforeEach(async () => {
     SESSION_SECRET: "session-secret-for-tests",
     SECRETS_KEY: "YcLVEjArFviauClfN6thsYumeyr3wqfUT9D2VnMNTm0=",
     APP_NAME: "Sample Studio",
+    // her own storage's free 10 GB (the host's shared share: tests/unit/host-storage.test.ts)
+    FILES_PLACE: "own",
     FAKE_SERVICES: "1",
     AUTH_MODE: "code",
     PUBLIC_BASE_URL: BASE_URL,

@@ -2,11 +2,12 @@
 title: "Storage almost full"
 group: fix_it
 screen: settings
-last_checked: 2026-09-26
+last_checked: 2026-11-21
+fix: own-storage
 keywords: storage, space, full, gb, red storage, yellow storage, upload failed
 ---
 
-Your free storage is 10 GB. Every day the dashboard clears files by its rules (posted clips after 30 days, your originals 30 days after they are cut, with an email 14 and 3 days before, unreviewed clips after 60 days with a warning first). If it is still over 9 GB it clears the oldest originals, rejected clips and posted clips early; it never touches a clip waiting to post, a media kit clip, or a clip it has not warned you about.
+Every day the studio clears files by its rules: posted clips after 30 days, unreviewed clips after 60 days with a warning first, and your originals (on shared storage 7 days after their clips are made or 14 days after upload; in your own storage 30 days after they are cut, with an email 14 and 3 days before). If it is still over 90% it clears the oldest originals, rejected clips and posted clips early; it never touches a clip waiting to post, a media kit clip, or a clip it has not warned you about. The lasting fix for shared storage is your own: Settings → Storage → Use your own storage (Cloudflare R2 is free up to 10 GB).
 
 ## The Storage light
 

@@ -39,8 +39,8 @@ async function readyDump(request: APIRequestContext, clips = 12): Promise<string
     data: { kind: "video", parentId: id, fileName: "looks.mp4", size: bytes.length, mimeType: "video/mp4", contentHash: `e2e-looks-${Date.now()}-${Math.random()}` },
   });
   const up = await start.json();
-  const part = await request.put(`/api/uploads/${up.id}/parts/1?key=${encodeURIComponent(up.key)}&uploadId=${encodeURIComponent(up.uploadId)}`, { data: bytes });
-  expect((await request.post(`/api/uploads/${up.id}/complete`, { data: { key: up.key, uploadId: up.uploadId, parts: [await part.json()] } })).ok()).toBe(true);
+  const part = await request.put(`/api/uploads/${up.id}/parts/1?key=${encodeURIComponent(up.key)}&uploadId=${encodeURIComponent(up.uploadId)}&ticket=${encodeURIComponent(up.ticket)}`, { data: bytes });
+  expect((await request.post(`/api/uploads/${up.id}/complete`, { data: { key: up.key, uploadId: up.uploadId, ticket: up.ticket, parts: [await part.json()] } })).ok()).toBe(true);
   const dumped = await request.post(`/api/dumps/${id}/dump`);
   expect(dumped.ok(), await dumped.text()).toBe(true);
   const { jobId } = await dumped.json();

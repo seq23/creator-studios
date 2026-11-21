@@ -30,8 +30,8 @@ async function uploadedDump(request: APIRequestContext): Promise<string> {
     data: { kind: "video", parentId: id, fileName: "editors.mp4", size: bytes.length, mimeType: "video/mp4", contentHash: `e2e-editors-${Date.now()}-${Math.random()}` },
   });
   const up = await start.json();
-  const part = await request.put(`/api/uploads/${up.id}/parts/1?key=${encodeURIComponent(up.key)}&uploadId=${encodeURIComponent(up.uploadId)}`, { data: bytes });
-  expect((await request.post(`/api/uploads/${up.id}/complete`, { data: { key: up.key, uploadId: up.uploadId, parts: [await part.json()] } })).ok()).toBe(true);
+  const part = await request.put(`/api/uploads/${up.id}/parts/1?key=${encodeURIComponent(up.key)}&uploadId=${encodeURIComponent(up.uploadId)}&ticket=${encodeURIComponent(up.ticket)}`, { data: bytes });
+  expect((await request.post(`/api/uploads/${up.id}/complete`, { data: { key: up.key, uploadId: up.uploadId, ticket: up.ticket, parts: [await part.json()] } })).ok()).toBe(true);
   return id;
 }
 

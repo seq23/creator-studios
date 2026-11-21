@@ -179,11 +179,11 @@ export function sizeWords(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / 1024 ** 2))} MB`;
 }
 
-/** Before Dump: this upload and what's left of the free 10 GB; a warning when it would not fit. */
-export function spaceLine(uploadBytes: number, usedBytes: number): { line: string; fits: boolean } {
-  const left = Math.max(0, R2_FREE_BYTES - usedBytes);
+/** Before Dump: this upload and what's left of the studio's storage (her free 10 GB, or the host's shared share); a warning when it would not fit. */
+export function spaceLine(uploadBytes: number, usedBytes: number, limitBytes = R2_FREE_BYTES): { line: string; fits: boolean } {
+  const left = Math.max(0, limitBytes - usedBytes);
   const fits = uploadBytes <= left;
-  return { line: `This video: ${sizeWords(uploadBytes)} · free space left: ${sizeWords(left)} of 10 GB`, fits };
+  return { line: `This video: ${sizeWords(uploadBytes)} · free space left: ${sizeWords(left)} of ${limitBytes >= 1024 ** 3 ? `${+(limitBytes / 1024 ** 3).toFixed(1)} GB` : sizeWords(limitBytes)}`, fits };
 }
 
 /**

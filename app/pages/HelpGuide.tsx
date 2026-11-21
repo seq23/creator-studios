@@ -187,6 +187,8 @@ function Step({ step, n }: { step: GuideStep; n: number }) {
 function Shot({ src, n }: { src: string | null; n: number }) {
   const desktop = shotUrl(src);
   const phone = shotUrl(src, true);
+  const darkDesktop = shotUrl(src, false, true);
+  const darkPhone = shotUrl(src, true, true);
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [src]);
   if (!desktop || broken) {
@@ -203,7 +205,9 @@ function Shot({ src, n }: { src: string | null; n: number }) {
   return (
     <div className="guide-shot">
       <picture>
+        {darkPhone ? <source media="(prefers-color-scheme: dark) and (max-width: 900px)" srcSet={darkPhone} /> : null}
         {phone ? <source media="(max-width: 900px)" srcSet={phone} /> : null}
+        {darkDesktop ? <source media="(prefers-color-scheme: dark)" srcSet={darkDesktop} /> : null}
         <img src={desktop} alt={`Step ${n}: the numbered circle shows where to tap`} onError={() => setBroken(true)} />
       </picture>
     </div>

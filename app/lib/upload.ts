@@ -16,6 +16,8 @@ interface Saved {
   id: string;
   key: string;
   uploadId: string;
+  /** the declared size, signed at start: every piece and the finish carry it back */
+  ticket: string;
   parts: { partNumber: number; etag: string }[];
 }
 
@@ -63,9 +65,11 @@ export async function uploadFile(
 ): Promise<UploadHandle> {
   const fp = fingerprint(file, kind, parentId);
   let saved = loadSaved(fp);
+  // An upload saved before pieces carried their ticket starts again (the server refuses it otherwise).
+  if (saved && !saved.ticket) saved = null;
   if (!saved) {
     const contentHash = kind === "video" ? await hashHead(file) : undefined; // a dump's videos and photos alike
-    const started = await post<{ id: string; key: string; uploadId: string; partSize: number }>("/api/uploads/start", {
+    const started = await post<{ id: string; key: string; uploadId: string; partSize: number; ticket: string }>("/api/uploads/start", {
       kind,
       parentId: parentId ?? undefined,
       fileName: file.name,
@@ -74,7 +78,7 @@ export async function uploadFile(
       fileNote: options.fileNote,
       contentHash,
     });
-    saved = { id: started.id, key: started.key, uploadId: started.uploadId, parts: [] };
+    saved = { id: started.id, key: started.key, uploadId: started.uploadId, ticket: started.ticket, parts: [] };
     save(fp, saved);
   }
   const total = Math.ceil(file.size / UPLOAD_PART_SIZE);
@@ -88,7 +92,7 @@ export async function uploadFile(
     let attempt = 0;
     for (;;) {
       try {
-        const res = await fetch(`/api/uploads/${saved.id}/parts/${n}?key=${encodeURIComponent(saved.key)}&uploadId=${encodeURIComponent(saved.uploadId)}`, {
+        const res = await fetch(`/api/uploads/${saved.id}/parts/${n}?key=${encodeURIComponent(saved.key)}&uploadId=${encodeURIComponent(saved.uploadId)}&ticket=${encodeURIComponent(saved.ticket)}`, {
           method: "PUT",
           body: blob,
           credentials: "same-origin",
@@ -109,7 +113,7 @@ export async function uploadFile(
       }
     }
   }
-  await post(`/api/uploads/${saved.id}/complete`, { key: saved.key, uploadId: saved.uploadId, parts: saved.parts });
+  await post(`/api/uploads/${saved.id}/complete`, { key: saved.key, uploadId: saved.uploadId, ticket: saved.ticket, parts: saved.parts });
   clear(fp);
   onProgress(1);
   return { id: saved.id, key: saved.key, uploadId: saved.uploadId };

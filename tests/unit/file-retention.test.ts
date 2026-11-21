@@ -1,6 +1,8 @@
 // Her originals' clean-up (owner, 20 Nov 2026): cleared RAW_RETENTION_DAYS after their clips are
 // ready, emailed 14 and 3 days ahead with Download all / Keep them, a note when done; never a kept
 // dump, never one still being cut, never unwarned (worker/domain/retention.ts, worker/lib/retention.ts).
+// Since 21 Nov 2026 that is the rule for a studio's OWN storage (Settings → Storage); the host's shared
+// storage rotates faster (tests/unit/host-storage.test.ts).
 import { describe, expect, it } from "vitest";
 import { Hono } from "hono";
 import { clearDate, originalsToken, readOriginalsToken, retentionStep, type RetentionDump } from "@worker/domain/retention";
@@ -51,7 +53,8 @@ describe("the rule (pure)", () => {
 });
 
 async function studio(extra = {}) {
-  const h = await harness(extra);
+  // Her own storage: the 30-day rule with two emails and Keep.
+  const h = await harness({ FILES_PLACE: "own", ...extra });
   await h.dumpWith("dmp_r", [
     { id: "ast_r1", name: "IMG_1.MOV", mime: "video/quicktime", exif: 1 },
     { id: "ast_r2", name: "IMG_2.jpg", mime: "image/jpeg", exif: 1 },

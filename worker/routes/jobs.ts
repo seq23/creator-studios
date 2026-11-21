@@ -18,7 +18,8 @@ import type { Env, Vars } from "../env";
 import { verifyJobMessage } from "../lib/crypto";
 import { getOpenRouterFallback } from "../lib/connections";
 import { contentRange, jobStorageScope, mayRead, mayWrite, signedRequestLine } from "../lib/jobStorage";
-import { completeParts, putPart } from "./uploads";
+import { completeParts, partRefusal, putPart } from "./uploads";
+import { countNewFile, jobOutputRefusal } from "../lib/storage";
 import { UPLOAD_PART_SIZE } from "@shared/constants";
 import { fail, readJson } from "../lib/http";
 import { nowIso } from "../lib/ids";
@@ -128,6 +129,12 @@ jobs.post("/:id/output/start", async (c) => {
     return fail(c, 403, "This job may not write there.");
   }
   const contentType = typeof body.contentType === "string" && /^[\w.+-]+\/[\w.+-]+(;.*)?$/.test(body.contentType) ? body.contentType : "application/octet-stream";
+  // The host's shared storage counts a job's output too (owner, 21 Nov 2026): none once the share is full.
+  const full = await jobOutputRefusal(c.env);
+  if (full) {
+    log.warn("job.output.share_full", { type: job.type });
+    return fail(c, 409, "The studio's shared storage is full. Add your own storage in Settings → Storage.", "own-storage");
+  }
   const mp = await c.env.FILES.createMultipartUpload(key, { httpMetadata: { contentType } });
   return c.json({ key, uploadId: mp.uploadId, partSize: UPLOAD_PART_SIZE });
 });
@@ -140,6 +147,8 @@ jobs.put("/:id/output/parts/:n", async (c) => {
   const n = Number(c.req.param("n"));
   if (!uploadId || !Number.isInteger(n) || n < 1 || n > 10_000) return fail(c, 400, "Bad part request.");
   if (!mayWrite(jobStorageScope(job.type, job.id, job.ref_id), key)) return fail(c, 403, "This job may not write there.");
+  const bad = partRefusal(n, null, c.req.header("content-length"));
+  if (bad) return fail(c, 413, bad);
   if (!c.req.raw.body) return fail(c, 400, "Empty part.");
   const part = await putPart(c.env.FILES, key, uploadId, n, c.req.raw.body);
   if (!part) return fail(c, 502, "That piece did not upload. It will retry.");
@@ -156,6 +165,7 @@ jobs.post("/:id/output/complete", async (c) => {
   if (!body.uploadId || !Array.isArray(body.parts) || body.parts.length === 0) return fail(c, 400, "Missing upload parts.");
   const size = await completeParts(c.env.FILES, key, body.uploadId, body.parts);
   if (size === null) return fail(c, 502, "The upload could not be finished.");
+  await countNewFile(c.env, size);
   log.info("job.output", { type: job.type, bytes: size });
   return c.json({ ok: true, size });
 });
