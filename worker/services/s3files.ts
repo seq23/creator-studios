@@ -1,9 +1,15 @@
-// A studio's files in an R2 bucket on ANOTHER Cloudflare account (owner, 20 Nov 2026: Hadiyah's
-// files moved to the second account). A Worker binding cannot reach another account's bucket, so
-// this speaks the S3 API (aws4fetch) and presents the same R2Bucket surface the rest of the Worker
-// already uses: hydrate() (worker/lib/practice.ts) swaps env.FILES for it when the studio's
-// registry entry says `r2.s3` (vars FILES_S3_BUCKET; secrets FILES_S3_ENDPOINT,
-// FILES_S3_ACCESS_KEY_ID, FILES_S3_SECRET_ACCESS_KEY). Nothing else in the Worker changes.
+// A studio's files in a bucket the Worker reaches over the S3 API (aws4fetch: SigV4 on
+// crypto.subtle), presenting the same R2Bucket surface the rest of the Worker already uses.
+// hydrate() (worker/lib/practice.ts) decides where env.FILES points:
+//   - the creator's OWN storage (owner, 21 Nov 2026: Settings → Storage → Use your own storage):
+//     her S3-compatible bucket (Cloudflare R2 or any S3 API), saved encrypted in the Setup key store
+//     (connections service "storage"). LayeredFiles writes there and still reads (and deletes) what
+//     is left on the host's storage, so nothing she made before goes missing.
+//   - a bucket on the host's second Cloudflare account (`r2.s3`, Hadiyah since 20 Nov 2026: vars
+//     FILES_S3_BUCKET; secrets FILES_S3_ENDPOINT, FILES_S3_ACCESS_KEY_ID, FILES_S3_SECRET_ACCESS_KEY).
+//   - a studio that may not store on the host (registry hostStorageGb 0, Hadiyah) and has no
+//     storage of its own: HostReadOnly refuses every write (OwnStorageNeeded), so nothing new lands
+//     on the host's account.
 //
 // Payloads are never hashed in the Worker (UNSIGNED-PAYLOAD over TLS): a 10 MB part would cost the
 // CPU budget. A stream body is read into memory before sending (S3 needs its length); every caller
@@ -16,6 +22,8 @@ export interface S3FilesConfig {
   bucket: string;
   accessKeyId: string;
   secretAccessKey: string;
+  /** SigV4 region: "auto" for Cloudflare R2; read from the address for AWS-style hosts. */
+  region?: string;
 }
 
 /** The S3 settings when this studio's files live on another account; null when it uses its binding. Throws a named stop when half set. */
@@ -38,8 +46,11 @@ async function bytesOf(body: Body): Promise<ArrayBuffer | string | Blob | ArrayB
   return body;
 }
 
-class S3Error extends Error {
-  constructor(op: string, status: number) {
+export class S3Error extends Error {
+  constructor(
+    op: string,
+    readonly status: number,
+  ) {
     super(`s3 ${op} ${status}`);
     this.name = "S3Error";
   }
@@ -99,7 +110,7 @@ export class S3Files {
     private cfg: S3FilesConfig,
     fetcher: typeof fetch = fetch,
   ) {
-    this.aws = new AwsClient({ accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey, service: "s3", region: "auto" });
+    this.aws = new AwsClient({ accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey, service: "s3", region: cfg.region || "auto" });
     if (fetcher !== fetch) (this.aws as unknown as { fetch: (u: string, i?: RequestInit) => Promise<Response> }).fetch = async (u, i) => fetcher(await this.aws.sign(u, i));
   }
 
@@ -214,13 +225,179 @@ export class S3Files {
   }
 }
 
-/** The studio's files: its own binding, or its bucket on another account. */
+/** The studio's host files: its own binding, or its bucket on another account. */
 export function filesFor(env: Env, fetcher: typeof fetch = fetch): R2Bucket {
   const cfg = s3Config(env);
   return cfg ? (new S3Files(cfg, fetcher) as unknown as R2Bucket) : env.FILES;
 }
 
-/** A signed download link when the files are on another account; null when the binding serves them (the Worker streams instead). */
+type Signer = { signedUrl(key: string, seconds: number, fileName?: string): Promise<string | null> };
+const canSign = (f: unknown): f is Signer => typeof (f as Signer | null)?.signedUrl === "function";
+
+/** A signed download link when the file is in an S3 bucket; null when a binding serves it (the Worker streams instead). */
 export async function signedDownload(files: R2Bucket, key: string, seconds: number, fileName?: string): Promise<string | null> {
-  return files instanceof S3Files ? (files as S3Files).signedUrl(key, seconds, fileName) : null;
+  return canSign(files) ? files.signedUrl(key, seconds, fileName) : null;
+}
+
+// ---------------------------------------------------------------- her own storage
+
+/** The calm words when a studio with no host storage tries to save a file. */
+export const OWN_STORAGE_NEEDED_WORDS = "Your studio keeps files in your own storage, and none is added yet. Open Settings → Storage → Use your own storage (Cloudflare R2 is free up to 10 GB), then try again.";
+
+/** Thrown by HostReadOnly on any write: index.ts answers it with the calm words above (409), never a 500. */
+export class OwnStorageNeeded extends Error {
+  constructor() {
+    super("OWN_STORAGE_NEEDED");
+    this.name = "OwnStorageNeeded";
+  }
+}
+
+/** What she pastes on Settings → Storage. */
+export interface OwnStorageFields {
+  endpoint: string;
+  bucket: string;
+  access_key_id: string;
+  secret_access_key: string;
+}
+
+/**
+ * Her pasted fields as an S3 config, or the plain words for what is wrong. Pure. The address may be
+ * a Cloudflare account id (32 hex), the R2 "S3 API" address (with or without /<bucket> on the end,
+ * as the dashboard shows it), or any https S3 endpoint.
+ */
+export function ownStorageConfig(f: Partial<OwnStorageFields>): { ok: true; cfg: S3FilesConfig } | { ok: false; error: string } {
+  const raw = String(f.endpoint ?? "").trim();
+  let bucket = String(f.bucket ?? "").trim();
+  const accessKeyId = String(f.access_key_id ?? "").trim();
+  const secretAccessKey = String(f.secret_access_key ?? "").trim();
+  if (!raw) return { ok: false, error: "Paste your Cloudflare account ID or the S3 API address." };
+  let endpoint: string;
+  if (/^[a-f0-9]{32}$/i.test(raw)) endpoint = `https://${raw.toLowerCase()}.r2.cloudflarestorage.com`;
+  else {
+    let u: URL;
+    try {
+      u = new URL(/^[a-z]+:\/\//i.test(raw) ? raw : `https://${raw}`);
+    } catch {
+      return { ok: false, error: "That address does not look right. Paste the S3 API address from your bucket's settings, or just your account ID." };
+    }
+    if (u.protocol !== "https:" || u.username || u.password || u.search || u.hash) return { ok: false, error: "The address must start with https:// and have nothing after the bucket name." };
+    const path = u.pathname.replace(/^\/+|\/+$/g, "");
+    if (path && !path.includes("/") && !bucket) bucket = path;
+    else if (path && path !== bucket) return { ok: false, error: "Paste the address without a folder on the end." };
+    endpoint = `https://${u.host}`;
+  }
+  if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket)) return { ok: false, error: "Type the bucket name exactly as it shows in your storage (lowercase letters, numbers and dashes)." };
+  if (!accessKeyId || !secretAccessKey) return { ok: false, error: "Paste both the Access Key ID and the Secret Access Key." };
+  const region = /(?:^|\.)s3[.-]([a-z]{2}-[a-z]+-\d+)\./.exec(new URL(endpoint).host)?.[1] ?? "auto";
+  return { ok: true, cfg: { endpoint, bucket, accessKeyId, secretAccessKey, region } };
+}
+
+/** Plain words for a failed probe step. Pure. */
+export function probeWords(step: "write" | "read" | "delete", e: unknown): string {
+  const status = e instanceof S3Error ? e.status : 0;
+  if (status === 401 || status === 403) return step === "write" ? "Your storage refused the key. Check the Access Key ID and Secret, and that the token has Object Read & Write on this bucket." : `Your storage let us write but not ${step}. Give the token Object Read & Write on this bucket.`;
+  if (status === 404) return "That bucket was not found at that address. Check the bucket name and the account ID.";
+  if (status === 0) return "We could not reach that storage address. Check it and try again.";
+  return `Your storage answered with an error (${status}) on the ${step} step. Try again in a minute.`;
+}
+
+/**
+ * Test connection: write a small probe file, read it back, delete it, and check it is gone. Nothing
+ * else in her bucket is touched.
+ */
+export async function probeFiles(files: R2Bucket, now = Date.now()): Promise<{ ok: true } | { ok: false; step: "write" | "read" | "delete"; error: string }> {
+  const key = `studio-check/${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}.txt`;
+  const body = `Creator Studio storage check ${new Date(now).toISOString()}`;
+  try {
+    await files.put(key, body, { httpMetadata: { contentType: "text/plain" } });
+  } catch (e) {
+    return { ok: false, step: "write", error: probeWords("write", e) };
+  }
+  try {
+    const got = await files.get(key);
+    if (!got || new TextDecoder().decode(await got.arrayBuffer()) !== body) return { ok: false, step: "read", error: "The test file came back different. Check that the address is your storage's own S3 address." };
+  } catch (e) {
+    return { ok: false, step: "read", error: probeWords("read", e) };
+  }
+  try {
+    await files.delete(key);
+    if (await files.head(key)) return { ok: false, step: "delete", error: "The test file could not be deleted. Give the token Object Read & Write on this bucket." };
+  } catch (e) {
+    return { ok: false, step: "delete", error: probeWords("delete", e) };
+  }
+  return { ok: true };
+}
+
+/**
+ * Her own storage first, the host's for what is still there: new files go to hers; a read or a
+ * delete also reaches the host's copy, so files from before she switched still open and still clear
+ * on the host's rules. Listing (the meter) asks each layer on its own (layersOf).
+ */
+export class LayeredFiles {
+  constructor(
+    readonly primary: R2Bucket,
+    readonly fallback: R2Bucket,
+  ) {}
+  async head(key: string): Promise<R2Object | null> {
+    return (await this.primary.head(key)) ?? (await this.fallback.head(key).catch(() => null));
+  }
+  async get(key: string, options?: R2GetOptions): Promise<R2ObjectBody | null> {
+    return (await this.primary.get(key, options)) ?? ((await this.fallback.get(key, options).catch(() => null)) as R2ObjectBody | null);
+  }
+  put(key: string, value: Body, options?: R2PutOptions): Promise<R2Object> {
+    return this.primary.put(key, value as never, options) as Promise<R2Object>;
+  }
+  async delete(keys: string | string[]): Promise<void> {
+    await this.primary.delete(keys);
+    await this.fallback.delete(keys);
+  }
+  list(options?: R2ListOptions): Promise<R2Objects> {
+    return this.primary.list(options);
+  }
+  createMultipartUpload(key: string, options?: R2MultipartOptions): Promise<R2MultipartUpload> {
+    return this.primary.createMultipartUpload(key, options);
+  }
+  resumeMultipartUpload(key: string, uploadId: string): R2MultipartUpload {
+    return this.primary.resumeMultipartUpload(key, uploadId);
+  }
+  async signedUrl(key: string, seconds: number, fileName?: string): Promise<string | null> {
+    return (await this.primary.head(key)) ? signedDownload(this.primary, key, seconds, fileName) : signedDownload(this.fallback, key, seconds, fileName);
+  }
+}
+
+/** The host's files for a studio that may not store on the host: reads, lists and deletes only. */
+export class HostReadOnly {
+  constructor(readonly host: R2Bucket) {}
+  head(key: string) {
+    return this.host.head(key);
+  }
+  get(key: string, options?: R2GetOptions) {
+    return this.host.get(key, options);
+  }
+  delete(keys: string | string[]) {
+    return this.host.delete(keys);
+  }
+  list(options?: R2ListOptions) {
+    return this.host.list(options);
+  }
+  resumeMultipartUpload(key: string, uploadId: string) {
+    return this.host.resumeMultipartUpload(key, uploadId);
+  }
+  put(): Promise<R2Object> {
+    return Promise.reject(new OwnStorageNeeded());
+  }
+  createMultipartUpload(): Promise<R2MultipartUpload> {
+    return Promise.reject(new OwnStorageNeeded());
+  }
+  signedUrl(key: string, seconds: number, fileName?: string) {
+    return signedDownload(this.host, key, seconds, fileName);
+  }
+}
+
+/** Where each part of the studio's files lives, for the meter: her own bucket and/or the host's. */
+export function layersOf(files: R2Bucket): { place: "own" | "host"; files: R2Bucket }[] {
+  const f = files as unknown;
+  if (f instanceof LayeredFiles) return [{ place: "own", files: f.primary }, { place: "host", files: f.fallback }];
+  if (f instanceof HostReadOnly) return [{ place: "host", files: f.host }];
+  return [{ place: "host", files }];
 }

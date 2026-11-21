@@ -118,6 +118,10 @@ export interface Env {
   PINTEREST_BOARD_ID?: string;
   /** studios/<slug>.json "photoPosts" as JSON (shared/photoPosts.ts parsePhotoPosts); missing = off. */
   PHOTO_POSTS?: string;
+  /** This studio's share of the host's storage in GB (registry hostStorageGb; "0" = none: her own storage only). worker/domain/tidy.ts hostCapBytes. */
+  HOST_STORAGE_GB?: string;
+  /** Set by hydrate(): where new files go (own storage, the host's, or none yet). */
+  FILES_PLACE?: "own" | "host" | "none";
   /** studios/<slug>.json "contentRules" as JSON (shared/contentRules.ts parseRules); missing = no rules. */
   CONTENT_RULES?: string;
   /** studios/<slug>.json "sound" as JSON: camera sound and voice defaults (shared/sound.ts soundSettings). */

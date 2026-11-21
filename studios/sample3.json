@@ -27,5 +27,7 @@
     "bar": 70,
     "place_words": [],
     "prices": false
-  }
+  },
+  "hostStorageGb": 0.25,
+  "_hostStorageGb": "This studio's share of the host's storage, in GB (owner, 21 Nov 2026: \"it needs to rotate out often and keep my storage way below free max\"): at most 1.5 each, all studios under 4 (tests/unit/host-storage.test.ts). Originals clear 7 days after their clips or 14 days after upload; past the share an upload points to Use your own storage (worker/domain/tidy.ts HOST_STORAGE)."
 }

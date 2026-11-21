@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import type { Env, Vars } from "./env";
 import { envName, fakeServices, studioSlug } from "./env";
 import { hydrate, practice } from "./lib/practice";
+import { OWN_STORAGE_NEEDED_WORDS } from "./services/s3files";
 import { drainPracticeJobs } from "./services/github";
 import { log, safeError } from "./lib/log";
 import { canonicalRedirect } from "./lib/canonical-host";
@@ -100,6 +101,8 @@ app.notFound((c) => {
 });
 
 app.onError((err, c) => {
+  // A studio with no storage of its own and no share of the host's (Hadiyah): a calm answer, never a 500.
+  if (err.name === "OwnStorageNeeded") return c.json({ error: OWN_STORAGE_NEEDED_WORDS, fix_guide: "own-storage" }, 409);
   log.error("unhandled", { name: err.name, message: safeError(err), path: c.req.path.split("/").slice(0, 3).join("/") });
   return c.json({ error: "Something went wrong on our side. Try again in a moment.", fix_guide: "i-didnt-get-an-email" }, 500);
 });

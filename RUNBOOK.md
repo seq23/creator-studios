@@ -53,9 +53,19 @@ paste-ready command, and nothing else waits on it (the feature runs in practice 
    vault (`CS_HADIYAH_CF2_R2_*`, `CF2_ACCOUNT_ID`). If a key is missing on the Worker every request
    fails with `FILES_S3_SECRETS_MISSING`; put the 0600 files back and run
    `npm run studio:secrets hadiyah` (README "Hadiyah: whose account runs what").
-6. **File clean-up paused** (light "File clean-up", yellow, guide `setup-email`). Her originals are
-   cleared only after the 14- and 3-day emails reached her; with no studio email nothing is cleared.
-   Fix: Setup → Email (or the host's `RESEND_API_KEY` file + `npm run studio:secrets <slug>`).
+6. **File clean-up paused** (light "File clean-up", yellow, guide `setup-email`), for originals in a
+   creator's OWN storage: cleared only after the 14- and 3-day emails reached her; with no studio
+   email nothing there is cleared. The host's shared storage never pauses (its originals clear on the
+   day, with the 3-day email when there is one). Fix: Setup → Email (or the host's `RESEND_API_KEY`
+   file + `npm run studio:secrets <slug>`).
+7. **No storage yet (Hadiyah)** (light "Storage", yellow, guide `own-storage`). Her studio has no
+   share of the host's storage (owner, 21 Nov 2026), so uploads wait for her own bucket. Only she
+   can make it (her Cloudflare account): Settings → Storage → Use your own storage walks her through
+   free R2. Nothing for the host to run.
+8. **Shared storage full** (light "Storage", red, guide `own-storage`): the daily lane cleared every
+   original already cut and is still over 90% of the studio's `hostStorageGb`. Uploads past the share
+   are refused with a pointer to Use your own storage; the creator adds hers, or the share in
+   `studios/<slug>.json` is moved between studios (the total stays under 4 GB, test-pinned).
 
 ## The studios
 

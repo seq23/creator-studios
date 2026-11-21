@@ -2,11 +2,11 @@
 title: "Storage: what is kept, and for how long"
 group: everyday
 screen: settings
-last_checked: 2026-09-26
+last_checked: 2026-11-21
 keywords: storage, space, 10 gb, full, how long, deleted, kept, keep, clips disappear, old clips, free space, meter
 ---
 
-Your free storage is 10 GB. The dashboard keeps it under that by clearing files you no longer need, and it always warns you first before anything you have not posted goes.
+Your studio keeps your files either on the studio's shared storage (a small share, where files rotate out often) or in your own storage (Cloudflare R2 is free up to 10 GB). It stays under its limit by clearing files you no longer need, and it always warns you first before anything you have not posted goes.
 
 ## The storage meter
 
@@ -14,7 +14,7 @@ Your free storage is 10 GB. The dashboard keeps it under that by clearing files 
 <!-- route: /settings -->
 <!-- target: #storage .storage-meter -->
 
-**Settings → Storage** shows how full it is: green, yellow from 70%, red from 90%.
+**Settings → Storage** shows where your files go and how full it is: green, yellow from 70%, red from 90%. On shared storage, an upload that would go over the share waits until you add your own storage.
 
 ## What takes the space, and each rule
 
@@ -22,7 +22,7 @@ Your free storage is 10 GB. The dashboard keeps it under that by clearing files 
 <!-- route: /settings -->
 <!-- target: .storage-kinds -->
 
-Each kind of file says how long it is kept. Posted clips: 30 days after posting (the cover, numbers and post link stay). Your original videos: 30 days after they are cut, with an email 14 and 3 days before (Download all, or Keep them). Media-kit clips and approved clips waiting to post: always kept.
+Each kind of file says how long it is kept. Posted clips: 30 days after posting. Originals on shared storage: 7 days after their clips are made (14 after upload at most). In your own storage: 30 days, with emails before (Download all, or Keep them). Media-kit clips and approved clips waiting to post: always kept.
 
 ## Clips you never reviewed
 
@@ -46,7 +46,7 @@ The dashboard measures every day on its own. **Measure now** checks this minute,
 <!-- route: /dump -->
 <!-- target: [data-free-space] -->
 
-The Add screen shows how much space is free before you upload.
+The Add screen shows how much space is free before you upload. Need more? See **Use your own storage**.
 
 ## Did this work?
 

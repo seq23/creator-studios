@@ -7,7 +7,8 @@
 // onto the env names the rest of the Worker already reads (RESEND_API_KEY, YOUTUBE_API_KEY,
 // GOOGLE_CLIENT_*, META_APP_*, GITHUB_DISPATCH_TOKEN + GITHUB_REPO, OPENROUTER_ / FIRECRAWL_ / HUNTER_API_KEY) and lists the services still in
 // practice in env.PRACTICE. Nothing here logs a key.
-import { filesFor } from "../services/s3files";
+import { filesFor, HostReadOnly, LayeredFiles, ownStorageConfig, S3Files, type OwnStorageFields } from "../services/s3files";
+import { hostCapBytes } from "../domain/tidy";
 import { parsePhotoPosts } from "@shared/photoPosts";
 import type { Env } from "../env";
 import { fakeServices } from "../env";
@@ -112,6 +113,7 @@ export async function hydrate(env: Env): Promise<Env> {
   }
   const stored = new Map<string, Row>();
   for (const r of rows) if (r.secret_enc && r.status !== "disconnected") stored.set(r.service, r);
+  await placeFiles(env, out, stored.get("storage"));
   for (const s of SETUP_STEPS) {
     if (!ENV_BACKED.has(s.id)) continue;
     // Host-first (Mercedes's OpenRouter): the host's key stays on the env; her pasted key is the backup (connections.ts).
@@ -126,6 +128,33 @@ export async function hydrate(env: Env): Promise<Env> {
   }
   out.PRACTICE = practiceList(out, new Set(stored.keys()));
   return out;
+}
+
+/**
+ * Where this studio's files go (owner, 21 Nov 2026). Her own storage (Settings → Storage, saved
+ * encrypted as connection "storage") takes every new file, with the host's still read for what is
+ * there; else the host's storage when the studio has a share of it; else (Hadiyah) the host's
+ * files become read-only and every write is refused with the calm "use your own storage" words.
+ */
+async function placeFiles(env: Env, out: Env, row: Row | undefined): Promise<void> {
+  if (row?.secret_enc) {
+    try {
+      const parsed = ownStorageConfig(JSON.parse(await decryptSecret(env.SECRETS_KEY, row.secret_enc)) as OwnStorageFields);
+      if (parsed.ok) {
+        out.FILES = new LayeredFiles(new S3Files(parsed.cfg) as unknown as R2Bucket, out.FILES) as unknown as R2Bucket;
+        out.FILES_PLACE = "own";
+        return;
+      }
+    } catch {
+      log.warn("practice.decrypt_failed", { service: "storage" });
+    }
+  }
+  if (hostCapBytes(env) > 0) {
+    out.FILES_PLACE = "host";
+    return;
+  }
+  out.FILES = new HostReadOnly(out.FILES) as unknown as R2Bucket;
+  out.FILES_PLACE = "none";
 }
 
 /**

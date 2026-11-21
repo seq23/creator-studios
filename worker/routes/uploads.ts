@@ -3,7 +3,7 @@
 // resumes: the client keeps the uploadId + finished part etags, and can ask which parts R2
 // already has. Raw files are keyed raw/<dumpId>/<assetId>; nothing about the file name
 // appears in the key or in logs.
-import { storageReport } from "../lib/storage";
+import { storageReport, uploadRefusal } from "../lib/storage";
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { requireUser } from "../lib/auth";
@@ -117,6 +117,10 @@ uploads.post("/start", async (c) => {
       if (dup) return fail(c, 409, isPhoto(body.mimeType, body.fileName) ? "You already uploaded this exact photo before." : "You already uploaded this exact video before. Recycled videos need a new file only if it changed.");
     }
   }
+
+  // Where it goes, and whether it fits: no storage at all, or past the host's shared share (owner, 21 Nov 2026).
+  const full = await uploadRefusal(c.env, body.size);
+  if (full) return fail(c, full.status, full.error, full.fix_guide);
 
   const key = keyFor(kind, parent, id);
   // A photo from an iPhone may come with no type: the name decides (HEIC stays HEIC, full quality).
@@ -246,5 +250,5 @@ uploads.post("/:id/abort", async (c) => {
 /** Storage used and free (every file, worker/lib/storage.ts): Dump shows it before every upload. */
 uploads.get("/storage", async (c) => {
   const r = await storageReport(c.env);
-  return c.json({ bytes: r.used_bytes, limit: r.limit_bytes, free: r.free_bytes, light: r.light, line: r.line, checked_at: nowIso() });
+  return c.json({ place: r.place, bytes: r.used_bytes, limit: r.limit_bytes, free: r.free_bytes, light: r.light, line: r.line, checked_at: nowIso() });
 });

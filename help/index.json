@@ -270,6 +270,12 @@
       "screen": "settings"
     },
     {
+      "slug": "own-storage",
+      "title": "Use your own storage (free Cloudflare R2)",
+      "group": "everyday",
+      "screen": "settings"
+    },
+    {
       "slug": "dump-new-footage",
       "title": "Add photos and videos",
       "group": "everyday",
