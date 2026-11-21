@@ -4,7 +4,7 @@ import React from "react";
 import { AbsoluteFill, Audio, Img, interpolate, Sequence, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { BRANDS, BODY, DISPLAY, DISPLAY_VARIATION, FPS, type Brand, type SizeId } from "./brand";
 import type { FormatId } from "./library";
-import { Badge, EndCard, Headline, Line, Mark, Photo, Wordmark, useIn, useSafe, type Pic } from "./parts";
+import { Badge, EndCard, Headline, HookY, Line, Mark, Photo, Wordmark, useIn, useSafe, type Pic } from "./parts";
 
 export interface Spot {
   fx: number;
@@ -26,6 +26,8 @@ export interface PieceProps {
   count?: number;
   spots?: Spot[];
   endLine?: string;
+  /** Where the hook sits, as a share of the height (plan.hookY). */
+  hookY?: number;
   /** Carousel only: which slide this still is. */
   slide?: number;
   /** Carousel cover: the first picture full-bleed (default) or the first two side by side, tagged 1 and 2. */
@@ -83,7 +85,9 @@ const Music: React.FC<{ src: string | null; total: number }> = ({ src, total }) 
 };
 
 /** A soft dark wash at the top so cotton text boxes read over bright photos. */
-const TopWash: React.FC = () => <AbsoluteFill style={{ background: "linear-gradient(180deg, rgba(20,12,18,.38) 0%, rgba(20,12,18,0) 34%)" }} />;
+/** A soft dark wash at the top so the hook reads over a photo; none over a full-width photo, whose top is cotton. */
+const WashCtx = React.createContext(false);
+const TopWash: React.FC = () => (React.useContext(WashCtx) ? null : <AbsoluteFill style={{ background: "linear-gradient(180deg, rgba(20,12,18,.38) 0%, rgba(20,12,18,0) 34%)" }} />);
 
 // ------------------------------------------------------------------ the formats
 
@@ -153,7 +157,7 @@ const Pov: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B }) => {
       <TopWash />
       <Headline brand={b} text={p.hook} hookFrame0 size={80} />
       <Sequence from={3 * B}>
-        <Line brand={b} text={p.lines[0]} y={s.bottom - 170} size={52} tone="plum" />
+        <Line brand={b} text={p.lines[0]} y={s.bottom - 190} size={62} tone="plum" />
       </Sequence>
     </AbsoluteFill>
   );
@@ -264,8 +268,8 @@ const Numbered: React.FC<{ p: PieceProps; b: Brand; B: number; steps: string[]; 
           <Fade len={6}>
             <Photo pic={pic} dur={each} zoomFrom={i % 2 ? 1.12 : 1.03} zoomTo={i % 2 ? 1.04 : 1.11} />
             <TopWash />
-            {badges ? <Badge brand={b} n={String(i + 1)} x={s.left} y={s.top} /> : null}
-            <Line brand={b} text={steps[i] ?? ""} y={badges ? s.top + 150 : s.bottom - 220} size={56} at={3} />
+            {badges ? <Badge brand={b} n={String(i + 1)} x={s.left} y={s.bottom - 380} /> : null}
+            <Line brand={b} text={steps[i] ?? ""} y={s.bottom - 220} size={62} at={3} />
           </Fade>
         </Sequence>
       ))}
@@ -294,7 +298,7 @@ const QuickTip: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B })
       {p.lines.map((l, i) => (
         // one thought on screen at a time: each line replaces the one before
         <Sequence key={i} from={3 * B + i * 3 * B} durationInFrames={i < p.lines.length - 1 ? 3 * B : undefined}>
-          <Line brand={b} text={l} y={s.bottom - 230} size={62} tone="plum" />
+          <Line brand={b} text={l} y={s.bottom - 250} size={72} tone="plum" />
         </Sequence>
       ))}
     </AbsoluteFill>
@@ -636,7 +640,11 @@ export const Piece: React.FC<PieceProps> = (p) => {
   }
   return (
     <AbsoluteFill style={{ backgroundColor: b.colors.ink }}>
-      <Sequence durationInFrames={body}>{main}</Sequence>
+      <Sequence durationInFrames={body}>
+        <WashCtx.Provider value={p.pics[0]?.fit === "width"}>
+          <HookY.Provider value={p.hookY}>{main}</HookY.Provider>
+        </WashCtx.Provider>
+      </Sequence>
       <Sequence from={body}>
         <EndCard brand={b} line={p.endLine} />
       </Sequence>

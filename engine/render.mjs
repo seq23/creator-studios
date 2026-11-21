@@ -69,7 +69,7 @@ function pic(p) {
   const name = `${kind}-${rel.replace(/[/\\]/g, "--")}`;
   copyFileSync(from, path.join(pub, "in", name));
   const [w, h] = execFileSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", from], { encoding: "utf8" }).trim().split("x").map(Number);
-  return { src: `in/${name}`, w, h, fx: p.fx, fy: p.fy, label: p.label };
+  return { src: `in/${name}`, w, h, fx: p.fx, fy: p.fy, label: p.label, fit: p.fit };
 }
 
 function propsFor(p, size) {
@@ -79,7 +79,7 @@ function propsFor(p, size) {
     process.exit(1);
   }
   if (track) copyFileSync(path.join(ROOT, track.file), path.join(pub, "music", `${track.id}.mp3`));
-  return { brand: plan.brand, format: p.format, size, bpm: track?.bpm ?? 100, music: track ? `music/${track.id}.mp3` : null, pics: p.pics.map(pic), hook: p.hook, lines: p.lines ?? [], count: p.count, spots: p.spots, endLine: p.endLine, cover: p.cover };
+  return { brand: plan.brand, format: p.format, size, bpm: track?.bpm ?? 100, music: track ? `music/${track.id}.mp3` : null, pics: p.pics.map(pic), hook: p.hook, lines: p.lines ?? [], count: p.count, spots: p.spots, endLine: p.endLine, cover: p.cover, hookY: p.hookY };
 }
 
 // Pictures and music go into public/ before bundling (the bundle serves public/ as static files).

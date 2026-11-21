@@ -81,6 +81,10 @@ describe("hard rules", () => {
     expect(validatePlan(plan([base({ captions: { tiktok: "Tell us the date." } })]), BEFORE).join()).toMatch(/must carry/);
     expect(validatePlan(plan([base({ captions: { tiktok: "Idea. porchandparty901.com/request\n\nMade with AI" } })]), BEFORE).join()).toMatch(/Made with AI/);
   });
+  it("a set hook height stays inside the safe area", () => {
+    expect(validatePlan(full([base({ hookY: 0.55 })]), BEFORE)).toEqual([]);
+    expect(validatePlan(plan([base({ hookY: 0.8 })]), BEFORE).join()).toMatch(/hookY sits between/);
+  });
   it("posts only inside the window and in the future", () => {
     expect(validatePlan(plan([base({ at: "2026-11-21 11:00" })]), BEFORE).join()).toMatch(/window/);
     expect(validatePlan(plan([base({ at: "2026-11-19 18:30" })]), BEFORE).join()).toMatch(/future/);

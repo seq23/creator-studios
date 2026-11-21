@@ -3,7 +3,10 @@
 // or elastic easing); the hook is already readable on frame 0 so the first frame works as a cover.
 import React from "react";
 import { AbsoluteFill, continueRender, delayRender, Easing, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
-import { BODY, DISPLAY, DISPLAY_VARIATION, SAFE, type Brand } from "./brand";
+import { BODY, BRANDS, DISPLAY, DISPLAY_VARIATION, SAFE, type Brand } from "./brand";
+
+/** The ground a full-width photo sits on (the brand's cotton). */
+const COTTON = BRANDS.pnp.colors.ground;
 
 export interface Pic {
   /** Path under engine/public (render.mjs copies each source there). */
@@ -15,6 +18,9 @@ export interface Pic {
   fy?: number;
   /** A short label some formats show ("Baby shower"). */
   label?: string;
+  /** "width": the whole width of the picture shows, on the cotton ground, instead of a cover crop: for a real
+   *  photo whose own words or subject run edge to edge (ANNIVERSARY letters, a birthday banner). */
+  fit?: "width";
 }
 
 const handle = delayRender("brand fonts");
@@ -37,6 +43,17 @@ export function useIn(start: number, len = 9): number {
   return interpolate(f, [start, start + len], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
 }
 
+/** The font size at which every authored line of `text` fits `maxWidth` without wrapping (never larger than
+ *  `size`): a line break is the writer's, never the box's (review 20 Nov 2026: "Here's how it / works"). */
+let measurer: CanvasRenderingContext2D | null = null;
+export function fitSize(text: string, family: string, weight: number, size: number, maxWidth: number): number {
+  measurer ??= document.createElement("canvas").getContext("2d");
+  if (!measurer) return size;
+  measurer.font = `${weight} ${size}px ${family}`;
+  const widest = Math.max(...text.split("\n").map((l) => measurer!.measureText(l).width));
+  return widest * 1.04 > maxWidth ? Math.floor((size * maxWidth) / (widest * 1.04)) : size;
+}
+
 export function useSafe() {
   const { width, height } = useVideoConfig();
   return { width, height, top: height * SAFE.top, bottom: height * (1 - SAFE.bottom), left: width * SAFE.left, right: width * (1 - SAFE.right), inner: width * (1 - SAFE.left - SAFE.right) };
@@ -50,18 +67,34 @@ export function useSafe() {
  */
 export const Photo: React.FC<{ pic: Pic; dur: number; zoomFrom?: number; zoomTo?: number; dim?: number; still?: boolean }> = ({ pic, dur, zoomFrom = 1.02, zoomTo = 1.1, dim = 0, still }) => {
   const f = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const span = Math.max(0.06, Math.min(0.12, (dur / fps) * 0.015));
+  const { fps, width, height } = useVideoConfig();
+  // a move a viewer sees at one frame a second: at least 10%, about 3% a second, at most 22% (review 20 Nov
+  // 2026: "one still held for 6 seconds with no visible push-in")
+  const span = Math.max(0.1, Math.min(0.22, (dur / fps) * 0.03));
   const inward = zoomTo >= zoomFrom;
-  const t = still ? 0 : interpolate(f, [0, Math.max(1, dur)], [0, 1], { extrapolateRight: "clamp" });
+  const t = still ? 0 : interpolate(f, [0, Math.max(1, dur)], [0, 1], { extrapolateRight: "clamp", easing: Easing.inOut(Easing.quad) });
+  const fx = (pic.fx ?? 0.5) * 100;
+  const fy = (pic.fy ?? 0.5) * 100;
+  const filter = dim ? `brightness(${1 - dim})` : undefined;
+  if (pic.fit === "width") {
+    // the whole width on the cotton ground, centred a little below the middle (the hook sits above it on
+    // cotton), pushing in gently on its subject; the edges stay in frame for the first two thirds of the move
+    const h = (width * pic.h) / pic.w;
+    // below the hook band (the hook sits on cotton, never on the picture), never past the bottom
+    const top = Math.max(0, Math.min(height - h, Math.max((height - h) / 2 + height * 0.04, height * 0.26)));
+    const z = 1 + (inward ? t : 1 - t) * Math.min(span, 0.08);
+    return (
+      <AbsoluteFill style={{ overflow: "hidden", backgroundColor: COTTON }}>
+        <Img src={staticFile(pic.src)} style={{ position: "absolute", left: 0, top, width, height: h, transformOrigin: `${fx}% ${fy}%`, transform: `scale(${z})`, filter }} />
+      </AbsoluteFill>
+    );
+  }
   const z = 1.04 + (inward ? t : 1 - t) * span;
   // sideways drift, kept inside the zoom's overflow so an edge never shows
   const drift = (inward ? -1 : 1) * (t - 0.5) * 2 * ((z - 1) / 2) * 0.6 * 100;
-  const fx = (pic.fx ?? 0.5) * 100;
-  const fy = (pic.fy ?? 0.5) * 100;
   return (
     <AbsoluteFill style={{ overflow: "hidden", backgroundColor: "#000" }}>
-      <Img src={staticFile(pic.src)} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: `${fx}% ${fy}%`, transform: `scale(${z}) translateX(${drift / z}%)`, filter: dim ? `brightness(${1 - dim})` : undefined }} />
+      <Img src={staticFile(pic.src)} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: `${fx}% ${fy}%`, transformOrigin: `${fx}% ${fy}%`, transform: `scale(${z}) translateX(${drift / z}%)`, filter }} />
     </AbsoluteFill>
   );
 };
@@ -70,13 +103,20 @@ type Tone = "cotton" | "plum" | "haint";
 const toneStyle = (b: Brand, tone: Tone): React.CSSProperties =>
   tone === "plum" ? { backgroundColor: b.colors.ink, color: b.colors.ground } : tone === "haint" ? { backgroundColor: b.colors.tag, color: b.colors.ink } : { backgroundColor: b.colors.ground, color: b.colors.ink };
 
+/** Where a piece's hook sits, as a share of the height, when the plan sets it (plan.hookY): over a plain part
+ *  of the first picture, clear of words or faces in it (review 20 Nov 2026: the hook over "Feliz Cumpleaños"). */
+export const HookY = React.createContext<number | undefined>(undefined);
+
 /** A headline on its own box: Fraunces, plum on cotton (or the reverse). Readable at phone size. */
 export const Headline: React.FC<{ brand: Brand; text: string; size?: number; tone?: Tone; at?: number; align?: "left" | "center"; y?: number; hookFrame0?: boolean }> = ({ brand, text, size = 84, tone = "cotton", at = 0, align = "left", y, hookFrame0 }) => {
   const s = useSafe();
   const p = useIn(at, 8);
+  const hookY = React.useContext(HookY);
+  if (hookFrame0 && hookY !== undefined) y = s.height * hookY;
   // The hook is readable on frame 0 (it is the cover); it only settles in, it never fades up from nothing.
   const o = hookFrame0 ? 1 : p;
   const ty = hookFrame0 ? (1 - p) * 10 : (1 - p) * 26;
+  const fs = fitSize(text, DISPLAY, 800, size, s.inner - size * 0.68);
   return (
     <div style={{ position: "absolute", left: s.left, width: s.inner, top: y ?? s.top, display: "flex", justifyContent: align === "center" ? "center" : "flex-start", opacity: o, transform: `translateY(${ty}px)` }}>
       <div
@@ -85,16 +125,15 @@ export const Headline: React.FC<{ brand: Brand; text: string; size?: number; ton
           fontFamily: DISPLAY,
           fontVariationSettings: DISPLAY_VARIATION,
           fontWeight: 800,
-          fontSize: size,
+          fontSize: fs,
           lineHeight: 1.04,
           letterSpacing: "-0.01em",
-          padding: `${size * 0.26}px ${size * 0.34}px ${size * 0.3}px`,
-          borderRadius: size * 0.22,
+          padding: `${fs * 0.26}px ${fs * 0.34}px ${fs * 0.3}px`,
+          borderRadius: fs * 0.22,
           boxShadow: "0 10px 30px rgba(0,0,0,.18)",
           textAlign: align,
           maxWidth: "100%",
-          whiteSpace: "pre-line",
-          textWrap: "balance",
+          whiteSpace: "pre",
         }}
       >
         {text}
@@ -107,6 +146,7 @@ export const Headline: React.FC<{ brand: Brand; text: string; size?: number; ton
 export const Line: React.FC<{ brand: Brand; text: string; size?: number; tone?: Tone; at?: number; x?: number; y: number; width?: number }> = ({ brand, text, size = 50, tone = "cotton", at = 0, x, y, width }) => {
   const s = useSafe();
   const p = useIn(at, 8);
+  const fs = fitSize(text, BODY, 700, size, (width ?? s.inner) - size * 0.84);
   return (
     <div style={{ position: "absolute", left: x ?? s.left, top: y, width: width ?? s.inner, opacity: p, transform: `translateY(${(1 - p) * 20}px)` }}>
       <span
@@ -115,13 +155,12 @@ export const Line: React.FC<{ brand: Brand; text: string; size?: number; tone?: 
           display: "inline-block",
           fontFamily: BODY,
           fontWeight: 700,
-          fontSize: size,
+          fontSize: fs,
           lineHeight: 1.2,
-          padding: `${size * 0.28}px ${size * 0.42}px`,
-          borderRadius: size * 0.3,
+          padding: `${fs * 0.28}px ${fs * 0.42}px`,
+          borderRadius: fs * 0.3,
           boxShadow: "0 8px 24px rgba(0,0,0,.16)",
-          whiteSpace: "pre-line",
-          textWrap: "balance",
+          whiteSpace: "pre",
         }}
       >
         {text}
@@ -141,19 +180,21 @@ export const Wordmark: React.FC<{ brand: Brand; size?: number; color?: string }>
 /** The last beat of every reel: who we are and the one next step (the only marigold thing), large enough to read on a phone. */
 export const EndCard: React.FC<{ brand: Brand; line?: string }> = ({ brand, line }) => {
   const { width, height } = useVideoConfig();
-  const a = useIn(0, 8);
-  const b = useIn(6, 9);
-  const c = useIn(12, 9);
+  // it arrives as one beat (review 20 Nov 2026: a frame of the wordmark alone on an empty screen)
+  // and its first frame already reads (review 20 Nov 2026: an empty cotton frame before the card)
+  const a = useIn(-6, 8);
+  const b = useIn(-4, 8);
+  const c = useIn(-2, 8);
   const scale = width / 1080;
   return (
-    <AbsoluteFill style={{ backgroundColor: brand.colors.ground, alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 64 * scale, paddingBottom: height * 0.12 }}>
+    <AbsoluteFill style={{ backgroundColor: brand.colors.ground, alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 70 * scale, paddingBottom: height * 0.1 }}>
       <div style={{ opacity: a, transform: `translateY(${(1 - a) * 16}px)` }}>
-        <Wordmark brand={brand} size={108 * scale} />
+        <Wordmark brand={brand} size={124 * scale} />
       </div>
-      <div style={{ opacity: b, fontFamily: BODY, fontWeight: 700, fontSize: 58 * scale, color: brand.colors.ink, textAlign: "center", maxWidth: width * 0.84, lineHeight: 1.22, textWrap: "balance" }}>{line ?? brand.line}</div>
+      <div style={{ opacity: b, fontFamily: BODY, fontWeight: 700, fontSize: 66 * scale, color: brand.colors.ink, textAlign: "center", maxWidth: width * 0.84, lineHeight: 1.22, textWrap: "balance" }}>{line ?? brand.line}</div>
       <div style={{ opacity: c, transform: `translateY(${(1 - c) * 14}px)`, display: "flex", flexDirection: "column", alignItems: "center", gap: 30 * scale }}>
-        <div style={{ backgroundColor: brand.colors.accent, color: brand.colors.ink, fontFamily: BODY, fontWeight: 800, fontSize: 64 * scale, padding: `${28 * scale}px ${56 * scale}px`, borderRadius: 18 * scale, border: `${3 * scale}px solid ${brand.colors.ink}`, boxShadow: `0 ${6 * scale}px 0 ${brand.colors.ink}` }}>{brand.cta}</div>
-        <div style={{ fontFamily: BODY, fontWeight: 700, fontSize: 56 * scale, color: brand.colors.ink }}>{brand.ctaUrl}</div>
+        <div style={{ backgroundColor: brand.colors.accent, color: brand.colors.ink, fontFamily: BODY, fontWeight: 800, fontSize: 70 * scale, padding: `${30 * scale}px ${60 * scale}px`, borderRadius: 18 * scale, border: `${3 * scale}px solid ${brand.colors.ink}`, boxShadow: `0 ${6 * scale}px 0 ${brand.colors.ink}` }}>{brand.cta}</div>
+        <div style={{ fontFamily: BODY, fontWeight: 800, fontSize: 62 * scale, color: brand.colors.ink }}>{brand.ctaUrl}</div>
       </div>
     </AbsoluteFill>
   );

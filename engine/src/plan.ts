@@ -14,6 +14,8 @@ export interface PlanPic {
   fx?: number;
   fy?: number;
   label?: string;
+  /** "width": show the whole width on the cotton ground (engine/src/parts.tsx Photo). */
+  fit?: "width";
 }
 
 export interface PlanPiece {
@@ -31,6 +33,8 @@ export interface PlanPiece {
   cover?: "pair";
   spots?: { fx: number; fy: number; label: string }[];
   endLine?: string;
+  /** Where the hook sits, as a share of the height, over a plain part of the first picture (engine/src/parts.tsx HookY). */
+  hookY?: number;
   captions: Partial<Record<Platform, string>>;
   /** Which service the piece sells (the weekly mix below). A piece that shows several takes its lead one. */
   service: Service;
@@ -100,6 +104,7 @@ export function validatePlan(plan: Plan, now: number): string[] {
     for (const x of p.pics) if (x.src.startsWith("gen:") && !plan.generate?.[x.src.slice(4)]) out.push(`${at} ${x.src} has no prompt in generate`);
     if (new Set(p.pics.map((x) => x.src)).size !== p.pics.length) out.push(`${at} a picture repeats inside the piece`);
     if (f.kind === "reel" && !p.music) out.push(`${at} a reel never goes out silent`);
+    if (p.hookY !== undefined && !(p.hookY >= 0.12 && p.hookY <= 0.6)) out.push(`${at} hookY sits between 0.12 and 0.6 of the height (inside the safe area)`);
     if (p.format === "detail-zoom" && (p.spots?.length ?? 0) < 2) out.push(`${at} detail-zoom needs at least 2 spots`);
     if (p.format === "this-or-that" && p.pics.length % 2) out.push(`${at} this-or-that takes pairs`);
     const words = [p.hook, ...lines, p.endLine ?? "", ...p.pics.map((x) => x.label ?? ""), ...(p.spots ?? []).map((s) => s.label)];
