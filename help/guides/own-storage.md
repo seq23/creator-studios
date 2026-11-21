@@ -36,9 +36,9 @@ In R2, open **Manage API tokens** and create a token with **Object Read & Write*
 
 ![Step 4](/help/screenshots/own-storage-4.png)
 <!-- route: /settings#own-storage -->
-<!-- target: .own-storage button:has-text("Add my own storage") -->
+<!-- target: .own-storage form.setup-form -->
 
-Tap **Add my own storage**, paste the Account ID, bucket name and both keys, then **Test connection**: the studio writes a small test file, reads it back and deletes it. Then **Save**. New uploads, clips and voice overs go to your bucket from then on.
+Paste the Account ID, bucket name and both keys, then **Test connection**: the studio writes a small test file, reads it back and deletes it. Then **Save**. New uploads, clips and voice overs go to your bucket from then on.
 
 ## Did this work?
 
