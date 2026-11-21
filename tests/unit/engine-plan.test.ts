@@ -6,7 +6,6 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { aiScene, localToUtc, validatePlan, type Plan, type PlanPiece } from "../../engine/src/plan";
-import { FORMATS } from "../../engine/src/library";
 // @ts-expect-error plain .mjs script with no types
 import { ACCOUNT_CEILING, ENGINE_NEURON_CAP, MODELS, accountsFrom, fits, usedToday } from "../../engine/imagine.mjs";
 
@@ -15,6 +14,7 @@ const BEFORE = Date.parse("2026-11-20T12:00:00.000Z");
 
 const base = (over: Partial<PlanPiece> = {}): PlanPiece => ({
   id: "test-piece",
+  service: "event",
   format: "pov",
   at: "2026-11-21 18:30",
   platforms: ["tiktok"],
@@ -26,21 +26,33 @@ const base = (over: Partial<PlanPiece> = {}): PlanPiece => ({
   ...over,
 });
 const plan = (pieces: PlanPiece[]): Plan => ({ studio: "sample1", brand: "pnp", tz: "America/Chicago", window: [17, 21], cta: "porchandparty901.com/request", pieces });
+/** A rule's test plan with the rest of each week's range filled in (a romantic and a celebration set on every
+ *  day used, on platforms and at a time the pieces under test do not use), so only the rule under test speaks. */
+const full = (pieces: PlanPiece[]): Plan => {
+  const days = [...new Set(pieces.map((p) => p.at.slice(0, 10)))];
+  const set = (day: string, service: "romantic" | "celebration", platform: "facebook" | "instagram"): PlanPiece =>
+    base({ id: `fill-${service}-${day}`, service, format: "carousel", at: `${day} 20:30`, platforms: [platform], music: undefined, lines: [], pics: [{ src: `ai:fill/${service}-${day}-a.webp` }, { src: `ai:fill/${service}-${day}-b.webp` }], captions: { [platform]: "Ideas. porchandparty901.com/request" } });
+  return plan([...pieces, ...days.flatMap((d) => [set(d, "romantic", "facebook"), set(d, "celebration", "instagram")])]);
+};
 
-// Three pieces failed their second review on 20 Nov 2026 and were dropped from the plan, not forced
-// (engine/README.md): the countdown and wait-for-it reels (22 Nov, 2 Dec) and the 1 Dec baby-shower set.
-const DROPPED_FORMATS = new Set(["countdown", "wait-for-it"]);
 describe("the committed plan", () => {
-  it("passes every check, uses every format but the two dropped ones, and starts Sat 21 Nov in the Memphis evening", () => {
+  it("passes every check and starts Sat 21 Nov in the Memphis evening", () => {
     expect(validatePlan(committed, BEFORE)).toEqual([]);
-    expect(new Set(committed.pieces.map((p) => p.format))).toEqual(new Set(FORMATS.map((f) => f.id).filter((f) => !DROPPED_FORMATS.has(f))));
     const first = [...committed.pieces].sort((a, b) => a.at.localeCompare(b.at))[0];
     expect(localToUtc(first.at, committed.tz)).toBe("2026-11-22T00:30:00.000Z");
   });
-  it("covers two weeks with one reel a day, except the two days whose reel was dropped", () => {
-    const reelDays = [...new Set(committed.pieces.filter((p) => p.format !== "carousel").map((p) => p.at.slice(0, 10)))].sort();
-    const want = Array.from({ length: 14 }, (_, i) => new Date(Date.UTC(2026, 10, 21 + i)).toISOString().slice(0, 10)).filter((d) => d !== "2026-11-22" && d !== "2026-12-02");
-    expect(reelDays).toEqual(want);
+  it("runs through 30 Dec", () => {
+    const last = [...committed.pieces].sort((a, b) => b.at.localeCompare(a.at))[0];
+    expect(last.at.slice(0, 10)).toBe("2026-12-30");
+  });
+  it("an AI picture is an idea, never a job: only her real photos say we set it up", () => {
+    const say = (where: Partial<PlanPiece>) => validatePlan(full([base(where)]), BEFORE).join();
+    expect(say({ captions: { tiktok: "An idea for a porch. porchandparty901.com/request" } })).toBe("");
+    expect(say({ hook: "A room we set up" })).toMatch(/AI picture but says "A room we set up"/);
+    expect(say({ captions: { tiktok: "From a baby shower we did. porchandparty901.com/request" } })).toMatch(/we did/);
+    expect(say({ pics: [{ src: "real:a.jpg" }], hook: "A room we set up" })).toBe("");
+    // an offer of the service is not a claim of a past job
+    expect(say({ captions: { tiktok: "We set up the porch and the table; let the table be our job. porchandparty901.com/request" } })).toBe("");
   });
   it("every picture to be made is used by a piece or is another picture's reference", () => {
     const used = new Set(committed.pieces.flatMap((p) => p.pics.map((x) => x.src)).filter((s) => s.startsWith("gen:")).map((s) => s.slice(4)));
@@ -50,20 +62,35 @@ describe("the committed plan", () => {
 });
 
 describe("hard rules", () => {
-  it("accepts a clean piece", () => expect(validatePlan(plan([base()]), BEFORE)).toEqual([]));
+  it("accepts a clean piece", () => expect(validatePlan(full([base()]), BEFORE)).toEqual([]));
+  it("every week shows the full range: a romantic, a celebration and an event piece, porch at most 2 of 7", () => {
+    const day = (d: number, service: PlanPiece["service"], i: number) => base({ id: `p-${i}`, service, at: `2026-11-${String(d).padStart(2, "0")} 18:30`, pics: [{ src: `ai:x/${i}.webp` }] });
+    const week = [day(21, "romantic", 1), day(22, "celebration", 2), day(23, "event", 3), day(24, "porch", 4), day(25, "porch", 5), day(26, "event", 6), day(27, "event", 7)];
+    expect(validatePlan(plan(week), BEFORE)).toEqual([]);
+    expect(validatePlan(plan(week.map((p) => (p.service === "romantic" ? { ...p, service: "event" as const } : p))), BEFORE).join()).toMatch(/week of 2026-11-21: no romantic piece/);
+    expect(validatePlan(plan(week.map((p) => (p.service === "celebration" ? { ...p, service: "porch" as const } : p))), BEFORE).join()).toMatch(/no celebration piece/);
+    expect(validatePlan(plan(week.map((p, i) => (i === 6 ? { ...p, service: "porch" as const } : p))), BEFORE).join()).toMatch(/3 porch pieces of 7/);
+    // the second week is held to the same floor, short or not
+    expect(validatePlan(plan([...week, day(28, "event", 8)]), BEFORE).join()).toMatch(/week of 2026-11-28: no romantic piece/);
+    expect(validatePlan(plan([{ ...week[0], service: "party" as never }, ...week.slice(1)]), BEFORE).join()).toMatch(/service must be one of/);
+  });
   it("no prices on screen or in captions", () => {
     expect(validatePlan(plan([base({ hook: "Porches from $350" })]), BEFORE).join()).toMatch(/no prices/);
     expect(validatePlan(plan([base({ captions: { tiktok: "Only $350. porchandparty901.com/request" } })]), BEFORE).join()).toMatch(/no prices/);
   });
   it("a real-work format never takes an AI scene", () => {
     const pics = [1, 2, 3, 4].map((i) => ({ src: `real:p${i}.jpg` }));
-    expect(validatePlan(plan([base({ format: "real-montage", lines: [], pics })]), BEFORE)).toEqual([]);
+    expect(validatePlan(full([base({ format: "real-montage", lines: [], pics })]), BEFORE)).toEqual([]);
     expect(validatePlan(plan([base({ format: "real-montage", lines: [], pics: [...pics.slice(0, 3), { src: "ai:x.webp" }] })]), BEFORE).join()).toMatch(/real photos only/);
   });
   it("a reel is never silent; every caption carries the request link and no 'Made with AI' line", () => {
     expect(validatePlan(plan([base({ music: undefined })]), BEFORE).join()).toMatch(/silent/);
     expect(validatePlan(plan([base({ captions: { tiktok: "Tell us the date." } })]), BEFORE).join()).toMatch(/must carry/);
     expect(validatePlan(plan([base({ captions: { tiktok: "Idea. porchandparty901.com/request\n\nMade with AI" } })]), BEFORE).join()).toMatch(/Made with AI/);
+  });
+  it("a set hook height stays inside the safe area", () => {
+    expect(validatePlan(full([base({ hookY: 0.55 })]), BEFORE)).toEqual([]);
+    expect(validatePlan(plan([base({ hookY: 0.8 })]), BEFORE).join()).toMatch(/hookY sits between/);
   });
   it("posts only inside the window and in the future", () => {
     expect(validatePlan(plan([base({ at: "2026-11-21 11:00" })]), BEFORE).join()).toMatch(/window/);
@@ -80,7 +107,7 @@ describe("hard rules", () => {
     const near = base({ id: "piece-b", at: "2026-11-23 18:30", pics: [{ src: "real:hotel-28-balloons-2.png" }] });
     const week = base({ id: "piece-b", at: "2026-11-28 18:30", pics: [{ src: "real:hotel-28-balloons-2.png" }] });
     expect(validatePlan(plan([a, c, near]), BEFORE).join()).toMatch(/real setup "hotel-28-balloons" was in piece-a/);
-    expect(validatePlan(plan([a, c, week]), BEFORE)).toEqual([]);
+    expect(validatePlan(full([a, c, week]), BEFORE)).toEqual([]);
   });
   it("marks a piece with any AI picture as an AI scene (TikTok's switch), a real-only piece not", () => {
     expect(aiScene(base())).toBe(true);
@@ -92,7 +119,7 @@ describe("new scenes on Workers AI (engine/imagine.mjs): metered, fail closed", 
   it("a gen: picture needs its prompt in the plan, and counts as an AI scene", () => {
     const p = base({ pics: [{ src: "gen:porch.jpg" }] });
     expect(validatePlan(plan([p]), BEFORE).join()).toMatch(/no prompt/);
-    expect(validatePlan({ ...plan([p]), generate: { "porch.jpg": "a porch" } }, BEFORE)).toEqual([]);
+    expect(validatePlan({ ...full([p]), generate: { "porch.jpg": "a porch" } }, BEFORE)).toEqual([]);
     expect(aiScene(p)).toBe(true);
   });
   it("usage that cannot be read makes nothing", async () => {

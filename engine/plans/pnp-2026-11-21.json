@@ -56,37 +56,8 @@
         "tiktok": "Every one of these started with a date and a place. Tell us yours at porchandparty901.com/request #memphis #surprisesetup",
         "instagram": "Every one of these started with a date and a place. Yours could be next. porchandparty901.com/request #memphis #surprisesetup",
         "facebook": "A few of our recent setups around Memphis. Every one started with someone sending us a date and a place. Tell us yours: porchandparty901.com/request"
-      }
-    },
-    {
-      "id": "pnp-1122-thanksgiving-three-ways",
-      "format": "carousel",
-      "at": "2026-11-22 19:45",
-      "platforms": [
-        "tiktok",
-        "instagram",
-        "facebook"
-      ],
-      "pics": [
-        {
-          "src": "ai:porch/memphis-fall-front-porch-decorating-germantown.jpg",
-          "label": "The porch they walk up to"
-        },
-        {
-          "src": "ai:grazing/ai-grazing-table.webp",
-          "label": "The table they gather at"
-        },
-        {
-          "src": "ai:rentals/ai-lawn-cornhole-string-lights.webp",
-          "label": "The yard after dinner"
-        }
-      ],
-      "hook": "Thanksgiving at home,\nthree ways",
-      "captions": {
-        "tiktok": "Porch, table, yard. Pick one or let us do all three. porchandparty901.com/request #thanksgiving #memphis",
-        "instagram": "Save this for Thursday. Porch, table, yard: pick one or hand us all three. porchandparty901.com/request #thanksgiving #memphis",
-        "facebook": "Hosting Thanksgiving? Three places guests notice first. Pick one or hand us all three: porchandparty901.com/request"
-      }
+      },
+      "service": "romantic"
     },
     {
       "id": "pnp-1123-how-it-works",
@@ -119,7 +90,8 @@
         "tiktok": "One short form. We handle the rest. porchandparty901.com/request #memphis #partysetup",
         "instagram": "One short form, then it's off your list. These are our own setups. porchandparty901.com/request #memphis #partysetup",
         "facebook": "How it works: send us the date and the place, we bring everything and set it up, and you take the credit. Start here: porchandparty901.com/request"
-      }
+      },
+      "service": "celebration"
     },
     {
       "id": "pnp-1124-hosting-checklist",
@@ -147,7 +119,8 @@
         "tiktok": "Save this for Wednesday night. Want the table or the games off your plate? porchandparty901.com/request #thanksgiving #hostingtips",
         "instagram": "Save this for Wednesday night. Want the table or the games off your plate? Send it our way. porchandparty901.com/request #thanksgiving #hostingtips",
         "facebook": "Hosting Thursday? A short list for Wednesday night. If the table or the games are still undone, we can help: porchandparty901.com/request"
-      }
+      },
+      "service": "event"
     },
     {
       "id": "pnp-1124-yard-games",
@@ -175,7 +148,8 @@
         "tiktok": "Something for the cousins to do while the plates get cleared. porchandparty901.com/request #thanksgiving #yardgames",
         "instagram": "Something for the cousins to do while the plates get cleared: Giant Connect Four and cornhole, picked up the day before. porchandparty901.com/request #thanksgiving #yardgames",
         "facebook": "Giant Connect Four and cornhole for after Thanksgiving dinner. Pick them up at Mt. Moriah Station and bring them back after the weekend. Check your date: porchandparty901.com/request"
-      }
+      },
+      "service": "event"
     },
     {
       "id": "pnp-1125-porch-one-or-two",
@@ -205,7 +179,8 @@
         "tiktok": "Brick steps or the big pumpkin pile? Tell us below. porchandparty901.com/request #fallporch #memphis",
         "instagram": "Brick steps or the big pumpkin pile? Tell us in the comments. porchandparty901.com/request #fallporch #memphis",
         "facebook": "Two fall porch looks. Which one is more you, 1 or 2? Want yours done before the holidays: porchandparty901.com/request"
-      }
+      },
+      "service": "porch"
     },
     {
       "id": "pnp-1126-thanksgiving-table",
@@ -225,7 +200,7 @@
           "src": "ai:grazing/ai-grazing-shower-table.webp"
         }
       ],
-      "hook": "POV: you didn't cook\nand the table still steals the show",
+      "hook": "POV: you didn’t cook\nand the table still steals the show",
       "lines": [
         "Grazing tables,\nstyled at your place"
       ],
@@ -233,7 +208,8 @@
         "tiktok": "Happy Thanksgiving, Memphis. Save this for the next gathering. porchandparty901.com/request #thanksgiving #grazingtable",
         "instagram": "Happy Thanksgiving, Memphis. For the next one, let the table be our job. porchandparty901.com/request #thanksgiving #grazingtable",
         "facebook": "Happy Thanksgiving from Porch & Party. For your next gathering, the table can be our job: porchandparty901.com/request"
-      }
+      },
+      "service": "event"
     },
     {
       "id": "pnp-1127-christmas-door",
@@ -255,7 +231,7 @@
           "fy": 0.5
         }
       ],
-      "hook": "One wreath\nisn't enough.",
+      "hook": "One wreath\nisn’t enough.",
       "lines": [
         "One wreath on a bare door",
         "Layer the door,\nthe lights and the steps"
@@ -264,7 +240,8 @@
         "tiktok": "One wreath reads as an afterthought. Frame the whole door. porchandparty901.com/request #christmasporch #memphis",
         "instagram": "One wreath on its own reads as an afterthought. Frame the whole door instead. porchandparty901.com/request #christmasporch #memphis",
         "facebook": "Decorating this weekend? Frame the whole door: garland, lights, then the steps. Or hand it to us: porchandparty901.com/request"
-      }
+      },
+      "service": "porch"
     },
     {
       "id": "pnp-1128-the-details",
@@ -303,7 +280,8 @@
         "tiktok": "An anniversary we set up. The small things are the whole thing. porchandparty901.com/request #anniversary #memphis",
         "instagram": "An anniversary we set up. The small things are the whole thing. porchandparty901.com/request #anniversary #memphis",
         "facebook": "One of our anniversary setups, up close. Planning one? porchandparty901.com/request"
-      }
+      },
+      "service": "romantic"
     },
     {
       "id": "pnp-1128-hotel-birthday",
@@ -333,7 +311,8 @@
         "tiktok": "A surprise we set up before she walked in. porchandparty901.com/request #birthdaysurprise #memphis",
         "instagram": "A hotel-room surprise we set up before she walked in. porchandparty901.com/request #birthdaysurprise #memphis",
         "facebook": "A hotel-room birthday surprise we set up before she walked in. Planning one? porchandparty901.com/request"
-      }
+      },
+      "service": "celebration"
     },
     {
       "id": "pnp-1129-rate-christmas-porch",
@@ -358,7 +337,8 @@
         "tiktok": "Too much or just right? Numbers in the comments. porchandparty901.com/request #christmasporch #memphis",
         "instagram": "Too much or just right? Numbers in the comments. porchandparty901.com/request #christmasporch #memphis",
         "facebook": "A Christmas porch idea. Rate it 1 to 10 in the comments. Want yours done for December? porchandparty901.com/request"
-      }
+      },
+      "service": "porch"
     },
     {
       "id": "pnp-1130-host-without-cooking",
@@ -372,7 +352,7 @@
       "music": "bright-morning",
       "pics": [
         {
-          "src": "gen:xmas-brick-porch-garland-v3.jpg",
+          "src": "gen:xmas-porch-haint-door.jpg",
           "label": "A porch that says come in"
         },
         {
@@ -390,7 +370,8 @@
         "tiktok": "Save this for your December party. porchandparty901.com/request #holidayparty #memphis",
         "instagram": "Save this for your December party. Pick one, or have us do the porch and the table; the games are ready to pick up. porchandparty901.com/request #holidayparty #memphis",
         "facebook": "Hosting in December? A porch, a grazing table and yard games do the heavy lifting. We set up the porch and the table; the games are ready to pick up. porchandparty901.com/request"
-      }
+      },
+      "service": "event"
     },
     {
       "id": "pnp-1201-office-party",
@@ -417,7 +398,7 @@
       "hook": "Got handed the\noffice holiday party?",
       "lines": [
         "Games that get\npeople mixing",
-        "A grazing table\nthey'll talk about",
+        "A grazing table\nthey’ll talk about",
         "All set before\nanyone walks in"
       ],
       "endLine": "Office parties across the Memphis metro.",
@@ -425,7 +406,8 @@
         "tiktok": "Hand off the office party. porchandparty901.com/request #officeparty #memphis",
         "instagram": "Got handed the office party? Hand it off. porchandparty901.com/request #officeparty #memphis",
         "facebook": "Got handed the office holiday party? A grazing table, holiday decor and giant games, set up before anyone walks in. Tell us the date: porchandparty901.com/request"
-      }
+      },
+      "service": "event"
     },
     {
       "id": "pnp-1203-cornhole-or-connect-four",
@@ -457,67 +439,361 @@
         "tiktok": "Cornhole or Giant Connect Four? Settle it in the comments. porchandparty901.com/request #yardgames #memphis",
         "instagram": "Cornhole or Giant Connect Four? Settle it in the comments. Both are ready to rent. porchandparty901.com/request #yardgames #memphis",
         "facebook": "Cornhole or Giant Connect Four? Settle it in the comments. Both are ready for your next get-together: porchandparty901.com/request"
-      }
-    },
-    {
-      "id": "pnp-1203-december-porches",
-      "format": "carousel",
-      "at": "2026-12-03 19:45",
-      "platforms": [
-        "tiktok",
-        "instagram",
-        "facebook"
-      ],
-      "pics": [
-        {
-          "src": "gen:xmas-brick-porch-garland-v3.jpg",
-          "label": "1 · Cedar garland,\nblack door",
-          "fy": 0.47
-        },
-        {
-          "src": "gen:xmas-column-porch-dusk-v2.jpg",
-          "label": "2 · White posts,\none rocker",
-          "fy": 0.5
-        }
-      ],
-      "hook": "Which porch\nis more you?",
-      "captions": {
-        "tiktok": "1 or 2? Tell us in the comments. porchandparty901.com/request #christmasporch #memphis",
-        "instagram": "Two December porches. Comment 1 or 2, then send us your date. porchandparty901.com/request #christmasporch #memphis",
-        "facebook": "Two Christmas porch ideas. Comment 1 or 2. Want yours done for December? porchandparty901.com/request"
       },
-      "cover": "pair"
+      "service": "event"
     },
     {
-      "id": "pnp-1204-porch-lights-tip",
-      "format": "quick-tip",
-      "at": "2026-12-04 18:30",
       "platforms": [
         "tiktok",
         "instagram",
         "facebook"
       ],
+      "id": "pnp-1208-office-checklist",
+      "service": "event",
+      "format": "checklist",
+      "at": "2026-12-08 18:30",
       "music": "easy-stroll",
       "pics": [
         {
-          "src": "gen:xmas-porch-haint-door.jpg",
-          "fy": 0.5
-        },
-        {
-          "src": "gen:porch-steps-lights-close.jpg",
-          "fy": 0.6
+          "src": "gen:office-grazing-ready.jpg"
         }
       ],
-      "hook": "Porch lights look cheap?\nIt's the bulb color.",
+      "hook": "Office holiday party?\nDo these this week",
       "lines": [
-        "Warm white,\nnot cool white",
-        "Light the door first,\nthen the steps",
-        "Put them on a timer"
+        "Book the room\nand the time",
+        "Count heads,\nthen add five",
+        "Order the grazing table",
+        "Games for the\nfirst half hour"
       ],
       "captions": {
-        "tiktok": "Warm white wins every time. porchandparty901.com/request #holidaylights #memphis",
-        "instagram": "Warm white wins every time. Save this for setup day. porchandparty901.com/request #holidaylights #memphis",
-        "facebook": "A small one for setup day: warm white lights, door first, and a timer so nobody has to remember. Or let us hang them: porchandparty901.com/request"
+        "tiktok": "Save this for the office holiday party. Want the table or the games off your list? porchandparty901.com/request #officeparty #memphis",
+        "instagram": "Save this for the office holiday party. The grazing table and the games can be ours, delivered and set up. porchandparty901.com/request #officeparty #memphis",
+        "facebook": "Planning the office holiday party? A short list for this week. The grazing table and the games can be ours: porchandparty901.com/request"
+      }
+    },
+    {
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "id": "pnp-1210-floor-picnic-idea",
+      "service": "romantic",
+      "format": "pov",
+      "at": "2026-12-10 18:30",
+      "music": "slow-glow",
+      "pics": [
+        {
+          "src": "gen:idea-living-room-picnic.jpg"
+        }
+      ],
+      "hook": "POV: date night,\nbut on the living room floor",
+      "lines": [
+        "No reservation needed"
+      ],
+      "captions": {
+        "tiktok": "An idea for date night at home. Want one like it set up? porchandparty901.com/request #datenight #memphis",
+        "instagram": "An idea for date night at home: a floor picnic for two with petals and tea lights. Want one like it set up? porchandparty901.com/request #datenight #memphis",
+        "facebook": "An idea for date night at home: a floor picnic for two. Want one like it set up? porchandparty901.com/request"
+      }
+    },
+    {
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "id": "pnp-1211-gender-reveal-idea",
+      "service": "celebration",
+      "format": "quick-tip",
+      "at": "2026-12-11 18:30",
+      "music": "easy-stroll",
+      "pics": [
+        {
+          "src": "gen:idea-gender-reveal-corner.jpg"
+        }
+      ],
+      "hook": "Gender reveal at home?\nKeep it to one corner",
+      "lines": [
+        "One balloon cluster,\nnot an arch",
+        "The box on a low table"
+      ],
+      "captions": {
+        "tiktok": "An idea for a gender reveal corner at home. Want one set up? porchandparty901.com/request #genderreveal #memphis",
+        "instagram": "What a gender reveal corner can look like: one balloon cluster and the box on a low table. Want one like it set up? porchandparty901.com/request #genderreveal #memphis",
+        "facebook": "An idea for a gender reveal at home: keep it to one corner. Want one like it set up? porchandparty901.com/request"
+      }
+    },
+    {
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "id": "pnp-1215-office-games",
+      "service": "event",
+      "format": "pov",
+      "at": "2026-12-15 18:30",
+      "music": "slow-glow",
+      "pics": [
+        {
+          "src": "gen:office-games-breakroom-v2.jpg"
+        }
+      ],
+      "hook": "POV: the office party\nfinally has something to do",
+      "lines": [
+        "Giant games,\ndelivered and set up"
+      ],
+      "captions": {
+        "tiktok": "Giant games for the office party, delivered and set up. porchandparty901.com/request #officeparty #memphis",
+        "instagram": "Giant games for the office holiday party, delivered and set up before anyone gets there. porchandparty901.com/request #officeparty #memphis",
+        "facebook": "Office holiday party? Giant games, delivered and set up before anyone gets there. porchandparty901.com/request"
+      }
+    },
+    {
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "id": "pnp-1216-hotel-proposal-idea",
+      "service": "romantic",
+      "format": "pov",
+      "at": "2026-12-16 18:30",
+      "music": "slow-glow",
+      "pics": [
+        {
+          "src": "gen:idea-hotel-proposal-suite.jpg"
+        }
+      ],
+      "hook": "POV: you’re proposing\nin a hotel suite tonight",
+      "lines": [
+        "Petals from the door\nto the window"
+      ],
+      "captions": {
+        "tiktok": "An idea for a hotel proposal. Want one like it set up? porchandparty901.com/request #proposal #memphis",
+        "instagram": "An idea for a hotel proposal: petals from the door to the window, roses and tea lights. Want one like it set up? porchandparty901.com/request #proposal #memphis",
+        "facebook": "An idea for a hotel proposal in Memphis. Want one like it set up? Send us the date: porchandparty901.com/request"
+      }
+    },
+    {
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "id": "pnp-1218-bridal-shower-idea",
+      "service": "celebration",
+      "format": "quick-tip",
+      "at": "2026-12-18 18:30",
+      "music": "bright-morning",
+      "pics": [
+        {
+          "src": "gen:idea-bridal-shower-brunch.jpg"
+        }
+      ],
+      "hook": "Bridal shower brunch?\nStart with the table",
+      "lines": [
+        "One long runner\nof garden roses",
+        "Balloons on one chair,\nnot everywhere"
+      ],
+      "captions": {
+        "tiktok": "An idea for a bridal shower brunch table. porchandparty901.com/request #bridalshower #memphis",
+        "instagram": "An idea for a bridal shower brunch: one long runner of garden roses, and balloons on one chair, not everywhere. Want one like it set up? porchandparty901.com/request #bridalshower #memphis",
+        "facebook": "An idea for a bridal shower brunch table. Want one like it set up? porchandparty901.com/request"
+      }
+    },
+    {
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "id": "pnp-1221-birthday-dinner-idea",
+      "service": "celebration",
+      "format": "quick-tip",
+      "at": "2026-12-21 18:30",
+      "music": "golden-hour",
+      "pics": [
+        {
+          "src": "gen:idea-birthday-dinner-black-gold.jpg"
+        }
+      ],
+      "hook": "Birthday dinner at home?\nPick two colours",
+      "lines": [
+        "Black and gold,\nthen stop",
+        "Balloons on one chair,\nnot the whole room"
+      ],
+      "captions": {
+        "tiktok": "An idea for a birthday dinner at home in black and gold. porchandparty901.com/request #birthdaydinner #memphis",
+        "instagram": "An idea for a grown-up birthday dinner at home: two colours, low flowers, balloons on one chair. Want one like it set up? porchandparty901.com/request #birthdaydinner #memphis",
+        "facebook": "An idea for a birthday dinner at home, in black and gold. Want one like it set up? porchandparty901.com/request"
+      }
+    },
+    {
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "id": "pnp-1222-family-games",
+      "service": "event",
+      "format": "quick-tip",
+      "at": "2026-12-22 18:30",
+      "music": "easy-stroll",
+      "pics": [
+        {
+          "src": "gen:yard-connect-four-nov-v3.jpg"
+        },
+        {
+          "src": "gen:yard-cornhole-one.jpg"
+        }
+      ],
+      "hook": "Family in town?\nPut the games out back",
+      "lines": [
+        "Giant Connect Four\nand cornhole",
+        "Delivered and set up"
+      ],
+      "captions": {
+        "tiktok": "Giant yard games for when the family is in town. porchandparty901.com/request #yardgames #memphis",
+        "instagram": "Family in town for the holidays? Giant Connect Four and cornhole, delivered and set up. porchandparty901.com/request #yardgames #memphis",
+        "facebook": "Family in town for the holidays? We rent giant Connect Four and cornhole, delivered and set up: porchandparty901.com/request"
+      }
+    },
+    {
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "id": "pnp-1223-hotel-anniversary-idea",
+      "service": "romantic",
+      "format": "pov",
+      "at": "2026-12-23 18:30",
+      "music": "golden-hour",
+      "pics": [
+        {
+          "src": "gen:idea-hotel-anniversary-champagne.jpg"
+        }
+      ],
+      "hook": "POV: your anniversary,\nin emerald and gold",
+      "lines": [
+        "Green and gold,\nnot just red"
+      ],
+      "captions": {
+        "tiktok": "An idea for a hotel anniversary in emerald and gold. porchandparty901.com/request #anniversary #memphis",
+        "instagram": "An idea for a hotel anniversary in emerald and gold, for when red feels done. Want one like it set up? porchandparty901.com/request #anniversary #memphis",
+        "facebook": "An idea for a hotel anniversary, in emerald and gold. Want one like it set up? porchandparty901.com/request"
+      }
+    },
+    {
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "id": "pnp-1227-first-birthday-idea",
+      "service": "celebration",
+      "format": "quick-tip",
+      "at": "2026-12-27 18:30",
+      "music": "sunday-best",
+      "pics": [
+        {
+          "src": "gen:idea-first-birthday-corner.jpg"
+        }
+      ],
+      "hook": "First birthday?\nSet one corner, not the house",
+      "lines": [
+        "The high chair\nis the stage",
+        "One balloon cluster\nin warm colours"
+      ],
+      "captions": {
+        "tiktok": "An idea for a first birthday corner. porchandparty901.com/request #firstbirthday #memphis",
+        "instagram": "An idea for a first birthday: one corner, the high chair as the stage, one balloon cluster in warm colours. Want one like it set up? porchandparty901.com/request #firstbirthday #memphis",
+        "facebook": "An idea for a first birthday at home: one corner, not the whole house. Want one like it set up? porchandparty901.com/request"
+      }
+    },
+    {
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "id": "pnp-1228-nye-for-two-idea",
+      "service": "romantic",
+      "format": "pov",
+      "at": "2026-12-28 18:30",
+      "music": "golden-hour",
+      "pics": [
+        {
+          "src": "gen:idea-new-years-eve-for-two.jpg"
+        }
+      ],
+      "hook": "POV: New Year’s Eve,\njust the two of you",
+      "lines": [
+        "The room is ready\nbefore you are"
+      ],
+      "captions": {
+        "tiktok": "An idea for New Year's Eve for two. Want one like it set up? porchandparty901.com/request #newyearseve #memphis",
+        "instagram": "An idea for New Year's Eve for two: a table by the window, petals and tea lights. Want one like it set up? porchandparty901.com/request #newyearseve #memphis",
+        "facebook": "An idea for New Year's Eve for two. Want one like it set up? Send us the date: porchandparty901.com/request"
+      }
+    },
+    {
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "id": "pnp-1229-nye-party",
+      "service": "event",
+      "format": "checklist",
+      "at": "2026-12-29 18:30",
+      "music": "ready-set",
+      "pics": [
+        {
+          "src": "gen:office-grazing-ready.jpg"
+        }
+      ],
+      "hook": "New Year’s Eve party?\nDo these the day before",
+      "lines": [
+        "Clear one long table",
+        "Count plates and glasses",
+        "Grazing set out\nan hour early",
+        "Games ready\nfor after midnight"
+      ],
+      "captions": {
+        "tiktok": "Save this for the 30th. Want the table or the games off your list? porchandparty901.com/request #newyearseve #memphis",
+        "instagram": "Save this for the 30th. Want the grazing table or the yard games off your list? porchandparty901.com/request #newyearseve #memphis",
+        "facebook": "Hosting New Year's Eve? A short list for the day before. The grazing table and the games can be ours: porchandparty901.com/request"
+      }
+    },
+    {
+      "platforms": [
+        "tiktok",
+        "instagram",
+        "facebook"
+      ],
+      "id": "pnp-1230-porch-takedown",
+      "service": "porch",
+      "format": "quick-tip",
+      "at": "2026-12-30 18:30",
+      "music": "easy-stroll",
+      "pics": [
+        {
+          "src": "gen:xmas-porch-haint-door.jpg"
+        }
+      ],
+      "hook": "Christmas porch?\nTakedown is on us",
+      "lines": [
+        "We come back\nin January",
+        "The decor goes\nback with us",
+        "Nothing to store"
+      ],
+      "captions": {
+        "tiktok": "Our Christmas porch packages include January takedown. porchandparty901.com/request #christmasporch #memphis",
+        "instagram": "Our Christmas porch packages include January takedown, and the decor goes back with us. Nothing to store. porchandparty901.com/request #christmasporch #memphis",
+        "facebook": "Our Christmas porch packages include January takedown, and the decor goes back with us, so there's nothing to store. porchandparty901.com/request"
       }
     }
   ],
@@ -525,16 +801,7 @@
     "grazing-board-december.jpg": "A real photograph of a simple grazing board for a December party on a wooden dining table in a Memphis home, in warm evening lamp light. One long walnut board holds three cheeses cut in wedges (a white brie, an orange cheddar, a blue cheese), a short S-shaped line of overlapping salami slices, two small bunches of red grapes, a small white bowl of pecans, a short row of crackers, and three small sprigs of rosemary tucked at the board's edge. Beside the board, one small white bowl of apricot jam with a wooden spoon. Plenty of bare wood shows between the foods. Behind, out of focus, a dining room with a small lit Christmas tree. Camera at standing eye level from a three-quarter angle, the board running diagonally across the frame between about 30% and 60% down; the upper third is the soft background and the lower third is plain wooden tabletop. 35mm lens, natural colours, slight film grain, slightly imperfect white balance.",
     "office-grazing-ready.jpg": "A real photograph of a long folding table in an ordinary Memphis office break room, set for a December holiday party just before anyone arrives, early evening. A plain white tablecloth; on it, laid straight down the length of the table on a runner of brown kraft paper, a grazing spread in loose groups: wedges of three cheeses, folded salami, red grapes, crackers and small sprigs of rosemary, with paper showing between the groups; a short stack of small white plates at the near end. Behind the table, a plain white wall, a window with the dusky city outside, and a small lit Christmas tree in the corner. Warm light from a floor lamp and the tree. Camera at standing eye level from one end of the table, the table running diagonally from the lower right toward the window, the food between about 30% and 60% down; the top third is wall and window; the bottom quarter is the plain white tablecloth edge and grey floor. 35mm lens, natural colours, slight film grain, slightly imperfect white balance.",
     "office-lobby-garland.jpg": "A real photograph of the small front lobby of an ordinary Memphis office on a December evening, set for the holiday party just before anyone arrives. A plain wooden reception desk with a fresh green garland, small warm-white lights tucked unevenly into it, draped along its front edge; a small lit Christmas tree beside the desk; one upholstered armchair against the wall; a tall plain window on the side wall with the dark street outside; a grey tiled floor. The desktop is bare except for a brass table lamp, which gives warm light with the tree. Camera at standing eye level from the middle of the lobby, the desk across the middle of the frame; the top third is plain painted wall and ceiling; the lower third is plain floor. 35mm lens, natural colours, slight film grain, slightly imperfect white balance.",
-    "porch-steps-lights-close.jpg": {
-      "prompt": "A closer photograph of the porch steps of the house in the reference image, taken standing about five feet back from the bottom step and about two feet to the right of the door's centre line, camera at waist height angled slightly down, in the same blue hour just after sunset. Keep the porch, the steps, the door, the doormat, the strands of small warm-white lights along the step edges, the brass lanterns and the terracotta pot exactly as they look in the reference. The camera is closer, so the frame is narrower: the light strands run off both side edges; the terracotta pot with its small spruce tree stands right of the door; the one brass lantern on the porch floor beside the right post stands near the right edge with its white pillar candle lit; the two lanterns on the left of the porch and the lantern on the bottom step are outside the frame. The porch edge and steps, grey treads with plain white risers, fill the frame from about 40% down to about 85% down: the porch edge's light strand about 48% down, the upper step's about 60% down and the bottom step's about 76% down; the plain white riser under the upper step fills about 61-71% down; below the steps, the plain grey front walk runs to the bottom edge. Above them, the plain brown coir doormat on the porch floor and the lower part of the same stained-wood door. A few dry brown oak leaves on the steps. 35mm lens, natural colours, slight film grain, slightly imperfect white balance.",
-      "ref": "xmas-porch-haint-door.jpg"
-    },
     "tg-table-at-home.jpg": "Photo-real vertical photograph, shot on a full-frame camera, warm evening light: a long Thanksgiving dining table in a Memphis home styled for twelve, a wide wooden grazing board of cheeses, grapes, figs, nuts and crackers down the middle, low magnolia leaves and small white pumpkins, cream linen napkins, amber glass candle holders lit, empty chairs, nobody at the table.",
-    "xmas-brick-porch-garland-v2.jpg": {
-      "prompt": "Edit this photograph. The garland still goes up and over the door frame, but each side now hangs straight down, fastened along the side of the door frame, and ends level with the door handle, about halfway down the door, clear of the handle and well above the floor; where the garland is removed, the white door frame and the brick show plain and clean. Remove the garland from the floor; the brown coir doormat and the brick around it are clear. Replace the flowered rug at the bottom with plain grey concrete and a few dry brown oak leaves. Make the right-hand potted tree a little shorter and fuller. Make the right-hand lantern a little smaller and shorter than the left one. Keep everything else the same. Add a slight natural film grain.",
-      "ref": "xmas-brick-porch-garland.jpg"
-    },
-    "xmas-column-porch-dusk.jpg": "A real photograph of the front porch of a white-painted wood house in Memphis on a December evening in the blue hour, from the front walk at standing eye level, a little off to the left. Two square white porch posts, standing at the far left and far right edges of the frame, each wrapped in a fresh cedar garland with small warm-white lights tucked unevenly into it. A white beadboard porch ceiling. A dark green front door with one evergreen wreath with a deep red bow. One wooden rocking chair at the front right corner of the porch with a red plaid wool blanket over its arm. One large brass lantern with a lit candle on the right end of the top step, just in front of the rocker. Three wide painted wooden steps with a few dry brown oak leaves, and a small leafless tree with smooth grey bark at the right of the steps. The ceiling and the tops of the posts fill the top quarter of the frame; the door spans about 30-60% down; plain grey painted porch floorboards fill about 60-73% down; the steps fill the bottom quarter. 35mm lens, natural colours, slight film grain, slightly imperfect white balance.",
     "xmas-porch-haint-door.jpg": {
       "prompt": "Edit this photograph. Keep the house, ceiling, door, wreath, doormat, the shape of the steps and the camera exactly the same; the door, its handle and the wreath do not change. Add a fresh cedar garland up and over the door frame, each side hanging straight down beside the frame and ending just below the height of the door handle, with small warm-white lights tucked unevenly into it, some deep in the branches, some closer together; a strand of warm-white lights along the front edge of each step; two brass lanterns with lit white pillar candles on the top step, a tall one on the left and a shorter one on the right; a terracotta pot with a small spruce tree on each side of the door, the right one a little shorter and fuller. The new lights cast a little warm glow on the siding and steps. Add a slight natural film grain.",
       "ref": "xmas-porch-haint-one-wreath.jpg"
@@ -551,13 +818,13 @@
       "prompt": "Edit this photograph. On the blue game board only: paint over the row of small holes along the board's top edge, the first row of large round holes just below it, and the whole rightmost column of large round holes, with the same weathered, scuffed blue paint as the rest of the board, so those holes are gone and that part of the board is plain blue wood. The board keeps its size and position and now shows 7 columns and 6 rows of open round holes. Take every red and yellow disc off the board; all the remaining holes are empty and the yard shows through them. Keep the yard, fence, string lights, trees, the game's blue legs and bottom rail, the disc stacks on the grass and the camera exactly the same. Add a slight natural film grain.",
       "ref": "yard-connect-four-nov.jpg"
     },
-    "xmas-brick-porch-garland-v3.jpg": {
-      "prompt": "Edit this photograph. Take the hanging swag of greenery off the middle of the door; the black door and the transom window above it are clear. Add one fresh cedar garland with small warm-white lights tucked unevenly into it: it runs along the top of the white door frame and hangs straight down both sides of the frame, ending just above the door handle. Replace the right-hand tree with a shorter, rounder evergreen shrub in the same black pot. Replace the right-hand lantern with a smaller, shorter brass lantern with a lit candle. Keep everything else exactly the same. Add a slight natural film grain.",
-      "ref": "xmas-brick-porch-garland-v2.jpg"
-    },
-    "xmas-column-porch-dusk-v2.jpg": {
-      "prompt": "Edit this photograph. Replace the doormat with a plain brown coir doormat of the same size, with no pattern and no lettering. Keep everything else exactly the same. Add a slight natural film grain.",
-      "ref": "xmas-column-porch-dusk.jpg"
-    }
+    "idea-gender-reveal-corner.jpg": "A real photograph of one corner of a bright Memphis living room set up for a gender reveal party in the afternoon. A cluster of seven large chrome balloons in deep teal, ivory and gold, tied with long ribbons to a small weight on the floor beside a low white side table. On the table: one closed plain kraft-paper gift box tied with a wide cream satin ribbon, a clear glass vase of white hydrangeas, and a short stack of gold-rimmed dessert plates. A woven jute rug, a grey sofa arm at the left edge, a window with sheer white curtains. Camera at standing eye level, the table and box sits in the lower middle of the frame, with open space above it; the top quarter is plain wall and curtain. 35mm lens. Photographed with a phone in ordinary light, natural colours, slightly imperfect white balance, slight grain, a little lived-in. Every surface, box, bottle and napkin is plain and unmarked. The balloons are smooth round chrome orbs in one loose cluster. The room is empty. Every candle is a flameless LED tea light with a steady warm glow.",
+    "idea-hotel-proposal-suite.jpg": "A real photograph of a modern hotel suite at night, set up for a marriage proposal. A loose path of deep red rose petals runs from the near carpet to a low round coffee table in front of a tall window with city lights outside. A ring of flameless LED tea lights glows warm around the table. On the table: a bouquet of red roses wrapped in brown paper and two empty champagne flutes. A cluster of five chrome balloons in burgundy and gold is tied to the arm of a grey armchair, the ribbons hanging straight. No bed in the frame. Camera at standing eye level from the doorway, the table sits in the lower middle of the frame, with open space above it; the top third is window and dark city lights. 35mm lens. Photographed with a phone in ordinary light, natural colours, slightly imperfect white balance, slight grain, a little lived-in. Every surface, box, bottle and napkin is plain and unmarked. The balloons are smooth round chrome orbs in one loose cluster. The room is empty. Every candle is a flameless LED tea light with a steady warm glow.",
+    "idea-bridal-shower-brunch.jpg": "A real photograph of a long brunch table on a covered back patio in Memphis, set for a bridal shower late in the morning. A white linen tablecloth set for six; down the middle, one low runner of white and peach garden roses with eucalyptus; at each place a white plate with a folded ivory napkin and one clear stemmed glass. A cluster of five chrome balloons in emerald green and gold tied to the back of the far chair only, ribbons hanging straight. A red brick wall and unlit string lights behind. Camera at seated eye level from the near end, the table running away from the camera, the flowers sits in the lower middle of the frame, with open space above it; the top quarter is brick wall. 35mm lens. Photographed with a phone in ordinary light, natural colours, slightly imperfect white balance, slight grain, a little lived-in. Every surface, box, bottle and napkin is plain and unmarked. The balloons are smooth round chrome orbs in one loose cluster. The room is empty. Every candle is a flameless LED tea light with a steady warm glow.",
+    "idea-hotel-anniversary-champagne.jpg": "A real photograph of a hotel room at night set up for an anniversary in emerald and gold. On a white king bed, a wide loose band of deep red and ivory rose petals across the foot of the bed, with flameless LED tea lights on the carpet along the bed’s base; two white pillows each tied with a thin gold satin ribbon bow. A cluster of five chrome balloons in emerald green and gold tied to the arm of a velvet armchair by the window, ribbons hanging straight. A small round table beside the chair holds an ice bucket with a bottle wrapped in a white napkin and two glasses. Camera at standing eye level from beside the armchair, looking across the bed, the bed in the lower middle of the frame with open space above it; the top quarter is padded headboard and wall. 35mm lens. Photographed with a phone in ordinary light, natural colours, slightly imperfect white balance, slight grain, a little lived-in. Every surface, box, bottle and napkin is plain and unmarked. The balloons are smooth round chrome orbs in one loose cluster. The room is empty. Every candle is a flameless LED tea light with a steady warm glow.",
+    "idea-first-birthday-corner.jpg": "A real photograph of one corner of a family dining room set up for a baby's first birthday in the afternoon. A natural wooden high chair, empty, pulled up to the end of a wooden table; on the table beside it a low white cake stand with one small plain white buttercream cake with no topper and no candle, a short stack of small plates and a little vase of yellow ranunculus. A cluster of six chrome balloons in marigold, cream and terracotta tied to the back of the high chair, the ribbons hanging straight. Window light from the left, a plain cream wall. Camera at standing eye level, the high chair and cake sits in the lower middle of the frame, with open space above it; the top quarter is plain wall. 35mm lens. Photographed with a phone in ordinary light, natural colours, slightly imperfect white balance, slight grain, a little lived-in. Every surface, box, bottle and napkin is plain and unmarked. The balloons are smooth round chrome orbs in one loose cluster. The room is empty. Every candle is a flameless LED tea light with a steady warm glow.",
+    "idea-living-room-picnic.jpg": "A real photograph of a Memphis living room at night set up for a romantic floor picnic for two. On the rug in front of a dark grey sofa: a low wooden tray table holding a round wooden board with three wedges of cheese and one bunch of red grapes, two stemmed glasses and a bottle wrapped in a white napkin; two big floor cushions in deep red and cream on either side; a loose scatter of red rose petals on the rug around the table, and flameless LED tea lights in small clear glass holders along the edge of the rug. A cluster of four chrome balloons in burgundy and gold tied to the sofa arm, ribbons hanging straight. A floor lamp turned low in the corner, a dark window behind. Camera at seated eye level from the near side of the rug, the tray table sits in the lower middle of the frame, with open space above it; the top quarter is sofa and dark wall. 35mm lens. Photographed with a phone in ordinary light, natural colours, slightly imperfect white balance, slight grain, a little lived-in. Every surface, box, bottle and napkin is plain and unmarked. The balloons are smooth round chrome orbs in one loose cluster. The room is empty. Every candle is a flameless LED tea light with a steady warm glow.",
+    "idea-birthday-dinner-black-gold.jpg": "A real photograph of a dining table at home set for a grown-up birthday dinner for six in black and gold, early evening. A black linen tablecloth; down the middle a low runner of white roses and dark greenery with flameless LED pillar candles in glass hurricanes; at each place one matte black plate, a white linen napkin, one gold fork and knife, and one clear stemmed glass. A cluster of five chrome balloons in black and gold tied to the back of the head chair, ribbons hanging straight. A plain white wall with one framed landscape print, a window at dusk. Camera at standing eye level from the near corner of the table, the table running away diagonally, the flowers sits in the lower middle of the frame, with open space above it; the top quarter is wall. 35mm lens. Photographed with a phone in ordinary light, natural colours, slightly imperfect white balance, slight grain, a little lived-in. Every surface, box, bottle and napkin is plain and unmarked. The balloons are smooth round chrome orbs in one loose cluster. The room is empty. Every candle is a flameless LED tea light with a steady warm glow.",
+    "idea-new-years-eve-for-two.jpg": "A real photograph of a hotel room by a tall window on New Year's Eve, set up for two. A small round table by the window holds an ice bucket with a bottle wrapped in a white napkin, two champagne flutes and a little plate of chocolate-dipped strawberries, with a light scatter of small gold sequin confetti on the table around the flutes; around the table on the carpet, a loose ring of red and white rose petals and flameless LED tea lights. A cluster of five chrome balloons in silver and gold tied to the arm of an armchair, ribbons hanging straight. Through the window, the city at night with lit high-rise windows and soft blurred lights. The bed is out of frame. Camera at standing eye level from the middle of the room, the table sits in the lower middle of the frame, with open space above it; the top third is window and night sky. 35mm lens. Photographed with a phone in ordinary light, natural colours, slightly imperfect white balance, slight grain, a little lived-in. Every surface, box, bottle and napkin is plain and unmarked. The balloons are smooth round chrome orbs in one loose cluster. The room is empty. Every candle is a flameless LED tea light with a steady warm glow."
   }
 }

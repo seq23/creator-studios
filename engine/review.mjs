@@ -39,7 +39,7 @@ const CHECKLIST = `Judge it as a 20-year social video veteran would before shipp
 7. Overall: would a real person in Memphis stop, understand it in 3 seconds, and trust it? Anything that would make them scroll past, cringe or distrust it is a FAIL.`;
 
 function brief(piece, dir, files) {
-  const pics = piece.pics.map((p, i) => `  ${i + 1}. ${p.src.startsWith("real:") ? "REAL (our own job)" : "AI SCENE (an idea, never our job)"}${p.label ? ` — label "${p.label}"` : ""}`).join("\n");
+  const pics = piece.pics.map((p, i) => `  ${i + 1}. ${p.src.startsWith("real:") ? "REAL (our own job: a verified photo of a setup we did, touched up only)" : "AI SCENE (an idea, never our job)"}${p.label ? ` — label "${p.label}"` : ""}`).join("\n");
   const words = [`hook: ${JSON.stringify(piece.hook)}`, ...(piece.lines ?? []).map((l) => `line: ${JSON.stringify(l)}`), ...(piece.spots ?? []).map((s) => `label: ${JSON.stringify(s.label)}`), piece.endLine ? `end line: ${JSON.stringify(piece.endLine)}` : ""].filter(Boolean).join("\n");
   const caps = Object.entries(piece.captions).map(([k, v]) => `  ${k}: ${JSON.stringify(v)}`).join("\n");
   return `You are a fresh, independent reviewer. You did not make this. Look at the REAL rendered output with the Read tool (each file below), then judge it.
