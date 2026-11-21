@@ -60,34 +60,6 @@
       "service": "romantic"
     },
     {
-      "platforms": [
-        "tiktok",
-        "instagram",
-        "facebook"
-      ],
-      "id": "pnp-1122-petal-room",
-      "service": "romantic",
-      "format": "pov",
-      "at": "2026-11-22 18:00",
-      "music": "slow-glow",
-      "pics": [
-        {
-          "src": "real:rose-petal-heart-bed.jpg",
-          "fit": "width",
-          "fy": 0.45
-        }
-      ],
-      "hook": "POV: you get home\nand this is on the bed",
-      "lines": [
-        "A romantic room,\nset before you get there"
-      ],
-      "captions": {
-        "tiktok": "One of our romantic room setups. Anniversary, birthday or just because. porchandparty901.com/request #romanticsetup #memphis",
-        "instagram": "One of our romantic room setups: rose petals in a ring of candlelight, ready before they get home. Anniversary, birthday or just because. porchandparty901.com/request #romanticsetup #memphis",
-        "facebook": "One of our romantic room setups. Anniversary, birthday or just because: tell us the date and we set it up. porchandparty901.com/request"
-      }
-    },
-    {
       "id": "pnp-1123-how-it-works",
       "format": "how-it-works",
       "at": "2026-11-23 18:30",
@@ -438,38 +410,6 @@
       "service": "event"
     },
     {
-      "platforms": [
-        "tiktok",
-        "instagram",
-        "facebook"
-      ],
-      "id": "pnp-1202-proposal-room",
-      "service": "romantic",
-      "format": "pov",
-      "at": "2026-12-02 18:30",
-      "pics": [
-        {
-          "src": "real:rose-petal-candle-hallway.jpeg",
-          "fx": 0.62
-        },
-        {
-          "src": "real:rose-petal-heart-bed.jpg",
-          "fit": "width",
-          "fy": 0.45
-        }
-      ],
-      "hook": "POV: you’re about to propose\nand the room is ready",
-      "captions": {
-        "tiktok": "Proposal rooms, set before you get there. These photos are from one of our romantic room setups. porchandparty901.com/request #proposal #memphis",
-        "instagram": "Planning to propose? Send us the date and the place, and the room is ready before you walk in. These photos are from one of our romantic room setups. porchandparty901.com/request #proposal #memphis",
-        "facebook": "Planning a proposal? Send us the date and the place, and we set the room before you get there. These photos are from one of our romantic room setups. porchandparty901.com/request"
-      },
-      "music": "slow-glow",
-      "lines": [
-        "Memphis proposal rooms,\nset before you get there"
-      ]
-    },
-    {
       "id": "pnp-1203-cornhole-or-connect-four",
       "format": "this-or-that",
       "at": "2026-12-03 18:00",
@@ -508,97 +448,6 @@
         "instagram",
         "facebook"
       ],
-      "id": "pnp-1204-birthday-room",
-      "service": "celebration",
-      "format": "rate-it",
-      "at": "2026-12-04 18:30",
-      "music": "big-reveal",
-      "pics": [
-        {
-          "src": "real:birthday-32-bedroom.jpeg",
-          "fit": "width"
-        }
-      ],
-      "hook": "A birthday room we set up.\nRate it, 1 to 10",
-      "lines": [
-        "Would you want\nto walk into this?"
-      ],
-      "captions": {
-        "tiktok": "A birthday room we set up: balloons, petals and a heart of lights. Your number in the comments. porchandparty901.com/request #birthdaysurprise #memphis",
-        "instagram": "A birthday room we set up: balloons, petals and a heart of lights. Rate it 1 to 10 in the comments. porchandparty901.com/request #birthdaysurprise #memphis",
-        "facebook": "A birthday room we set up. Rate it 1 to 10 in the comments, and if someone you love has a birthday coming, send us the date: porchandparty901.com/request"
-      }
-    },
-    {
-      "platforms": [
-        "tiktok",
-        "instagram",
-        "facebook"
-      ],
-      "id": "pnp-1205-anniversary-tip",
-      "service": "romantic",
-      "format": "quick-tip",
-      "at": "2026-12-05 18:30",
-      "music": "golden-hour",
-      "pics": [
-        {
-          "src": "real:anniversary-fireplace.jpeg",
-          "fit": "width"
-        }
-      ],
-      "hook": "Anniversary at home?\nSet the room first",
-      "lines": [
-        "Big lights off,\ncandlelight only",
-        "Spell it out\nwhere they’ll see it",
-        "Petals lead the way in"
-      ],
-      "captions": {
-        "tiktok": "From an anniversary we set up. Save it for yours. porchandparty901.com/request #anniversary #memphis",
-        "instagram": "From an anniversary we set up. Save it for yours, or send us the date and we set it. porchandparty901.com/request #anniversary #memphis",
-        "facebook": "Anniversary at home? Turn the big lights off and let the candles do the work. This one is from a setup we did. Want yours set? porchandparty901.com/request"
-      }
-    },
-    {
-      "platforms": [
-        "tiktok",
-        "instagram",
-        "facebook"
-      ],
-      "id": "pnp-1206-hotel-how-it-works",
-      "service": "celebration",
-      "format": "how-it-works",
-      "at": "2026-12-06 18:30",
-      "music": "bright-morning",
-      "pics": [
-        {
-          "src": "real:hotel-birthday-feliz-cumpleanos-1.png"
-        },
-        {
-          "src": "real:hotel-birthday-feliz-cumpleanos-2.png"
-        },
-        {
-          "src": "real:hotel-birthday-feliz-cumpleanos-4.png"
-        }
-      ],
-      "hook": "Hotel birthday surprise?\nHere’s how it works",
-      "lines": [
-        "Book the room,\nsend us the date",
-        "We set it up\naround check-in",
-        "They walk in\nto this"
-      ],
-      "captions": {
-        "tiktok": "Hotel room surprises, set up around check-in. These photos are from one we did. porchandparty901.com/request #hotelsurprise #memphis",
-        "instagram": "How a hotel room surprise works with us: you book the room and send the date, we set it up around check-in, and they walk in to it. These photos are from one we did. porchandparty901.com/request #hotelsurprise #memphis",
-        "facebook": "Hotel room surprise, start to finish: you book the room and send us the date, we set it up around check-in, they walk in to it. Start here: porchandparty901.com/request"
-      },
-      "hookY": 0.55
-    },
-    {
-      "platforms": [
-        "tiktok",
-        "instagram",
-        "facebook"
-      ],
       "id": "pnp-1208-office-checklist",
       "service": "event",
       "format": "checklist",
@@ -621,110 +470,6 @@
         "instagram": "Save this for the office holiday party. The grazing table and the games can be ours, delivered and set up. porchandparty901.com/request #officeparty #memphis",
         "facebook": "Planning the office holiday party? A short list for this week. The grazing table and the games can be ours: porchandparty901.com/request"
       }
-    },
-    {
-      "id": "pnp-1211-porch-lights-tip",
-      "format": "quick-tip",
-      "at": "2026-12-11 18:30",
-      "platforms": [
-        "tiktok",
-        "instagram",
-        "facebook"
-      ],
-      "music": "easy-stroll",
-      "pics": [
-        {
-          "src": "gen:xmas-porch-haint-door.jpg",
-          "fy": 0.5
-        }
-      ],
-      "hook": "The porch light rule:\nwarm white only",
-      "lines": [
-        "Light the door first,\nthen the steps",
-        "Put them on a timer"
-      ],
-      "captions": {
-        "tiktok": "Warm white, every time. porchandparty901.com/request #holidaylights #memphis",
-        "instagram": "Warm white, every time. Save this for setup day. porchandparty901.com/request #holidaylights #memphis",
-        "facebook": "A small one for setup day: warm white lights, the door first, and a timer so nobody has to remember. Or let us do the porch: porchandparty901.com/request"
-      },
-      "service": "porch"
-    },
-    {
-      "platforms": [
-        "tiktok",
-        "instagram",
-        "facebook"
-      ],
-      "id": "pnp-1212-romantic-setups",
-      "service": "romantic",
-      "format": "real-montage",
-      "at": "2026-12-12 18:30",
-      "music": "golden-hour",
-      "pics": [
-        {
-          "src": "real:anniversary-fireplace.jpeg",
-          "label": "Anniversary",
-          "fit": "width"
-        },
-        {
-          "src": "real:rose-petal-candle-hallway.jpeg",
-          "label": "The walk in",
-          "fx": 0.62
-        },
-        {
-          "src": "real:rose-petal-heart-bed.jpg",
-          "label": "Petals and candlelight",
-          "fit": "width",
-          "fy": 0.45
-        },
-        {
-          "src": "real:birthday-32-bedroom.jpeg",
-          "label": "A birthday, in red",
-          "fit": "width"
-        }
-      ],
-      "hook": "Romantic rooms\nwe set up in Memphis",
-      "captions": {
-        "tiktok": "Romantic rooms we set up. Anniversary, birthday or just because. porchandparty901.com/request #romanticsetup #memphis",
-        "instagram": "Romantic rooms we set up in Memphis. Anniversary, birthday or just because: send us the date. porchandparty901.com/request #romanticsetup #memphis",
-        "facebook": "A few of the romantic rooms we set up in Memphis. Anniversary, birthday or just because: send us the date and the place. porchandparty901.com/request"
-      }
-    },
-    {
-      "platforms": [
-        "tiktok",
-        "instagram",
-        "facebook"
-      ],
-      "id": "pnp-1213-shower-ideas",
-      "service": "celebration",
-      "format": "three-ideas",
-      "at": "2026-12-13 18:30",
-      "music": "sunday-best",
-      "pics": [
-        {
-          "src": "real:baby-shower-backdrop.jpg",
-          "label": "A photo wall",
-          "fit": "width"
-        },
-        {
-          "src": "real:baby-shower-table-setting.jpg",
-          "label": "Table settings",
-          "fit": "width"
-        },
-        {
-          "src": "real:baby-shower-teddy-centerpiece.jpg",
-          "label": "Teddy centerpieces"
-        }
-      ],
-      "hook": "3 baby shower touches\nguests photograph",
-      "captions": {
-        "tiktok": "From a baby shower we set up. Which one is your favorite? porchandparty901.com/request #babyshower #memphis",
-        "instagram": "From a baby shower we set up: the photo wall, the set tables and the teddy centerpieces. Planning one? porchandparty901.com/request #babyshower #memphis",
-        "facebook": "Three touches from a baby shower we set up: a photo wall, set tables and themed centerpieces. Planning one? porchandparty901.com/request"
-      },
-      "hookY": 0.12
     },
     {
       "platforms": [
@@ -750,33 +495,6 @@
         "tiktok": "Giant games for the office party, delivered and set up. porchandparty901.com/request #officeparty #memphis",
         "instagram": "Giant games for the office holiday party, delivered and set up before anyone gets there. porchandparty901.com/request #officeparty #memphis",
         "facebook": "Office holiday party? Giant games, delivered and set up before anyone gets there. porchandparty901.com/request"
-      }
-    },
-    {
-      "platforms": [
-        "tiktok",
-        "instagram",
-        "facebook"
-      ],
-      "id": "pnp-1219-date-night",
-      "service": "romantic",
-      "format": "pov",
-      "at": "2026-12-19 18:30",
-      "music": "slow-glow",
-      "pics": [
-        {
-          "src": "real:rose-petal-candle-hallway.jpeg",
-          "fx": 0.62
-        }
-      ],
-      "hook": "POV: you booked us\nfor date night at home",
-      "lines": [
-        "Petals and candlelight,\nall the way in"
-      ],
-      "captions": {
-        "tiktok": "One of our romantic setups. Date night, anniversary or just because. porchandparty901.com/request #datenight #memphis",
-        "instagram": "One of our romantic setups: petals and candlelight all the way down the hall. Date night, anniversary or just because. porchandparty901.com/request #datenight #memphis",
-        "facebook": "Date night at home, set up for you: one of our romantic setups. Send us the date: porchandparty901.com/request"
       }
     },
     {
