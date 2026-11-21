@@ -430,7 +430,7 @@ export async function storageHealth(env: Env): Promise<StorageReport> {
     await setHealth(env.DB, "Storage", "yellow", `${r.line}. ${n} ${n === 1 ? "upload you kept stays" : "uploads you kept stay"} on the shared storage until studio email is set up, so you get the heads-up before they clear`, "setup-email");
     return r;
   }
-  const note = r.light === "green" ? r.line : r.light === "yellow" ? `${r.line}. Filling up: see what takes the space in Settings` : `${r.line}. Almost full: new videos may not upload${r.place === "host" ? ". Add your own storage in Settings → Storage" : ""}`;
+  const note = r.light === "green" ? r.line : r.light === "yellow" ? `${r.line}. Filling up: see what takes the space in Settings` : `${r.line}. ${r.used_bytes >= r.limit_bytes && r.limit_bytes > 0 ? "Full: new uploads wait" : "Almost full: new videos may not upload"}${r.place === "host" ? ". Add your own storage in Settings → Storage" : ""}`;
   await setHealth(env.DB, "Storage", r.light, note, r.light === "green" ? null : r.place === "host" ? "own-storage" : "storage-almost-full");
   return r;
 }

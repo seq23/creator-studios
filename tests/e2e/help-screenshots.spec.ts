@@ -229,6 +229,7 @@ async function drawCallout(p: Page, target: import("@playwright/test").Locator, 
       const inY = (y: number) => y >= R + 8 && y <= vh - R - 8;
       let cx: number;
       let cy: number;
+      let margin = false;
       // In the margin beside the ringed element when there is room (never over words), else the old places.
       const left = box.x - 5;
       const right = vw - (box.x + box.width + 5);
@@ -236,14 +237,19 @@ async function drawCallout(p: Page, target: import("@playwright/test").Locator, 
       const r = Math.min(R, Math.floor((side - 6) / 2));
       if (r >= 13) {
         R = r;
+        margin = true;
         cx = left >= right ? left / 2 : vw - right / 2;
         cy = Math.min(Math.max(box.y + R + 2, R + 8), vh - R - 8);
       } else if (inX(box.x - 46) && inY(box.y - 46)) [cx, cy] = [box.x - 46, box.y - 46];
       else if (inY(box.y - 46)) [cx, cy] = [Math.min(vw - R - 8, Math.max(R + 8, box.x + box.width - R - 12)), box.y - 46];
       else if (inY(box.y + box.height + 46)) [cx, cy] = [Math.min(vw - R - 8, Math.max(R + 8, box.x + box.width / 2)), box.y + box.height + 46];
       else [cx, cy] = [Math.min(vw - R - 8, box.x + box.width - R - 12), Math.max(R + 8, box.y + R + 12)];
-      const tx = Math.max(box.x, Math.min(cx, box.x + box.width));
+      // The arrow tip (it reaches 8 px past the line's end) stops outside the ring, never on words;
+      // a margin too narrow for an arrow keeps just the badge beside the ring.
+      const onLeft = cx < box.x;
+      const tx = margin ? (onLeft ? box.x - 17 : box.x + box.width + 17) : Math.max(box.x, Math.min(cx, box.x + box.width));
       const ty = Math.max(box.y, Math.min(cy, box.y + box.height));
+      const arrow = !margin || Math.abs(tx - cx) > R + 14;
       const ns = "http://www.w3.org/2000/svg";
       const svg = document.createElementNS(ns, "svg");
       svg.id = "ss-callout";
@@ -254,7 +260,7 @@ async function drawCallout(p: Page, target: import("@playwright/test").Locator, 
       svg.innerHTML = `
         <defs><marker id="ss-ah" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--rose)"/></marker></defs>
         <rect x="${box.x - 5}" y="${box.y - 5}" width="${box.width + 10}" height="${box.height + 10}" rx="12" style="fill:none;stroke:var(--gold);stroke-width:4"/>
-        <line x1="${cx}" y1="${cy}" x2="${tx}" y2="${ty}" style="stroke:var(--rose);stroke-width:4" marker-end="url(#ss-ah)"/>
+        ${arrow ? "" : "<!--"}<line x1="${cx}" y1="${cy}" x2="${tx}" y2="${ty}" style="stroke:var(--rose);stroke-width:4" marker-end="url(#ss-ah)"/>${arrow ? "" : "-->"}
         <circle cx="${cx}" cy="${cy}" r="${R}" style="fill:var(--rose);stroke:var(--ivory);stroke-width:3"/>
         <text x="${cx}" y="${cy + Math.round(R * 0.32)}" text-anchor="middle" style="font-family:var(--font-body);font-size:${Math.round(R * 0.9)}px;font-weight:700;fill:var(--ivory)">${n}</text>`;
       document.body.appendChild(svg);

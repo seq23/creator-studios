@@ -73,7 +73,7 @@ export function StorageSection({ owner }: { owner: boolean }) {
         <Card>
           <div className="storage-head">
             <Dot light={d.light} />
-            <strong>{WORD[d.light]}</strong>
+            <strong>{d.limit_bytes > 0 && d.used_bytes >= d.limit_bytes ? "Full" : WORD[d.light]}</strong>
             <span className="nums">{d.line}</span>
           </div>
           <div className={`meter storage-meter ${d.light === "green" ? "ok" : d.light === "yellow" ? "warn" : "bad"}`} role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={`Storage ${pct}% used`}>
@@ -146,8 +146,17 @@ function OwnStorage({ view, owner, onChange }: { view: StorageAnswer; owner: boo
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
   const ready = FIELD_LABELS.every((f) => fields[f.name].trim());
 
+  // A link to #own-storage from inside Settings changes only the hash (no remount), so the
+  // form opens on every arrival, not just on first load.
   useEffect(() => {
-    if (window.location.hash === "#own-storage") document.getElementById("own-storage")?.scrollIntoView({ block: "start" });
+    const arrive = () => {
+      if (window.location.hash !== "#own-storage") return;
+      setOpen(true);
+      document.getElementById("own-storage")?.scrollIntoView({ block: "start" });
+    };
+    arrive();
+    window.addEventListener("hashchange", arrive);
+    return () => window.removeEventListener("hashchange", arrive);
   }, []);
 
   async function run(what: "test" | "save") {
