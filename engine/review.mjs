@@ -74,7 +74,8 @@ async function reviewOne(piece) {
   if (existsSync(out) && !again) return { id: piece.id, ...JSON.parse(readFileSync(out, "utf8")) };
   const files = piece.format === "carousel" ? ["sheet.jpg", ...JSON.parse(readFileSync(path.join(dir, "manifest.json"), "utf8")).files] : ["sheet.jpg", "cover.jpg"];
   const { stdout } = await run("claude", ["-p", brief(piece, dir, files), "--allowedTools", "Read", "--output-format", "json"], { cwd: dir, maxBuffer: 20 * 1024 * 1024, timeout: 600_000 });
-  const text = JSON.parse(stdout).result ?? "";
+  const answer = JSON.parse(stdout);
+  const text = answer.result ?? "";
   const m = text.match(/\{[\s\S]*\}/);
   let r;
   try {
@@ -84,7 +85,7 @@ async function reviewOne(piece) {
   }
   if (!r || !["PASS", "FAIL"].includes(r.verdict)) r = { verdict: "FAIL", hook_score: 0, looked_at: "", fails: [{ item: "reviewer answer unreadable", feel: "", fix: "review again" }] };
   const pass = r.verdict === "PASS" && Number(r.hook_score) >= 6 && !(r.fails ?? []).length;
-  const verdict = { verdict: pass ? "PASS" : "FAIL", by: "fresh reviewer (claude -p, new session, output only)", hook_score: Number(r.hook_score) || 0, looked_at: String(r.looked_at ?? ""), fails: r.fails ?? [], at: new Date().toISOString() };
+  const verdict = { verdict: pass ? "PASS" : "FAIL", by: "fresh reviewer (claude -p, new session, output only)", session: String(answer.session_id ?? ""), hook_score: Number(r.hook_score) || 0, looked_at: String(r.looked_at ?? ""), fails: r.fails ?? [], at: new Date().toISOString() };
   writeFileSync(out, JSON.stringify(verdict, null, 2));
   return { id: piece.id, ...verdict };
 }

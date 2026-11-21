@@ -35,16 +35,25 @@ Fraunces and Figtree under the SIL Open Font License (`public/fonts/OFL-*.txt`);
 
 ## Free image making
 
-New photo-real idea scenes come from Cloudflare Workers AI (`engine/imagine.mjs`, FLUX.2 [klein] 9B) on
-the account's free daily allowance: today's usage is read from analytics before every call, the engine
-stops at 1,500 neurons a day of its model and before the account passes 9,000 of its free 10,000
-(studios hold 8,500; overage is billed), and makes nothing when usage cannot be read. Every prompt
-carries the fixed rules (no people, faces, text, house numbers or balloon garlands); every image still
-goes through the plan check and the review. Google's image models answer `limit: 0` on the free AI
-Studio tier (checked 20 Nov 2026), so they are not used.
+New photo-real idea scenes come from Cloudflare Workers AI (`engine/imagine.mjs`) on the free daily
+allowance of two accounts, tried in order: the main one (studios share it, so the engine keeps to 1,500
+neurons a day) and, when that is full, the second, engine-only account (`CF2_ACCOUNT_ID`,
+`CF2_WORKERS_AI_TOKEN`; its cap is the account ceiling). Usage is read from analytics before every call,
+no account passes 9,000 of its free 10,000 (overage is billed), and an account whose usage cannot be read
+makes nothing. FLUX.2 [klein] 9B (`ENGINE_IMAGE_MODEL=@cf/black-forest-labs/flux-2-klein-9b`, ~1,705
+neurons a 768x1344 picture) looks best and can edit a reference picture (a `generate` entry
+`{"prompt", "ref"}`: the same door with and without the garland); FLUX.1 [schnell] (~250, square) is the
+default. Every prompt ends with the fixed line "A still, quiet scene, ready and waiting." (FLUX draws
+what a prompt names, so people, writing and house numbers are checks on the result, not prompt words).
+Before any picture is made, the plan's prompts are written out (`$ENGINE_OUT/<plan>/image-prompts.md`:
+piece, slide, prompt, avoid list, size, crop) and pass a hostile review by a fresh `claude -p` session;
+each picture is then checked against its avoid list before it is rendered (a hit: fix the prompt, never
+a plain re-roll). Google's image models answer `limit: 0` on the free AI Studio tier (checked 20 Nov
+2026), so they are not used.
 
 ```bash
-# CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN (usage), CLOUDFLARE_WORKERS_AI_TOKEN (runs the model)
+# CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN (usage), CLOUDFLARE_WORKERS_AI_TOKEN (runs the model);
+# CF2_ACCOUNT_ID, CF2_WORKERS_AI_TOKEN (the second account, used when the main one is full)
 node engine/imagine.mjs engine/plans/<plan>.json          # OUTPUT <n> images made
 ```
 
@@ -59,11 +68,13 @@ WT=~/GitHub/.wt-engine-run; PLAN=$WT/engine/plans/pnp-2026-11-21.json
 export ENGINE_OUT=~/Work/porch-and-party/engine-out
 cd $WT/engine && npm ci
 
-# 1. new scenes (only after 00:00 UTC = 6 PM CT if today's engine allowance is spent)
-cd ~/GitHub/boss-os && npm run -s vault:run -- zsh -c "CLOUDFLARE_WORKERS_AI_TOKEN=\$T2R_CLOUDFLARE_WORKERS_AI_TOKEN node $WT/engine/imagine.mjs $PLAN"
+# 1. new scenes: prompts reviewed first (image-prompts.md, above); main account, then the second one
+cd ~/GitHub/boss-os && npm run -s vault:run -- zsh -c "CLOUDFLARE_WORKERS_AI_TOKEN=\$T2R_CLOUDFLARE_WORKERS_AI_TOKEN ENGINE_IMAGE_MODEL=@cf/black-forest-labs/flux-2-klein-9b node $WT/engine/imagine.mjs $PLAN"
 
-# 2. render the pieces that changed (nice: the Mac is shared)
-cd $WT/engine && nice -n 15 node render.mjs $PLAN --only=<id>,<id>
+# 2. render the pieces that changed: a HEAVY job (at most 2 of Codex builds, renders and the audio fill at
+#    once; wait while `pgrep -f 'codex exec|engine/render.mjs|audio/fill.py' | wc -l` is 2 or more).
+#    Run it by its engine/render.mjs path so that count sees it; nice, the Mac is shared.
+cd $WT/engine && nice -n 15 node $WT/engine/render.mjs $PLAN --only=<id>,<id>
 
 # 3. review: a fresh reviewer that is not the builder looks at $ENGINE_OUT/<plan>/<id>/sheet.jpg,
 #    cover.jpg and every slide-N.jpg. A second opinion: node review.mjs $PLAN --only=<id> --again.
@@ -77,5 +88,6 @@ cd ~/GitHub/boss-os && npm run -s vault:run -- zsh -c "cd $WT && node scripts/st
 git -C ~/GitHub/creator-studios worktree remove $WT
 ```
 
-If the browser start times out, the Mac is overloaded: the renderer already shares one browser
-with a 10-minute start; wait for the load to drop and run step 2 again.
+If the browser start times out, the Mac is overloaded: the renderer shares one browser for the whole
+plan and tries its start (Remotion's fixed 25 s) up to 6 times; if all fail, wait for the load to drop
+and run step 2 again.

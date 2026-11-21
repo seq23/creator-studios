@@ -79,7 +79,7 @@ function propsFor(p, size) {
     process.exit(1);
   }
   if (track) copyFileSync(path.join(ROOT, track.file), path.join(pub, "music", `${track.id}.mp3`));
-  return { brand: plan.brand, format: p.format, size, bpm: track?.bpm ?? 100, music: track ? `music/${track.id}.mp3` : null, pics: p.pics.map(pic), hook: p.hook, lines: p.lines ?? [], count: p.count, spots: p.spots, endLine: p.endLine };
+  return { brand: plan.brand, format: p.format, size, bpm: track?.bpm ?? 100, music: track ? `music/${track.id}.mp3` : null, pics: p.pics.map(pic), hook: p.hook, lines: p.lines ?? [], count: p.count, spots: p.spots, endLine: p.endLine, cover: p.cover };
 }
 
 // Pictures and music go into public/ before bundling (the bundle serves public/ as static files).
@@ -87,7 +87,20 @@ const prepared = pieces.map((p) => ({ p, props: propsFor(p, p.format === "carous
 console.log(`bundling ${prepared.length} piece(s)…`);
 const serveUrl = await bundle({ entryPoint: path.join(HERE, "src/index.ts"), publicDir: pub });
 // One browser for the whole plan (a browser per call timed out on a busy Mac), and a long frame timeout.
-const browser = await openBrowser("chrome");
+// Remotion gives the browser a fixed 25 s to start; on a busy Mac (or with the host's background-priority
+// guard) that can pass, so the start is tried up to 6 times before the run stops.
+async function startBrowser() {
+  for (let i = 1; ; i++) {
+    try {
+      return await openBrowser("chrome");
+    } catch (e) {
+      if (i >= 6 || !/Timed out/i.test(String(e?.message ?? e))) throw e;
+      console.log(`  browser start timed out (try ${i} of 6); trying again in 20 s`);
+      await new Promise((r) => setTimeout(r, 20_000));
+    }
+  }
+}
+const browser = await startBrowser();
 const shared = { puppeteerInstance: browser, timeoutInMilliseconds: 600_000 };
 
 const ff = (args) => execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", ...args]);
