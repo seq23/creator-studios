@@ -11,9 +11,13 @@ import { sql } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 let started = "";
+// The local studio has no storage of its own: it is on the host's share (1.5 GB, the largest; #113).
+// The year is sized to that ceiling, so it fills it the same share as a year on her own 10 GB would.
+let ceiling = 0;
+const HOST_SHARE = 1.5 * 1024 ** 3;
 
 function seedYear() {
-  execFileSync("node", ["scripts/seed-year.mjs", "--apply"], { stdio: "pipe" });
+  execFileSync("node", ["scripts/seed-year.mjs", "--apply", "--ceiling", String(ceiling)], { stdio: "pipe" });
 }
 async function dailyLane(page: Page) {
   // serve.sh runs wrangler dev with --test-scheduled: /cdn-cgi/handler/scheduled fires a cron on
@@ -26,8 +30,12 @@ async function dailyLane(page: Page) {
     .toBe(1);
 }
 
-test.beforeAll(() => {
+test.beforeAll(async ({ request }) => {
   started = new Date().toISOString();
+  const s = (await (await request.get("/api/archive/storage")).json()) as { place: string; limit_bytes: number };
+  expect(s.place).toBe("host");
+  expect(s.limit_bytes).toBe(HOST_SHARE);
+  ceiling = s.limit_bytes;
 });
 test.beforeEach(async ({ page }) => {
   seedYear();
@@ -136,7 +144,8 @@ test("Dump: 20 at a time of 50, search, archive with Undo, Show archived and Res
   await archived.getByRole("button", { name: "Restore" }).click();
   await expect(archived).toHaveCount(0);
   expect(sql<{ a: string | null }>(`SELECT archived_at AS a FROM dumps WHERE id = '${id}'`)[0].a).toBeNull();
-  await expect(page.locator("[data-free-space]")).toContainText("of 10 GB used");
+  // the year sits near the studio's ceiling: the meter says so in the host's words and points to her own storage
+  await expect(page.locator("[data-free-space]")).toHaveText(/^Storage: [\d.]+ (GB|MB) of 1\.5 GB shared storage used · [\d.]+ (GB|MB) free\. Use your own storage$/);
 });
 
 test("Review pages its clips with the true count; ?tab= opens the right tab", async ({ page }) => {

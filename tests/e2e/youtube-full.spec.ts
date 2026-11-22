@@ -59,7 +59,8 @@ test("Dump: the third card, one video, size and free space, then Review: thumbna
 
   await page.locator('input[type="file"]').first().setInputFiles({ name: "kitchen-tour.mp4", mimeType: "video/mp4", buffer: video() });
   await expect(page.getByText("Uploaded")).toBeVisible({ timeout: 20_000 });
-  await expect(page.locator("[data-space-line]")).toHaveText(/^This video: 1 MB · free space left: [\d.]+ (GB|MB) of 10 GB$/);
+  // the local studio is on the host's share (1.5 GB, #113), not her own storage's 10 GB
+  await expect(page.locator("[data-space-line]")).toHaveText(/^This video: 1 MB · free space left: [\d.]+ (GB|MB) of 1\.5 GB$/);
   const button = page.locator("[data-dump-button]");
   await expect(button).toHaveText("Send 1 full video");
   const res = page.waitForResponse((r) => /\/api\/dumps\/[^/]+\/dump$/.test(r.url()));
