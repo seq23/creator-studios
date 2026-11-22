@@ -326,7 +326,11 @@ p {
   .tabbar a.active,
   .tabbar button.active,
   .tabbar button[aria-expanded="true"] {
-    color: var(--gold);
+    /* the active tab is marked in the light on-dark colour, never the accent: an accent as text or
+       as the bar falls under 4.5:1 / 3:1 on the dark bar in some themes (ship-ready-baseline; slate
+       2.9:1, porchandparty 2.6:1). A soft pill behind it plus the bar mark it in every theme. */
+    color: var(--on-dark);
+    background: var(--on-dark-faint);
   }
   .tabbar a.active::before,
   .tabbar button.active::before {
@@ -335,9 +339,9 @@ p {
     top: 0;
     left: 30%;
     right: 30%;
-    height: 2px;
+    height: 3px;
     border-radius: var(--pill);
-    background: var(--gold);
+    background: var(--on-dark);
   }
   .tabbar .badge {
     position: absolute;
