@@ -1,1 +1,8 @@
-{ "kind": "web-app", "not_yet": "this console renders only behind a sign-in and its Worker API, which CI does not have yet (Open Loops row, 20 Nov 2026)" }
+{
+  "kind": "web-app",
+  "build": "npm ci --no-audit --no-fund && npm run build",
+  "serve": "E2E_PORT=8787 bash tests/e2e/serve.sh",
+  "base_url": "http://127.0.0.1:8787",
+  "sign_in": { "cmd": "node scripts/ship-ready-sign-in.mjs", "signed_in": "nav[aria-label=\"Main\"]" },
+  "pages": ["/", "/dump", "/photos", "/review", "/calendar", "/brain", "/research", "/stats", "/voice", "/start", "/setup", "/settings", "/settings/connections", "/deals", "/deals/sponsored", "/help"]
+}
