@@ -30,6 +30,8 @@ export const YEAR_PREFIX = "yr_";
 const DAY = 86400_000;
 const MB = 1024 ** 2;
 const TEN_GB = 10 * 1024 ** 3;
+// The same words as the meter (shared/bytes.ts gbWords): up to two decimals, trailing zeros dropped.
+const gb = (bytes) => (bytes >= 1024 ** 3 ? `${+(bytes / 1024 ** 3).toFixed(2)} GB` : `${Math.round(bytes / MB)} MB`);
 
 function rng(seed) {
   let a = seed >>> 0;
@@ -434,7 +436,7 @@ export function yearSql(now = new Date(), { before = false, sample = false, ceil
     ...(sample
       ? [
           ["Last weekly run", "green", `OK · ${new Date(T - 5 * DAY).toUTCString()}`, null],
-          ["Storage", "green", `${(stats.bytes / 1024 ** 3).toFixed(1)} GB of 10 GB used · ${(10 - stats.bytes / 1024 ** 3).toFixed(1)} GB free`, null],
+          ["Storage", "green", `${gb(stats.bytes)} of ${gb(ceiling)} used · ${gb(ceiling - stats.bytes)} free`, null],
           ["Runway", "green", "4.5 weeks of approved clips", null],
           ["TikTok stats", "green", "Imported · 5 videos from your TikTok export", null],
           ["YouTube stats", "green", "Public numbers, no sign-in", null],

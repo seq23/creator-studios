@@ -155,7 +155,7 @@ export async function storageReport(env: Env): Promise<StorageReport> {
 
 /**
  * List the bucket (the truth), fill the file sizes rows don't have yet, and keep what no row owns
- * as "other". At 1,000 objects a page, 10 GB of clips is a handful of list calls.
+ * as "other". At 1,000 objects a page, a full studio's clips are a handful of list calls.
  */
 export async function measureStorage(env: Env, now = new Date()): Promise<{ listed: number; filled: number; gone: number }> {
   const sizes = new Map<string, number>();
@@ -353,7 +353,7 @@ async function clearMixes(env: Env, clipId: string): Promise<void> {
 }
 
 /**
- * Over the hard budget (90% of 10 GB): clear the same kinds of file the rules clear anyway, earlier,
+ * Over the hard budget (90% of the studio's ceiling, storageLimitBytes): clear the same kinds of file the rules clear anyway, earlier,
  * least harm first (originals already cut, rejected clips, clips posted a week ago). Never an
  * approved clip waiting to post, a kit clip or a draft (drafts only ever go by their warned rule).
  */

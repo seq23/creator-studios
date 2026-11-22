@@ -8,6 +8,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { TOUR_OFF } from "./demo";
 import { sql } from "./helpers";
+import { gbWords } from "../../shared/bytes";
 
 test.describe.configure({ mode: "serial" });
 let started = "";
@@ -144,8 +145,12 @@ test("Dump: 20 at a time of 50, search, archive with Undo, Show archived and Res
   await archived.getByRole("button", { name: "Restore" }).click();
   await expect(archived).toHaveCount(0);
   expect(sql<{ a: string | null }>(`SELECT archived_at AS a FROM dumps WHERE id = '${id}'`)[0].a).toBeNull();
-  // the year sits near the studio's ceiling: the meter says so in the host's words and points to her own storage
-  await expect(page.locator("[data-free-space]")).toHaveText(/^Storage: [\d.]+ (GB|MB) of 1\.5 GB shared storage used · [\d.]+ (GB|MB) free\. Use your own storage$/);
+  // the year sits near the studio's ceiling (at least 70%: the year fills ~90% of it); the meter shows
+  // the exact amount used and free, in the host's words, and points to her own storage
+  const s = (await (await page.request.get("/api/archive/storage")).json()) as { used_bytes: number; free_bytes: number; limit_bytes: number };
+  expect(s.limit_bytes).toBe(HOST_SHARE);
+  expect(s.used_bytes).toBeGreaterThanOrEqual(0.7 * HOST_SHARE);
+  await expect(page.locator("[data-free-space]")).toHaveText(`Storage: ${gbWords(s.used_bytes)} of 1.5 GB shared storage used · ${gbWords(s.free_bytes)} free. Use your own storage`);
 });
 
 test("Review pages its clips with the true count; ?tab= opens the right tab", async ({ page }) => {
