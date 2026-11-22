@@ -8,6 +8,4 @@ on:
   workflow_dispatch:
 jobs:
   ship-ready-baseline:
-    uses: seq23/seq-bin/.github/workflows/ship-ready-baseline.yml@srb/sign-in
-    with:
-      tool_ref: srb/sign-in
+    uses: seq23/seq-bin/.github/workflows/ship-ready-baseline.yml@v1
