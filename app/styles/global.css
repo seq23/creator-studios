@@ -326,7 +326,9 @@ p {
   .tabbar a.active,
   .tabbar button.active,
   .tabbar button[aria-expanded="true"] {
-    color: var(--gold);
+    /* the active tab is marked by the accent bar; its label stays light, because an accent as text
+       on the dark bar falls under 4.5:1 in some themes (ship-ready-baseline, slate: 2.9:1) */
+    color: var(--on-dark);
   }
   .tabbar a.active::before,
   .tabbar button.active::before {
