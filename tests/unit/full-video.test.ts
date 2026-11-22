@@ -118,7 +118,9 @@ describe("storage: posted 7 days, unapproved 14 days (warned 3 days before), one
   it("one waiting full video per Calendar week; the space line before Dump", () => {
     expect(pendingRefusal(3, 4)).toBeNull();
     expect(pendingRefusal(4, 4)).toBe("You already have 4 full videos waiting, one for each of the next 4 weeks. Post or delete one first, so they don't fill your storage.");
-    expect(spaceLine(1.5 * 1024 ** 3, 4 * 1024 ** 3)).toEqual({ line: "This video: 1.5 GB · free space left: 6.0 GB of 10 GB", fits: true });
+    expect(spaceLine(1.5 * 1024 ** 3, 4 * 1024 ** 3)).toEqual({ line: "This video: 1.5 GB · free space left: 6 GB of 10 GB", fits: true });
+    // a 1.25 GB share (Sheila, Mercedes) reads 1.25 GB, never a rounded 1.3 GB
+    expect(spaceLine(300 * 1024 ** 2, 0.15 * 1024 ** 3, 1.25 * 1024 ** 3)).toEqual({ line: "This video: 300 MB · free space left: 1.1 GB of 1.25 GB", fits: true });
     expect(spaceLine(2 * 1024 ** 3, R2_FREE_BYTES - 1024 ** 3).fits).toBe(false);
   });
 });
@@ -242,7 +244,7 @@ describe("Dump → its own job → one Review item", () => {
     expect(r.json.error).toBe("A full video for YouTube is one video. Remove the others, or dump them as new videos.");
     const id = await dumpWith(1, 3_000);
     const s = await call("GET", `/api/dumps/${id}/space`);
-    expect(s.json).toMatchObject({ upload_bytes: 3_000, fits: true, line: expect.stringMatching(/^This video: 1 MB · free space left: 10\.0 GB of 10 GB$/) });
+    expect(s.json).toMatchObject({ upload_bytes: 3_000, fits: true, line: "This video: 1 MB · free space left: 10 GB of 10 GB" });
     for (let i = 0; i < 4; i++) db.raw.prepare("INSERT INTO clips (id, asset_id, dump_id, start_s, end_s, recipe, r2_key, status, full_video, platforms) VALUES (?, ?, ?, 0, 600, 'story', 'k', 'approved', 1, '[\"youtube\"]')").run(`clp_wait${i}aaaa`, `ast_${id}_0`, id);
     const refused = await call("POST", `/api/dumps/${id}/dump`);
     expect(refused.status).toBe(409);

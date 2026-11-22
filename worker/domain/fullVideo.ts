@@ -6,6 +6,7 @@
 // introspected 26 Sep 2026: VideoAssetInput.thumbnailUrl is rejected and thumbnailOffset is for
 // Instagram/TikTok/Pinterest only; YoutubePostMetadataInput has no tags), so those two are a
 // guided "Finish in YouTube Studio" step. Pure and unit-tested (tests/unit/full-video.test.ts).
+import { gbWords } from "@shared/bytes";
 
 export const FULL_VIDEO_PRIVACY = ["public", "unlisted", "private"] as const;
 export type FullVideoPrivacy = (typeof FULL_VIDEO_PRIVACY)[number];
@@ -173,9 +174,9 @@ export function pendingRefusal(pending: number, weeksAhead: number): string | nu
   return `You already have ${pending} full videos waiting, one for each of the next ${weeksAhead} weeks. Post or delete one first, so they don't fill your storage.`;
 }
 
-/** Plain size for the Dump screen: "1.2 GB", "640 MB". */
+/** Plain size for the Dump screen: "1.25 GB", "640 MB" (never under 1 MB). */
 export function sizeWords(bytes: number): string {
-  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+  if (bytes >= 1024 ** 3) return gbWords(bytes);
   return `${Math.max(1, Math.round(bytes / 1024 ** 2))} MB`;
 }
 
@@ -183,7 +184,7 @@ export function sizeWords(bytes: number): string {
 export function spaceLine(uploadBytes: number, usedBytes: number, limitBytes = R2_FREE_BYTES): { line: string; fits: boolean } {
   const left = Math.max(0, limitBytes - usedBytes);
   const fits = uploadBytes <= left;
-  return { line: `This video: ${sizeWords(uploadBytes)} · free space left: ${sizeWords(left)} of ${limitBytes >= 1024 ** 3 ? `${+(limitBytes / 1024 ** 3).toFixed(1)} GB` : sizeWords(limitBytes)}`, fits };
+  return { line: `This video: ${sizeWords(uploadBytes)} · free space left: ${sizeWords(left)} of ${sizeWords(limitBytes)}`, fits };
 }
 
 /**

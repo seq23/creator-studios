@@ -4,7 +4,8 @@
 // Two kinds of rule, never mixed up:
 //   ARCHIVE (tidy): moves a finished thing out of the way. Nothing is deleted; Show archived +
 //     Restore bring it back. Settings → Tidy up (on by default) switches these off.
-//   FILES (storage): clears a file to stay inside the free 10 GB. Never her footage or anything
+//   FILES (storage): clears a file to stay inside the studio's ceiling (storageLimitBytes: her own
+//     storage's free 10 GB, or her share of the host's storage). Never her footage or anything
 //     unposted without a warning first: an unapproved draft is cleared only after the Home warning
 //     has shown for WARN days; an approved clip waiting to post and a media-kit clip never.
 import { R2_FREE_BYTES } from "./fullVideo";

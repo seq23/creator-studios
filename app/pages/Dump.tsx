@@ -89,7 +89,7 @@ export function Dump() {
   const inputRef = useRef<HTMLInputElement>(null);
   // What you added (paged, searchable, archivable: app/components/DumpHistory.tsx) reloads when this changes.
   const [historyKey, setHistoryKey] = useState(0);
-  // Free space before every upload (day 358): every file counted, the free 10 GB.
+  // Free space before every upload (day 358): every file counted, against the studio's ceiling (her own storage or her share of the host's).
   const storage = useLoad(() => get<{ place: "own" | "host" | "none"; free: number; line: string; light: "green" | "yellow" | "red" }>("/api/uploads/storage"), [dumpId]);
   const current = useLoad(() => (dumpId ? get<{ dump: DumpSummary; assets: AssetRow[] }>(`/api/dumps/${dumpId}`) : Promise.resolve(null)), [dumpId]);
   // Uploads outlive the render that started them; always reload through the latest loader.
@@ -97,7 +97,7 @@ export function Dump() {
   reloadRef.current = current.reload;
   const reloadCurrent = useCallback(() => reloadRef.current(), []);
   const dumpStatus = current.data?.dump.status;
-  // The full-video door: this video's size and what's left of the free 10 GB, before Dump.
+  // The full-video door: this video's size and what's left of the studio's ceiling, before Dump.
   const uploadedIds = (current.data?.assets ?? []).filter((a) => a.upload_status === "uploaded").map((a) => a.id).join(",");
   const space = useLoad(() => (dumpId && door === "youtube" && uploadedIds ? get<{ line: string; fits: boolean }>(`/api/dumps/${dumpId}/space`) : Promise.resolve(null)), [dumpId, door, uploadedIds]);
 

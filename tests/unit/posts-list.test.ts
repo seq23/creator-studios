@@ -6,7 +6,7 @@
 //   - the Rejected bin: nothing in it can be planned or sent; Bring back; Delete for good removes
 //     the made file and never her originals, and never a post that is planned or already out;
 //     the daily job never clears a rejected reel, however long ago she said no.
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import worker from "@worker/index";
 import type { Env } from "@worker/env";
 import { sqliteD1 } from "./helpers/sqlite-d1";
@@ -359,18 +359,27 @@ describe("More like this / Less like this", () => {
     expect((await call("POST", "/api/posts/item/pst_gone/taste", { more: true })).status).toBe(404);
   });
 
-  it("the weekly plan puts a kind she asked for more of ahead of a better-scored one", async () => {
-    const { recordEvent } = await import("@worker/lib/db");
-    await seedClips(2);
-    raw.exec("UPDATE clips SET clip_type = 'moving_photo', score = 0.9 WHERE id = 'clp_0'; UPDATE clips SET clip_type = 'team_working', score = 0.8 WHERE id = 'clp_1'");
-    const firstTikTok = () => (raw.prepare("SELECT clip_id FROM posts WHERE platform = 'tiktok' ORDER BY scheduled_at LIMIT 1").get() as { clip_id: string }).clip_id;
-    await planAhead(env, { weeks: 1, respectHeld: false });
-    expect(firstTikTok()).toBe("clp_0");
-    raw.exec("DELETE FROM posts");
-    await recordEvent(env.DB, "post.taste", null, { kind: "clip:team_working", more: true }, "owner");
-    await planAhead(env, { weeks: 1, respectHeld: false });
-    expect(firstTikTok()).toBe("clp_1");
-  });
+  // Planned from next week (startWeek 1): this week may have no TikTok slot left (a Sunday has none),
+  // so the plan is checked on a fixed date for every day of the week (Mon 16 to Sun 22 Nov 2026).
+  for (const day of ["2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20", "2026-11-21", "2026-11-22"]) {
+    it(`the weekly plan puts a kind she asked for more of ahead of a better-scored one (${day})`, async () => {
+      vi.useFakeTimers({ toFake: ["Date"], now: new Date(`${day}T20:00:00Z`) });
+      try {
+        const { recordEvent } = await import("@worker/lib/db");
+        await seedClips(2);
+        raw.exec("UPDATE clips SET clip_type = 'moving_photo', score = 0.9 WHERE id = 'clp_0'; UPDATE clips SET clip_type = 'team_working', score = 0.8 WHERE id = 'clp_1'");
+        const firstTikTok = () => (raw.prepare("SELECT clip_id FROM posts WHERE platform = 'tiktok' ORDER BY scheduled_at LIMIT 1").get() as { clip_id: string } | undefined)?.clip_id;
+        await planAhead(env, { weeks: 1, startWeek: 1, respectHeld: false });
+        expect(firstTikTok()).toBe("clp_0");
+        raw.exec("DELETE FROM posts");
+        await recordEvent(env.DB, "post.taste", null, { kind: "clip:team_working", more: true }, "owner");
+        await planAhead(env, { weeks: 1, startWeek: 1, respectHeld: false });
+        expect(firstTikTok()).toBe("clp_1");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  }
 
   it("Less like this on a photo set: the next pack plans no photo sets while other kinds remain", async () => {
     await readyPack();
