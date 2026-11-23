@@ -654,6 +654,16 @@ async function opsCall(slug, action, payload) {
 }
 
 /**
+ * One post per platform of a piece, each naming its slot (migration 0046: one post per slot, so a
+ * re-run after a crash never posts twice): the plan's own `slot` (Noelle names `<date>#<n>`), else
+ * the piece's planned local time.
+ */
+export function enginePosts(piece, kind, atUtc) {
+  const slot = String(piece.slot ?? piece.at).replace(/[^A-Za-z0-9:#._-]/g, "-");
+  return piece.platforms.map((platform) => ({ platform, item_kind: kind, caption: piece.captions[platform], scheduled_at: atUtc, idem_key: `${platform}:${slot}` }));
+}
+
+/**
  * Queue a rendered, reviewed content plan into a studio (engine/README.md): for each piece whose
  * engine/out/<plan>/<id>/review.json says PASS, upload its files (engine-file) and queue it as a
  * ready photo pack with its posts at the plan's times (engine-pack). A piece without a PASS is never
@@ -694,10 +704,10 @@ async function engineQueue(slug, planFile) {
       review: { verdict: "PASS", by: review.by, looked_at: review.looked_at, at: review.at },
       ai_scene: manifest.ai_scene,
       items: [{ kind, r2_key: carousel ? null : keys["reel.mp4"], cover_r2_key: carousel ? keys[slides[0]] : keys["cover.jpg"], images: carousel ? slides.map((f) => keys[f]) : [] }],
-      posts: piece.platforms.map((platform) => ({ platform, item_kind: kind, caption: piece.captions[platform], scheduled_at: manifest.at_utc })),
+      posts: enginePosts(piece, kind, manifest.at_utc),
     };
     const r = await opsFetch(slug, "engine-pack", { body: JSON.stringify(input) });
-    if (r.status === 409) console.log(`  = ${piece.id}: already queued`);
+    if (r.status === 409) console.log(`  = ${piece.id}: already queued (${r.out?.error ?? "409"})`);
     else if (!r.ok) throw new Error(`${piece.id}: ${r.status} ${JSON.stringify(r.out)}`);
     else {
       queued++;

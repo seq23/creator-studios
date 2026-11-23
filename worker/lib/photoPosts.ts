@@ -324,11 +324,17 @@ export interface EnginePackInput {
   /** A photo-real AI scene: TikTok's own AI switch is set (risk R-END-03, P&P filler exception). */
   ai_scene: boolean;
   items: MadeItem[];
-  posts: { platform: Social; item_kind: ItemKind; caption: string; scheduled_at: string }[];
+  /**
+   * idem_key: the slot this post fills (`<platform>:<slot>`). A slot already holding a post, in any
+   * state (a skipped one too: she said no to that slot), refuses the whole piece with 409, so a
+   * re-run after a crash never posts twice. Optional: a piece without keys behaves as before.
+   */
+  posts: { platform: Social; item_kind: ItemKind; caption: string; scheduled_at: string; idem_key?: string }[];
 }
 
 export const ENGINE_PREFIX = "engine/";
 const ENGINE_KEY = /^[a-z0-9][a-z0-9-]{2,63}$/;
+const SLOT_KEY = /^[a-z]+:[A-Za-z0-9][A-Za-z0-9:#._-]{0,95}$/;
 
 /**
  * Queue one engine piece as a ready photo pack with its own posts at the engine's times. Refused
@@ -357,6 +363,18 @@ export async function importEnginePack(env: Env, input: EnginePackInput, now = D
   }
   const posts = Array.isArray(input.posts) ? input.posts : [];
   if (!posts.length) return bad("The piece has no posts.", 400);
+  const slots: string[] = [];
+  for (const p of posts) {
+    if (p.idem_key === undefined || p.idem_key === null) continue;
+    const k = String(p.idem_key);
+    if (!SLOT_KEY.test(k) || !k.startsWith(`${String(p.platform)}:`)) return bad("A post's slot key must be <platform>:<slot>, for its own platform.", 400);
+    if (slots.includes(k)) return bad("Two posts of this piece name the same slot.", 400);
+    slots.push(k);
+  }
+  if (slots.length) {
+    const { results } = await env.DB.prepare(`SELECT idem_key FROM social_posts WHERE idem_key IN (${slots.map(() => "?").join(", ")})`).bind(...slots).all<{ idem_key: string }>();
+    if (results.length) return bad(`Slot already taken: ${results.map((r) => r.idem_key).join(", ")}.`, 409);
+  }
   const rules = contentRules(env);
   const tz = await timeZone(env);
   const load = await channelWeekLoad(env, tz, now);
@@ -375,9 +393,15 @@ export async function importEnginePack(env: Env, input: EnginePackInput, now = D
   const stmts = [
     env.DB.prepare("INSERT INTO photo_packs (id, status, note, privacy, privacy_detail, captions, ready_at, made_by, format, review) VALUES (?, 'ready', ?, 'clean', '{}', '[]', ?, 'engine', ?, ?)").bind(packId, String(input.note ?? "").slice(0, 2000), nowIso(), String(input.format ?? "").slice(0, 40), review),
     ...items.map((it) => env.DB.prepare("INSERT INTO pack_items (id, pack_id, kind, r2_key, cover_r2_key, images, media_token, ai_made) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(newId("pki"), packId, it.kind, it.r2_key, it.cover_r2_key, JSON.stringify(it.images ?? []), mediaToken(), input.ai_scene ? 1 : 0)),
-    ...posts.map((p) => env.DB.prepare("INSERT INTO social_posts (id, pack_id, item_kind, platform, caption, scheduled_at, status) VALUES (?, ?, ?, ?, ?, ?, 'scheduled')").bind(newId("spo"), packId, p.item_kind, p.platform, p.caption.trim(), new Date(Date.parse(p.scheduled_at)).toISOString())),
+    ...posts.map((p) => env.DB.prepare("INSERT INTO social_posts (id, pack_id, item_kind, platform, caption, scheduled_at, status, idem_key) VALUES (?, ?, ?, ?, ?, ?, 'scheduled', ?)").bind(newId("spo"), packId, p.item_kind, p.platform, p.caption.trim(), new Date(Date.parse(p.scheduled_at)).toISOString(), p.idem_key == null ? null : String(p.idem_key))),
   ];
-  await env.DB.batch(stmts);
+  try {
+    await env.DB.batch(stmts);
+  } catch (e) {
+    // Two runs raced for one slot (or one pack key): the unique index refused the whole batch.
+    if (/UNIQUE constraint failed/i.test(String((e as Error)?.message ?? e))) return bad("Slot already taken (another run queued it first).", 409);
+    throw e;
+  }
   log.info("photos.engine_queued", { posts: posts.length });
   return { ok: true, pack_id: packId, posts: posts.length };
 }
