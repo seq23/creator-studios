@@ -210,6 +210,29 @@ describe("the signed door", () => {
     const outside = "http://w.example/api/ops/engine-file/packs/x/reel.mp4";
     expect((await app.request(outside, { method: "PUT", headers: sign(`ops:file:packs/x/reel.mp4:${sha}`), body: bytes }, env)).status).toBe(400);
   });
+  it("engine sources (a render on GitHub): put signs path and bytes, read signs its path, nothing outside engine-src/", async () => {
+    const bytes = new Uint8Array([1, 2, 3, 4, 5]);
+    const sha = createHash("sha256").update(bytes).digest("hex");
+    const key = "engine-src/pnp-2026-11-30/real--anniversary-fireplace.jpeg";
+    const url = `http://w.example/api/ops/engine-src-file/${key}`;
+    expect((await app.request(url, { method: "PUT", headers: sign(`ops:file:${key}:${"0".repeat(64)}`), body: bytes }, env)).status).toBe(401);
+    expect((await app.request(url, { method: "PUT", body: bytes }, env)).status).toBe(401);
+    expect(await env.FILES.head(key)).toBeNull();
+    expect((await app.request(url, { method: "PUT", headers: sign(`ops:file:${key}:${sha}`), body: bytes }, env)).status).toBe(200);
+    // A read: unsigned, signed for another path, or signed as a put is refused; signed for its path returns the bytes.
+    expect((await app.request(url, {}, env)).status).toBe(401);
+    expect((await app.request(url, { headers: sign("ops:get:engine-src/other-plan/x.jpg") }, env)).status).toBe(401);
+    expect((await app.request(url, { headers: sign(`ops:file:${key}:${sha}`) }, env)).status).toBe(401);
+    const got = await app.request(url, { headers: sign(`ops:get:${key}`) }, env);
+    expect(got.status).toBe(200);
+    expect(new Uint8Array(await got.arrayBuffer())).toEqual(bytes);
+    // Outside engine-src/, a climb, or an unlisted type is not a source path, even signed.
+    for (const k of ["engine/tg-countdown/cover.jpg", "engine-src/pnp-2026-11-30/../../packs/x.jpg", "engine-src/pnp-2026-11-30/run.sh"]) {
+      expect((await app.request(`http://w.example/api/ops/engine-src-file/${k}`, { method: "PUT", headers: sign(`ops:file:${k}:${sha}`), body: bytes }, env)).status).toBe(400);
+      expect((await app.request(`http://w.example/api/ops/engine-src-file/${k}`, { headers: sign(`ops:get:${k}`) }, env)).status).toBe(400);
+    }
+    expect((await app.request("http://w.example/api/ops/engine-src-file/engine-src/pnp-2026-11-30/none.jpg", { headers: sign("ops:get:engine-src/pnp-2026-11-30/none.jpg") }, env)).status).toBe(404);
+  });
   it("queues a pack only when signed", async () => {
     await stored("tg-countdown", "reel.mp4", "cover.jpg");
     const later = new Date(Date.now() + 2 * 86_400_000).toISOString();

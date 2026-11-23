@@ -721,6 +721,43 @@ async function engineQueue(slug, planFile) {
   }
 }
 
+/**
+ * Push a content plan and every picture it names to the studio's private storage (engine-src/<plan>/),
+ * so the engine-render workflow renders it on GitHub (Noelle, 23 Nov 2026: renders never run on the
+ * Mac). The plan goes up with each picture's sha-256, and the render refuses a picture that differs.
+ * Rule 0: prints OUTPUT <n> pictures pushed; a plan with no picture is a NAMED STOP.
+ */
+async function enginePush(slug, planFile) {
+  const { srcKeyFor, picturesOf } = await import("../engine/sources.mjs");
+  const plan = JSON.parse(readFileSync(planFile, "utf8"));
+  if (plan.studio !== slug) throw new Error(`this plan is for ${plan.studio}, not ${slug}`);
+  const name = path.basename(planFile, ".json");
+  if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(name)) throw new Error(`plan name ${name}: lower-case letters, digits and dashes only`);
+  const pics = picturesOf(plan);
+  if (!pics.length) {
+    console.log("NAMED STOP [NO_SOURCES] the plan names no picture");
+    process.exit(1);
+  }
+  const shas = {};
+  for (const src of pics) {
+    const kind = src.slice(0, src.indexOf(":"));
+    const rel = src.slice(src.indexOf(":") + 1);
+    const file = path.join(String(plan.sources?.[kind] ?? "").replace(/^~(?=\/)/, homedir()), rel);
+    if (!existsSync(file)) throw new Error(`NAMED STOP [PICTURE_MISSING] ${src}`);
+    const bytes = readFileSync(file);
+    const key = srcKeyFor(name, src);
+    const sha = createHash("sha256").update(bytes).digest("hex");
+    const r = await opsFetch(slug, `engine-src-file/${key}`, { method: "PUT", body: bytes, message: `file:${key}:${sha}` });
+    if (!r.ok) throw new Error(`${src}: ${r.status} ${JSON.stringify(r.out)}`);
+    shas[src] = sha;
+  }
+  const body = Buffer.from(JSON.stringify({ ...plan, source_sha: shas }, null, 2));
+  const key = `engine-src/${name}/plan.json`;
+  const r = await opsFetch(slug, `engine-src-file/${key}`, { method: "PUT", body, message: `file:${key}:${createHash("sha256").update(body).digest("hex")}` });
+  if (!r.ok) throw new Error(`plan: ${r.status} ${JSON.stringify(r.out)}`);
+  console.log(`OUTPUT ${pics.length} pictures pushed for ${plan.pieces.length} pieces (${name})`);
+}
+
 const [cmd, arg] = process.argv.slice(2);
 if (import.meta.url === `file://${process.argv[1]}`) {
   const commands = {
@@ -757,14 +794,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     },
     words: () => opsCall(arg, "words", {}),
     "engine-queue": () => engineQueue(arg, process.argv[4]),
+    "engine-push": () => enginePush(arg, process.argv[4]),
     storage: () => {
       provisionStorage(studioBySlug(arg).s);
       gen();
     },
   };
   const fn = commands[cmd];
-  if (!fn || (["create", "deploy", "secrets", "invite", "storage", "start-over", "finish-cut", "niche", "rewrite-words", "words", "engine-queue"].includes(cmd) && !arg)) {
-    console.log("usage: node scripts/studio.mjs gen|check|list | create <slug> | deploy <slug>|--all | secrets <slug>|--all [--refresh] [--only=NAME,…] | invite <slug> | start-over <slug> <dumpId> [--service=…] [--shape=…] | finish-cut <slug> <dumpId> | rewrite-words <slug> <dumpId> [--numbers=…] [--rerender] [--rerender-only] | words <slug> | niche <slug> | engine-queue <slug> <plan.json> [--only=id,…]");
+  if (!fn || (["create", "deploy", "secrets", "invite", "storage", "start-over", "finish-cut", "niche", "rewrite-words", "words", "engine-queue", "engine-push"].includes(cmd) && !arg)) {
+    console.log("usage: node scripts/studio.mjs gen|check|list | create <slug> | deploy <slug>|--all | secrets <slug>|--all [--refresh] [--only=NAME,…] | invite <slug> | start-over <slug> <dumpId> [--service=…] [--shape=…] | finish-cut <slug> <dumpId> | rewrite-words <slug> <dumpId> [--numbers=…] [--rerender] [--rerender-only] | words <slug> | niche <slug> | engine-queue <slug> <plan.json> [--only=id,…] | engine-push <slug> <plan.json>");
     process.exit(2);
   }
   Promise.resolve(fn()).catch((e) => {
