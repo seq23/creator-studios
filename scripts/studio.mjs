@@ -727,6 +727,8 @@ async function engineQueue(slug, planFile) {
  * Mac). The plan goes up with each picture's sha-256, and the render refuses a picture that differs.
  * Rule 0: prints OUTPUT <n> pictures pushed; a plan with no picture is a NAMED STOP.
  */
+const NEVER_USE = JSON.parse(readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "engine", "never-use.json"), "utf8")).photos;
+
 async function enginePush(slug, planFile) {
   const { srcKeyFor, picturesOf } = await import("../engine/sources.mjs");
   const plan = JSON.parse(readFileSync(planFile, "utf8"));
@@ -734,6 +736,12 @@ async function enginePush(slug, planFile) {
   const name = path.basename(planFile, ".json");
   if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(name)) throw new Error(`plan name ${name}: lower-case letters, digits and dashes only`);
   const pics = picturesOf(plan);
+  // The check before the push (her photo check, 24 Nov 2026): a plan naming a never-use photo goes nowhere.
+  const banned = pics.filter((src) => NEVER_USE.includes(src.slice(src.indexOf(":") + 1)));
+  if (banned.length) {
+    console.log(`NAMED STOP [NEVER_USE_PHOTO] ${banned.join(", ")}: she ruled these never to use; nothing pushed`);
+    process.exit(1);
+  }
   if (!pics.length) {
     console.log("NAMED STOP [NO_SOURCES] the plan names no picture");
     process.exit(1);

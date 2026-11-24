@@ -77,7 +77,7 @@
           "label": "The table they gather at"
         },
         {
-          "src": "ai:rentals/ai-lawn-cornhole-string-lights.webp",
+          "src": "gen:yard-cornhole-one.jpg",
           "label": "The yard after dinner"
         }
       ],
@@ -161,7 +161,7 @@
       "pics": [
         {
           "src": "gen:yard-connect-four-nov-v3.jpg",
-          "label": "Giant Connect Four",
+          "label": "Giant four-in-a-row",
           "fy": 0.5
         },
         {
@@ -173,8 +173,8 @@
       "hook": "After Thanksgiving dinner:\ngiant yard games",
       "captions": {
         "tiktok": "Something for the cousins to do while the plates get cleared. porchandparty901.com/request #thanksgiving #yardgames",
-        "instagram": "Something for the cousins to do while the plates get cleared: Giant Connect Four and cornhole, picked up the day before. porchandparty901.com/request #thanksgiving #yardgames",
-        "facebook": "Giant Connect Four and cornhole for after Thanksgiving dinner. Pick them up at Mt. Moriah Station and bring them back after the weekend. Check your date: porchandparty901.com/request"
+        "instagram": "Something for the cousins to do while the plates get cleared: Giant four-in-a-row and cornhole, picked up the day before. porchandparty901.com/request #thanksgiving #yardgames",
+        "facebook": "Giant four-in-a-row and cornhole for after Thanksgiving dinner. Pick them up at Mt. Moriah Station and bring them back after the weekend. Check your date: porchandparty901.com/request"
       }
     },
     {
@@ -189,7 +189,7 @@
       "music": "pop-up",
       "pics": [
         {
-          "src": "ai:porch/ai-fall-porch.webp",
+          "src": "ai:porch/bartlett-small-front-porch-styling-under-500.jpg",
           "fy": 0.55
         },
         {
@@ -445,18 +445,18 @@
         },
         {
           "src": "gen:yard-connect-four-nov-v3.jpg",
-          "label": "Giant Connect Four",
+          "label": "Giant four-in-a-row",
           "fy": 0.5
         }
       ],
-      "hook": "Cornhole or\nGiant Connect Four?",
+      "hook": "Cornhole or\nGiant four-in-a-row?",
       "lines": [
         "Which one is\nyour family?"
       ],
       "captions": {
-        "tiktok": "Cornhole or Giant Connect Four? Settle it in the comments. porchandparty901.com/request #yardgames #memphis",
-        "instagram": "Cornhole or Giant Connect Four? Settle it in the comments. Both are ready to rent. porchandparty901.com/request #yardgames #memphis",
-        "facebook": "Cornhole or Giant Connect Four? Settle it in the comments. Both are ready for your next get-together: porchandparty901.com/request"
+        "tiktok": "Cornhole or Giant four-in-a-row? Settle it in the comments. porchandparty901.com/request #yardgames #memphis",
+        "instagram": "Cornhole or Giant four-in-a-row? Settle it in the comments. Both are ready to rent. porchandparty901.com/request #yardgames #memphis",
+        "facebook": "Cornhole or Giant four-in-a-row? Settle it in the comments. Both are ready for your next get-together: porchandparty901.com/request"
       }
     },
     {
