@@ -156,6 +156,10 @@ export interface StorageKindView {
 }
 
 export interface StorageView {
+  /** where new files go: her own storage, the studio host's shared storage, or nowhere yet (worker/lib/storage.ts) */
+  place: "own" | "host" | "none";
+  own: { bucket: string; host: string; since: string | null } | null;
+  host_left_bytes: number;
   used_bytes: number;
   limit_bytes: number;
   budget_bytes: number;

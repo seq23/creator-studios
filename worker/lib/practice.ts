@@ -7,7 +7,8 @@
 // onto the env names the rest of the Worker already reads (RESEND_API_KEY, YOUTUBE_API_KEY,
 // GOOGLE_CLIENT_*, META_APP_*, GITHUB_DISPATCH_TOKEN + GITHUB_REPO, OPENROUTER_ / FIRECRAWL_ / HUNTER_API_KEY) and lists the services still in
 // practice in env.PRACTICE. Nothing here logs a key.
-import { filesFor } from "../services/s3files";
+import { filesFor, ownStorageConfig, S3Files, StudioFiles, type OwnStorageFields } from "../services/s3files";
+import { hostCapBytes } from "../domain/tidy";
 import { parsePhotoPosts } from "@shared/photoPosts";
 import type { Env } from "../env";
 import { fakeServices } from "../env";
@@ -112,6 +113,8 @@ export async function hydrate(env: Env): Promise<Env> {
   }
   const stored = new Map<string, Row>();
   for (const r of rows) if (r.secret_enc && r.status !== "disconnected") stored.set(r.service, r);
+  // Her storage row is read even when removed: the buckets she used before stay readable.
+  await placeFiles(env, out, rows.find((r) => r.service === "storage"));
   for (const s of SETUP_STEPS) {
     if (!ENV_BACKED.has(s.id)) continue;
     // Host-first (Mercedes's OpenRouter): the host's key stays on the env; her pasted key is the backup (connections.ts).
@@ -126,6 +129,58 @@ export async function hydrate(env: Env): Promise<Env> {
   }
   out.PRACTICE = practiceList(out, new Set(stored.keys()));
   return out;
+}
+
+/** Her storage as saved (connection "storage", encrypted): the bucket in use and the ones she used before. */
+export interface OwnStorageSaved {
+  current: OwnStorageFields | null;
+  previous: OwnStorageFields[];
+}
+
+export function readOwnStorage(raw: string): OwnStorageSaved {
+  const v = JSON.parse(raw) as Partial<OwnStorageSaved>;
+  if (!("current" in v) || !Array.isArray(v.previous)) throw new Error("storage row shape");
+  return { current: v.current ?? null, previous: v.previous };
+}
+
+/**
+ * Where this studio's files go (owner, 21 Nov 2026). Her own storage (Settings → Storage) takes every
+ * new file; else the host's storage when the studio has a share of it; else (Hadiyah) nothing may be
+ * written and every write is refused with the calm "use your own storage" words. Buckets she used
+ * before stay readable, never written or cleared. A row that cannot be read (decrypt or shape) marks
+ * the files UNSURE: nothing is ever counted as gone while we cannot see her bucket.
+ */
+async function placeFiles(env: Env, out: Env, row: Row | undefined): Promise<void> {
+  const host = out.FILES;
+  let saved: OwnStorageSaved = { current: null, previous: [] };
+  if (row?.secret_enc) {
+    try {
+      saved = readOwnStorage(await decryptSecret(env.SECRETS_KEY, row.secret_enc));
+    } catch {
+      out.FILES_UNSURE = "1";
+      log.warn("practice.decrypt_failed", { service: "storage" });
+    }
+  }
+  const s3 = (f: OwnStorageFields) => {
+    const p = ownStorageConfig(f);
+    if (!p.ok) {
+      out.FILES_UNSURE = "1";
+      return null;
+    }
+    return new S3Files(p.cfg) as unknown as R2Bucket;
+  };
+  const readOnly = saved.previous.map(s3).filter((b): b is R2Bucket => !!b);
+  const mine = saved.current ? s3(saved.current) : null;
+  if (mine) {
+    out.FILES = new StudioFiles({ write: mine, own: true, host, readOnly }) as unknown as R2Bucket;
+    out.FILES_PLACE = "own";
+  } else if (hostCapBytes(env) > 0) {
+    if (readOnly.length) out.FILES = new StudioFiles({ write: host, own: false, host, readOnly }) as unknown as R2Bucket;
+    out.FILES_PLACE = "host";
+  } else {
+    out.FILES = new StudioFiles({ write: null, own: false, host, readOnly }) as unknown as R2Bucket;
+    out.FILES_PLACE = "none";
+  }
 }
 
 /**

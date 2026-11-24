@@ -118,6 +118,81 @@ describe("queueing a piece", () => {
   });
 });
 
+describe("one post per slot (migration 0046, Noelle's re-run after a crash)", () => {
+  const slotted = (key: string, slot: string) =>
+    piece(key, { posts: piece(key).posts.map((p) => ({ ...p, idem_key: `${p.platform}:${slot}` })) });
+
+  it("the queue script names every post's slot: the plan's slot, else its planned time", async () => {
+    // @ts-expect-error a plain .mjs script
+    const { enginePosts } = await import("../../scripts/studio.mjs");
+    const base = { platforms: ["tiktok", "instagram"], captions: { tiktok: "a", instagram: "b" }, at: "2026-12-04T18:40" };
+    expect(enginePosts({ ...base, slot: "2026-12-04#2" }, "reel", SAT_EVENING).map((p: { idem_key: string }) => p.idem_key)).toEqual(["tiktok:2026-12-04#2", "instagram:2026-12-04#2"]);
+    expect(enginePosts(base, "reel", SAT_EVENING)[0]).toMatchObject({ idem_key: "tiktok:2026-12-04T18:40", scheduled_at: SAT_EVENING, caption: "a" });
+  });
+
+  it("a second piece for a slot already taken is refused whole with 409, even under a new pack key", async () => {
+    await stored("dec-04-a", "reel.mp4", "cover.jpg");
+    await stored("dec-04-b", "reel.mp4", "cover.jpg");
+    expect(await importEnginePack(env, slotted("dec-04-a", "2026-11-21#1"), NOW)).toMatchObject({ ok: true, posts: 3 });
+    const again = await importEnginePack(env, slotted("dec-04-b", "2026-11-21#1"), NOW);
+    expect(again).toMatchObject({ ok: false, status: 409 });
+    expect((again as { error: string }).error).toMatch(/instagram:2026-11-21#1/);
+    expect(count("SELECT COUNT(*) AS n FROM social_posts")).toBe(3);
+    expect(count("SELECT COUNT(*) AS n FROM photo_packs")).toBe(1);
+    // Another slot the same day is fine.
+    expect(await importEnginePack(env, slotted("dec-04-b", "2026-11-21#2"), NOW)).toMatchObject({ ok: true });
+  });
+
+  it("a slot she skipped stays taken: a re-run never re-fills what she said no to", async () => {
+    await stored("dec-05-a", "reel.mp4", "cover.jpg");
+    await stored("dec-05-b", "reel.mp4", "cover.jpg");
+    await importEnginePack(env, slotted("dec-05-a", "2026-11-21#1"), NOW);
+    raw.prepare("UPDATE social_posts SET status = 'skipped'").run();
+    expect(await importEnginePack(env, slotted("dec-05-b", "2026-11-21#1"), NOW)).toMatchObject({ ok: false, status: 409 });
+  });
+
+  it("the database itself refuses a doubled slot when two runs race past the check", async () => {
+    await stored("race-a", "reel.mp4", "cover.jpg");
+    await importEnginePack(env, slotted("race-a", "2026-11-21#1"), NOW);
+    raw.prepare("INSERT INTO photo_packs (id, status) VALUES ('pck_r', 'ready')").run();
+    expect(() => raw.prepare("INSERT INTO social_posts (id, pack_id, item_kind, platform, scheduled_at, status, idem_key) VALUES ('spo_r', 'pck_r', 'reel', 'tiktok', ?, 'scheduled', 'tiktok:2026-11-21#1')").run(SAT_EVENING)).toThrow(/UNIQUE/);
+    // Posts with no key (the studio's own planner, everything before 0046) never collide.
+    raw.prepare("INSERT INTO social_posts (id, pack_id, item_kind, platform, scheduled_at, status) VALUES ('spo_n1', 'pck_r', 'reel', 'tiktok', ?, 'scheduled')").run(SAT_EVENING);
+    raw.prepare("INSERT INTO social_posts (id, pack_id, item_kind, platform, scheduled_at, status) VALUES ('spo_n2', 'pck_r', 'reel', 'tiktok', ?, 'scheduled')").run(SAT_EVENING);
+  });
+
+  it("a forged slot key (another platform's, the same slot twice, junk) is refused, writing nothing", async () => {
+    await stored("forged", "reel.mp4", "cover.jpg");
+    const cross = piece("forged", { posts: [{ ...piece("forged").posts[0], idem_key: "facebook:2026-11-21#1" }] }); // a TikTok post
+    expect(await importEnginePack(env, cross, NOW)).toMatchObject({ ok: false, status: 400 });
+    const twice = piece("forged", { posts: [0, 1].map(() => ({ ...piece("forged").posts[0], idem_key: "tiktok:2026-11-21#1" })) });
+    expect(await importEnginePack(env, twice, NOW)).toMatchObject({ ok: false, status: 400 });
+    const junk = piece("forged", { posts: [{ ...piece("forged").posts[0], idem_key: "tiktok:'; DROP TABLE x" }] });
+    expect(await importEnginePack(env, junk, NOW)).toMatchObject({ ok: false, status: 400 });
+    expect(count("SELECT COUNT(*) AS n FROM social_posts")).toBe(0);
+  });
+
+  it("the race answer: a unique-index refusal inside the batch is a 409, never a 500", async () => {
+    await stored("race-b", "reel.mp4", "cover.jpg");
+    // Another run's row lands between this run's check and its write: the check is made to see
+    // nothing while that row is inserted, so only the unique index can stop the doubled slot.
+    const realPrepare = env.DB.prepare.bind(env.DB);
+    let hidden = true;
+    (env.DB as { prepare: typeof realPrepare }).prepare = (sql: string) => {
+      if (hidden && sql.startsWith("SELECT idem_key FROM social_posts")) {
+        hidden = false;
+        raw.prepare("INSERT INTO photo_packs (id, status) VALUES ('pck_o', 'ready')").run();
+        raw.prepare("INSERT INTO social_posts (id, pack_id, item_kind, platform, scheduled_at, status, idem_key) VALUES ('spo_o', 'pck_o', 'reel', 'tiktok', ?, 'scheduled', 'tiktok:2026-11-21#9')").run(SAT_EVENING);
+        return realPrepare(`${sql} AND 0`);
+      }
+      return realPrepare(sql);
+    };
+    const r = await importEnginePack(env, slotted("race-b", "2026-11-21#9"), NOW);
+    expect(r).toMatchObject({ ok: false, status: 409 });
+    expect(count("SELECT COUNT(*) AS n FROM photo_packs WHERE id = 'pck_eng_race-b'")).toBe(0);
+  });
+});
+
 describe("the signed door", () => {
   const sign = (msg: string) => {
     const ts = Math.floor(Date.now() / 1000);
@@ -134,6 +209,29 @@ describe("the signed door", () => {
     expect(await env.FILES.head("engine/tg-countdown/reel.mp4")).not.toBeNull();
     const outside = "http://w.example/api/ops/engine-file/packs/x/reel.mp4";
     expect((await app.request(outside, { method: "PUT", headers: sign(`ops:file:packs/x/reel.mp4:${sha}`), body: bytes }, env)).status).toBe(400);
+  });
+  it("engine sources (a render on GitHub): put signs path and bytes, read signs its path, nothing outside engine-src/", async () => {
+    const bytes = new Uint8Array([1, 2, 3, 4, 5]);
+    const sha = createHash("sha256").update(bytes).digest("hex");
+    const key = "engine-src/pnp-2026-11-30/real--anniversary-fireplace.jpeg";
+    const url = `http://w.example/api/ops/engine-src-file/${key}`;
+    expect((await app.request(url, { method: "PUT", headers: sign(`ops:file:${key}:${"0".repeat(64)}`), body: bytes }, env)).status).toBe(401);
+    expect((await app.request(url, { method: "PUT", body: bytes }, env)).status).toBe(401);
+    expect(await env.FILES.head(key)).toBeNull();
+    expect((await app.request(url, { method: "PUT", headers: sign(`ops:file:${key}:${sha}`), body: bytes }, env)).status).toBe(200);
+    // A read: unsigned, signed for another path, or signed as a put is refused; signed for its path returns the bytes.
+    expect((await app.request(url, {}, env)).status).toBe(401);
+    expect((await app.request(url, { headers: sign("ops:get:engine-src/other-plan/x.jpg") }, env)).status).toBe(401);
+    expect((await app.request(url, { headers: sign(`ops:file:${key}:${sha}`) }, env)).status).toBe(401);
+    const got = await app.request(url, { headers: sign(`ops:get:${key}`) }, env);
+    expect(got.status).toBe(200);
+    expect(new Uint8Array(await got.arrayBuffer())).toEqual(bytes);
+    // Outside engine-src/, a climb, or an unlisted type is not a source path, even signed.
+    for (const k of ["engine/tg-countdown/cover.jpg", "engine-src/pnp-2026-11-30/../../packs/x.jpg", "engine-src/pnp-2026-11-30/run.sh"]) {
+      expect((await app.request(`http://w.example/api/ops/engine-src-file/${k}`, { method: "PUT", headers: sign(`ops:file:${k}:${sha}`), body: bytes }, env)).status).toBe(400);
+      expect((await app.request(`http://w.example/api/ops/engine-src-file/${k}`, { headers: sign(`ops:get:${k}`) }, env)).status).toBe(400);
+    }
+    expect((await app.request("http://w.example/api/ops/engine-src-file/engine-src/pnp-2026-11-30/none.jpg", { headers: sign("ops:get:engine-src/pnp-2026-11-30/none.jpg") }, env)).status).toBe(404);
   });
   it("queues a pack only when signed", async () => {
     await stored("tg-countdown", "reel.mp4", "cover.jpg");

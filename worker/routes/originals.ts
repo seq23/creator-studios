@@ -5,6 +5,9 @@
 import { Hono } from "hono";
 import type { Env, Vars } from "../env";
 import { clearDate, readOriginalsToken } from "../domain/retention";
+import { ruleFor } from "../lib/retention";
+import { fakeServices } from "../env";
+import { practice } from "../lib/practice";
 import { signedDownload } from "../services/s3files";
 import { gbWords } from "@shared/bytes";
 import { log } from "../lib/log";
@@ -39,13 +42,14 @@ interface Row {
   file_name: string;
   size_bytes: number;
   raw_deleted_at: string | null;
+  asset_created_at: string;
 }
 
 async function load(env: Env, token: string): Promise<Row[] | null> {
   const batch = await readOriginalsToken(env.SESSION_SECRET, token);
   if (!batch) return null;
   const { results } = await env.DB.prepare(
-    `SELECT d.id AS dump_id, d.status AS dump_status, d.ready_at, d.created_at AS dump_created_at, d.originals_kept AS kept, a.id, a.file_name, a.size_bytes, a.raw_deleted_at,
+    `SELECT d.id AS dump_id, d.status AS dump_status, d.ready_at, d.created_at AS dump_created_at, d.originals_kept AS kept, a.id, a.file_name, a.size_bytes, a.raw_deleted_at, a.created_at AS asset_created_at,
        (SELECT sent_at FROM file_notices x WHERE x.dump_id = d.id AND x.stage = '14') AS sent14,
        (SELECT sent_at FROM file_notices x WHERE x.dump_id = d.id AND x.stage = '3') AS sent3,
        EXISTS (SELECT 1 FROM jobs j WHERE j.ref_id = d.id AND j.status IN ('queued','dispatched','running')) AS open_job
@@ -67,19 +71,27 @@ originals.get("/:token", async (c) => {
   const tz = c.env.AUDIENCE_TIMEZONE || "America/New_York";
   const live = rows.filter((r) => !r.raw_deleted_at);
   const kept = rows.every((r) => r.kept);
+  // On the host's shared storage originals rotate out (owner, 21 Nov 2026): no Keep there, only download.
+  const ruleOf = (await ruleFor(c.env)) ?? (() => "shared" as const);
+  const canTell = fakeServices(c.env) || !practice(c.env, "resend");
   const byDump = new Map<string, Row[]>();
   for (const r of live) byDump.set(r.dump_id, [...(byDump.get(r.dump_id) ?? []), r]);
   const cards = [...byDump.values()]
     .map((files) => {
       const day = new Date(files[0].dump_created_at.endsWith("Z") ? files[0].dump_created_at : `${files[0].dump_created_at}Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: tz });
       const f0 = files[0];
-      const clears = clearDate({ id: f0.dump_id, status: f0.dump_status, ready_at: f0.ready_at, kept: f0.kept, open_job: f0.open_job, sent14: f0.sent14, sent3: f0.sent3 });
-      const when = f0.kept ? "Kept: never cleared." : clears ? `Clears ${clears.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: tz })}.` : "Not cleared while it is still being cut.";
+      const facts = { id: f0.dump_id, status: f0.dump_status, ready_at: f0.ready_at, kept: f0.kept, open_job: f0.open_job, sent14: f0.sent14, sent3: f0.sent3, uploaded_at: files.map((f) => f.asset_created_at).sort().at(-1) ?? null };
+      const rule = ruleOf({ ...facts, created_at: f0.dump_created_at, files: files.length, bytes: 0 });
+      const clears = clearDate(facts, rule, canTell);
+      const when = f0.kept && rule === "own" ? "Kept: never cleared." : clears ? `Clears ${clears.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: tz })}.` : "Not cleared while it is still being cut.";
       return `<div class="card"><h2>Your dump from ${esc(day)}</h2><p class="hint">${esc(when)}</p>${files.map((f) => `<a class="dl" href="/originals/${esc(token)}/file/${esc(f.id)}" download="${esc(f.file_name)}"><span>${esc(f.file_name)}</span><span>${esc(gbWords(f.size_bytes))} · Download</span></a>`).join("")}</div>`;
     })
     .join("");
   if (!live.length) return c.html(page(c.env.APP_NAME, "Already cleared", `<h1>These files were already cleared</h1><p>Your clips, covers and posts are all still in your studio.</p>${back(c.env)}`));
-  const keep = kept
+  const shared = [...byDump.values()].some((files) => ruleOf({ id: files[0].dump_id, status: files[0].dump_status, ready_at: files[0].ready_at, kept: files[0].kept, open_job: files[0].open_job, sent14: null, sent3: null, uploaded_at: files.map((f) => f.asset_created_at).sort().at(-1) ?? null, created_at: files[0].dump_created_at, files: files.length, bytes: 0 }) === "shared");
+  const keep = shared
+    ? `<p class="hint">Your studio's storage is shared, so originals are cleared after a few days. To keep originals in your studio, add your own storage in Settings → Storage.</p>`
+    : kept
     ? `<p><strong>Kept.</strong> These files will not be cleared.</p>`
     : `<p>Want ${live.length === 1 ? "it" : "them"} to stay in your studio instead?</p><form method="post" action="/originals/${esc(token)}/keep"><button class="alt" type="submit">Keep ${live.length === 1 ? "it" : "them"} in my studio</button></form>`;
   // Download all: one tap starts each file's download in turn (a phone asks once per file).
@@ -88,7 +100,7 @@ originals.get("/:token", async (c) => {
     page(
       c.env.APP_NAME,
       "Your original files",
-      `<h1>Your original files</h1><p>${live.length} ${live.length === 1 ? "file" : "files"}, ${esc(gbWords(live.reduce((s, r) => s + (r.size_bytes ?? 0), 0)))}. Save ${live.length === 1 ? "it" : "them"} to your phone or computer, or keep ${live.length === 1 ? "it" : "them"} in your studio.</p>${live.length > 1 ? `<button id="all" type="button">Download all</button><p class="hint">On a phone, tap each file below to save it; big videos save best on a computer.</p>` : `<p class="hint">Big videos save best on a computer.</p>`}${cards}${keep}${back(c.env)}${live.length > 1 ? script : ""}`,
+      `<h1>Your original files</h1><p>${live.length} ${live.length === 1 ? "file" : "files"}, ${esc(gbWords(live.reduce((s, r) => s + (r.size_bytes ?? 0), 0)))}. Save ${live.length === 1 ? "it" : "them"} to your phone or computer${shared ? "" : `, or keep ${live.length === 1 ? "it" : "them"} in your studio`}.</p>${live.length > 1 ? `<button id="all" type="button">Download all</button><p class="hint">On a phone, tap each file below to save it; big videos save best on a computer.</p>` : `<p class="hint">Big videos save best on a computer.</p>`}${cards}${keep}${back(c.env)}${live.length > 1 ? script : ""}`,
     ),
   );
 });
@@ -115,11 +127,15 @@ originals.get("/:token/file/:assetId", async (c) => {
 originals.post("/:token/keep", async (c) => {
   const rows = await load(c.env, c.req.param("token"));
   if (!rows?.length) return c.html(notFound(c.env), 404);
-  const ids = [...new Set(rows.map((r) => r.dump_id))];
+  // Keep is for her own storage only; on the shared storage originals always rotate out.
+  const ruleOf = await ruleFor(c.env);
+  const own = rows.filter((r) => ruleOf?.({ id: r.dump_id, status: r.dump_status, ready_at: r.ready_at, kept: r.kept, open_job: r.open_job, sent14: null, sent3: null, uploaded_at: r.asset_created_at, created_at: r.dump_created_at, files: 1, bytes: 0 }) === "own");
+  if (!own.length) return c.html(page(c.env.APP_NAME, "Shared storage", `<h1>These files can't be kept here</h1><p>Your studio's storage is shared, so originals are cleared after a few days. Download them now, or add your own storage in Settings → Storage to keep originals in your studio.</p><form method="get" action="/originals/${esc(c.req.param("token"))}"><button type="submit">See my files</button></form>${back(c.env)}`), 409);
+  const ids = [...new Set(own.map((r) => r.dump_id))];
   await c.env.DB.batch(ids.map((id) => c.env.DB.prepare("UPDATE dumps SET originals_kept = 1 WHERE id = ?").bind(id)));
   log.info("originals.kept", { dumps: ids.length });
   const tz = c.env.AUDIENCE_TIMEZONE || "America/New_York";
-  const days = [...new Set(rows.map((r) => new Date(r.dump_created_at.endsWith("Z") ? r.dump_created_at : `${r.dump_created_at}Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: tz })))];
+  const days = [...new Set(own.map((r) => new Date(r.dump_created_at.endsWith("Z") ? r.dump_created_at : `${r.dump_created_at}Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: tz })))];
   return c.html(
     page(
       c.env.APP_NAME,

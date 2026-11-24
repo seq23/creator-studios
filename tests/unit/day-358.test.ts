@@ -21,6 +21,7 @@ import { voice } from "@worker/routes/voice";
 import { deals } from "@worker/routes/deals";
 import { research } from "@worker/routes/research";
 import { HOME_CAPS } from "@shared/constants";
+import { gbWords } from "@shared/bytes";
 // @ts-expect-error plain JS module (scripts/seed-year.mjs), no types
 import { yearSql } from "../../scripts/seed-year.mjs";
 import { ownerCookie } from "./helpers/owner-session";
@@ -93,6 +94,15 @@ describe("clip files: posted after 30 days, drafts after 60 with the warning fir
 });
 
 describe("the meter and the hard budget", () => {
+  it("sizes in her words: up to two decimals, trailing zeros dropped (a 1.25 GB share is never 1.3 GB)", () => {
+    expect(gbWords(1.25 * 1024 ** 3)).toBe("1.25 GB");
+    expect(gbWords(1.35 * 1024 ** 3)).toBe("1.35 GB");
+    expect(gbWords(1.5 * 1024 ** 3)).toBe("1.5 GB");
+    expect(gbWords(10 * 1024 ** 3)).toBe("10 GB");
+    expect(gbWords(640 * 1024 ** 2)).toBe("640 MB");
+    expect(gbWords(1)).toBe("under 1 MB");
+    expect(gbWords(0)).toBe("0 MB");
+  });
   it("green, yellow at 70%, red at 90% of 10 GB", () => {
     expect(storageLight(STORAGE.limitBytes * 0.69)).toBe("green");
     expect(storageLight(STORAGE.limitBytes * 0.7)).toBe("yellow");
@@ -148,8 +158,26 @@ type Section = { items: { key: string }[]; total: number };
 beforeEach(() => {
   db = sqliteD1();
   r2 = memoryR2();
-  env = { DB: db.DB, FILES: r2.FILES, OWNER_EMAIL: "owner@example.com", SESSION_SECRET: "s", SECRETS_KEY: "YcLVEjArFviauClfN6thsYumeyr3wqfUT9D2VnMNTm0=", APP_NAME: "Sample Studio", FAKE_SERVICES: "1", AUTH_MODE: "code", PUBLIC_BASE_URL: BASE, GITHUB_REPO: "example/studio-jobs" } as unknown as Env;
+  env = { DB: db.DB, FILES: r2.FILES, OWNER_EMAIL: "owner@example.com", SESSION_SECRET: "s", SECRETS_KEY: "YcLVEjArFviauClfN6thsYumeyr3wqfUT9D2VnMNTm0=", APP_NAME: "Sample Studio", FAKE_SERVICES: "1", AUTH_MODE: "code", PUBLIC_BASE_URL: BASE, GITHUB_REPO: "example/studio-jobs", FILES_PLACE: "own" } as unknown as Env; // her own storage's free 10 GB (the host's shared share: tests/unit/host-storage.test.ts)
   db.raw.exec(yearSql(NOW).sql);
+});
+
+describe("the year fills any ceiling the same share (seed-year --ceiling)", () => {
+  // her own storage's free 10 GB, and the host shares the studios have (1.5 GB, 1.25 GB)
+  for (const [label, extra, limit] of [
+    ["her own 10 GB", { FILES_PLACE: "own" }, 10 * 1024 ** 3],
+    ["the 1.5 GB share", {}, 1.5 * 1024 ** 3],
+    ["the 1.25 GB share", { HOST_STORAGE_GB: "1.25" }, 1.25 * 1024 ** 3],
+  ] as const) {
+    it(`${label}: the meter reads about 90% of it`, async () => {
+      const d = sqliteD1();
+      d.raw.exec(yearSql(NOW, { ceiling: limit }).sql);
+      const r = await storageReport({ DB: d.DB, FILES: memoryR2().FILES, ...extra } as unknown as Env);
+      expect(r.limit_bytes).toBe(limit);
+      expect(r.used_bytes / limit).toBeGreaterThan(0.85);
+      expect(r.used_bytes / limit).toBeLessThan(0.95);
+    });
+  }
 });
 
 describe("the year loads: the demo data is what the review walked", () => {

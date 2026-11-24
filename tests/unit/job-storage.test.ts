@@ -33,6 +33,8 @@ async function signed(method: string, path: string, opts: { body?: BodyInit; jso
     "x-job-timestamp": String(ts),
     "x-job-signature": await hmacHex(SECRET, `${ts}.${line}`),
     "x-job-nonce": opts.nonce ?? `n_${jobId}`,
+    // a real client sends the piece's length (urllib does): the part route holds it to the part size
+    ...(opts.body instanceof Uint8Array ? { "content-length": String(opts.body.byteLength) } : typeof opts.body === "string" ? { "content-length": String(new TextEncoder().encode(opts.body).byteLength) } : {}),
     ...(opts.headers ?? {}),
   };
   return app.request(`${BASE}${path}`, { method, headers, body: text ?? opts.body }, env);

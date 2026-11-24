@@ -26,9 +26,9 @@ async function runFake(api: APIRequestContext, jobId: string, options: Record<st
 async function dumpWithVideo(api: APIRequestContext): Promise<string> {
   const { id } = (await (await api.post("/api/dumps", { data: { door: "new", notes: "gate test" } })).json()) as { id: string };
   const bytes = randomBytes(150_000);
-  const start = (await (await api.post("/api/uploads/start", { data: { kind: "video", parentId: id, fileName: "gate.mp4", size: bytes.length, mimeType: "video/mp4" } })).json()) as { id: string; key: string; uploadId: string };
-  const part = await (await api.put(`/api/uploads/${start.id}/parts/1?key=${encodeURIComponent(start.key)}&uploadId=${encodeURIComponent(start.uploadId)}`, { data: bytes })).json();
-  const done = await api.post(`/api/uploads/${start.id}/complete`, { data: { key: start.key, uploadId: start.uploadId, parts: [part] } });
+  const start = (await (await api.post("/api/uploads/start", { data: { kind: "video", parentId: id, fileName: "gate.mp4", size: bytes.length, mimeType: "video/mp4" } })).json()) as { id: string; key: string; uploadId: string; ticket: string };
+  const part = await (await api.put(`/api/uploads/${start.id}/parts/1?key=${encodeURIComponent(start.key)}&uploadId=${encodeURIComponent(start.uploadId)}&ticket=${encodeURIComponent(start.ticket)}`, { data: bytes })).json();
+  const done = await api.post(`/api/uploads/${start.id}/complete`, { data: { key: start.key, uploadId: start.uploadId, ticket: start.ticket, parts: [part] } });
   expect(done.ok()).toBe(true);
   return id;
 }

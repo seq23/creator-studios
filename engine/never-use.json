@@ -1,0 +1,12 @@
+{
+  "_why": "Her photo check, 24 Nov 2026 (porch-and-party brain): \"Do not like this looks fake\", \"Never use this\". No plan that names one renders (engine/src/plan.ts) or is pushed (scripts/studio.mjs engine-push). Paths are under the AI scene folder; any prefix (ai:, real:, gen:) is refused.",
+  "photos": [
+    "porch/ai-christmas-porch.webp",
+    "porch/ai-fall-porch.webp",
+    "porch/ai-halloween-porch.webp",
+    "porch/ai-spring-porch.webp",
+    "porch/seasonal-exterior-fall.jpg",
+    "rentals/ai-connect-four-backyard.webp",
+    "rentals/ai-lawn-cornhole-string-lights.webp"
+  ]
+}

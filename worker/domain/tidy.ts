@@ -4,7 +4,8 @@
 // Two kinds of rule, never mixed up:
 //   ARCHIVE (tidy): moves a finished thing out of the way. Nothing is deleted; Show archived +
 //     Restore bring it back. Settings → Tidy up (on by default) switches these off.
-//   FILES (storage): clears a file to stay inside the free 10 GB. Never her footage or anything
+//   FILES (storage): clears a file to stay inside the studio's ceiling (storageLimitBytes: her own
+//     storage's free 10 GB, or her share of the host's storage). Never her footage or anything
 //     unposted without a warning first: an unapproved draft is cleared only after the Home warning
 //     has shown for WARN days; an approved clip waiting to post and a media-kit clip never.
 import { R2_FREE_BYTES } from "./fullVideo";
@@ -39,6 +40,45 @@ export const FILES = {
   /** Keep: this many more days */
   keepDays: 60,
 } as const;
+
+/**
+ * Host storage (owner, 21 Nov 2026: "keep my storage way below free max"; "it needs to rotate out
+ * often"). A studio on the host's storage gets a share of it from its registry entry
+ * (`hostStorageGb`, var HOST_STORAGE_GB): at most 1.5 GB each, all studios together under 4 GB
+ * (tests/unit/host-storage.test.ts reads the registry). 0 = none at all (Hadiyah: her files go in her
+ * own storage). Original uploads clear 7 days after their clips are made or 14 days after upload,
+ * whichever comes first. A studio with its own storage (Settings → Storage) is not capped by this.
+ */
+export const HOST_STORAGE = {
+  maxStudioGb: 1.5,
+  totalGb: 4,
+  rawAfterClipsDays: 7,
+  rawAfterUploadDays: 14,
+  /** the heads-up email goes this many days before (when the studio has email) */
+  warnDays: 3,
+} as const;
+
+const GB = 1024 ** 3;
+
+/** Where a studio's new files go: her own storage, the host's (capped), or nowhere yet. */
+export type FilesPlace = "own" | "host" | "none";
+
+/** This studio's share of the host's storage, in bytes. A missing var (local dev, tests) is the largest share. Pure. */
+export function hostCapBytes(env: { HOST_STORAGE_GB?: string }): number {
+  const raw = env.HOST_STORAGE_GB;
+  const gb = raw === undefined || raw === "" ? HOST_STORAGE.maxStudioGb : Number(raw);
+  return Number.isFinite(gb) ? Math.round(Math.min(Math.max(gb, 0), HOST_STORAGE.maxStudioGb) * GB) : 0;
+}
+
+/** Where new files go (hydrate sets FILES_PLACE; without it, the host's share decides). Pure. */
+export function filesPlace(env: { FILES_PLACE?: FilesPlace; HOST_STORAGE_GB?: string }): FilesPlace {
+  return env.FILES_PLACE ?? (hostCapBytes(env) > 0 ? "host" : "none");
+}
+
+/** The ceiling the meter, the lights and the budget use: her own storage's free 10 GB, or the host share. Pure. */
+export function storageLimitBytes(place: FilesPlace, env: { HOST_STORAGE_GB?: string }): number {
+  return place === "own" ? R2_FREE_BYTES : place === "host" ? hostCapBytes(env) : 0;
+}
 
 /** Storage: the free tier, the lights and the hard budget the daily lane holds. */
 export const STORAGE = {

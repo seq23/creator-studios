@@ -2,8 +2,8 @@
 // headline boxes, the wordmark and the end card. Motion is short and calm (ship-ready D: no bouncy
 // or elastic easing); the hook is already readable on frame 0 so the first frame works as a cover.
 import React from "react";
-import { AbsoluteFill, continueRender, delayRender, Easing, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
-import { BODY, DISPLAY, DISPLAY_VARIATION, SAFE, type Brand } from "./brand";
+import { AbsoluteFill, cancelRender, continueRender, delayRender, Easing, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { BODY, BRANDS, DISPLAY, DISPLAY_VARIATION, NOTE_PILL_ALPHA, SAFE, photoNoteLayout, textBottom, type Brand } from "./brand";
 
 export interface Pic {
   /** Path under engine/public (render.mjs copies each source there). */
@@ -27,7 +27,8 @@ Promise.all(faces.map((f) => f.load()))
     loaded.forEach((f) => document.fonts.add(f));
     continueRender(handle);
   })
-  .catch(() => continueRender(handle));
+  // A font that will not load stops the render: a piece in a fallback font, or with no photo note, never ships.
+  .catch((e) => cancelRender(e instanceof Error ? e : new Error(`brand fonts failed to load: ${String(e)}`)));
 
 export const ease = Easing.bezier(0.22, 1, 0.36, 1);
 
@@ -48,9 +49,10 @@ export function fitSize(text: string, family: string, weight: number, size: numb
   return widest * 1.04 > maxWidth ? Math.floor((size * maxWidth) / (widest * 1.04)) : size;
 }
 
+/** The platforms' safe area; its bottom sits above the brand's photo note, so no text ever covers it. */
 export function useSafe() {
-  const { width, height } = useVideoConfig();
-  return { width, height, top: height * SAFE.top, bottom: height * (1 - SAFE.bottom), left: width * SAFE.left, right: width * (1 - SAFE.right), inner: width * (1 - SAFE.left - SAFE.right) };
+  const { width, height, props } = useVideoConfig();
+  return { width, height, top: height * SAFE.top, bottom: textBottom(BRANDS[String(props.brand)], { width, height }), left: width * SAFE.left, right: width * (1 - SAFE.right), inner: width * (1 - SAFE.left - SAFE.right) };
 }
 
 /**
@@ -199,5 +201,21 @@ export const Mark: React.FC<{ kind: "check" | "cross"; size?: number; color: str
     <svg width={size} height={size} viewBox="0 0 64 64" style={{ flex: "none" }}>
       <path d={d} fill="none" stroke={color} strokeWidth={9} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={100} strokeDashoffset={100 - 100 * p} />
     </svg>
+  );
+};
+
+/**
+ * The brand's photo note (brand.ts PHOTO_NOTE): small, one line, in a bottom corner, on every frame and
+ * slide. Plum ink pill behind cotton words, so it reads on a white photo and a black one.
+ */
+export const PhotoNote: React.FC<{ brand: Brand; kind: "reel" | "slide" }> = ({ brand, kind }) => {
+  const { width, height } = useVideoConfig();
+  const l = photoNoteLayout(brand, { width, height }, kind);
+  if (!l) return null;
+  const pill = `rgba(${[1, 3, 5].map((i) => parseInt(brand.colors.ink.slice(i, i + 2), 16)).join(",")},${NOTE_PILL_ALPHA})`;
+  return (
+    <div style={{ position: "absolute", ...l.box, display: "flex", justifyContent: l.align === "right" ? "flex-end" : "flex-start" }}>
+      <span style={{ display: "inline-flex", alignItems: "center", height: l.box.height, padding: `0 ${l.fontSize * 0.6}px`, borderRadius: l.box.height, backgroundColor: pill, color: brand.colors.ground, fontFamily: BODY, fontWeight: 600, fontSize: l.fontSize, lineHeight: 1, letterSpacing: "0.005em", whiteSpace: "nowrap", textShadow: "0 1px 2px rgba(0,0,0,.35)" }}>{brand.photoNote}</span>
+    </div>
   );
 };

@@ -22,6 +22,7 @@
 //               `node scripts/studio.mjs words <slug>`
 //   engine-file one finished file from the content engine (engine/) into storage under engine/<key>/,
 //               signed over "ops:file:<path>:<sha-256 of the bytes>".
+//   engine-src-file  (PUT/GET) one source picture or plan for a render on GitHub, under engine-src/<plan>/
 //   engine-pack one reviewed engine piece queued as a ready photo pack with its own posts
 //               (worker/lib/photoPosts.ts importEnginePack). Both: `node scripts/studio.mjs engine-queue <slug> <plan>`
 import { Hono, type Context } from "hono";
@@ -152,6 +153,46 @@ ops.put("/engine-file/*", async (c) => {
   }
   await c.env.FILES.put(key, bytes, { httpMetadata: { contentType: key.endsWith(".mp4") ? "video/mp4" : "image/jpeg" } });
   return c.json({ ok: true, bytes: bytes.byteLength });
+});
+
+/**
+ * The engine's SOURCES for a render on GitHub (Noelle, 23 Nov 2026: renders run on GitHub, never on the
+ * Mac): the plan file and each picture it names, put by the host's Mac and read back by the
+ * engine-render workflow. Private storage (never a public URL), signed both ways: a put signs its path
+ * and bytes (`ops:file:<key>:<sha>`), a read signs its path (`ops:get:<key>`), each inside the same
+ * ten-minute window as every ops call.
+ */
+export const ENGINE_SRC = /^engine-src\/[a-z0-9][a-z0-9-]{2,63}\/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(jpe?g|png|webp|json)$/;
+const SRC_TYPES: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", json: "application/json" };
+const ENGINE_SRC_MAX_BYTES = 25 * 1024 * 1024;
+const srcKey = (url: string) => decodeURIComponent(new URL(url).pathname.replace(/^.*\/engine-src-file\//, ""));
+
+ops.put("/engine-src-file/*", async (c) => {
+  const key = srcKey(c.req.url);
+  if (!ENGINE_SRC.test(key) || key.includes("..")) return fail(c, 400, "Not an engine source path.");
+  const bytes = new Uint8Array(await c.req.arrayBuffer());
+  if (!bytes.byteLength || bytes.byteLength > ENGINE_SRC_MAX_BYTES) return fail(c, 400, "Empty or too big.");
+  const sha = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((x) => x.toString(16).padStart(2, "0")).join("");
+  const ok = c.env.JOB_SHARED_SECRET ? await verifyJobMessage(c.env.JOB_SHARED_SECRET, `ops:file:${key}:${sha}`, c.req.header("x-ops-timestamp") ?? null, c.req.header("x-ops-signature") ?? null) : false;
+  if (!ok) {
+    log.warn("ops.refused", {});
+    return fail(c, 401, "Bad signature.");
+  }
+  await c.env.FILES.put(key, bytes, { httpMetadata: { contentType: SRC_TYPES[key.split(".").pop()!.toLowerCase()] } });
+  return c.json({ ok: true, bytes: bytes.byteLength, sha });
+});
+
+ops.get("/engine-src-file/*", async (c) => {
+  const key = srcKey(c.req.url);
+  if (!ENGINE_SRC.test(key) || key.includes("..")) return fail(c, 400, "Not an engine source path.");
+  const ok = c.env.JOB_SHARED_SECRET ? await verifyJobMessage(c.env.JOB_SHARED_SECRET, `ops:get:${key}`, c.req.header("x-ops-timestamp") ?? null, c.req.header("x-ops-signature") ?? null) : false;
+  if (!ok) {
+    log.warn("ops.refused", {});
+    return fail(c, 401, "Bad signature.");
+  }
+  const obj = await c.env.FILES.get(key);
+  if (!obj) return fail(c, 404, "No such engine source.");
+  return new Response(obj.body, { headers: { "content-type": SRC_TYPES[key.split(".").pop()!.toLowerCase()], "cache-control": "no-store" } });
 });
 
 ops.post("/engine-pack", async (c) => {

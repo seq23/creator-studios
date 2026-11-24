@@ -10,13 +10,17 @@
 //   ~50 dumps (failed, held as someone else's, an abandoned upload, full videos for YouTube),
 //   ~600 clips across every status and Look, ~300 posts (posted / failed / taken off), voice overs
 //   (automatic and her own), 45 deals in every stage incl. declined and lost, 12 research briefs,
-//   26 media kit versions, a year of health events and emails, and a storage bucket near 10 GB.
+//   26 media kit versions, a year of health events and emails, and a storage bucket near its
+//   ceiling (91% of it: her own storage's free 10 GB by default; `--ceiling <bytes>` for a studio
+//   on the host's share, which is what the local e2e studio has, so the meter reads the same).
 //
 // Use:
 //   node scripts/seed-year.mjs --apply          seed the local D1 the e2e Worker uses
 //   node scripts/seed-year.mjs --clear          remove it again
 //   node scripts/seed-year.mjs --out file.sql   write the SQL (for a look)
 //   --before  leaves out the columns migration 0016 added (the "before" screenshots)
+//   --ceiling <bytes>  the studio's storage ceiling (GET /api/archive/storage limit_bytes); every file size
+//             scales with it, so the year fills it the same share whatever the ceiling
 import { execFileSync } from "node:child_process";
 import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -25,6 +29,9 @@ import path from "node:path";
 export const YEAR_PREFIX = "yr_";
 const DAY = 86400_000;
 const MB = 1024 ** 2;
+const TEN_GB = 10 * 1024 ** 3;
+// The same words as the meter (shared/bytes.ts gbWords): up to two decimals, trailing zeros dropped.
+const gb = (bytes) => (bytes >= 1024 ** 3 ? `${+(bytes / 1024 ** 3).toFixed(2)} GB` : `${Math.round(bytes / MB)} MB`);
 
 function rng(seed) {
   let a = seed >>> 0;
@@ -164,11 +171,14 @@ export function clearYearSql({ before = false } = {}) {
  * added (clips/narrations file sizes), so the same year can be loaded on the old schema. `sample`
  * (the public demo): the clean slate first, file sizes at 40% so the Storage light sits green, the
  * sample's own health board, a saved voice, and `media` = every R2 key a row points at with what it
- * shows.
+ * shows. `ceiling` (bytes, default her own storage's free 10 GB): every file size scales with it,
+ * so the year fills any ceiling the same share (the host's 1.5 GB share as much as 10 GB).
  */
-export function yearSql(now = new Date(), { before = false, sample = false } = {}) {
+export function yearSql(now = new Date(), { before = false, sample = false, ceiling = TEN_GB } = {}) {
   const r = rng(358);
-  const MBs = sample ? Math.round(MB * 0.4) : MB;
+  const scale = (sample ? 0.4 : 1) * (ceiling / TEN_GB);
+  const MBs = Math.round(MB * scale);
+  const KBs = 1024 * scale;
   const media = [];
   const file = (key, kind, look = null) => {
     if (sample) media.push({ key, kind, look });
@@ -286,7 +296,7 @@ export function yearSql(now = new Date(), { before = false, sample = false } = {
       if (st === "rejected" && T - reviewedAt > 7 * DAY) st = "deleted";
       const look = LOOKS[(i * 7 + k) % LOOKS.length];
       const hook = pick(HOOKS).replace("{t}", topic.toLowerCase());
-      const bytes = st === "deleted" ? 0 : between(9, 16) * MBs + between(150, 400) * 1024;
+      const bytes = st === "deleted" ? 0 : between(9, 16) * MBs + Math.round(between(150, 400) * KBs);
       const c = {
         id: cid, asset_id: assets[k % assets.length], dump_id: id, start_s: k * 30, end_s: k * 30 + between(15, 45), recipe: door === "recycle" ? "recycle" : pick(RECIPES),
         hook_text: hook, caption: `${hook}. Save this for your next reset.`, hashtags: "#routine #dailytips", platforms: '["tiktok","instagram","youtube"]', score,
@@ -343,7 +353,7 @@ export function yearSql(now = new Date(), { before = false, sample = false } = {
     const auto = j < 30 ? 1 : 0;
     const failed = j % 13 === 12;
     const nid = `yr_narr_${++nv}`;
-    const bytes = failed ? 0 : between(120, 400) * 1024 + (auto || j % 2 ? between(14, 26) * MBs : 0);
+    const bytes = failed ? 0 : Math.round(between(120, 400) * KBs) + (auto || j % 2 ? between(14, 26) * MBs : 0);
     out.push(row("narrations", { id: nid, script: `Three things make a morning feel special, part ${nv}.`, r2_key: failed ? null : file(`narrations/${nid}.mp3`, "narration"), clip_id: failed ? null : c.id, status: failed ? "failed" : "ready", engine: j % 5 === 0 ? "elevenlabs" : "built-in", duration_s: failed ? null : 8 + (j % 9), mixed_r2_key: failed ? null : file(`narrations/${nid}-mix.mp4`, "mix", clipLook.get(c.id) ?? LOOKS[0]), mix_status: failed ? "failed" : "ready", auto, ai_generated: 1, batch: auto ? `auto/b${Math.floor(j / 3)}` : null, created_at: iso(c.at + DAY), ...(before ? {} : { file_bytes: bytes }) }));
     stats.narrations++;
     stats.bytes += bytes;
@@ -351,7 +361,7 @@ export function yearSql(now = new Date(), { before = false, sample = false } = {
   for (let j = 0; j < 6; j++) {
     const nid = `yr_narr_${++nv}`;
     const at = day0 + between(20, 350) * DAY;
-    out.push(row("narrations", { id: nid, script: `A voice over I never used, number ${j + 1}.`, r2_key: j === 5 ? null : file(`narrations/${nid}.mp3`, "narration"), clip_id: null, status: j === 5 ? "failed" : "ready", engine: "built-in", duration_s: j === 5 ? null : 7, auto: 0, ai_generated: 1, created_at: iso(at), ...(before ? {} : { file_bytes: j === 5 ? 0 : 240 * 1024 }) }));
+    out.push(row("narrations", { id: nid, script: `A voice over I never used, number ${j + 1}.`, r2_key: j === 5 ? null : file(`narrations/${nid}.mp3`, "narration"), clip_id: null, status: j === 5 ? "failed" : "ready", engine: "built-in", duration_s: j === 5 ? null : 7, auto: 0, ai_generated: 1, created_at: iso(at), ...(before ? {} : { file_bytes: j === 5 ? 0 : Math.round(240 * KBs) }) }));
     stats.narrations++;
   }
 
@@ -426,7 +436,7 @@ export function yearSql(now = new Date(), { before = false, sample = false } = {
     ...(sample
       ? [
           ["Last weekly run", "green", `OK · ${new Date(T - 5 * DAY).toUTCString()}`, null],
-          ["Storage", "green", `${(stats.bytes / 1024 ** 3).toFixed(1)} GB of 10 GB used · ${(10 - stats.bytes / 1024 ** 3).toFixed(1)} GB free`, null],
+          ["Storage", "green", `${gb(stats.bytes)} of ${gb(ceiling)} used · ${gb(ceiling - stats.bytes)} free`, null],
           ["Runway", "green", "4.5 weeks of approved clips", null],
           ["TikTok stats", "green", "Imported · 5 videos from your TikTok export", null],
           ["YouTube stats", "green", "Public numbers, no sign-in", null],
@@ -454,7 +464,13 @@ if (isMain) {
   const target = { db: "creator-studios-dev-db", wranglerArgs: ["--local"] };
   const before = args.includes("--before");
   const outIdx = args.indexOf("--out");
-  const { sql, stats, media } = args.includes("--clear") ? { sql: clearYearSql(), stats: null, media: [] } : yearSql(new Date(), { before });
+  const ceilIdx = args.indexOf("--ceiling");
+  const ceiling = ceilIdx >= 0 ? Number(args[ceilIdx + 1]) : TEN_GB;
+  if (!(ceiling > 0)) {
+    process.stderr.write(`seed-year: --ceiling takes the studio's storage ceiling in bytes (got ${args[ceilIdx + 1]}).\n`);
+    process.exit(2);
+  }
+  const { sql, stats, media } = args.includes("--clear") ? { sql: clearYearSql(), stats: null, media: [] } : yearSql(new Date(), { before, ceiling });
   if (outIdx >= 0) writeFileSync(args[outIdx + 1], sql);
   if (args.includes("--apply") || args.includes("--clear")) {
     const dir = mkdtempSync(path.join(tmpdir(), "seed-year-"));

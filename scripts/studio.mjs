@@ -155,6 +155,8 @@ export function envBlock(s, themes) {
       AUTO_REDO_FROM: s.autoRedoFrom ?? "",
       // This studio's share of the account's free 10,000 Workers AI neurons a day ("0" = never call).
       STUDIO_AI_BUDGET: String(s.aiBudget ?? 0),
+      // This studio's share of the host's storage in GB ("0" = none: her own storage only; worker/domain/tidy.ts hostCapBytes).
+      HOST_STORAGE_GB: String(s.hostStorageGb ?? 0),
       // Get it sponsored: "event" for a business studio, "experience" for a creator (shared/sponsored.ts).
       SPONSOR_KIND: s.sponsorKind === "event" ? "event" : "experience",
       ...(s.whatsNew ? { WHATS_NEW: JSON.stringify(s.whatsNew) } : {}),
@@ -652,6 +654,16 @@ async function opsCall(slug, action, payload) {
 }
 
 /**
+ * One post per platform of a piece, each naming its slot (migration 0046: one post per slot, so a
+ * re-run after a crash never posts twice): the plan's own `slot` (Noelle names `<date>#<n>`), else
+ * the piece's planned local time.
+ */
+export function enginePosts(piece, kind, atUtc) {
+  const slot = String(piece.slot ?? piece.at).replace(/[^A-Za-z0-9:#._-]/g, "-");
+  return piece.platforms.map((platform) => ({ platform, item_kind: kind, caption: piece.captions[platform], scheduled_at: atUtc, idem_key: `${platform}:${slot}` }));
+}
+
+/**
  * Queue a rendered, reviewed content plan into a studio (engine/README.md): for each piece whose
  * engine/out/<plan>/<id>/review.json says PASS, upload its files (engine-file) and queue it as a
  * ready photo pack with its posts at the plan's times (engine-pack). A piece without a PASS is never
@@ -692,10 +704,10 @@ async function engineQueue(slug, planFile) {
       review: { verdict: "PASS", by: review.by, looked_at: review.looked_at, at: review.at },
       ai_scene: manifest.ai_scene,
       items: [{ kind, r2_key: carousel ? null : keys["reel.mp4"], cover_r2_key: carousel ? keys[slides[0]] : keys["cover.jpg"], images: carousel ? slides.map((f) => keys[f]) : [] }],
-      posts: piece.platforms.map((platform) => ({ platform, item_kind: kind, caption: piece.captions[platform], scheduled_at: manifest.at_utc })),
+      posts: enginePosts(piece, kind, manifest.at_utc),
     };
     const r = await opsFetch(slug, "engine-pack", { body: JSON.stringify(input) });
-    if (r.status === 409) console.log(`  = ${piece.id}: already queued`);
+    if (r.status === 409) console.log(`  = ${piece.id}: already queued (${r.out?.error ?? "409"})`);
     else if (!r.ok) throw new Error(`${piece.id}: ${r.status} ${JSON.stringify(r.out)}`);
     else {
       queued++;
@@ -707,6 +719,51 @@ async function engineQueue(slug, planFile) {
     console.log("NAMED STOP [NOTHING_PASSED] no piece of this plan passed review: run engine/review.mjs");
     process.exit(1);
   }
+}
+
+/**
+ * Push a content plan and every picture it names to the studio's private storage (engine-src/<plan>/),
+ * so the engine-render workflow renders it on GitHub (Noelle, 23 Nov 2026: renders never run on the
+ * Mac). The plan goes up with each picture's sha-256, and the render refuses a picture that differs.
+ * Rule 0: prints OUTPUT <n> pictures pushed; a plan with no picture is a NAMED STOP.
+ */
+const NEVER_USE = JSON.parse(readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "engine", "never-use.json"), "utf8")).photos;
+
+async function enginePush(slug, planFile) {
+  const { srcKeyFor, picturesOf } = await import("../engine/sources.mjs");
+  const plan = JSON.parse(readFileSync(planFile, "utf8"));
+  if (plan.studio !== slug) throw new Error(`this plan is for ${plan.studio}, not ${slug}`);
+  const name = path.basename(planFile, ".json");
+  if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(name)) throw new Error(`plan name ${name}: lower-case letters, digits and dashes only`);
+  const pics = picturesOf(plan);
+  // The check before the push (her photo check, 24 Nov 2026): a plan naming a never-use photo goes nowhere.
+  const banned = pics.filter((src) => NEVER_USE.includes(src.slice(src.indexOf(":") + 1)));
+  if (banned.length) {
+    console.log(`NAMED STOP [NEVER_USE_PHOTO] ${banned.join(", ")}: she ruled these never to use; nothing pushed`);
+    process.exit(1);
+  }
+  if (!pics.length) {
+    console.log("NAMED STOP [NO_SOURCES] the plan names no picture");
+    process.exit(1);
+  }
+  const shas = {};
+  for (const src of pics) {
+    const kind = src.slice(0, src.indexOf(":"));
+    const rel = src.slice(src.indexOf(":") + 1);
+    const file = path.join(String(plan.sources?.[kind] ?? "").replace(/^~(?=\/)/, homedir()), rel);
+    if (!existsSync(file)) throw new Error(`NAMED STOP [PICTURE_MISSING] ${src}`);
+    const bytes = readFileSync(file);
+    const key = srcKeyFor(name, src);
+    const sha = createHash("sha256").update(bytes).digest("hex");
+    const r = await opsFetch(slug, `engine-src-file/${key}`, { method: "PUT", body: bytes, message: `file:${key}:${sha}` });
+    if (!r.ok) throw new Error(`${src}: ${r.status} ${JSON.stringify(r.out)}`);
+    shas[src] = sha;
+  }
+  const body = Buffer.from(JSON.stringify({ ...plan, source_sha: shas }, null, 2));
+  const key = `engine-src/${name}/plan.json`;
+  const r = await opsFetch(slug, `engine-src-file/${key}`, { method: "PUT", body, message: `file:${key}:${createHash("sha256").update(body).digest("hex")}` });
+  if (!r.ok) throw new Error(`plan: ${r.status} ${JSON.stringify(r.out)}`);
+  console.log(`OUTPUT ${pics.length} pictures pushed for ${plan.pieces.length} pieces (${name})`);
 }
 
 const [cmd, arg] = process.argv.slice(2);
@@ -745,14 +802,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     },
     words: () => opsCall(arg, "words", {}),
     "engine-queue": () => engineQueue(arg, process.argv[4]),
+    "engine-push": () => enginePush(arg, process.argv[4]),
     storage: () => {
       provisionStorage(studioBySlug(arg).s);
       gen();
     },
   };
   const fn = commands[cmd];
-  if (!fn || (["create", "deploy", "secrets", "invite", "storage", "start-over", "finish-cut", "niche", "rewrite-words", "words", "engine-queue"].includes(cmd) && !arg)) {
-    console.log("usage: node scripts/studio.mjs gen|check|list | create <slug> | deploy <slug>|--all | secrets <slug>|--all [--refresh] [--only=NAME,…] | invite <slug> | start-over <slug> <dumpId> [--service=…] [--shape=…] | finish-cut <slug> <dumpId> | rewrite-words <slug> <dumpId> [--numbers=…] [--rerender] [--rerender-only] | words <slug> | niche <slug> | engine-queue <slug> <plan.json> [--only=id,…]");
+  if (!fn || (["create", "deploy", "secrets", "invite", "storage", "start-over", "finish-cut", "niche", "rewrite-words", "words", "engine-queue", "engine-push"].includes(cmd) && !arg)) {
+    console.log("usage: node scripts/studio.mjs gen|check|list | create <slug> | deploy <slug>|--all | secrets <slug>|--all [--refresh] [--only=NAME,…] | invite <slug> | start-over <slug> <dumpId> [--service=…] [--shape=…] | finish-cut <slug> <dumpId> | rewrite-words <slug> <dumpId> [--numbers=…] [--rerender] [--rerender-only] | words <slug> | niche <slug> | engine-queue <slug> <plan.json> [--only=id,…] | engine-push <slug> <plan.json>");
     process.exit(2);
   }
   Promise.resolve(fn()).catch((e) => {

@@ -26,6 +26,11 @@ on:
       - "tests/e2e/**"
       - "playwright.config.ts"
   workflow_dispatch:
+    inputs:
+      help_only:
+        description: "Re-take only these guides' pictures (slugs, comma-separated) and skip the browser suite"
+        required: false
+        default: ""
 
 concurrency:
   group: e2e-${{ github.ref }}
@@ -33,6 +38,7 @@ concurrency:
 
 jobs:
   e2e:
+    if: ${{ !inputs.help_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
@@ -71,6 +77,16 @@ jobs:
       - run: npm run build
       - name: Every guide step, phone and desktop (fake services, demo data)
         run: npm run help:screenshots
+        env:
+          SESSION_SECRET: ci-session-secret
+          SECRETS_KEY: 3Azr0CP6a687IwEqn9ZTM7gF9VgieHdcyXDvKd9Yo24=
+          JOB_SHARED_SECRET: ci-job-secret
+          HELP_ONLY: ${{ inputs.help_only }}
+      - name: "The same steps in dark mode, for every guide that has dark pictures"
+        run: |
+          only=$(ls help/screenshots | sed -n 's/^\(.*\)-[0-9][0-9]*\(-phone\)\{0,1\}-dark\.png$/\1/p' | sort -u | paste -sd, -)
+          if [ -n "${{ inputs.help_only }}" ]; then only="${{ inputs.help_only }}"; fi
+          if [ -n "$only" ]; then HELP_ONLY="$only" HELP_SCHEME=dark npm run help:screenshots; fi
         env:
           SESSION_SECRET: ci-session-secret
           SECRETS_KEY: 3Azr0CP6a687IwEqn9ZTM7gF9VgieHdcyXDvKd9Yo24=

@@ -89,15 +89,15 @@ export function Dump() {
   const inputRef = useRef<HTMLInputElement>(null);
   // What you added (paged, searchable, archivable: app/components/DumpHistory.tsx) reloads when this changes.
   const [historyKey, setHistoryKey] = useState(0);
-  // Free space before every upload (day 358): every file counted, the free 10 GB.
-  const storage = useLoad(() => get<{ free: number; line: string; light: "green" | "yellow" | "red" }>("/api/uploads/storage"), [dumpId]);
+  // Free space before every upload (day 358): every file counted, against the studio's ceiling (her own storage or her share of the host's).
+  const storage = useLoad(() => get<{ place: "own" | "host" | "none"; free: number; line: string; light: "green" | "yellow" | "red" }>("/api/uploads/storage"), [dumpId]);
   const current = useLoad(() => (dumpId ? get<{ dump: DumpSummary; assets: AssetRow[] }>(`/api/dumps/${dumpId}`) : Promise.resolve(null)), [dumpId]);
   // Uploads outlive the render that started them; always reload through the latest loader.
   const reloadRef = useRef(current.reload);
   reloadRef.current = current.reload;
   const reloadCurrent = useCallback(() => reloadRef.current(), []);
   const dumpStatus = current.data?.dump.status;
-  // The full-video door: this video's size and what's left of the free 10 GB, before Dump.
+  // The full-video door: this video's size and what's left of the studio's ceiling, before Dump.
   const uploadedIds = (current.data?.assets ?? []).filter((a) => a.upload_status === "uploaded").map((a) => a.id).join(",");
   const space = useLoad(() => (dumpId && door === "youtube" && uploadedIds ? get<{ line: string; fits: boolean }>(`/api/dumps/${dumpId}/space`) : Promise.resolve(null)), [dumpId, door, uploadedIds]);
 
@@ -306,6 +306,13 @@ export function Dump() {
 
       <div className="split">
         <div className="section dump-main">
+          {storage.data?.place === "none" ? (
+            <Notice tone="warn">
+              <span data-needs-own-storage>
+                Your studio keeps your files in your own storage, and none is added yet. <Link to="/settings#own-storage">Add your own storage</Link> (Cloudflare R2 is free up to 10 GB), then come back to upload.
+              </span>
+            </Notice>
+          ) : null}
           <NicheBriefLine />
           {dump?.waiting_line && editable ? (
             <Notice tone="info">
@@ -453,7 +460,7 @@ export function Dump() {
                 <span className="hint">We’ll email you when your posts are ready to look at.</span>
                 {storage.data ? (
                   <span className={`hint dump-space${storage.data.light !== "green" ? " warn" : ""}`} data-free-space>
-                    Storage: {storage.data.line}.{storage.data.light !== "green" ? <> <Link to="/settings#storage">What takes the space</Link></> : null}
+                    Storage: {storage.data.line}.{storage.data.light !== "green" ? <> <Link to={storage.data.place === "host" ? "/settings#own-storage" : "/settings#storage"}>{storage.data.place === "host" ? "Use your own storage" : "What takes the space"}</Link></> : null}
                   </span>
                 ) : null}
               </div>

@@ -74,6 +74,26 @@
   min-height: 44px;
   display: flex;
   align-items: center;
+  gap: var(--space-2xs);
+  list-style: none;
+}
+.setup-where summary::-webkit-details-marker {
+  display: none;
+}
+/* The chevron says it opens: down when closed, up when open. */
+.setup-where summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  margin-top: -3px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.15s ease-out;
+}
+.setup-where[open] summary::after {
+  margin-top: 3px;
+  transform: rotate(-135deg);
 }
 .setup-where ol {
   margin: 0 0 var(--space-xs);

@@ -1,0 +1,79 @@
+# THE CONTENT ENGINE'S RENDER, ON GITHUB (Noelle, 23 Nov 2026: renders run on GitHub, never on the host's
+# Mac). Started by the host's Mac (boss-os scripts/ops/noelle.mjs) with `gh workflow run engine-render.yml
+# -f studio=<slug> -f plan=<plan-name>` after `node scripts/studio.mjs engine-push <slug> <plan.json>` put
+# the plan and its pictures in the studio's private storage. It fetches them (engine/sources.mjs, signed,
+# each picture's bytes checked against the Mac's sha-256), renders with the unchanged engine/render.mjs,
+# and uploads engine/out/<plan>/ as the artifact `engine-out-<plan>` for the Mac to download, review and
+# queue. Logs show counts only; the pictures live in private storage and in a 3-day artifact.
+#
+# The `selftest` job proves the fetch half on a pull request with no secret and no Worker.
+name: engine-render
+
+on:
+  workflow_dispatch:
+    inputs:
+      studio:
+        description: "the studio slug (sample1 is Porch & Party)"
+        required: true
+        default: sample1
+      plan:
+        description: "the plan name pushed with engine-push"
+        required: true
+  pull_request:
+    paths:
+      - engine/sources.mjs
+      - .github/workflows/engine-render.yml
+
+concurrency:
+  group: engine-render-${{ github.event.inputs.plan || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  render:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90    # fault detector: ~2-3 min a reel, a 30-piece plan, plus Chrome's first download
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: engine/package-lock.json
+      - name: ffmpeg (static build, no apt)
+        run: bash .github/scripts/ffmpeg-static.sh
+      - name: Engine packages
+        working-directory: engine
+        run: npm ci --no-audit --no-fund
+      - name: Plan name
+        env:
+          PLAN: ${{ github.event.inputs.plan }}
+          STUDIO: ${{ github.event.inputs.studio }}
+        run: |
+          [[ "$PLAN" =~ ^[a-z0-9][a-z0-9-]{2,63}$ ]] || { echo "NAMED STOP [BAD_PLAN_NAME]"; exit 1; }
+          [[ "$STUDIO" =~ ^[a-z0-9][a-z0-9-]{1,40}$ ]] && [ -f "studios/$STUDIO.json" ] || { echo "NAMED STOP [UNKNOWN_STUDIO]"; exit 1; }
+          echo "WORKER_URL=https://$(node -e 'console.log(require("./studios/" + process.argv[1] + ".json").hostname)' "$STUDIO")" >> "$GITHUB_ENV"
+      - name: Fetch the plan and its pictures
+        env:
+          JOB_SHARED_SECRET: ${{ secrets[format('JOB_SHARED_SECRET_{0}', github.event.inputs.studio)] || secrets.JOB_SHARED_SECRET }}
+        run: node engine/sources.mjs fetch "${{ github.event.inputs.plan }}"
+      - name: Render
+        run: node engine/render.mjs "engine/plans/${{ github.event.inputs.plan }}.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: engine-out-${{ github.event.inputs.plan }}
+          path: engine/out/${{ github.event.inputs.plan }}
+          retention-days: 3
+          if-no-files-found: error
+
+  selftest:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The fetch refuses changed bytes and an empty plan, and lands each picture where the plan names
+        run: node engine/sources-selftest.mjs

@@ -6,6 +6,8 @@ import { HOST_KEY_SERVICES, hostFirst, hostKeyFor } from "./hostKeys";
 import type { ConnectionView } from "@shared/types";
 
 export type Service = ConnectionView["service"];
+/** What the key store keeps: every connection, plus her own storage (Settings → Storage; worker/lib/practice.ts placeFiles). */
+export type StoredService = Service | "storage";
 
 /** Her own key saved on Setup for this service, or null (none stored, or disconnected). Never logged. */
 async function storedSecret(env: Env, service: Service): Promise<string | null> {
@@ -37,7 +39,7 @@ export async function getOpenRouterFallback(env: Env): Promise<string | null> {
   return hers && hers !== hostKeyFor(env, "openrouter") ? hers : null;
 }
 
-export async function saveConnection(env: Env, service: Service, secret: string | null, status: ConnectionView["status"], meta: Record<string, unknown>, lastError: string | null = null) {
+export async function saveConnection(env: Env, service: StoredService, secret: string | null, status: ConnectionView["status"], meta: Record<string, unknown>, lastError: string | null = null) {
   const enc = secret ? await encryptSecret(env.SECRETS_KEY, secret) : null;
   await env.DB.prepare(
     `INSERT INTO connections (service, status, secret_enc, meta, last_ok_at, last_error, updated_at)
@@ -69,7 +71,7 @@ export async function markConnection(env: Env, service: Service, status: Connect
     .run();
 }
 
-export async function disconnect(env: Env, service: Service) {
+export async function disconnect(env: Env, service: StoredService) {
   await env.DB.prepare("UPDATE connections SET status = 'disconnected', secret_enc = NULL, updated_at = ? WHERE service = ?").bind(nowIso(), service).run();
 }
 

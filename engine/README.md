@@ -10,18 +10,28 @@ storage). Ruling: spry and porch-and-party brains, "CONTENT ENGINE", 19 Nov 2026
 |---|---|---|
 | Format library | `src/library.ts` | 15 proven formats, each a recipe (first-second hook, beats, length, text, music feel, ending, source). Refreshed monthly from free public sources; a format that stops earning its place is replaced, never kept beside its successor. |
 | New scenes | `imagine.mjs` | Photo-real idea scenes on Workers AI's free allowance, metered and fail closed (below). |
-| Renderer | `src/formats.tsx`, `src/parts.tsx`, `render.mjs` | Remotion on the Mac: brand fonts and colours (`src/brand.ts`), the hook readable on frame 0, cuts on the music's beat (CC0 tracks in `jobs/music`, tempo in `library.json`), captions inside the platforms' safe area, end card with the one next step. Also renders ad sizes (`--sizes=feed,story,pin`). |
-| Plan | `plans/<plan>.json`, `src/plan.ts` | What to make: format, pictures (`real:` our own job photos, shown as ours; `ai:` AI scenes, never captioned as a job we did), words, music, captions per platform, local time. Hard rules checked in code (no prices, request link in every caption, no "Made with AI" line on engine pieces, real-only formats, posting window, no picture in neighbouring pieces, the weekly service mix: every 7 days at least one romantic, one celebration and one event piece, porch at most 2 of 7, owner's ruling 20 Nov 2026). Real photos lead; an AI scene fills only what no real job shows. |
+| Renderer | `src/formats.tsx`, `src/parts.tsx`, `render.mjs`, `.github/workflows/engine-render.yml` | Remotion, run on GitHub (Noelle, 23 Nov 2026: renders never run on the Mac; `engine-push` puts the plan and its pictures in the studio's private storage, the workflow fetches them through `sources.mjs`, each picture's sha-256 checked, renders and uploads `engine-out-<plan>`): brand fonts and colours (`src/brand.ts`; a font that fails to load stops the render), the photo note on every frame (Labels, below), the hook readable on frame 0, cuts on the music's beat (CC0 tracks in `jobs/music`, tempo in `library.json`), captions inside the platforms' safe area, end card with the one next step. Also renders ad sizes (`--sizes=feed,story,pin`). |
+| Plan | `plans/<plan>.json`, `src/plan.ts` | What to make: format, pictures (`real:` our own job photos, touched up or not, shown as "our real setup"; `ai:`/`gen:` AI scenes, shown as what we can set up, never as a job we did), words, music, captions per platform, local time. Hard rules checked in code (no prices, request link in every caption, no bare "Made with AI" caption line, "real setup" never over an AI scene, real-only formats, posting window, no picture in neighbouring pieces). |
 | Fresh reviewer | `review.mjs` | A new `claude -p` session with no stake sees only the real output (one frame a second, the cover, every slide), the brand note and the ship-ready checklist; PASS needs no failed item and a hook score of 6+. |
-| Queue | `node scripts/studio.mjs engine-queue <slug> engine/plans/<plan>.json` | PASS pieces only: files up through the signed `engine-file` door, then `engine-pack` makes a ready photo pack with its posts at the plan's times. The studio refuses a piece without PASS, with a broken content rule or over 10 posts a channel a week, and holds one at posting if its PASS is gone. |
+| Queue | `node scripts/studio.mjs engine-queue <slug> engine/plans/<plan>.json` | PASS pieces only: files up through the signed `engine-file` door, then `engine-pack` makes a ready photo pack with its posts at the plan's times. The studio refuses a piece without PASS, with a broken content rule or over 10 posts a channel a week, or whose slot already holds a post (each post names `<platform>:<slot>` from the piece's `slot`, else its `at`; migration 0046's unique index, so a re-run after a crash never posts twice, and a slot she skipped is never re-filled), and holds one at posting if its PASS is gone. |
 
-Labels (risk R-END-03, P&P filler exception, 19 Nov 2026): engine pieces never carry a "Made with AI"
-caption line; TikTok's own AI switch is set on any piece with an AI scene. The studio's own photo
-maker keeps R-END-03 as written. Pinned by `tests/unit/engine-packs.test.ts`.
+Labels (porch-and-party brain, 24 Nov 2026, superseding the 19 Nov rule for the picture only): every
+frame and slide of a Porch & Party piece carries a small note, "Some photos are touched up or made with
+AI" (`PHOTO_NOTE` in `src/brand.ts`, the one copy), one line about 3% of the frame high in a bottom
+corner of the safe area, below every word on screen; a brand without a `photoNote` gets none. A real
+photo (touched up or not) is "our real setup"; an AI scene is what we can set up for you, never a job we
+did (`src/plan.ts` refuses "real setup" over an AI scene; the reviewer judges every other wording).
+Captions still carry no bare "Made with AI" line (risk R-END-03, P&P filler exception) and TikTok's own
+AI switch is set on any piece with an AI scene. The studio's own photo maker keeps R-END-03 as written.
+Pinned by `tests/unit/engine-photo-note.test.ts`, `engine-plan.test.ts` and `engine-packs.test.ts`.
 
 ## Run it
 
 ```bash
+# On GitHub (how Noelle runs it): push, render there, download, then review and queue on the Mac.
+node scripts/studio.mjs engine-push sample1 engine/plans/<plan>.json      # OUTPUT <n> pictures pushed
+gh workflow run engine-render.yml -f studio=sample1 -f plan=<plan>     # then gh run download <id> -n engine-out-<plan> -D $ENGINE_OUT/<plan>
+# By hand on a Mac (only outside Noelle's runs):
 cd engine && npm ci                                      # once (Remotion; Chrome Headless Shell downloads on first render)
 node engine/render.mjs engine/plans/<plan>.json          # OUTPUT <n> pieces rendered → engine/out/<plan>/<id>/
 node engine/review.mjs engine/plans/<plan>.json          # OUTPUT <n> of <m> pieces passed review

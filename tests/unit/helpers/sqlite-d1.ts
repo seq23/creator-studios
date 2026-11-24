@@ -40,9 +40,17 @@ export function sqliteD1(): { DB: D1Database; raw: DatabaseSync } {
   for (const f of readdirSync(dir).filter((x) => x.endsWith(".sql")).sort()) raw.exec(readFileSync(path.join(dir, f), "utf8"));
   const DB = {
     prepare: (sql: string) => new Stmt(raw, sql),
+    // D1 runs a batch as one transaction: a statement that fails rolls the whole batch back.
     batch: async (stmts: Stmt[]) => {
       const out = [];
-      for (const s of stmts) out.push(await s.run());
+      raw.exec("BEGIN");
+      try {
+        for (const s of stmts) out.push(await s.run());
+        raw.exec("COMMIT");
+      } catch (e) {
+        raw.exec("ROLLBACK");
+        throw e;
+      }
       return out;
     },
     exec: async (sql: string) => {
