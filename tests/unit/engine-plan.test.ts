@@ -1,12 +1,14 @@
 // The content engine's plan check (engine/src/plan.ts): the committed plan passes, and each hard
 // rule refuses the piece that breaks it: no prices, real-only formats never take an AI scene, reels
-// never silent, the request link in every caption, no "Made with AI" caption line on engine pieces
-// (risk R-END-03 filler exception), the posting window, no picture in two neighbouring pieces.
+// never silent, the request link in every caption, no bare "Made with AI" caption line on engine
+// pieces (risk R-END-03 filler exception; the photo note's sentence is allowed, 24 Nov 2026), "our
+// real setup" never over an AI scene, the posting window, no picture in two neighbouring pieces.
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { aiScene, localToUtc, validatePlan, type Plan, type PlanPiece } from "../../engine/src/plan";
 import { FORMATS } from "../../engine/src/library";
+import { PHOTO_NOTE } from "../../engine/src/brand";
 // @ts-expect-error plain .mjs script with no types
 import { ACCOUNT_CEILING, ENGINE_NEURON_CAP, MODELS, accountsFrom, fits, usedToday } from "../../engine/imagine.mjs";
 
@@ -60,10 +62,31 @@ describe("hard rules", () => {
     expect(validatePlan(plan([base({ format: "real-montage", lines: [], pics })]), BEFORE)).toEqual([]);
     expect(validatePlan(plan([base({ format: "real-montage", lines: [], pics: [...pics.slice(0, 3), { src: "ai:x.webp" }] })]), BEFORE).join()).toMatch(/real photos only/);
   });
-  it("a reel is never silent; every caption carries the request link and no 'Made with AI' line", () => {
+  it("a reel is never silent; every caption carries the request link and no bare 'Made with AI' line", () => {
     expect(validatePlan(plan([base({ music: undefined })]), BEFORE).join()).toMatch(/silent/);
     expect(validatePlan(plan([base({ captions: { tiktok: "Tell us the date." } })]), BEFORE).join()).toMatch(/must carry/);
-    expect(validatePlan(plan([base({ captions: { tiktok: "Idea. porchandparty901.com/request\n\nMade with AI" } })]), BEFORE).join()).toMatch(/Made with AI/);
+    for (const tail of ["Made with AI", "made with ai.", "—\nMade with AI", "- Made with AI ✨"]) {
+      expect(validatePlan(plan([base({ captions: { tiktok: `Idea. porchandparty901.com/request\n\n${tail}` } })]), BEFORE).join(), tail).toMatch(/Made with AI/);
+    }
+  });
+  it("the photo note's own sentence may sit in a caption (24 Nov 2026)", () => {
+    expect(validatePlan(plan([base({ captions: { tiktok: `Idea for your porch. porchandparty901.com/request\n\n${PHOTO_NOTE}.` } })]), BEFORE)).toEqual([]);
+  });
+  it("'our real setup' is for our own jobs: refused over an AI scene, fine over real photos", () => {
+    const realPics = [{ src: "real:hotel-1.jpg" }, { src: "real:shower-1.jpg" }];
+    const says = "Our real setup from last weekend. porchandparty901.com/request";
+    // caption, hook, line and end line over a piece with an AI scene (ai: and gen: alike)
+    expect(validatePlan(plan([base({ captions: { tiktok: says } })]), BEFORE).join()).toMatch(/caption calls an AI scene our real setup/);
+    expect(validatePlan(plan([base({ captions: { tiktok: "Our real set-up. porchandparty901.com/request" } })]), BEFORE).join()).toMatch(/our real setup/);
+    expect(validatePlan(plan([base({ hook: "Our real setup" })]), BEFORE).join()).toMatch(/on-screen words call an AI scene/);
+    expect(validatePlan(plan([base({ lines: ["Real setups, Memphis"] })]), BEFORE).join()).toMatch(/on-screen words call an AI scene/);
+    expect(validatePlan(plan([base({ endLine: "Our real setup" })]), BEFORE).join()).toMatch(/on-screen words call an AI scene/);
+    const mixed = base({ format: "carousel", lines: [], music: undefined, pics: [{ src: "real:hotel-1.jpg", label: "Our real setup" }, { src: "ai:porch/x.webp", label: "Our real setup" }] });
+    expect(validatePlan(plan([mixed]), BEFORE).join()).toMatch(/on-screen words call an AI scene/);
+    // the same words over our own photos pass; a real photo's own label may say it in a mixed set
+    expect(validatePlan(plan([base({ pics: realPics, hook: "Our real setup", captions: { tiktok: says } })]), BEFORE)).toEqual([]);
+    const labelled = base({ format: "carousel", lines: [], music: undefined, pics: [{ src: "real:hotel-1.jpg", label: "Our real setup" }, { src: "ai:porch/x.webp", label: "What we can set up for you" }] });
+    expect(validatePlan(plan([labelled]), BEFORE)).toEqual([]);
   });
   it("posts only inside the window and in the future", () => {
     expect(validatePlan(plan([base({ at: "2026-11-21 11:00" })]), BEFORE).join()).toMatch(/window/);

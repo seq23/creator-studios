@@ -9,7 +9,7 @@ export type Platform = "tiktok" | "instagram" | "facebook";
 export const PLATFORMS: Platform[] = ["tiktok", "instagram", "facebook"];
 
 export interface PlanPic {
-  /** "real:<file>" = our own job photo (may be shown as our work); "ai:<path>" = an existing AI scene; "gen:<file>" = a scene engine/imagine.mjs makes from plan.generate. */
+  /** "real:<file>" = our own job photo, may be touched up (called "our real setup"); "ai:<path>" = an existing AI scene; "gen:<file>" = a scene engine/imagine.mjs makes from plan.generate (AI scenes are what we can set up, never a job we did). */
   src: string;
   fx?: number;
   fy?: number;
@@ -53,6 +53,13 @@ export const PIECE_KEY = /^[a-z0-9][a-z0-9-]{2,63}$/;
 /** No prices in clips or captions (porch-and-party brain, FILLER CONTENT). */
 const PRICE = /\$\s?\d|\b\d+\s?(dollars|bucks)\b/i;
 
+/**
+ * Her phrase for our own jobs (porch-and-party brain, 24 Nov 2026: "always say it's our real setup").
+ * It is a hard rule that it never sits over an AI scene; whether other words imply an AI scene is a
+ * job we did is the reviewer's call on the real frames (review.mjs item 5), never a keyword list.
+ */
+const OUR_JOB = /\breal\s*set[\s-]?ups?\b/i;
+
 /** A photo-real AI scene is in the piece: TikTok's own AI switch is set (risk R-END-03 filler exception). */
 export const aiScene = (p: PlanPiece): boolean => p.pics.some((x) => !x.src.startsWith("real:"));
 
@@ -95,6 +102,10 @@ export function validatePlan(plan: Plan, now: number): string[] {
     if (p.format === "this-or-that" && p.pics.length % 2) out.push(`${at} this-or-that takes pairs`);
     const words = [p.hook, ...lines, p.endLine ?? "", ...p.pics.map((x) => x.label ?? ""), ...(p.spots ?? []).map((s) => s.label)];
     if (words.some((w) => PRICE.test(w))) out.push(`${at} no prices on screen`);
+    // Words for the whole piece speak for every picture in it; a label speaks for its own picture.
+    const ai = aiScene(p);
+    const pieceWords = [p.hook, ...lines, p.endLine ?? "", ...(p.spots ?? []).map((s) => s.label)];
+    if ((ai && pieceWords.some((w) => OUR_JOB.test(w))) || p.pics.some((x) => !x.src.startsWith("real:") && OUR_JOB.test(x.label ?? ""))) out.push(`${at} on-screen words call an AI scene our real setup: AI scenes are what we can set up for you, never a job we did`);
     const utc = localToUtc(p.at, plan.tz);
     if (!utc) out.push(`${at} time must be "YYYY-MM-DD HH:mm"`);
     else {
@@ -108,7 +119,10 @@ export function validatePlan(plan: Plan, now: number): string[] {
       if (!c.trim()) out.push(`${at} no ${pl} caption`);
       if (!c.includes(plan.cta)) out.push(`${at} the ${pl} caption must carry ${plan.cta}`);
       if (PRICE.test(c)) out.push(`${at} no prices in the ${pl} caption`);
-      if (/made with ai/i.test(c)) out.push(`${at} no "Made with AI" caption line on engine pieces (R-END-03 filler exception)`);
+      // The caption carries no bare "Made with AI" label line (R-END-03 filler exception); the photo
+      // note's sentence (brand.ts PHOTO_NOTE, on the picture since 24 Nov 2026) may appear in it.
+      if (/^\s*[—-]?\s*made with ai\W*$/im.test(c)) out.push(`${at} no "Made with AI" caption line on engine pieces (R-END-03 filler exception; the small note is on the picture)`);
+      if (ai && OUR_JOB.test(c)) out.push(`${at} the ${pl} caption calls an AI scene our real setup: AI scenes are what we can set up for you, never a job we did`);
       if ((c.match(/#\w+/g) ?? []).length > 3) out.push(`${at} at most 3 hashtags on ${pl}`);
       if (c.length > 2200) out.push(`${at} the ${pl} caption is too long`);
       const slot = `${pl}|${f.kind}|${p.at.slice(0, 10)}`;

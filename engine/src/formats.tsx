@@ -2,9 +2,9 @@
 // the brand's end card. library.ts holds each format's recipe; this file only draws it.
 import React from "react";
 import { AbsoluteFill, Audio, Img, interpolate, Sequence, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
-import { BRANDS, BODY, DISPLAY, DISPLAY_VARIATION, FPS, type Brand, type SizeId } from "./brand";
+import { BRANDS, BODY, DISPLAY, DISPLAY_VARIATION, FPS, photoNoteLayout, type Brand, type SizeId } from "./brand";
 import type { FormatId } from "./library";
-import { Badge, EndCard, Headline, Line, Mark, Photo, Wordmark, useIn, useSafe, type Pic } from "./parts";
+import { Badge, EndCard, Headline, Line, Mark, Photo, PhotoNote, Wordmark, useIn, useSafe, type Pic } from "./parts";
 
 export interface Spot {
   fx: number;
@@ -522,9 +522,12 @@ const DoDont: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B }) =
 
 export const CarouselSlide: React.FC<PieceProps> = (p) => {
   const b = BRANDS[p.brand];
-  const { width } = useVideoConfig();
+  const { width, height: frameH } = useVideoConfig();
   const scale = width / 1080;
   const i = p.slide ?? 0;
+  // the cover's bottom row (wordmark, Swipe) sits above the photo note when the brand has one
+  const note = photoNoteLayout(b, { width, height: frameH }, "slide");
+  const rowBottom = Math.max(52 * scale, note ? frameH - note.textBottom : 0);
   const last = carouselSlides(p) - 1;
   if (i === last) {
     return (
@@ -561,8 +564,8 @@ export const CarouselSlide: React.FC<PieceProps> = (p) => {
         <div style={{ position: "absolute", left: 56 * scale, right: 56 * scale, top: 56 * scale, display: "flex" }}>
           <div style={{ backgroundColor: b.colors.ink, color: b.colors.ground, fontFamily: DISPLAY, fontVariationSettings: DISPLAY_VARIATION, fontWeight: 800, fontSize: 80 * scale, lineHeight: 1.04, letterSpacing: "-0.01em", padding: `${22 * scale}px ${30 * scale}px ${26 * scale}px`, borderRadius: 18 * scale, whiteSpace: "pre-line", textWrap: "balance", boxShadow: "0 12px 30px rgba(0,0,0,.25)" }}>{p.hook}</div>
         </div>
-        <div style={{ position: "absolute", right: 56 * scale, bottom: 52 * scale, fontFamily: BODY, fontWeight: 800, fontSize: 36 * scale, color: b.colors.ink, backgroundColor: b.colors.tag, borderRadius: 999, padding: `${12 * scale}px ${28 * scale}px`, border: `3px solid ${b.colors.ink}` }}>Swipe ›</div>
-        <div style={{ position: "absolute", left: 56 * scale, bottom: 52 * scale, backgroundColor: b.colors.ground, borderRadius: 999, padding: `${10 * scale}px ${24 * scale}px` }}>
+        <div style={{ position: "absolute", right: 56 * scale, bottom: rowBottom, fontFamily: BODY, fontWeight: 800, fontSize: 36 * scale, color: b.colors.ink, backgroundColor: b.colors.tag, borderRadius: 999, padding: `${12 * scale}px ${28 * scale}px`, border: `3px solid ${b.colors.ink}` }}>Swipe ›</div>
+        <div style={{ position: "absolute", left: 56 * scale, bottom: rowBottom, backgroundColor: b.colors.ground, borderRadius: 999, padding: `${10 * scale}px ${24 * scale}px` }}>
           <Wordmark brand={b} size={40 * scale} />
         </div>
       </AbsoluteFill>
@@ -632,7 +635,12 @@ export const Piece: React.FC<PieceProps> = (p) => {
       main = <DoDont p={p} b={b} B={B} />;
       break;
     case "carousel":
-      return <CarouselSlide {...p} />;
+      return (
+        <AbsoluteFill>
+          <CarouselSlide {...p} />
+          <PhotoNote brand={b} kind="slide" />
+        </AbsoluteFill>
+      );
   }
   return (
     <AbsoluteFill style={{ backgroundColor: b.colors.ink }}>
@@ -641,6 +649,7 @@ export const Piece: React.FC<PieceProps> = (p) => {
         <EndCard brand={b} line={p.endLine} />
       </Sequence>
       <Music src={p.music} total={total} />
+      <PhotoNote brand={b} kind="reel" />
     </AbsoluteFill>
   );
 };
