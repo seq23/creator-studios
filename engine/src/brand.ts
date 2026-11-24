@@ -27,7 +27,7 @@ export const BRANDS: Record<string, Brand> = {
     id: "pnp",
     name: "Porch & Party",
     plaque: "901",
-    line: "Memphis porches & parties, set up for you.",
+    line: "Memphis porches & parties,\nset up for you.",
     cta: "Check my date ›",
     ctaUrl: "porchandparty901.com/request",
     colors: { ground: "#FBF6EE", ink: "#2A1A28", inkSoft: "#5B4858", accent: "#F2B01E", tag: "#CFE8E6" },

@@ -4,7 +4,7 @@ import React from "react";
 import { AbsoluteFill, Audio, Img, interpolate, Sequence, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { BRANDS, BODY, DISPLAY, DISPLAY_VARIATION, FPS, photoNoteLayout, type Brand, type SizeId } from "./brand";
 import type { FormatId } from "./library";
-import { Badge, EndCard, Headline, Line, Mark, Photo, PhotoNote, Wordmark, useIn, useSafe, type Pic } from "./parts";
+import { Badge, EndCard, Headline, HookY, Line, Mark, Photo, PhotoNote, Wordmark, useIn, useSafe, type Pic } from "./parts";
 
 export interface Spot {
   fx: number;
@@ -26,6 +26,8 @@ export interface PieceProps {
   count?: number;
   spots?: Spot[];
   endLine?: string;
+  /** Where the hook sits, as a share of the height (plan.hookY). */
+  hookY?: number;
   /** Carousel only: which slide this still is. */
   slide?: number;
   /** Carousel cover: the first picture full-bleed (default) or the first two side by side, tagged 1 and 2. */
@@ -153,7 +155,7 @@ const Pov: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B }) => {
       <TopWash />
       <Headline brand={b} text={p.hook} hookFrame0 size={80} />
       <Sequence from={3 * B}>
-        <Line brand={b} text={p.lines[0]} y={s.bottom - 170} size={52} tone="plum" />
+        <Line brand={b} text={p.lines[0]} y={s.bottom - 190} size={62} tone="plum" />
       </Sequence>
     </AbsoluteFill>
   );
@@ -264,8 +266,10 @@ const Numbered: React.FC<{ p: PieceProps; b: Brand; B: number; steps: string[]; 
           <Fade len={6}>
             <Photo pic={pic} dur={each} zoomFrom={i % 2 ? 1.12 : 1.03} zoomTo={i % 2 ? 1.04 : 1.11} />
             <TopWash />
+            {/* top of the frame: the plain wall or sky above the subject (review 20 Nov 2026: a label low on the
+                frame covered the teddy and the gifts sign) */}
             {badges ? <Badge brand={b} n={String(i + 1)} x={s.left} y={s.top} /> : null}
-            <Line brand={b} text={steps[i] ?? ""} y={badges ? s.top + 150 : s.bottom - 220} size={56} at={3} />
+            <Line brand={b} text={steps[i] ?? ""} y={s.top + 150} size={62} at={3} />
           </Fade>
         </Sequence>
       ))}
@@ -294,7 +298,7 @@ const QuickTip: React.FC<{ p: PieceProps; b: Brand; B: number }> = ({ p, b, B })
       {p.lines.map((l, i) => (
         // one thought on screen at a time: each line replaces the one before
         <Sequence key={i} from={3 * B + i * 3 * B} durationInFrames={i < p.lines.length - 1 ? 3 * B : undefined}>
-          <Line brand={b} text={l} y={s.bottom - 230} size={62} tone="plum" />
+          <Line brand={b} text={l} y={s.bottom - 250} size={72} tone="plum" />
         </Sequence>
       ))}
     </AbsoluteFill>
@@ -533,7 +537,7 @@ export const CarouselSlide: React.FC<PieceProps> = (p) => {
     return (
       <AbsoluteFill style={{ backgroundColor: b.colors.ground, alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 44 * scale }}>
         <Wordmark brand={b} size={84 * scale} />
-        <div style={{ fontFamily: BODY, fontWeight: 700, fontSize: 52 * scale, color: b.colors.ink, textAlign: "center", maxWidth: width * 0.84, lineHeight: 1.25, textWrap: "balance" }}>{p.endLine ?? b.line}</div>
+        <div style={{ fontFamily: BODY, fontWeight: 700, fontSize: 52 * scale, color: b.colors.ink, textAlign: "center", maxWidth: width * 0.84, lineHeight: 1.25, whiteSpace: "pre-line" }}>{p.endLine ?? b.line}</div>
         <div style={{ backgroundColor: b.colors.accent, color: b.colors.ink, fontFamily: BODY, fontWeight: 800, fontSize: 48 * scale, padding: `${22 * scale}px ${44 * scale}px`, borderRadius: 16 * scale, border: `${3 * scale}px solid ${b.colors.ink}`, boxShadow: `0 ${5 * scale}px 0 ${b.colors.ink}` }}>{b.cta}</div>
         <div style={{ fontFamily: BODY, fontWeight: 700, fontSize: 50 * scale, color: b.colors.ink }}>{b.ctaUrl}</div>
       </AbsoluteFill>
@@ -644,7 +648,9 @@ export const Piece: React.FC<PieceProps> = (p) => {
   }
   return (
     <AbsoluteFill style={{ backgroundColor: b.colors.ink }}>
-      <Sequence durationInFrames={body}>{main}</Sequence>
+      <Sequence durationInFrames={body}>
+        <HookY.Provider value={p.hookY}>{main}</HookY.Provider>
+      </Sequence>
       <Sequence from={body}>
         <EndCard brand={b} line={p.endLine} />
       </Sequence>

@@ -79,7 +79,7 @@ function propsFor(p, size) {
     process.exit(1);
   }
   if (track) copyFileSync(path.join(ROOT, track.file), path.join(pub, "music", `${track.id}.mp3`));
-  return { brand: plan.brand, format: p.format, size, bpm: track?.bpm ?? 100, music: track ? `music/${track.id}.mp3` : null, pics: p.pics.map(pic), hook: p.hook, lines: p.lines ?? [], count: p.count, spots: p.spots, endLine: p.endLine, cover: p.cover };
+  return { brand: plan.brand, format: p.format, size, bpm: track?.bpm ?? 100, music: track ? `music/${track.id}.mp3` : null, pics: p.pics.map(pic), hook: p.hook, lines: p.lines ?? [], count: p.count, spots: p.spots, endLine: p.endLine, cover: p.cover, hookY: p.hookY };
 }
 
 // Pictures and music go into public/ before bundling (the bundle serves public/ as static files).
