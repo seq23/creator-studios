@@ -41,10 +41,26 @@ export function signed(secret, message, ts = Math.floor(Date.now() / 1000)) {
 
 const sha256 = (b) => createHash("sha256").update(b).digest("hex");
 
+// A dropped connection or a 5xx/429 from the Worker is tried again (4 tries, waits 1s, 3s, 9s); one
+// network blip on 23 Nov 2026 cost a whole night's queue. A 4xx (bad signature, missing file) is final.
+const TRIES = 4;
+const waitMs = (i) => Number(process.env.ENGINE_FETCH_RETRY_MS ?? 1000) * 3 ** i;
 async function get(base, secret, key) {
-  const r = await fetch(`${base}/api/ops/engine-src-file/${key}`, { headers: signed(secret, `get:${key}`) });
-  if (!r.ok) throw new Error(`${key}: ${r.status}`);
-  return Buffer.from(await r.arrayBuffer());
+  let last;
+  for (let i = 0; i < TRIES; i++) {
+    if (i) await new Promise((r) => setTimeout(r, waitMs(i - 1)));
+    let r;
+    try {
+      r = await fetch(`${base}/api/ops/engine-src-file/${key}`, { headers: signed(secret, `get:${key}`) });
+    } catch (e) {
+      last = `${key}: ${e?.message ?? e}${e?.cause ? ` (${e.cause.code ?? e.cause.message ?? e.cause})` : ""}`;
+      continue;
+    }
+    if (r.ok) return Buffer.from(await r.arrayBuffer());
+    last = `${key}: ${r.status}`;
+    if (r.status < 500 && r.status !== 429) break;
+  }
+  throw new Error(`${last} after ${TRIES} tries`.replace(/(: 4\d\d) after \d+ tries$/, "$1"));
 }
 
 /** Fetch a pushed plan and its pictures into the places the plan names. */
