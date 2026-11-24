@@ -409,7 +409,8 @@ export async function importEnginePack(env: Env, input: EnginePackInput, now = D
 /**
  * How a post is labelled. The studio's own pieces: "Made with AI" on Facebook, the platform flag on
  * Instagram and TikTok (risk R-END-03). Engine pieces (R-END-03's P&P filler exception, 19 Nov 2026):
- * no caption line ever, TikTok's own AI switch on a photo-real AI scene.
+ * no caption line ever (the small note is on the picture itself since 24 Nov 2026, engine/src/brand.ts
+ * PHOTO_NOTE), TikTok's own AI switch on a photo-real AI scene.
  */
 export function labelFor(madeBy: string, platform: Social, caption: string, aiMade: boolean): { text: string; aiFlag: boolean } {
   if (madeBy === "engine") return { text: caption, aiFlag: aiMade && platform === "tiktok" };
