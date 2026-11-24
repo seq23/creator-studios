@@ -6,7 +6,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { aiScene, localToUtc, validatePlan, type Plan, type PlanPiece } from "../../engine/src/plan";
+import { NEVER_USE, aiScene, localToUtc, validatePlan, type Plan, type PlanPiece } from "../../engine/src/plan";
 import { FORMATS } from "../../engine/src/library";
 import { PHOTO_NOTE } from "../../engine/src/brand";
 // @ts-expect-error plain .mjs script with no types
@@ -56,6 +56,18 @@ describe("hard rules", () => {
   it("no prices on screen or in captions", () => {
     expect(validatePlan(plan([base({ hook: "Porches from $350" })]), BEFORE).join()).toMatch(/no prices/);
     expect(validatePlan(plan([base({ captions: { tiktok: "Only $350. porchandparty901.com/request" } })]), BEFORE).join()).toMatch(/no prices/);
+  });
+  it("her seven never-use photos (24 Nov 2026) are refused under any prefix; her porch picks pass", () => {
+    expect(NEVER_USE.length).toBe(7);
+    for (const f of NEVER_USE) for (const k of ["ai", "real", "gen"]) expect(validatePlan(plan([base({ pics: [{ src: `${k}:${f}` }] })]), BEFORE).join()).toMatch(/never to use/);
+    expect(validatePlan(plan([base({ pics: [{ src: "ai:porch/bartlett-small-front-porch-styling-under-500.jpg" }] })]), BEFORE)).toEqual([]);
+    expect(committed.pieces.flatMap((p) => p.pics).filter((x) => NEVER_USE.includes(x.src.slice(x.src.indexOf(":") + 1)))).toEqual([]);
+  });
+  it('"Connect Four" (Hasbro) is refused on screen and in captions; "giant four-in-a-row" passes', () => {
+    expect(validatePlan(plan([base({ hook: "Cornhole or Giant Connect Four?" })]), BEFORE).join()).toMatch(/Hasbro/);
+    expect(validatePlan(plan([base({ pics: [{ src: "ai:porch/x.webp", label: "connect-4" }] })]), BEFORE).join()).toMatch(/Hasbro/);
+    expect(validatePlan(plan([base({ captions: { tiktok: "Giant Connect 4 for the yard. porchandparty901.com/request" } })]), BEFORE).join()).toMatch(/Hasbro/);
+    expect(validatePlan(plan([base({ hook: "Cornhole or giant four-in-a-row?" })]), BEFORE)).toEqual([]);
   });
   it("a real-work format never takes an AI scene", () => {
     const pics = [1, 2, 3, 4].map((i) => ({ src: `real:p${i}.jpg` }));

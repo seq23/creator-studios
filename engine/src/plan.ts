@@ -4,6 +4,7 @@
 // hard brand rules only; whether a piece reads as real, on-brand work is the reviewer's call on its
 // real frames (review.mjs), never a keyword test.
 import { formatById } from "./library";
+import neverUse from "../never-use.json";
 
 export type Platform = "tiktok" | "instagram" | "facebook";
 export const PLATFORMS: Platform[] = ["tiktok", "instagram", "facebook"];
@@ -50,6 +51,10 @@ export interface Plan {
 }
 
 export const PIECE_KEY = /^[a-z0-9][a-z0-9-]{2,63}$/;
+/** Her seven never-use photos (engine/never-use.json, 24 Nov 2026): no plan naming one renders, whoever wrote it. */
+export const NEVER_USE: readonly string[] = Object.freeze(neverUse.photos);
+/** "Connect Four" is Hasbro's; P&P says "giant four-in-a-row" (24 Nov 2026). */
+const TRADEMARK = /\bconnect[\s-]*(four|4)\b/i;
 /** No prices in clips or captions (porch-and-party brain, FILLER CONTENT). */
 const PRICE = /\$\s?\d|\b\d+\s?(dollars|bucks)\b/i;
 
@@ -96,12 +101,14 @@ export function validatePlan(plan: Plan, now: number): string[] {
     if (f.realOnly && aiScene(p)) out.push(`${at} ${f.id} shows our own work: real photos only`);
     if (p.pics.some((x) => !/^(real|ai|gen):[\w./-]+$/.test(x.src))) out.push(`${at} every picture is real:<file>, ai:<path> or gen:<file>`);
     for (const x of p.pics) if (x.src.startsWith("gen:") && !plan.generate?.[x.src.slice(4)]) out.push(`${at} ${x.src} has no prompt in generate`);
+    for (const x of p.pics) if (NEVER_USE.includes(x.src.slice(x.src.indexOf(":") + 1))) out.push(`${at} ${x.src} is a photo she ruled never to use (24 Nov 2026)`);
     if (new Set(p.pics.map((x) => x.src)).size !== p.pics.length) out.push(`${at} a picture repeats inside the piece`);
     if (f.kind === "reel" && !p.music) out.push(`${at} a reel never goes out silent`);
     if (p.format === "detail-zoom" && (p.spots?.length ?? 0) < 2) out.push(`${at} detail-zoom needs at least 2 spots`);
     if (p.format === "this-or-that" && p.pics.length % 2) out.push(`${at} this-or-that takes pairs`);
     const words = [p.hook, ...lines, p.endLine ?? "", ...p.pics.map((x) => x.label ?? ""), ...(p.spots ?? []).map((s) => s.label)];
     if (words.some((w) => PRICE.test(w))) out.push(`${at} no prices on screen`);
+    if (words.some((w) => TRADEMARK.test(w))) out.push(`${at} "Connect Four" is a Hasbro trademark: say giant four-in-a-row`);
     // Words for the whole piece speak for every picture in it; a label speaks for its own picture.
     const ai = aiScene(p);
     const pieceWords = [p.hook, ...lines, p.endLine ?? "", ...(p.spots ?? []).map((s) => s.label)];
@@ -119,6 +126,7 @@ export function validatePlan(plan: Plan, now: number): string[] {
       if (!c.trim()) out.push(`${at} no ${pl} caption`);
       if (!c.includes(plan.cta)) out.push(`${at} the ${pl} caption must carry ${plan.cta}`);
       if (PRICE.test(c)) out.push(`${at} no prices in the ${pl} caption`);
+      if (TRADEMARK.test(c)) out.push(`${at} the ${pl} caption says "Connect Four", a Hasbro trademark: say giant four-in-a-row`);
       // The caption carries no bare "Made with AI" label line (R-END-03 filler exception); the photo
       // note's sentence (brand.ts PHOTO_NOTE, on the picture since 24 Nov 2026) may appear in it.
       if (/^\s*[—-]?\s*made with ai\W*$/im.test(c)) out.push(`${at} no "Made with AI" caption line on engine pieces (R-END-03 filler exception; the small note is on the picture)`);
