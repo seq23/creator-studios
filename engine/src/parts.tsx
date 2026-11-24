@@ -42,6 +42,8 @@ export function useIn(start: number, len = 9): number {
  *  `size`): a line break is the writer's, never the box's (review 20 Nov 2026: "Here's how it / works"). */
 let measurer: CanvasRenderingContext2D | null = null;
 export function fitSize(text: string, family: string, weight: number, size: number, maxWidth: number): number {
+  // No canvas (tests stub `document`): keep the authored size rather than crash.
+  if (!measurer && typeof document?.createElement !== "function") return size;
   measurer ??= document.createElement("canvas").getContext("2d");
   if (!measurer) return size;
   measurer.font = `${weight} ${size}px ${family}`;
