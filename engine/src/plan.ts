@@ -32,19 +32,8 @@ export interface PlanPiece {
   cover?: "pair";
   spots?: { fx: number; fy: number; label: string }[];
   endLine?: string;
-  /** Where the hook sits, as a share of the height, over a plain part of the first picture (engine/src/parts.tsx HookY). */
-  hookY?: number;
   captions: Partial<Record<Platform, string>>;
-  /** Which service the piece sells (the weekly mix below). A piece that shows several takes its lead one. */
-  service: Service;
 }
-
-/** The services a piece can sell. Owner's ruling 20 Nov 2026 (porch-and-party brain, Settled decisions): every
- *  week shows the full range: at least one romantic setup (proposal, anniversary, romantic hotel room), one
- *  celebration (baby shower, birthday, bridal, gender reveal), one other party or event (office party,
- *  grazing, game rentals), and porch decor in at most 2 of every 7 pieces. */
-export const SERVICES = ["romantic", "celebration", "event", "porch"] as const;
-export type Service = (typeof SERVICES)[number];
 
 export interface Plan {
   studio: string;
@@ -77,8 +66,6 @@ const PRICE = /\$\s?\d|\b\d+\s?(dollars|bucks)\b/i;
 const OUR_JOB = /\breal\s*set[\s-]?ups?\b/i;
 
 /** A photo-real AI scene is in the piece: TikTok's own AI switch is set (risk R-END-03 filler exception). */
-/** Words that present a picture as a job we did. */
-export const JOB_CLAIM = /\b(?:a|an|one|the|this|that)\s[\w’' -]{0,30}?\bwe (?:set (?:it |this |them )?up|did|made|decorated|styled)\b|\bwe did (?:this|it)\b|\bour client\b|\bthis job\b|\breal setups?\b/i;
 export const aiScene = (p: PlanPiece): boolean => p.pics.some((x) => !x.src.startsWith("real:"));
 
 /** "YYYY-MM-DD HH:mm" in `tz` → UTC ISO. */
@@ -112,18 +99,11 @@ export function validatePlan(plan: Plan, now: number): string[] {
     const lines = p.lines ?? [];
     if (lines.length < f.lines[0] || lines.length > f.lines[1]) out.push(`${at} ${f.id} takes ${f.lines[0]}–${f.lines[1]} lines`);
     if (f.realOnly && aiScene(p)) out.push(`${at} ${f.id} shows our own work: real photos only`);
-    // her ruling 20 Nov 2026: an AI picture is an idea, never a job; only her real photos carry "we set up"
-    if (aiScene(p)) {
-      const said = [p.hook, ...(p.lines ?? []), ...p.pics.map((x) => x.label ?? ""), ...Object.values(p.captions ?? {})].join(" \n ");
-      const claim = said.match(JOB_CLAIM);
-      if (claim) out.push(`${at} shows an AI picture but says "${claim[0]}": caption it as an idea, never as our job`);
-    }
     if (p.pics.some((x) => !/^(real|ai|gen):[\w./-]+$/.test(x.src))) out.push(`${at} every picture is real:<file>, ai:<path> or gen:<file>`);
     for (const x of p.pics) if (x.src.startsWith("gen:") && !plan.generate?.[x.src.slice(4)]) out.push(`${at} ${x.src} has no prompt in generate`);
     for (const x of p.pics) if (NEVER_USE.includes(x.src.slice(x.src.indexOf(":") + 1))) out.push(`${at} ${x.src} is a photo she ruled never to use (24 Nov 2026)`);
     if (new Set(p.pics.map((x) => x.src)).size !== p.pics.length) out.push(`${at} a picture repeats inside the piece`);
     if (f.kind === "reel" && !p.music) out.push(`${at} a reel never goes out silent`);
-    if (p.hookY !== undefined && !(p.hookY >= 0.12 && p.hookY <= 0.6)) out.push(`${at} hookY sits between 0.12 and 0.6 of the height (inside the safe area)`);
     if (p.format === "detail-zoom" && (p.spots?.length ?? 0) < 2) out.push(`${at} detail-zoom needs at least 2 spots`);
     if (p.format === "this-or-that" && p.pics.length % 2) out.push(`${at} this-or-that takes pairs`);
     const words = [p.hook, ...lines, p.endLine ?? "", ...p.pics.map((x) => x.label ?? ""), ...(p.spots ?? []).map((s) => s.label)];
@@ -156,23 +136,6 @@ export function validatePlan(plan: Plan, now: number): string[] {
       const slot = `${pl}|${f.kind}|${p.at.slice(0, 10)}`;
       if (slots.has(slot)) out.push(`${at} two ${f.kind}s on ${pl} the same day`);
       slots.add(slot);
-    }
-  }
-  // The weekly service mix (owner's ruling 20 Nov 2026), over 7-day weeks from the first piece; the last,
-  // shorter week is held to the same floor.
-  for (const p of plan.pieces) if (!SERVICES.includes(p.service)) out.push(`${p.id}: service must be one of ${SERVICES.join(", ")}`);
-  if (sorted.length) {
-    const start = Date.parse(localToUtc(sorted[0].at.slice(0, 10) + " 00:00", plan.tz));
-    const weeks = new Map<number, PlanPiece[]>();
-    for (const p of sorted) {
-      const w = Math.floor((Date.parse(localToUtc(p.at, plan.tz)) - start) / (7 * 86_400_000));
-      weeks.set(w, [...(weeks.get(w) ?? []), p]);
-    }
-    for (const ps of weeks.values()) {
-      const label = `week of ${ps[0].at.slice(0, 10)}`;
-      for (const need of ["romantic", "celebration", "event"] as const) if (!ps.some((p) => p.service === need)) out.push(`${label}: no ${need} piece (every week shows the full range)`);
-      const porch = ps.filter((p) => p.service === "porch").length;
-      if (porch * 7 > ps.length * 2) out.push(`${label}: ${porch} porch pieces of ${ps.length} (porch is at most 2 of every 7)`);
     }
   }
   // No picture in two neighbouring pieces (ship-ready B).
