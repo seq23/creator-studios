@@ -56,7 +56,8 @@ async function engine() {
   // @ts-expect-error .tsx in the engine's own build (the root has no jsx setting)
   const formats = await import("../../engine/src/formats");
   const brand = await import("../../engine/src/brand"); // the copy formats.tsx reads after resetModules
-  const remotion = (await import("../../engine/node_modules/remotion")) as unknown as { cancelRender: ReturnType<typeof vi.fn>; continueRender: ReturnType<typeof vi.fn> };
+  const remotionPath = "../../engine/node_modules/remotion"; // a runtime path: the root typecheck runs before CI installs engine/
+  const remotion = (await import(/* @vite-ignore */ remotionPath)) as unknown as { cancelRender: ReturnType<typeof vi.fn>; continueRender: ReturnType<typeof vi.fn> };
   return { React, renderToStaticMarkup, formats, remotion, brand };
 }
 
