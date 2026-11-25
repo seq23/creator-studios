@@ -1,0 +1,48 @@
+name: Porch & Party Studio growth ledger
+
+on:
+  schedule:
+    - cron: "17 14 * * *"
+
+permissions:
+  contents: write
+concurrency:
+  group: porch-and-party-growth-ledger
+  cancel-in-progress: false
+
+jobs:
+  receipts:
+    if: github.ref == 'refs/heads/main'
+    environment: reviewed-main
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Read Porch & Party's confirmed Studio receipts
+        env:
+          PNP_JOB_SECRET: ${{ secrets.JOB_SHARED_SECRET_SAMPLE1 }}
+        run: node scripts/pnp-growth-receipts.mjs
+      - name: Save the receipt digests for Monday's reconciliation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/ledger/porch-and-party-posted.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'chore: refresh Porch & Party receipt digests'
+          for attempt in 1 2 3; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            sleep "$attempt"
+          done
+          echo 'NAMED STOP [PNP_RECEIPTS_UNCOMMITTED] reconciliation snapshot was not saved'
+          exit 1
+      - name: Send confirmed receipts to the growth ledger
+        uses: seq23/boss-os/.github/actions/ledger-rows@ef7270e2e758acb8dd166db4143e93c3563e228a
+        with:
+          business: porch-and-party
+          file: data/ledger/porch-and-party-posted.json
+          token: ${{ secrets.BOSS_OPEN_LOOPS_TOKEN }}

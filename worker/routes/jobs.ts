@@ -55,6 +55,35 @@ async function loadSignedJob(c: C, bodyText: string): Promise<JobDb | Response> 
   return job;
 }
 
+// This export is scoped to Porch & Party's isolated Worker and D1 binding.
+jobs.get("/pnp/receipts", async (c) => {
+  if (c.env.STUDIO_SLUG !== "sample1") return fail(c, 404, "No such route.");
+  const secret = c.env.JOB_SHARED_SECRET;
+  if (!secret || !await verifyJobMessage(secret, "pnp:receipts",
+    c.req.header("x-job-timestamp") ?? null, c.req.header("x-job-signature") ?? null)) {
+    return fail(c, 401, "Bad job signature.");
+  }
+  const since = new Date(Date.now() - 8 * 86_400_000).toISOString();
+  const { results } = await c.env.DB.prepare(
+    `SELECT platform AS channel, external_id AS platform_id, posted_at AS at
+       FROM social_posts WHERE status = 'posted' AND posted_at >= ? AND deleted_at IS NULL
+         AND external_id IS NOT NULL AND platform IN ('instagram','tiktok','facebook')
+     UNION ALL
+     SELECT platform, buffer_post_id, posted_at
+       FROM posts WHERE status = 'posted' AND posted_at >= ?
+         AND buffer_post_id IS NOT NULL AND platform IN ('instagram','tiktok','facebook')
+     ORDER BY at, channel, platform_id LIMIT 1001`,
+  ).bind(since, since).all<{ channel: string; platform_id: string; at: string }>();
+  if (results.length > 1000) return fail(c, 503, "The receipt window exceeded its limit.");
+  const receipts = await Promise.all(results.map(async ({ channel, platform_id, at }) => {
+    const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(platform_id));
+    const id = Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
+    return { channel, at, id };
+  }));
+  c.header("Cache-Control", "private, no-store");
+  return c.json(receipts);
+});
+
 jobs.get("/:id/spec", async (c) => {
   const job = await loadSignedJob(c, `spec:${c.req.param("id")}`);
   if (job instanceof Response) return job;
