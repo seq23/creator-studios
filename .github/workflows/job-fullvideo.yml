@@ -18,6 +18,8 @@ env:
 
 jobs:
   run:
+    if: github.ref == 'refs/heads/main'
+    environment: reviewed-main
     runs-on: ubuntu-latest
     # A long video: download, copy, transcribe on CPU (about a third of its length), upload. 120 min
     # is a fault detector (~4x a 30-minute video), never a budget.

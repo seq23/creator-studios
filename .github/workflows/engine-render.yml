@@ -30,7 +30,8 @@ concurrency:
 
 jobs:
   render:
-    if: github.event_name == 'workflow_dispatch'
+    environment: reviewed-main
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 90    # fault detector: ~2-3 min a reel, a 30-piece plan, plus Chrome's first download
     steps:

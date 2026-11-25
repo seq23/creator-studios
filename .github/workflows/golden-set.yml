@@ -24,6 +24,8 @@ concurrency:
 
 jobs:
   golden:
+    if: github.ref == 'refs/heads/main'
+    environment: reviewed-main
     runs-on: ubuntu-latest
     timeout-minutes: 90    # fault detector (~4x a run where the local vision model answers every picture on CPU), never a budget
     steps:
