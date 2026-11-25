@@ -44,7 +44,8 @@ env:
 
 jobs:
   run:
-    if: github.event_name == 'repository_dispatch'
+    environment: reviewed-main
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'repository_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:

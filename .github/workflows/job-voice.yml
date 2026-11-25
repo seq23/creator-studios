@@ -13,6 +13,8 @@ concurrency:
 
 jobs:
   run:
+    if: github.ref == 'refs/heads/main'
+    environment: reviewed-main
     runs-on: ubuntu-latest
     # Chatterbox on CPU: install + model download + a short narration. 90 min is a fault detector,
     # never a budget (speed on the runner is not yet proven).

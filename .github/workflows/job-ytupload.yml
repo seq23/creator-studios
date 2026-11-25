@@ -14,6 +14,8 @@ concurrency:
 
 jobs:
   run:
+    if: github.ref == 'refs/heads/main'
+    environment: reviewed-main
     runs-on: ubuntu-latest
     # Download + upload of a large video (a few GB at runner speeds takes minutes). 120 min is a fault
     # detector, never a budget; the Worker treats an upload still running after 3 hours as failed.

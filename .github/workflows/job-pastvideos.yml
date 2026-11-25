@@ -22,6 +22,8 @@ permissions:
 
 jobs:
   run:
+    if: github.ref == 'refs/heads/main'
+    environment: reviewed-main
     runs-on: ubuntu-latest
     # Up to ten short videos: download, scene cuts, transcript on CPU, a few free calls. 60 min is a
     # fault detector (~4x a normal run), never a budget.

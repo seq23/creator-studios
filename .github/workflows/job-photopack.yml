@@ -22,7 +22,8 @@ concurrency:
 
 jobs:
   run:
-    if: github.event_name == 'repository_dispatch'
+    environment: reviewed-main
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'repository_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 30    # fault detector (~4x a ten-photo pack), never a budget
     steps:
