@@ -74,7 +74,7 @@ jobs.get("/pnp/receipts", async (c) => {
          AND buffer_post_id IS NOT NULL AND platform IN ('instagram','tiktok','facebook')
      ORDER BY at, channel, platform_id LIMIT 1001`,
   ).bind(since, since).all<{ channel: string; platform_id: string; at: string }>();
-  if (results.length > 1000) return fail(c, 503, "The receipt window exceeded its limit.");
+  if (results.length > 1000) return fail(c, 500, "The receipt window exceeded its limit.");
   const receipts = await Promise.all(results.map(async ({ channel, platform_id, at }) => {
     const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(platform_id));
     const id = Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
