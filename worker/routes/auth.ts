@@ -1,5 +1,5 @@
 // Email one-time code login (section 13: "no passwords"), in EVERY studio (never open). Only the
-// owner email, the host developer (DEVELOPER_EMAIL) and the optional helper can request a code. Codes: 6 digits, 10 minutes, 5 attempts,
+// owner email, the host developer (DEVELOPER_EMAIL) and the optional helper can request a code. Codes: 6 digits, 10 minutes, 5 checks (taken atomically before the compare), 20 checks per connection per 15 minutes,
 // sent through the platform sender (services/email.ts senderFor). A sample studio's owner email is
 // claimed once through its first-login invite link (POST /invite).
 import { Hono, type Context } from "hono";
