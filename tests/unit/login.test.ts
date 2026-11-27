@@ -9,7 +9,7 @@ import path from "node:path";
 import type { Env, Vars } from "@worker/env";
 import { authMode } from "@worker/env";
 import { requireOwner, requireUser } from "@worker/lib/auth";
-import { auth } from "@worker/routes/auth";
+import { LIMIT_WINDOW_S, VERIFY_PER_IP, auth } from "@worker/routes/auth";
 import { me } from "@worker/routes/me";
 import { senderFor, sendEmail } from "@worker/services/email";
 import { sqliteD1 } from "./helpers/sqlite-d1";
@@ -230,5 +230,75 @@ describe("two senders: the platform for login codes only, the studio's own for e
     expect(recap.providerId).toMatch(/^practice_/);
     expect(calls).toHaveLength(1); // nothing else left the Worker
     expect(db.raw.prepare("SELECT light, fix_guide FROM health WHERE name = 'Email (Resend)'").get()).toEqual({ light: "grey", fix_guide: "setup-email" });
+  });
+});
+
+// Guessing the 6-digit code (security audit C, 27 Nov 2026): the attempt is taken in one statement
+// before the code is compared, so parallel /verify calls get MAX_ATTEMPTS checks in all; each
+// connection (cf-connecting-ip) gets VERIFY_PER_IP checks a 15-minute window; a stranger's tries
+// never hold the owner on her own connection past asking for a new code.
+describe("the login code cannot be guessed", () => {
+  const from = (env: Env, ip: string, body: unknown) =>
+    app.request(`${BASE}/api/auth/verify`, { method: "POST", headers: { ...json, "cf-connecting-ip": ip }, body: JSON.stringify(body) }, env);
+  const codeFor = async (env: Env, email = "o@example.com") => ((await (await post(env, "/api/auth/request", { email })).json()) as { dev_code: string }).dev_code;
+  const wrong = (code: string) => String((Number(code) + 1) % 1_000_000).padStart(6, "0");
+
+  it("thirty calls at once, the right code among the last: at most 5 checks happen, none logs in, the code is spent", async () => {
+    const env = envFor({ OWNER_EMAIL: "o@example.com" });
+    const code = await codeFor(env);
+    const bodies = Array.from({ length: 30 }, (_, i) => ({ email: "o@example.com", code: i === 29 ? code : wrong(code) }));
+    const answers = await Promise.all(bodies.map((b, i) => from(env, `203.0.113.${i + 1}`, b)));
+    const statuses = answers.map((r) => r.status);
+    expect(statuses).not.toContain(200);
+    expect(statuses.filter((s) => s === 401).length).toBeLessThanOrEqual(5);
+    expect(statuses.filter((s) => s === 429).length).toBeGreaterThanOrEqual(25);
+    expect(db.raw.prepare("SELECT attempts FROM login_codes").get()).toEqual({ attempts: 5 });
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM sessions").get()).toEqual({ n: 0 });
+    expect((await from(env, "203.0.113.200", { email: "o@example.com", code })).status).toBe(429); // the right code, too late
+  });
+
+  it("one connection gets 20 checks a window; the 21st is refused even with the right code; the owner on her own connection gets in after asking for a new code", async () => {
+    expect(VERIFY_PER_IP).toBe(20);
+    const env = envFor({ OWNER_EMAIL: "o@example.com" });
+    const first = await codeFor(env);
+    for (let i = 0; i < 20; i++) expect([401, 429]).toContain((await from(env, "198.51.100.66", { email: "o@example.com", code: wrong(first) })).status);
+    const fresh = await codeFor(env);
+    const blocked = await from(env, "198.51.100.66", { email: "o@example.com", code: fresh });
+    expect(blocked.status).toBe(429);
+    expect(((await blocked.json()) as { error: string }).error).toMatch(/from here/);
+    // The stranger's connection is spent; the owner's is not, and her new code works.
+    const owner = await from(env, "192.0.2.10", { email: "o@example.com", code: fresh });
+    expect(owner.status).toBe(200);
+    // Only a hash of the address is kept.
+    const keys = db.raw.prepare("SELECT key FROM auth_limits").all() as { key: string }[];
+    expect(keys.every((k) => /^verify:[0-9a-f]{64}$/.test(k.key))).toBe(true);
+  });
+
+  it("the window passes: the same connection may try again", async () => {
+    const env = envFor({ OWNER_EMAIL: "o@example.com" });
+    const now = Math.floor(Date.now() / 1000);
+    const { createHash: h } = await import("node:crypto");
+    const key = `verify:${h("sha256").update("ip:198.51.100.77").digest("hex")}`;
+    db.raw.prepare("INSERT INTO auth_limits (key, window_start, count) VALUES (?, ?, 99)").run(key, now - (now % LIMIT_WINDOW_S) - LIMIT_WINDOW_S);
+    const code = await codeFor(env);
+    expect((await from(env, "198.51.100.77", { email: "o@example.com", code })).status).toBe(200);
+  });
+
+  it("the right code sent twice at once logs in once", async () => {
+    const env = envFor({ OWNER_EMAIL: "o@example.com" });
+    const code = await codeFor(env);
+    const [a, b] = await Promise.all([from(env, "192.0.2.1", { email: "o@example.com", code }), from(env, "192.0.2.2", { email: "o@example.com", code })]);
+    expect([a.status, b.status].sort()).toEqual([200, 401]);
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM sessions").get()).toEqual({ n: 1 });
+  });
+
+  it("the limit store failing is a refusal, never a free check or a login", async () => {
+    const env = envFor({ OWNER_EMAIL: "o@example.com" });
+    const code = await codeFor(env);
+    const broken = { ...db.DB, prepare: (sql: string) => { if (sql.includes("auth_limits")) throw new Error("D1 down"); return db.DB.prepare(sql); } } as unknown as D1Database;
+    const r = await from({ ...env, DB: broken } as Env, "192.0.2.3", { email: "o@example.com", code });
+    expect(r.status).toBe(429);
+    expect(db.raw.prepare("SELECT attempts FROM login_codes").get()).toEqual({ attempts: 0 });
+    expect(db.raw.prepare("SELECT COUNT(*) AS n FROM sessions").get()).toEqual({ n: 0 });
   });
 });

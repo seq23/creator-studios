@@ -18,6 +18,34 @@ export const auth = new Hono<{ Bindings: Env; Variables: Vars }>();
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
+// Per connection (cf-connecting-ip, set by Cloudflare and not forgeable by the caller): at most this
+// many code checks in a 15-minute window. A stranger's tries count against their own connection,
+// never the owner's, so the owner logging in from her own connection is never held by them.
+export const VERIFY_PER_IP = 20;
+export const LIMIT_WINDOW_S = 15 * 60;
+
+/**
+ * One more call from this connection on this route, counted in ONE statement (so parallel calls
+ * cannot all read "under the limit"): true while within `max` for the current window. A store that
+ * fails is a refusal (false), never a free pass.
+ */
+async function underIpLimit(c: Context<{ Bindings: Env; Variables: Vars }>, route: string, max: number): Promise<boolean> {
+  const ip = c.req.header("cf-connecting-ip") ?? "no-ip";
+  const now = Math.floor(Date.now() / 1000);
+  const window = now - (now % LIMIT_WINDOW_S);
+  try {
+    const row = await c.env.DB.prepare(
+      `INSERT INTO auth_limits (key, window_start, count) VALUES (?, ?, 1)
+       ON CONFLICT (key) DO UPDATE SET count = CASE WHEN auth_limits.window_start = excluded.window_start THEN auth_limits.count + 1 ELSE 1 END,
+         window_start = excluded.window_start
+       RETURNING count`,
+    ).bind(`${route}:${await sha256Hex(`ip:${ip}`)}`, window).first<{ count: number }>();
+    return !!row && row.count <= max;
+  } catch (err) {
+    log.warn("auth.limit.store_failed", { route, error: err instanceof Error ? err.message : String(err) });
+    return false;
+  }
+}
 
 function sixDigits(): string {
   const n = new Uint32Array(1);
@@ -96,19 +124,25 @@ auth.post("/verify", async (c) => {
   const email = body?.email?.trim().toLowerCase();
   const code = body?.code?.replace(/\D/g, "");
   if (!isEmail(email) || !code || code.length !== 6) return fail(c, 400, "Enter the 6-digit code from your email.");
+  if (!(await underIpLimit(c, "verify", VERIFY_PER_IP))) return fail(c, 429, "Too many tries from here. Wait 15 minutes, then request a new code.");
   const row = await c.env.DB.prepare("SELECT id, code_hash, expires_at, attempts, used_at FROM login_codes WHERE email = ? ORDER BY created_at DESC LIMIT 1")
     .bind(email)
     .first<{ id: string; code_hash: string; expires_at: string; attempts: number; used_at: string | null }>();
   if (!row || row.used_at || row.expires_at < nowIso()) return fail(c, 401, "That code has expired. Request a new one.");
-  if (row.attempts >= MAX_ATTEMPTS) return fail(c, 429, "Too many tries. Request a new code.");
+  // The try is taken BEFORE the code is compared, in one statement: at most MAX_ATTEMPTS checks of a
+  // code ever happen, however many calls arrive at once (the old read-then-write let parallel calls
+  // all read attempts < 5 before any increment landed).
+  const taken = await c.env.DB.prepare("UPDATE login_codes SET attempts = attempts + 1 WHERE id = ? AND attempts < ? AND used_at IS NULL RETURNING attempts")
+    .bind(row.id, MAX_ATTEMPTS)
+    .first<{ attempts: number }>();
+  if (!taken) return fail(c, 429, "Too many tries. Request a new code.");
   const ok = row.code_hash === (await sha256Hex(`${email}:${code}`));
-  if (!ok) {
-    await c.env.DB.prepare("UPDATE login_codes SET attempts = attempts + 1 WHERE id = ?").bind(row.id).run();
-    return fail(c, 401, "That code does not match. Check the email and try again.");
-  }
+  if (!ok) return fail(c, 401, "That code does not match. Check the email and try again.");
   const role = await allowedRole(c.env, email);
   if (!role) return fail(c, 403, "This email is not allowed to log in.");
-  await c.env.DB.prepare("UPDATE login_codes SET used_at = ? WHERE id = ?").bind(nowIso(), row.id).run();
+  // Used once: only the call that marks it gets the session.
+  const used = await c.env.DB.prepare("UPDATE login_codes SET used_at = ? WHERE id = ? AND used_at IS NULL RETURNING id").bind(nowIso(), row.id).first<{ id: string }>();
+  if (!used) return fail(c, 401, "That code has expired. Request a new one.");
   const user = await ensureUser(c.env, email, role);
   await createSession(c, user);
   log.info("auth.login", { role });
